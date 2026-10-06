@@ -3,17 +3,14 @@ import * as allure from "allure-js-commons";
 import { OAuthAppsClient } from "@api/rest/clients/oauth-apps-client";
 import { uniqueId } from "@core/unique-id";
 import { newPassword } from "@dataset/builders/security";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Platform / OAuth Apps");
 });
 
 test.describe("OAuth apps (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create an OAuth app", async ({ httpClient, cleanupStack }) => {
     const oauthAppsClient = new OAuthAppsClient(httpClient);

@@ -2,16 +2,14 @@ import type { PriceData, PricelistAssignmentData, PricelistData } from "@api/res
 
 import { uniqueId } from "@core/unique-id";
 
-import { SEEDED_CATALOG_ID } from "./catalog";
-
-export const PRICELIST_CURRENCY = "USD";
+import { SEEDED_CATALOG_ID, SEEDED_CURRENCY } from "../seeded";
 
 export function newPricelist(name = uniqueId("test-pricelist")): PricelistData {
-  return { name, currency: PRICELIST_CURRENCY };
+  return { name, currency: SEEDED_CURRENCY };
 }
 
 export function newPrice(pricelistId: string, productId: string, list: number): PriceData {
-  return { pricelistId, productId, list, minQuantity: 1, currency: PRICELIST_CURRENCY };
+  return { pricelistId, productId, list, minQuantity: 1, currency: SEEDED_CURRENCY };
 }
 
 export function newPricelistAssignment(

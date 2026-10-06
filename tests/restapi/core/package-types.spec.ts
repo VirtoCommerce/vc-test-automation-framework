@@ -2,17 +2,14 @@ import * as allure from "allure-js-commons";
 
 import { PackageTypesClient } from "@api/rest/clients/package-types-client";
 import { uniqueId } from "@core/unique-id";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Core / Package Types");
 });
 
 test.describe("package types (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a package type", async ({ httpClient, cleanupStack }) => {
     const packageTypesClient = new PackageTypesClient(httpClient);

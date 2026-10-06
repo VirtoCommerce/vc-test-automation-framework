@@ -24,7 +24,6 @@ type Documents = {
   "fragment Currency on CurrencyType {\n  code\n}": typeof types.CurrencyFragmentDoc;
   "fragment CustomIdentityResult on CustomIdentityResultType {\n  succeeded\n  errors {\n    code\n    parameter\n    description\n  }\n}": typeof types.CustomIdentityResultFragmentDoc;
   "fragment GiftItem on GiftItemType {\n  id\n  quantity\n  productId\n  name\n  lineItemId\n}": typeof types.GiftItemFragmentDoc;
-  "fragment IdentityResult on IdentityResultType {\n  succeeded\n  errors {\n    code\n    description\n  }\n}": typeof types.IdentityResultFragmentDoc;
   "fragment Language on LanguageType {\n  cultureName\n  nativeName\n}": typeof types.LanguageFragmentDoc;
   "fragment LineItem on LineItemType {\n  id\n  sku\n  productId\n  name\n  quantity\n  listPrice {\n    ...Money\n  }\n  salePrice {\n    ...Money\n  }\n  placedPrice {\n    ...Money\n  }\n  extendedPrice {\n    ...Money\n  }\n  discountAmount {\n    ...Money\n  }\n  selectedForCheckout\n  isValid\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n  configurationItems {\n    ...CartConfigurationItem\n  }\n}": typeof types.LineItemFragmentDoc;
   "fragment MemberAddress on MemberAddressType {\n  id\n  key\n  isDefault\n  isFavorite\n  city\n  countryCode\n  countryName\n  email\n  firstName\n  middleName\n  lastName\n  line1\n  line2\n  name\n  organization\n  phone\n  postalCode\n  regionId\n  regionName\n  zip\n  outerId\n  description\n  addressType\n}": typeof types.MemberAddressFragmentDoc;
@@ -83,12 +82,10 @@ type Documents = {
   "query Category($id: String!, $storeId: String!, $userId: String, $cultureName: String, $currencyCode: String) {\n  category(\n    id: $id\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n  ) {\n    ...Category\n  }\n}": typeof types.CategoryDocument;
   "mutation AddAddressToFavorites($command: AddAddressToFavoritesCommandType!) {\n  addAddressToFavorites(command: $command)\n}": typeof types.AddAddressToFavoritesDocument;
   "mutation ChangeOrganizationContactRole($command: InputChangeOrganizationContactRoleType!) {\n  changeOrganizationContactRole(command: $command) {\n    ...CustomIdentityResult\n  }\n}": typeof types.ChangeOrganizationContactRoleDocument;
-  "mutation DeleteContact($command: InputDeleteContactType!) {\n  deleteContact(command: $command)\n}": typeof types.DeleteContactDocument;
   "mutation DeleteMemberAddresses($command: InputDeleteMemberAddressType!) {\n  deleteMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}": typeof types.DeleteMemberAddressesDocument;
   "query GetContactAddresses($id: String!) {\n  contact(id: $id) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}": typeof types.GetContactAddressesDocument;
   "query GetContactLockStatus($id: String!) {\n  contact(id: $id) {\n    isLockedInOrganization\n  }\n}": typeof types.GetContactLockStatusDocument;
   "query GetContactRolesInOrganization($id: String!) {\n  contact(id: $id) {\n    rolesInOrganization {\n      id\n      name\n    }\n  }\n}": typeof types.GetContactRolesInOrganizationDocument;
-  "query GetContact($id: String!) {\n  contact(id: $id) {\n    ...Contact\n  }\n}": typeof types.GetContactDocument;
   "query GetCurrentCustomerAddresses($after: String, $first: Int, $countryCodes: [String], $regionIds: [String], $cities: [String], $keyword: String, $sort: String) {\n  currentCustomerAddresses(\n    after: $after\n    first: $first\n    countryCodes: $countryCodes\n    regionIds: $regionIds\n    cities: $cities\n    keyword: $keyword\n    sort: $sort\n  ) {\n    totalCount\n    items {\n      ...MemberAddress\n    }\n  }\n}": typeof types.GetCurrentCustomerAddressesDocument;
   "query GetCurrentOrganizationAddresses($after: String, $first: Int, $countryCodes: [String], $regionIds: [String], $cities: [String], $keyword: String, $sort: String) {\n  currentOrganizationAddresses(\n    after: $after\n    first: $first\n    countryCodes: $countryCodes\n    regionIds: $regionIds\n    cities: $cities\n    keyword: $keyword\n    sort: $sort\n  ) {\n    totalCount\n    items {\n      ...MemberAddress\n    }\n  }\n}": typeof types.GetCurrentOrganizationAddressesDocument;
   "query GetOrganizationContacts($organizationId: String!, $searchPhrase: String, $sort: String, $first: Int, $after: String) {\n  organization(id: $organizationId) {\n    contacts(searchPhrase: $searchPhrase, sort: $sort, first: $first, after: $after) {\n      items {\n        ...Contact\n      }\n    }\n  }\n}": typeof types.GetOrganizationContactsDocument;
@@ -99,7 +96,6 @@ type Documents = {
   "mutation UnlockOrganizationContact($command: InputLockUnlockOrganizationContactType!) {\n  unlockOrganizationContact(command: $command) {\n    ...Contact\n  }\n}": typeof types.UnlockOrganizationContactDocument;
   "mutation UpdateMemberAddresses($command: InputUpdateMemberAddressType!) {\n  updateMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}": typeof types.UpdateMemberAddressesDocument;
   "query Order($number: String, $cultureName: String) {\n  order(number: $number, cultureName: $cultureName) {\n    ...Order\n  }\n}": typeof types.OrderDocument;
-  "query Orders($userId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  orders(\n    userId: $userId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}": typeof types.OrdersDocument;
   "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}": typeof types.OrganizationOrdersDocument;
   "query PageContext($storeId: String, $userId: String, $cultureName: String, $permalink: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    permalink: $permalink\n    organizationId: $organizationId\n  ) {\n    ...PageContext\n  }\n}": typeof types.PageContextDocument;
   "query CartPickupLocations($cartId: String!, $storeId: String!, $cultureName: String!, $keyword: String, $sort: String, $first: Int, $after: String, $facet: String, $filter: String) {\n  cartPickupLocations(\n    cartId: $cartId\n    storeId: $storeId\n    cultureName: $cultureName\n    keyword: $keyword\n    sort: $sort\n    first: $first\n    after: $after\n    facet: $facet\n    filter: $filter\n  ) {\n    items {\n      ...ProductPickupLocation\n    }\n  }\n}": typeof types.CartPickupLocationsDocument;
@@ -109,7 +105,6 @@ type Documents = {
   "query ProductConfiguration($configurableProductId: String!, $storeId: String!, $userId: String, $cultureName: String, $currencyCode: String) {\n  productConfiguration(\n    configurableProductId: $configurableProductId\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n  ) {\n    ...ProductConfiguration\n  }\n}": typeof types.ProductConfigurationDocument;
   "query Product($id: String!, $storeId: String!, $userId: String, $cultureName: String, $currencyCode: String) {\n  product(\n    id: $id\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n  ) {\n    ...Product\n  }\n}": typeof types.ProductDocument;
   "query Products($storeId: String!, $userId: String, $cultureName: String, $currencyCode: String, $query: String, $filter: String, $sort: String, $first: Int, $after: String) {\n  products(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n    query: $query\n    filter: $filter\n    sort: $sort\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Product\n    }\n  }\n}": typeof types.ProductsDocument;
-  "mutation CancelQuoteRequest($command: CancelQuoteCommandType!) {\n  cancelQuoteRequest(command: $command) {\n    ...Quote\n  }\n}": typeof types.CancelQuoteRequestDocument;
   "mutation ChangeQuoteComment($command: ChangeQuoteCommentCommandType!) {\n  changeQuoteComment(command: $command) {\n    ...Quote\n  }\n}": typeof types.ChangeQuoteCommentDocument;
   "mutation ChangeQuoteItemQuantity($command: ChangeQuoteItemQuantityCommandType!) {\n  changeQuoteItemQuantity(command: $command) {\n    ...Quote\n  }\n}": typeof types.ChangeQuoteItemQuantityDocument;
   "mutation CreateQuoteFromCart($command: CreateQuoteFromCartCommandType!) {\n  createQuoteFromCart(command: $command) {\n    ...Quote\n  }\n}": typeof types.CreateQuoteFromCartDocument;
@@ -122,7 +117,6 @@ type Documents = {
   "mutation MoveFromSavedForLater($command: InputSaveForLaterType!) {\n  moveFromSavedForLater(command: $command) {\n    ...CartWithList\n  }\n}": typeof types.MoveFromSavedForLaterDocument;
   "mutation MoveToSavedForLater($command: InputSaveForLaterType!) {\n  moveToSavedForLater(command: $command) {\n    ...CartWithList\n  }\n}": typeof types.MoveToSavedForLaterDocument;
   "query SlugInfo($storeId: String, $slug: String, $permalink: String, $userId: String, $cultureName: String) {\n  slugInfo(\n    storeId: $storeId\n    slug: $slug\n    permalink: $permalink\n    userId: $userId\n    cultureName: $cultureName\n  ) {\n    ...SlugInfo\n  }\n}": typeof types.SlugInfoDocument;
-  "mutation AddBulkItemToShoppingList($command: InputAddWishlistBulkItemType!) {\n  addWishlistBulkItem(command: $command) {\n    wishlists {\n      ...ShoppingList\n    }\n  }\n}": typeof types.AddBulkItemToShoppingListDocument;
   "mutation AddItemsToShoppingList($command: InputAddWishlistItemsType!) {\n  addWishlistItems(command: $command) {\n    ...ShoppingList\n  }\n}": typeof types.AddItemsToShoppingListDocument;
   "mutation ChangeShoppingList($command: InputChangeWishlistType!) {\n  changeWishlist(command: $command) {\n    ...ShoppingList\n  }\n}": typeof types.ChangeShoppingListDocument;
   "mutation CreateShoppingList($command: InputCreateWishlistType!) {\n  createWishlist(command: $command) {\n    ...ShoppingList\n  }\n}": typeof types.CreateShoppingListDocument;
@@ -131,7 +125,6 @@ type Documents = {
   "query GetShoppingLists($storeId: String, $userId: String, $currencyCode: String, $cultureName: String) {\n  wishlists(\n    storeId: $storeId\n    userId: $userId\n    currencyCode: $currencyCode\n    cultureName: $cultureName\n  ) {\n    items {\n      ...ShoppingList\n    }\n  }\n}": typeof types.GetShoppingListsDocument;
   "mutation RemoveItemsFromShoppingList($command: InputRemoveWishlistItemsType!) {\n  removeWishlistItems(command: $command) {\n    ...ShoppingList\n  }\n}": typeof types.RemoveItemsFromShoppingListDocument;
   "mutation UpdateShoppingListItems($command: InputUpdateWishlistItemsType!) {\n  updateWishListItems(command: $command) {\n    ...ShoppingList\n  }\n}": typeof types.UpdateShoppingListItemsDocument;
-  "mutation DeleteUsers($command: InputDeleteUserType!) {\n  deleteUsers(command: $command) {\n    ...IdentityResult\n  }\n}": typeof types.DeleteUsersDocument;
   "query GetMe {\n  me {\n    ...User\n  }\n}": typeof types.GetMeDocument;
   "query GetUser($userName: String, $email: String, $id: String) {\n  user(userName: $userName, email: $email, id: $id) {\n    ...User\n  }\n}": typeof types.GetUserDocument;
   "mutation InviteUser($command: InputInviteUserType!) {\n  inviteUser(command: $command) {\n    ...CustomIdentityResult\n  }\n}": typeof types.InviteUserDocument;
@@ -159,8 +152,6 @@ const documents: Documents = {
     types.CustomIdentityResultFragmentDoc,
   "fragment GiftItem on GiftItemType {\n  id\n  quantity\n  productId\n  name\n  lineItemId\n}":
     types.GiftItemFragmentDoc,
-  "fragment IdentityResult on IdentityResultType {\n  succeeded\n  errors {\n    code\n    description\n  }\n}":
-    types.IdentityResultFragmentDoc,
   "fragment Language on LanguageType {\n  cultureName\n  nativeName\n}": types.LanguageFragmentDoc,
   "fragment LineItem on LineItemType {\n  id\n  sku\n  productId\n  name\n  quantity\n  listPrice {\n    ...Money\n  }\n  salePrice {\n    ...Money\n  }\n  placedPrice {\n    ...Money\n  }\n  extendedPrice {\n    ...Money\n  }\n  discountAmount {\n    ...Money\n  }\n  selectedForCheckout\n  isValid\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n  configurationItems {\n    ...CartConfigurationItem\n  }\n}":
     types.LineItemFragmentDoc,
@@ -271,8 +262,6 @@ const documents: Documents = {
     types.AddAddressToFavoritesDocument,
   "mutation ChangeOrganizationContactRole($command: InputChangeOrganizationContactRoleType!) {\n  changeOrganizationContactRole(command: $command) {\n    ...CustomIdentityResult\n  }\n}":
     types.ChangeOrganizationContactRoleDocument,
-  "mutation DeleteContact($command: InputDeleteContactType!) {\n  deleteContact(command: $command)\n}":
-    types.DeleteContactDocument,
   "mutation DeleteMemberAddresses($command: InputDeleteMemberAddressType!) {\n  deleteMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}":
     types.DeleteMemberAddressesDocument,
   "query GetContactAddresses($id: String!) {\n  contact(id: $id) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}":
@@ -281,7 +270,6 @@ const documents: Documents = {
     types.GetContactLockStatusDocument,
   "query GetContactRolesInOrganization($id: String!) {\n  contact(id: $id) {\n    rolesInOrganization {\n      id\n      name\n    }\n  }\n}":
     types.GetContactRolesInOrganizationDocument,
-  "query GetContact($id: String!) {\n  contact(id: $id) {\n    ...Contact\n  }\n}": types.GetContactDocument,
   "query GetCurrentCustomerAddresses($after: String, $first: Int, $countryCodes: [String], $regionIds: [String], $cities: [String], $keyword: String, $sort: String) {\n  currentCustomerAddresses(\n    after: $after\n    first: $first\n    countryCodes: $countryCodes\n    regionIds: $regionIds\n    cities: $cities\n    keyword: $keyword\n    sort: $sort\n  ) {\n    totalCount\n    items {\n      ...MemberAddress\n    }\n  }\n}":
     types.GetCurrentCustomerAddressesDocument,
   "query GetCurrentOrganizationAddresses($after: String, $first: Int, $countryCodes: [String], $regionIds: [String], $cities: [String], $keyword: String, $sort: String) {\n  currentOrganizationAddresses(\n    after: $after\n    first: $first\n    countryCodes: $countryCodes\n    regionIds: $regionIds\n    cities: $cities\n    keyword: $keyword\n    sort: $sort\n  ) {\n    totalCount\n    items {\n      ...MemberAddress\n    }\n  }\n}":
@@ -302,8 +290,6 @@ const documents: Documents = {
     types.UpdateMemberAddressesDocument,
   "query Order($number: String, $cultureName: String) {\n  order(number: $number, cultureName: $cultureName) {\n    ...Order\n  }\n}":
     types.OrderDocument,
-  "query Orders($userId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  orders(\n    userId: $userId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}":
-    types.OrdersDocument,
   "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}":
     types.OrganizationOrdersDocument,
   "query PageContext($storeId: String, $userId: String, $cultureName: String, $permalink: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    permalink: $permalink\n    organizationId: $organizationId\n  ) {\n    ...PageContext\n  }\n}":
@@ -322,8 +308,6 @@ const documents: Documents = {
     types.ProductDocument,
   "query Products($storeId: String!, $userId: String, $cultureName: String, $currencyCode: String, $query: String, $filter: String, $sort: String, $first: Int, $after: String) {\n  products(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n    query: $query\n    filter: $filter\n    sort: $sort\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Product\n    }\n  }\n}":
     types.ProductsDocument,
-  "mutation CancelQuoteRequest($command: CancelQuoteCommandType!) {\n  cancelQuoteRequest(command: $command) {\n    ...Quote\n  }\n}":
-    types.CancelQuoteRequestDocument,
   "mutation ChangeQuoteComment($command: ChangeQuoteCommentCommandType!) {\n  changeQuoteComment(command: $command) {\n    ...Quote\n  }\n}":
     types.ChangeQuoteCommentDocument,
   "mutation ChangeQuoteItemQuantity($command: ChangeQuoteItemQuantityCommandType!) {\n  changeQuoteItemQuantity(command: $command) {\n    ...Quote\n  }\n}":
@@ -348,8 +332,6 @@ const documents: Documents = {
     types.MoveToSavedForLaterDocument,
   "query SlugInfo($storeId: String, $slug: String, $permalink: String, $userId: String, $cultureName: String) {\n  slugInfo(\n    storeId: $storeId\n    slug: $slug\n    permalink: $permalink\n    userId: $userId\n    cultureName: $cultureName\n  ) {\n    ...SlugInfo\n  }\n}":
     types.SlugInfoDocument,
-  "mutation AddBulkItemToShoppingList($command: InputAddWishlistBulkItemType!) {\n  addWishlistBulkItem(command: $command) {\n    wishlists {\n      ...ShoppingList\n    }\n  }\n}":
-    types.AddBulkItemToShoppingListDocument,
   "mutation AddItemsToShoppingList($command: InputAddWishlistItemsType!) {\n  addWishlistItems(command: $command) {\n    ...ShoppingList\n  }\n}":
     types.AddItemsToShoppingListDocument,
   "mutation ChangeShoppingList($command: InputChangeWishlistType!) {\n  changeWishlist(command: $command) {\n    ...ShoppingList\n  }\n}":
@@ -366,8 +348,6 @@ const documents: Documents = {
     types.RemoveItemsFromShoppingListDocument,
   "mutation UpdateShoppingListItems($command: InputUpdateWishlistItemsType!) {\n  updateWishListItems(command: $command) {\n    ...ShoppingList\n  }\n}":
     types.UpdateShoppingListItemsDocument,
-  "mutation DeleteUsers($command: InputDeleteUserType!) {\n  deleteUsers(command: $command) {\n    ...IdentityResult\n  }\n}":
-    types.DeleteUsersDocument,
   "query GetMe {\n  me {\n    ...User\n  }\n}": types.GetMeDocument,
   "query GetUser($userName: String, $email: String, $id: String) {\n  user(userName: $userName, email: $email, id: $id) {\n    ...User\n  }\n}":
     types.GetUserDocument,
@@ -447,12 +427,6 @@ export function graphql(
 export function graphql(
   source: "fragment GiftItem on GiftItemType {\n  id\n  quantity\n  productId\n  name\n  lineItemId\n}",
 ): typeof import("./graphql").GiftItemFragmentDoc;
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(
-  source: "fragment IdentityResult on IdentityResultType {\n  succeeded\n  errors {\n    code\n    description\n  }\n}",
-): typeof import("./graphql").IdentityResultFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -805,12 +779,6 @@ export function graphql(
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(
-  source: "mutation DeleteContact($command: InputDeleteContactType!) {\n  deleteContact(command: $command)\n}",
-): typeof import("./graphql").DeleteContactDocument;
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(
   source: "mutation DeleteMemberAddresses($command: InputDeleteMemberAddressType!) {\n  deleteMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}",
 ): typeof import("./graphql").DeleteMemberAddressesDocument;
 /**
@@ -831,12 +799,6 @@ export function graphql(
 export function graphql(
   source: "query GetContactRolesInOrganization($id: String!) {\n  contact(id: $id) {\n    rolesInOrganization {\n      id\n      name\n    }\n  }\n}",
 ): typeof import("./graphql").GetContactRolesInOrganizationDocument;
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(
-  source: "query GetContact($id: String!) {\n  contact(id: $id) {\n    ...Contact\n  }\n}",
-): typeof import("./graphql").GetContactDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -901,12 +863,6 @@ export function graphql(
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(
-  source: "query Orders($userId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  orders(\n    userId: $userId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}",
-): typeof import("./graphql").OrdersDocument;
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(
   source: "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}",
 ): typeof import("./graphql").OrganizationOrdersDocument;
 /**
@@ -957,12 +913,6 @@ export function graphql(
 export function graphql(
   source: "query Products($storeId: String!, $userId: String, $cultureName: String, $currencyCode: String, $query: String, $filter: String, $sort: String, $first: Int, $after: String) {\n  products(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n    query: $query\n    filter: $filter\n    sort: $sort\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Product\n    }\n  }\n}",
 ): typeof import("./graphql").ProductsDocument;
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(
-  source: "mutation CancelQuoteRequest($command: CancelQuoteCommandType!) {\n  cancelQuoteRequest(command: $command) {\n    ...Quote\n  }\n}",
-): typeof import("./graphql").CancelQuoteRequestDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -1039,12 +989,6 @@ export function graphql(
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(
-  source: "mutation AddBulkItemToShoppingList($command: InputAddWishlistBulkItemType!) {\n  addWishlistBulkItem(command: $command) {\n    wishlists {\n      ...ShoppingList\n    }\n  }\n}",
-): typeof import("./graphql").AddBulkItemToShoppingListDocument;
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(
   source: "mutation AddItemsToShoppingList($command: InputAddWishlistItemsType!) {\n  addWishlistItems(command: $command) {\n    ...ShoppingList\n  }\n}",
 ): typeof import("./graphql").AddItemsToShoppingListDocument;
 /**
@@ -1089,12 +1033,6 @@ export function graphql(
 export function graphql(
   source: "mutation UpdateShoppingListItems($command: InputUpdateWishlistItemsType!) {\n  updateWishListItems(command: $command) {\n    ...ShoppingList\n  }\n}",
 ): typeof import("./graphql").UpdateShoppingListItemsDocument;
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(
-  source: "mutation DeleteUsers($command: InputDeleteUserType!) {\n  deleteUsers(command: $command) {\n    ...IdentityResult\n  }\n}",
-): typeof import("./graphql").DeleteUsersDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

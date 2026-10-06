@@ -3,6 +3,8 @@ import type { WithRequired } from "@core/required-fields";
 
 import { uniqueId } from "@core/unique-id";
 
+import { TEST_ADDRESS } from "./address";
+
 export type PickupLocationDraft = WithRequired<PickupLocationData, "id" | "storeId" | "name">;
 
 export interface PickupLocationSources {
@@ -29,10 +31,10 @@ export function newPickupLocation(
     storageDays: 7,
     address: {
       city: sources.city,
-      countryCode: "USA",
-      countryName: "United States",
+      countryCode: TEST_ADDRESS.countryCode,
+      countryName: TEST_ADDRESS.countryName,
       line1: `1 ${sources.city} Test Street`,
-      postalCode: "10001",
+      postalCode: TEST_ADDRESS.postalCode,
       ...sources.address,
     },
   };

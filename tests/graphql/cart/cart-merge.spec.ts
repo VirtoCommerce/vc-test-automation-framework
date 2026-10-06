@@ -1,19 +1,20 @@
 import * as allure from "allure-js-commons";
 
-import { AddItemsCartDocument, MergeCartDocument, ProductConfigurationDocument } from "@api/graphql/generated/graphql";
-import { GraphqlClient } from "@api/graphql/graphql-client";
-import { requireFields } from "@core/required-fields";
+import { AddItemsCartDocument, MergeCartDocument } from "@api/graphql/generated/graphql";
 import { uniqueId } from "@core/unique-id";
 import { arrangeCart, cartScope, lineItemFor, registerCartRemoval, requireCart } from "@dataset/arrange/cart";
-import { optionOfEachSection } from "@dataset/builders/product-configuration";
+import { getProductConfiguration } from "@dataset/arrange/catalog";
+import { signInGraphqlClient } from "@dataset/arrange/customer-account";
+import { configuredSku, optionOfEachSection } from "@dataset/builders/product-configuration";
 import { getCredentials } from "@dataset/dataset";
 import { getFrontendContext } from "@dataset/frontend-context";
+import { SEEDED_PRODUCTS, SEEDED_USERS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const REGISTERED_USERNAME = "acme_store_employee_1@acme.com";
-const PRODUCT_IDS = ["smartphone-apple-iphone-17-256gb-black", "smartphone-apple-iphone-17-256gb-mist-blue"] as const;
-const REGULAR_PRODUCT_ID = "smartphone-apple-iphone-17-256gb-black";
-const CONFIGURABLE_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+const REGISTERED_USERNAME = SEEDED_USERS.storeEmployee;
+const PRODUCT_IDS = [SEEDED_PRODUCTS.iphone17Black, SEEDED_PRODUCTS.iphone17MistBlue] as const;
+const REGULAR_PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
+const CONFIGURABLE_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
 
 test.beforeEach(async () => {
   await allure.feature("Cart / Merge");
@@ -35,9 +36,12 @@ test.describe("cart merge (anonymous, then signed in)", () => {
         { productId: PRODUCT_IDS[1], quantity: 1 },
       ]));
     const userContext = getFrontendContext(dataset, env.storeId, REGISTERED_USERNAME, frontendContext.userId);
-    const userClient = await test.step(`arrange: sign in as ${REGISTERED_USERNAME}`, async () =>
-      new GraphqlClient(
-        await tokenManager.authorize(anonymousHttpClient, getCredentials(dataset, REGISTERED_USERNAME), env.storeId),
+    const userClient = await test.step(`arrange: sign in as ${REGISTERED_USERNAME}`, () =>
+      signInGraphqlClient(
+        tokenManager,
+        anonymousHttpClient,
+        getCredentials(dataset, REGISTERED_USERNAME),
+        env.storeId,
       ));
     const cartName = uniqueId("test-cart");
 
@@ -63,22 +67,20 @@ test.describe("cart merge (anonymous, then signed in)", () => {
     dataset,
     env,
   }) => {
-    const { productConfiguration } = await test.step("arrange: configuration of the configurable product", () =>
-      graphqlClient.execute(ProductConfigurationDocument, {
-        configurableProductId: CONFIGURABLE_PRODUCT_ID,
-        ...cartScope(frontendContext),
-      }));
-    const selection = optionOfEachSection(
-      requireFields(productConfiguration ?? undefined, ["configurationSections"], "Product configuration"),
-    );
+    const configuration = await test.step("arrange: configuration of the configurable product", () =>
+      getProductConfiguration(graphqlClient, frontendContext, CONFIGURABLE_PRODUCT_ID));
+    const selection = optionOfEachSection(configuration);
     const anonymousCart = await test.step("arrange: anonymous cart with the configured product", () =>
       arrangeCart(graphqlClient, cleanupStack, frontendContext, [{ productId: CONFIGURABLE_PRODUCT_ID, quantity: 1 }], {
         configurationSections: selection,
       }));
     const userContext = getFrontendContext(dataset, env.storeId, REGISTERED_USERNAME, frontendContext.userId);
-    const userClient = await test.step(`arrange: sign in as ${REGISTERED_USERNAME}`, async () =>
-      new GraphqlClient(
-        await tokenManager.authorize(anonymousHttpClient, getCredentials(dataset, REGISTERED_USERNAME), env.storeId),
+    const userClient = await test.step(`arrange: sign in as ${REGISTERED_USERNAME}`, () =>
+      signInGraphqlClient(
+        tokenManager,
+        anonymousHttpClient,
+        getCredentials(dataset, REGISTERED_USERNAME),
+        env.storeId,
       ));
     const cartName = uniqueId("test-cart");
     const { addItemsCart } = await test.step("arrange: user's cart with a regular product", () =>
@@ -96,7 +98,7 @@ test.describe("cart merge (anonymous, then signed in)", () => {
       expect(mergeCart?.itemsCount).toBe(2);
       expect(lineItemFor(mergeCart, REGULAR_PRODUCT_ID).quantity).toBe(2);
       const configuredItem = lineItemFor(mergeCart, CONFIGURABLE_PRODUCT_ID);
-      expect(configuredItem.sku).toBe(`Configuration-${CONFIGURABLE_PRODUCT_ID}`);
+      expect(configuredItem.sku).toBe(configuredSku(CONFIGURABLE_PRODUCT_ID));
       expect(new Set(configuredItem.configurationItems?.map((item) => item?.productId))).toEqual(
         new Set(selection.map(({ option }) => option?.productId)),
       );

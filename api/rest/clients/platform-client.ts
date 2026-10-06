@@ -1,21 +1,20 @@
 import type { HttpClient } from "../../http/http-client";
+import type { ModuleDescriptorData } from "../types/modules";
 import type {
   AppDescriptor,
   AppDescriptorData,
   ChangeLogSearchCriteria,
   ChangeLogSearchResult,
   LastModifiedResponse,
-  ModuleDescriptorData,
   PushNotificationSearchCriteria,
   PushNotificationSearchResult,
   SystemInfo,
 } from "../types/platform";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { APP_DESCRIPTOR_FIELDS } from "../types/platform";
-
-const PUSH_NOTIFICATIONS_PATH = "/api/platform/pushnotifications";
+import { PUSH_NOTIFICATIONS_PATH } from "./push-notifications";
 
 export class PlatformClient {
   readonly #httpClient: HttpClient;
@@ -25,8 +24,8 @@ export class PlatformClient {
   }
 
   async listApps(): Promise<AppDescriptor[]> {
-    const apps = (await this.#httpClient.get("/api/platform/apps")).expectOk().json<AppDescriptorData[]>();
-    return apps.map((app) => requireFields(app, APP_DESCRIPTOR_FIELDS, "Platform app"));
+    const response = await this.#httpClient.get("/api/platform/apps");
+    return requireEach(response.expectOk().json<AppDescriptorData[]>(), APP_DESCRIPTOR_FIELDS, "Platform app");
   }
 
   async getSystemInfo(): Promise<SystemInfo> {

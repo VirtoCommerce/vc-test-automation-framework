@@ -1,18 +1,16 @@
 import * as allure from "allure-js-commons";
 
 import { PromotionsClient } from "@api/rest/clients/promotions-client";
+import { registerPromotionCouponsRemoval } from "@dataset/arrange/promotion";
 import { newCoupon, newPromotion } from "@dataset/builders/marketing";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Marketing / Promotions");
 });
 
 test.describe("promotions (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a promotion", async ({ httpClient, cleanupStack }) => {
     const promotionsClient = new PromotionsClient(httpClient);
@@ -32,7 +30,7 @@ test.describe("promotions (admin)", () => {
     const template = await test.step("act: get new promotion", () => promotionsClient.getNew());
 
     await test.step("assert: template is unsaved and has a condition and reward tree", async () => {
-      expect(template.id ?? null).toBeNull();
+      expect(template.id == null, "the template has no id").toBe(true);
       expect(template.dynamicExpression).toMatchObject({ id: "PromotionConditionAndRewardTree" });
     });
   });
@@ -104,6 +102,7 @@ test.describe("promotions (admin)", () => {
     const promotionsClient = new PromotionsClient(httpClient);
     const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
     cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
+    registerPromotionCouponsRemoval(promotionsClient, cleanupStack, promotion.id);
     const draft = newCoupon(promotion.id, 15, 10);
 
     await test.step("act: create coupon", () => promotionsClient.saveCoupons([draft]));
@@ -113,7 +112,6 @@ test.describe("promotions (admin)", () => {
       return found;
     });
     const couponId = coupon.id;
-    cleanupStack.push(`delete coupon ${draft.code}`, () => promotionsClient.deleteCoupons([couponId]));
     const updatedCode = `${draft.code}-UPDATED`;
 
     await test.step("act: update coupon code and limits", () =>
@@ -141,12 +139,12 @@ test.describe("promotions (admin)", () => {
     const promotionsClient = new PromotionsClient(httpClient);
     const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
     cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
+    registerPromotionCouponsRemoval(promotionsClient, cleanupStack, promotion.id);
     const draft = newCoupon(promotion.id, 10, 1);
     await test.step("arrange: coupon", () => promotionsClient.saveCoupons([draft]));
 
     const coupon = await test.step("act: find coupon by code", () =>
       promotionsClient.getCouponByCode(promotion.id, draft.code));
-    cleanupStack.push(`delete coupon ${draft.code}`, () => promotionsClient.deleteCoupons([coupon.id]));
 
     await test.step("act: delete coupon", () => promotionsClient.deleteCoupons([coupon.id]));
 
@@ -159,15 +157,13 @@ test.describe("promotions (admin)", () => {
     const promotionsClient = new PromotionsClient(httpClient);
     const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
     cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
+    registerPromotionCouponsRemoval(promotionsClient, cleanupStack, promotion.id);
     const draft = newCoupon(promotion.id, 5, 1);
 
     await test.step("act: add coupon", () => promotionsClient.saveCoupons([draft]));
 
     await test.step("assert: promotion has the coupon", async () => {
       const coupons = await promotionsClient.searchCoupons({ promotionId: promotion.id });
-      cleanupStack.push(`delete coupons of promotion ${promotion.id}`, () =>
-        promotionsClient.deleteCoupons(coupons.map(({ id }) => id)),
-      );
       expect(coupons.map(({ code }) => code)).toEqual([draft.code]);
     });
   });

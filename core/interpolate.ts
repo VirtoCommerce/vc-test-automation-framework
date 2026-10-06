@@ -5,7 +5,7 @@ const PLACEHOLDER = /\$\{([A-Z_]+):(\w+)\}/g;
 export function interpolate(
   template: string,
   sources: Readonly<Record<string, PlaceholderSource>>,
-  encode: (value: string) => string = asIs,
+  encode: (value: string) => string,
 ): string {
   return template.replace(PLACEHOLDER, (placeholder, source: string, key: string) => {
     const lookup = sources[source];
@@ -20,20 +20,6 @@ export function interpolate(
   });
 }
 
-export function fromEnv(key: string): string | undefined {
-  return process.env[key];
-}
-
-export function fromPayloadItem(item: Readonly<Record<string, unknown>> | undefined): PlaceholderSource {
-  return function fromItem(key: string): unknown {
-    return item?.[key];
-  };
-}
-
 export function jsonStringContent(value: string): string {
   return JSON.stringify(value).slice(1, -1);
-}
-
-function asIs(value: string): string {
-  return value;
 }

@@ -7,7 +7,10 @@ export interface CleanupFixtures {
 }
 
 export const test = base.extend<CleanupFixtures>({
-  cleanupStack: async ({ httpClient: _httpClientOutlivesCleanup }, use) => {
+  cleanupStack: async (
+    { httpClient: _httpClientOutlivesCleanup, anonymousHttpClient: _anonymousOutlivesCleanup },
+    use,
+  ) => {
     const cleanupStack = new CleanupStack();
     await use(cleanupStack);
     await cleanupStack.unwind((description, action) => base.step(`cleanup: ${description}`, action));

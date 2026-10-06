@@ -11,12 +11,11 @@ import {
 } from "@api/graphql/generated/graphql";
 import { StoresClient } from "@api/rest/clients/stores-client";
 import { requireFields } from "@core/required-fields";
-import { SEEDED_CATALOG_ID } from "@dataset/builders/catalog";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { SEEDED_CATALOG_ID, SEEDED_PRODUCTS, SEEDED_USERS } from "@dataset/seeded";
+import { expect, seededUser, test } from "@fixtures";
 
 const CATEGORY_ID = "category-acme-electronics-laptops";
-const REGISTERED_USERNAME = "acme_store_employee_1@acme.com";
+const REGISTERED_USERNAME = SEEDED_USERS.storeEmployee;
 const ALLOW_ANONYMOUS_SETTING = "Stores.AllowAnonymousUsers";
 const UNAUTHORIZED = "Unauthorized";
 const SETTING_PROPAGATION_TIMEOUT_MS = 60_000;
@@ -32,7 +31,7 @@ test.describe("catalog browsing (anonymous)", () => {
 });
 
 test.describe("catalog browsing (registered user)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, REGISTERED_USERNAME)) });
+  test.use({ user: seededUser(REGISTERED_USERNAME) });
 
   test("browse from a category to a product", async ({ graphqlClient, frontendContext }) => {
     await browseCategoryToProduct(graphqlClient, frontendContext);
@@ -72,7 +71,7 @@ test.describe("catalog browsing (store closed to anonymous users)", () => {
       const responses = await Promise.all([
         graphqlClient.executeRaw(CategoryDocument, { ...scope, id: CATEGORY_ID }),
         graphqlClient.executeRaw(ProductsDocument, { ...scope, filter: categoryFilter(CATEGORY_ID) }),
-        graphqlClient.executeRaw(ProductDocument, { ...scope, id: "smartphone-apple-iphone-17-256gb-black" }),
+        graphqlClient.executeRaw(ProductDocument, { ...scope, id: SEEDED_PRODUCTS.iphone17Black }),
       ]);
       expect(responses.map((response) => response.errors[0]?.extensions?.["code"])).toEqual([
         UNAUTHORIZED,
@@ -104,11 +103,7 @@ async function browseCategoryToProduct(graphqlClient: GraphqlClient, context: Fr
 
   const { products } = await test.step(`act: list the products of ${CATEGORY_ID}`, () =>
     graphqlClient.execute(ProductsDocument, { ...scope, filter: categoryFilter(CATEGORY_ID) }));
-  const listedProduct = requireFields(
-    products?.items?.[0] ?? undefined,
-    ["id", "name"],
-    `First product of ${CATEGORY_ID}`,
-  );
+  const listedProduct = requireFields(products?.items?.[0], ["id", "name"], `First product of ${CATEGORY_ID}`);
 
   const { product } = await test.step(`act: open ${listedProduct.id}`, () =>
     graphqlClient.execute(ProductDocument, { ...scope, id: listedProduct.id }));
@@ -150,7 +145,7 @@ async function setAllowAnonymousUsers(storesClient: StoresClient, storeId: strin
   const store = await storesClient.get(storeId);
   await storesClient.update({
     ...store,
-    settings: (store.settings ?? []).map((setting) =>
+    settings: requireFields(store, ["settings"], `Store ${storeId}`).settings.map((setting) =>
       setting.name === ALLOW_ANONYMOUS_SETTING ? { ...setting, value: allowed } : setting,
     ),
   });

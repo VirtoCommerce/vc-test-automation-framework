@@ -11,7 +11,7 @@ import type {
   UserSearchResult,
 } from "../types/security";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { APPLICATION_USER_FIELDS, USER_API_KEY_FIELDS } from "../types/security";
 
@@ -45,7 +45,7 @@ export class UsersClient {
   async search(criteria: UserSearchCriteria): Promise<ApplicationUser[]> {
     const response = await this.#httpClient.post(`${USERS_PATH}/search`, { json: criteria });
     const { users } = response.expectOk().json<UserSearchResult>();
-    return (users ?? []).map((user) => requireFields(user, APPLICATION_USER_FIELDS, "Found user"));
+    return requireEach(users, APPLICATION_USER_FIELDS, "Found user");
   }
 
   async update(user: ApplicationUserData): Promise<SecurityResult> {
@@ -108,10 +108,7 @@ export class UsersClient {
 
   async listApiKeys(userId: string): Promise<UserApiKey[]> {
     const response = await this.#httpClient.get(`${USERS_PATH}/${encodeURIComponent(userId)}/apikeys`);
-    return response
-      .expectOk()
-      .json<UserApiKeyData[]>()
-      .map((apiKey) => requireFields(apiKey, USER_API_KEY_FIELDS, `API key of "${userId}"`));
+    return requireEach(response.expectOk().json<UserApiKeyData[]>(), USER_API_KEY_FIELDS, `API key of "${userId}"`);
   }
 
   async createApiKey(apiKey: UserApiKeyData): Promise<void> {
@@ -127,7 +124,7 @@ export class UsersClient {
   }
 
   async #fetch(path: string, label: string): Promise<ApplicationUser | undefined> {
-    const user = (await this.#httpClient.get(path)).expectOk().json<ApplicationUserData | null>();
-    return user === null ? undefined : requireFields(user, APPLICATION_USER_FIELDS, label);
+    const user = (await this.#httpClient.get(path)).jsonOrUndefined<ApplicationUserData>();
+    return user === undefined ? undefined : requireFields(user, APPLICATION_USER_FIELDS, label);
   }
 }

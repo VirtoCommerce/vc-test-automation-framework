@@ -3,18 +3,16 @@ import type { FrontendContext } from "@dataset/frontend-context";
 
 import * as allure from "allure-js-commons";
 
-import {
-  ChangeCartConfiguredItemDocument,
-  ProductConfigurationDocument,
-  RemoveCartItemDocument,
-} from "@api/graphql/generated/graphql";
-import { requireFields } from "@core/required-fields";
+import { ChangeCartConfiguredItemDocument, RemoveCartItemDocument } from "@api/graphql/generated/graphql";
+import { requireItems } from "@core/required-fields";
 import { arrangeCart, cartScope, lineItemFor } from "@dataset/arrange/cart";
-import { LAST_OPTION, optionOfEachSection } from "@dataset/builders/product-configuration";
+import { getProductConfiguration } from "@dataset/arrange/catalog";
+import { configuredSku, LAST_OPTION, optionOfEachSection } from "@dataset/builders/product-configuration";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const CONFIGURABLE_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
-const CONFIGURED_SKU = `Configuration-${CONFIGURABLE_PRODUCT_ID}`;
+const CONFIGURABLE_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
+const CONFIGURED_SKU = configuredSku(CONFIGURABLE_PRODUCT_ID);
 
 test.beforeEach(async () => {
   await allure.feature("Cart / Configurable Product");
@@ -33,10 +31,9 @@ test.describe("configurable products in the cart (anonymous)", () => {
       const lineItem = lineItemFor(cart, CONFIGURABLE_PRODUCT_ID);
       expect(cart.itemsCount).toBe(1);
       expect(lineItem.sku).toBe(CONFIGURED_SKU);
-      expect(new Set(lineItem.configurationItems?.map((item) => item?.productId))).toEqual(
-        selectedProductIds(selection),
-      );
-      for (const item of lineItem.configurationItems ?? []) {
+      const configurationItems = requireItems(lineItem.configurationItems, "Configuration items");
+      expect(new Set(configurationItems.map((item) => item.productId))).toEqual(selectedProductIds(selection));
+      for (const item of configurationItems) {
         expect(item).toMatchObject({ sectionId: expect.any(String), name: expect.any(String) });
       }
     });
@@ -95,12 +92,8 @@ test.describe("configurable products in the cart (anonymous)", () => {
 });
 
 async function getConfiguration(graphqlClient: GraphqlClient, context: FrontendContext) {
-  const { productConfiguration } = await test.step(`arrange: configuration of ${CONFIGURABLE_PRODUCT_ID}`, () =>
-    graphqlClient.execute(ProductConfigurationDocument, {
-      configurableProductId: CONFIGURABLE_PRODUCT_ID,
-      ...cartScope(context),
-    }));
-  const configuration = requireFields(productConfiguration ?? undefined, ["configurationSections"], "Configuration");
+  const configuration = await test.step(`arrange: configuration of ${CONFIGURABLE_PRODUCT_ID}`, () =>
+    getProductConfiguration(graphqlClient, context, CONFIGURABLE_PRODUCT_ID));
   expect(configuration.configurationSections.length).toBeGreaterThan(0);
   return configuration;
 }

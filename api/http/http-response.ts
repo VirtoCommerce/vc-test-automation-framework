@@ -3,6 +3,8 @@ import type { HttpMethod } from "./http-method";
 
 import { prettifyError } from "zod";
 
+import { redactSecrets } from "@core/redact";
+
 import { HttpError } from "./http-error";
 
 const MAX_BODY_LENGTH = 1_000;
@@ -48,6 +50,14 @@ export class HttpResponse implements HttpResponseInit {
     return this;
   }
 
+  jsonOrUndefined<T>(): T | undefined {
+    if (this.status === 404) {
+      return undefined;
+    }
+    this.expectOk();
+    return this.status === 204 || this.text === "" ? undefined : (this.json<T | null>() ?? undefined);
+  }
+
   json<T = unknown>(): T {
     try {
       return JSON.parse(this.text) as T;
@@ -74,6 +84,6 @@ export class HttpResponse implements HttpResponseInit {
       this.text.length > MAX_BODY_LENGTH
         ? `${this.text.slice(0, MAX_BODY_LENGTH)}... (${this.text.length} chars)`
         : this.text;
-    return [reason ? `${summary}: ${reason}` : summary, body].filter(Boolean).join("\n");
+    return redactSecrets([reason ? `${summary}: ${reason}` : summary, body].filter(Boolean).join("\n"));
   }
 }

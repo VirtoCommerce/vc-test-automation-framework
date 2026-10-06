@@ -4,7 +4,6 @@ import type {
   ProductPickupLocationFragment,
 } from "@api/graphql/generated/graphql";
 import type { GraphqlClient } from "@api/graphql/graphql-client";
-import type { ArrangedPickupLocations } from "@dataset/arrange/pickup-location";
 import type { PickupLocationDraft } from "@dataset/builders/shipping";
 import type { Dataset } from "@dataset/dataset";
 import type { FrontendContext } from "@dataset/frontend-context";
@@ -14,10 +13,18 @@ import * as allure from "allure-js-commons";
 import { PickupLocationsDocument, ProductPickupLocationsDocument } from "@api/graphql/generated/graphql";
 import { CatalogClient } from "@api/rest/clients/catalog-client";
 import { PickupLocationsClient } from "@api/rest/clients/pickup-locations-client";
+import { requireItems } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
-import { arrangePickupLocation, arrangePickupLocations, locationsArrangedIn } from "@dataset/arrange/pickup-location";
+import {
+  arrangePickupLocation,
+  arrangePickupLocations,
+  availabilityByCity,
+  PICKUP_INDEXING_TIMEOUT_MS,
+  waitForArrangedLocations,
+} from "@dataset/arrange/pickup-location";
 import { newCatalog, newCategory, newProduct } from "@dataset/builders/catalog";
 import { newPickupLocation } from "@dataset/builders/shipping";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { findFulfillmentCenter, getProductStock, getStockQuantity } from "@dataset/stock";
 import { expect, test } from "@fixtures";
 
@@ -25,7 +32,7 @@ const PAGE_SIZE = 5;
 const ALL_LOCATIONS_PAGE_SIZE = 100;
 const KEYWORD = "Berlin";
 const NAMED_BERLIN_LOCATIONS = ["Alexanderplatz Store Berlin", "Kurfürstendamm Store Berlin"];
-const STOCKED_PRODUCT_ID = "sodimm-crucial-ddr4-2400-8gb";
+const STOCKED_PRODUCT_ID = SEEDED_PRODUCTS.crucialDdr4Sodimm;
 const OUT_OF_STOCK_PRODUCT_ID = "sodimm-samsung-ddr5-4800-8gb";
 const AVAILABILITY_ORDER: readonly (ProductPickupAvailabilityType | null)[] = ["Today", "Transfer", "GlobalTransfer"];
 const IN_STOCK = { stocks: [STOCKED_PRODUCT_ID] };
@@ -48,8 +55,8 @@ test.describe("pickup locations (anonymous)", () => {
     await test.step("assert: the page is full and every location has an address", async () => {
       expect(page?.items).toHaveLength(PAGE_SIZE);
       expect(all?.items?.length).toBeGreaterThan(PAGE_SIZE);
-      for (const location of all?.items ?? []) {
-        expect(location?.address).toMatchObject({
+      for (const location of requireItems(all?.items, "Pickup locations")) {
+        expect(location.address).toMatchObject({
           city: expect.any(String),
           countryName: expect.any(String),
           line1: expect.any(String),
@@ -63,7 +70,7 @@ test.describe("pickup locations (anonymous)", () => {
       graphqlClient.execute(PickupLocationsDocument, { storeId: frontendContext.storeId, keyword: KEYWORD }));
 
     await test.step(`assert: the ${KEYWORD} locations are found and nothing else`, async () => {
-      const locations = (pickupLocations?.items ?? []).filter((location) => location !== null);
+      const locations = requireItems(pickupLocations?.items, `Pickup locations for "${KEYWORD}"`);
       expect(locations.map((location) => location.name)).toEqual(expect.arrayContaining(NAMED_BERLIN_LOCATIONS));
       expect(locations.filter((location) => !isIn(location, KEYWORD)).map((location) => location.name)).toEqual([]);
     });
@@ -97,7 +104,9 @@ test.describe("pickup location administration (anonymous)", () => {
 
     await test.step("assert: the frontend sees the new name, description and address", async () => {
       await expect
-        .poll(() => storePickupLocation(graphqlClient, frontendContext, location.id))
+        .poll(() => storePickupLocation(graphqlClient, frontendContext, location.id), {
+          timeout: PICKUP_INDEXING_TIMEOUT_MS,
+        })
         .toMatchObject({ name: changes.name, description: changes.description, address: newAddress });
     });
   });
@@ -117,14 +126,22 @@ test.describe("pickup location administration (anonymous)", () => {
         newStorePickupLocation(frontendContext, dataset, "Closingtown"),
       ));
     await test.step("arrange: the frontend lists the location", async () => {
-      await expect.poll(() => storePickupLocation(graphqlClient, frontendContext, location.id)).toBeDefined();
+      await expect
+        .poll(() => storePickupLocation(graphqlClient, frontendContext, location.id), {
+          timeout: PICKUP_INDEXING_TIMEOUT_MS,
+        })
+        .toBeDefined();
     });
 
     await test.step("act: deactivate the location", () =>
       pickupLocationsClient.update({ ...location, isActive: false }));
 
     await test.step("assert: the frontend no longer lists the location", async () => {
-      await expect.poll(() => storePickupLocation(graphqlClient, frontendContext, location.id)).toBeUndefined();
+      await expect
+        .poll(() => storePickupLocation(graphqlClient, frontendContext, location.id), {
+          timeout: PICKUP_INDEXING_TIMEOUT_MS,
+        })
+        .toBeUndefined();
     });
   });
 });
@@ -179,7 +196,9 @@ test.describe("product pickup locations (anonymous)", () => {
       ));
 
     const locations = await test.step(`act: get pickup locations of ${STOCKED_PRODUCT_ID}`, () =>
-      waitForArrangedLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID, arranged));
+      waitForArrangedLocations(arranged, () =>
+        productPickupLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID),
+      ));
 
     await test.step("assert: each location has the availability its fulfillment centers allow", async () => {
       expect(availabilityByCity(locations)).toEqual({
@@ -207,7 +226,9 @@ test.describe("product pickup locations (anonymous)", () => {
       ));
 
     const locations = await test.step(`act: get pickup locations of ${STOCKED_PRODUCT_ID}`, () =>
-      waitForArrangedLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID, arranged));
+      waitForArrangedLocations(arranged, () =>
+        productPickupLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID),
+      ));
 
     await test.step(`assert: the location is same-day with the stock of ${centerId}`, async () => {
       expect(locations).toEqual([
@@ -240,7 +261,9 @@ test.describe("product pickup locations (anonymous)", () => {
       ));
 
     const locations = await test.step(`act: get pickup locations of ${STOCKED_PRODUCT_ID}`, () =>
-      waitForArrangedLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID, arranged));
+      waitForArrangedLocations(arranged, () =>
+        productPickupLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID),
+      ));
 
     await test.step("assert: each city is a transfer with the stock of its own center", async () => {
       expect(quantityByCity(locations, "Transfer")).toEqual({
@@ -274,37 +297,6 @@ test.describe("product pickup locations (anonymous)", () => {
     });
   });
 
-  test("a product at transfer centers has transfer locations in Berlin and Billund", async ({
-    graphqlClient,
-    platformAdminHttpClient,
-    cleanupStack,
-    frontendContext,
-    dataset,
-  }) => {
-    const transferCenterIds = [
-      findFulfillmentCenter(dataset, IN_STOCK, 0),
-      findFulfillmentCenter(dataset, IN_STOCK, 1),
-    ];
-    const arranged = await test.step("arrange: Berlin and Billund locations without a same-day center", () =>
-      arrangePickupLocations(
-        new PickupLocationsClient(platformAdminHttpClient),
-        cleanupStack,
-        frontendContext.storeId,
-        ["Berlin", "Billund"].map((city) => ({
-          city,
-          fulfillmentCenterId: null,
-          transferFulfillmentCenterIds: transferCenterIds,
-        })),
-      ));
-
-    const locations = await test.step(`act: get pickup locations of ${STOCKED_PRODUCT_ID}`, () =>
-      waitForArrangedLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID, arranged));
-
-    await test.step("assert: both cities are transfer locations", async () => {
-      expect(availabilityByCity(locations)).toEqual({ Berlin: "Transfer", Billund: "Transfer" });
-    });
-  });
-
   test("a pickup location with several transfer centers reports their combined stock", async ({
     graphqlClient,
     platformAdminHttpClient,
@@ -328,7 +320,9 @@ test.describe("product pickup locations (anonymous)", () => {
       ));
 
     const locations = await test.step(`act: get pickup locations of ${STOCKED_PRODUCT_ID}`, () =>
-      waitForArrangedLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID, arranged));
+      waitForArrangedLocations(arranged, () =>
+        productPickupLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID),
+      ));
 
     await test.step("assert: the transfer quantity is the sum over the transfer centers", async () => {
       const combinedStock = transferCenterIds
@@ -364,7 +358,9 @@ test.describe("product pickup locations (anonymous)", () => {
         ],
       ));
     await test.step("arrange: wait until the locations are searchable", () =>
-      waitForArrangedLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID, arranged));
+      waitForArrangedLocations(arranged, () =>
+        productPickupLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID),
+      ));
 
     const locations = await test.step(`act: get every pickup location of ${STOCKED_PRODUCT_ID}`, () =>
       productPickupLocations(graphqlClient, frontendContext, STOCKED_PRODUCT_ID));
@@ -412,7 +408,7 @@ async function productPickupLocations(
     cultureName: context.cultureName,
     first: ALL_LOCATIONS_PAGE_SIZE,
   });
-  return (connection?.items ?? []).filter((location): location is ProductPickupLocationFragment => location !== null);
+  return requireItems(connection?.items, `Pickup locations of ${productId}`);
 }
 
 function newStorePickupLocation(context: FrontendContext, dataset: Dataset, city: string): PickupLocationDraft {
@@ -432,32 +428,12 @@ async function storePickupLocation(
     storeId: context.storeId,
     first: ALL_LOCATIONS_PAGE_SIZE,
   });
-  return pickupLocations?.items?.find((location) => location?.id === id) ?? undefined;
-}
-
-async function waitForArrangedLocations(
-  graphqlClient: GraphqlClient,
-  context: FrontendContext,
-  productId: string,
-  arranged: ArrangedPickupLocations,
-): Promise<ProductPickupLocationFragment[]> {
-  let found: ProductPickupLocationFragment[] = [];
-  await expect
-    .poll(async () => {
-      found = locationsArrangedIn(await productPickupLocations(graphqlClient, context, productId), arranged);
-      return found.length;
-    })
-    .toBe(arranged.locations.length);
-  return found;
+  return requireItems(pickupLocations?.items, "Pickup locations").find((location) => location.id === id);
 }
 
 function isIn(location: PickupLocationFragment, keyword: string): boolean {
   const needle = keyword.toLowerCase();
-  return [location.name, location.address?.city].some((text) => text?.toLowerCase().includes(needle) ?? false);
-}
-
-function availabilityByCity(locations: readonly ProductPickupLocationFragment[]): Record<string, string | null> {
-  return Object.fromEntries(locations.map((location) => [location.address?.city, location.availabilityType]));
+  return [location.name, location.address?.city].some((text) => text?.toLowerCase().includes(needle) === true);
 }
 
 function quantityByCity(

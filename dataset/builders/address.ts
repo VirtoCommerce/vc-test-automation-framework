@@ -2,7 +2,9 @@ import type { InputAddressType, InputMemberAddressType } from "@api/graphql/gene
 
 import { uniqueId } from "@core/unique-id";
 
-export const BILLING_AND_SHIPPING_ADDRESS_TYPE = 3;
+const BILLING_AND_SHIPPING_ADDRESS_TYPE = 3;
+
+export type MemberAddressDraft = InputMemberAddressType & { readonly description: string };
 
 export const TEST_ADDRESS = {
   firstName: "John",
@@ -35,10 +37,7 @@ export function comparableAddress(address: InputAddressType): Partial<InputAddre
   );
 }
 
-export function newMemberAddress(
-  prefix: string,
-  overrides: Partial<InputMemberAddressType> = {},
-): InputMemberAddressType & { readonly description: string } {
+export function newMemberAddress(prefix: string, overrides: Partial<InputMemberAddressType> = {}): MemberAddressDraft {
   const unique = uniqueId(prefix);
   return {
     ...TEST_ADDRESS,

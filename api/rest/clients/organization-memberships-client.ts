@@ -1,5 +1,5 @@
 import type { HttpClient } from "../../http/http-client";
-import type { OrganizationMembership, OrganizationMembershipData } from "../types/memberships";
+import type { LockMembershipRequest, OrganizationMembership, OrganizationMembershipData } from "../types/memberships";
 
 import { requireFields } from "@core/required-fields";
 
@@ -16,12 +16,12 @@ export class OrganizationMembershipsClient {
 
   async find(userId: string, organizationId: string): Promise<OrganizationMembership | undefined> {
     const path = `${MEMBERSHIPS_PATH}/user/${encodeURIComponent(userId)}/org/${encodeURIComponent(organizationId)}`;
-    const response = await this.#httpClient.get(path);
-    if (response.status === 404) {
+    const membership = (await this.#httpClient.get(path)).jsonOrUndefined<OrganizationMembershipData>();
+    if (membership === undefined) {
       return undefined;
     }
     return requireFields(
-      response.expectOk().json<OrganizationMembershipData>(),
+      membership,
       ORGANIZATION_MEMBERSHIP_FIELDS,
       `Membership of "${userId}" in "${organizationId}"`,
     );
@@ -38,9 +38,8 @@ export class OrganizationMembershipsClient {
 
   async lock(id: string, lockoutEnd?: Date): Promise<OrganizationMembership> {
     const path = `${MEMBERSHIPS_PATH}/${encodeURIComponent(id)}/lock`;
-    const response = await this.#httpClient.post(path, {
-      json: lockoutEnd === undefined ? {} : { lockoutEnd: lockoutEnd.toISOString() },
-    });
+    const request: LockMembershipRequest = lockoutEnd === undefined ? {} : { lockoutEnd: lockoutEnd.toISOString() };
+    const response = await this.#httpClient.post(path, { json: request });
     return requireFields(
       response.expectOk().json<OrganizationMembershipData>(),
       ORGANIZATION_MEMBERSHIP_FIELDS,

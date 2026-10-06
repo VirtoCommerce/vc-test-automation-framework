@@ -48,7 +48,7 @@ export class WishlistCard {
   constructor(root: Locator) {
     this.root = root;
     this.menuButton = root.locator("[data-test-id='wishlist-card-menu-button']");
-    this.editMenuItem = root.page().locator("[data-test-id='wishlist-card-edit-menu-item'] button:visible");
-    this.removeMenuItem = root.page().locator("[data-test-id='wishlist-card-remove-menu-item'] button:visible");
+    this.editMenuItem = root.locator("[data-test-id='wishlist-card-edit-menu-item'] button:visible");
+    this.removeMenuItem = root.locator("[data-test-id='wishlist-card-remove-menu-item'] button:visible");
   }
 }

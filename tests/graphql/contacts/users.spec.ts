@@ -17,19 +17,21 @@ import {
 import { CustomersClient } from "@api/rest/clients/customers-client";
 import { NotificationsClient } from "@api/rest/clients/notifications-client";
 import { UsersClient } from "@api/rest/clients/users-client";
+import { requireItems } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
 import { signInGraphqlClient, signInWithoutCache } from "@dataset/arrange/customer-account";
 import { registerAccountRemoval } from "@dataset/arrange/security";
 import { newPassword } from "@dataset/builders/security";
 import { getCredentials } from "@dataset/dataset";
+import { SEEDED_USERS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
 const INVITED_STATUS = "Invited";
 const INVITATION_TIMEOUT_MS = 30_000;
 const NOTIFICATION_TIMEOUT_MS = 30_000;
 const EMPLOYEE_ROLE_ID = "org-employee";
-const STORE_ADMINISTRATOR_USERNAME = "acme_store_administrator@acme.com";
-const OTHER_USERNAME = "acme_store_employee_1@acme.com";
+const STORE_ADMINISTRATOR_USERNAME = SEEDED_USERS.storeAdministrator;
+const OTHER_USERNAME = SEEDED_USERS.storeEmployee;
 const RESET_PASSWORD_NOTIFICATION = "ResetPasswordEmailNotification";
 const RESET_PASSWORD_SUBJECT = "Reset password link";
 
@@ -142,15 +144,8 @@ test.describe("user invitation (store administrator)", () => {
     const storeAdministrator = await test.step("arrange: sign in the store administrator", () =>
       signInStoreAdministrator(tokenManager, anonymousHttpClient, dataset, env.storeId));
 
-    const { inviteUser } = await test.step(`act: invite ${email} as an employee`, () =>
-      storeAdministrator.execute(InviteUserDocument, {
-        command: {
-          storeId: env.storeId,
-          emails: [email],
-          organizationId: customerAccount.organizationId,
-          roleIds: [EMPLOYEE_ROLE_ID],
-        },
-      }));
+    const inviteUser = await test.step(`act: invite ${email} as an employee`, () =>
+      inviteEmployee(storeAdministrator, env.storeId, customerAccount.organizationId, email));
 
     await test.step("assert: an invited contact with that account joins the organization", async () => {
       expect(inviteUser?.succeeded).toBe(true);
@@ -161,9 +156,9 @@ test.describe("user invitation (store administrator)", () => {
               organizationId: customerAccount.organizationId,
               searchPhrase: email,
             });
-            return (organization?.contacts?.items ?? []).map((contact) => ({
-              status: contact?.status,
-              userNames: contact?.securityAccounts?.map((account) => account?.userName),
+            return requireItems(organization?.contacts?.items, "Organization contacts").map((contact) => ({
+              status: contact.status,
+              userNames: contact.securityAccounts?.map((account) => account?.userName),
             }));
           },
           { timeout: INVITATION_TIMEOUT_MS },
@@ -192,14 +187,7 @@ test.describe("user invitation (store administrator)", () => {
         dataset,
         env.storeId,
       );
-      const { inviteUser } = await storeAdministrator.execute(InviteUserDocument, {
-        command: {
-          storeId: env.storeId,
-          emails: [email],
-          organizationId: customerAccount.organizationId,
-          roleIds: [EMPLOYEE_ROLE_ID],
-        },
-      });
+      const inviteUser = await inviteEmployee(storeAdministrator, env.storeId, customerAccount.organizationId, email);
       expect(inviteUser?.succeeded).toBe(true);
     });
     const invited = await test.step("arrange: the invited account and its invitation token", async () => {
@@ -264,4 +252,16 @@ async function waitForResetToken(notificationsClient: NotificationsClient, usern
 function resetTokenOf(body: string | null | undefined): string | null {
   const link = body === null || body === undefined ? undefined : /href="([^"]+)"/.exec(body)?.[1];
   return link === undefined ? null : new URL(link).searchParams.get("token");
+}
+
+async function inviteEmployee(
+  storeAdministrator: GraphqlClient,
+  storeId: string,
+  organizationId: string,
+  email: string,
+) {
+  const { inviteUser } = await storeAdministrator.execute(InviteUserDocument, {
+    command: { storeId, emails: [email], organizationId, roleIds: [EMPLOYEE_ROLE_ID] },
+  });
+  return inviteUser;
 }

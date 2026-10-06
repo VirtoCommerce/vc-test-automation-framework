@@ -41,6 +41,16 @@ export async function addShoppingListItems(
   return requireShoppingList(addWishlistItems, `Shopping list ${listId}`);
 }
 
+export async function arrangeShoppingListWithItems(
+  graphqlClient: GraphqlClient,
+  cleanupStack: CleanupStack,
+  scope: CartScope,
+  items: readonly CartItem[],
+): Promise<ArrangedShoppingList> {
+  const list = await arrangeShoppingList(graphqlClient, cleanupStack, scope);
+  return addShoppingListItems(graphqlClient, list.id, items);
+}
+
 export function registerShoppingListsRemoval(
   graphqlClient: GraphqlClient,
   cleanupStack: CleanupStack,
@@ -56,9 +66,6 @@ export function registerShoppingListsRemoval(
   });
 }
 
-export function requireShoppingList(
-  list: ShoppingListFragment | null | undefined,
-  label: string,
-): ArrangedShoppingList {
-  return requireFields(list ?? undefined, ["id"], label);
+function requireShoppingList(list: ShoppingListFragment | null | undefined, label: string): ArrangedShoppingList {
+  return requireFields(list, ["id"], label);
 }

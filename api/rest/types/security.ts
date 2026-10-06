@@ -41,7 +41,9 @@ export type {
 export const APPLICATION_USER_FIELDS = ["id", "userName", "email"] as const;
 export const ROLE_FIELDS = ["id", "name"] as const;
 export const USER_API_KEY_FIELDS = ["id", "userId", "isActive"] as const;
+export const OAUTH_APP_FIELDS = ["clientId"] as const;
 
 export type ApplicationUser = WithRequired<ApplicationUserData, (typeof APPLICATION_USER_FIELDS)[number]>;
 export type Role = WithRequired<RoleData, (typeof ROLE_FIELDS)[number]>;
 export type UserApiKey = WithRequired<UserApiKeyData, (typeof USER_API_KEY_FIELDS)[number]>;
+export type OAuthApp = WithRequired<OAuthAppData, (typeof OAUTH_APP_FIELDS)[number]>;

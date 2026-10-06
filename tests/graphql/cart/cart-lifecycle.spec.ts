@@ -3,11 +3,10 @@ import * as allure from "allure-js-commons";
 import { ClearCartDocument, GetCartDocument } from "@api/graphql/generated/graphql";
 import { uniqueId } from "@core/unique-id";
 import { arrangeCart, cartScope } from "@dataset/arrange/cart";
-import { getCredentials } from "@dataset/dataset";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const REGISTERED_USERNAME = "acme_store_maintainer_1@acme.com";
-const PRODUCT_ID = "smartphone-apple-iphone-17-256gb-mist-blue";
+const PRODUCT_ID = SEEDED_PRODUCTS.iphone17MistBlue;
 
 test.beforeEach(async () => {
   await allure.feature("Cart / Lifecycle");
@@ -26,11 +25,15 @@ test.describe("cart lifecycle (anonymous)", () => {
   });
 
   test("get the cart of an anonymous user", async ({ graphqlClient, cleanupStack, frontendContext }) => {
-    const cart = await test.step("act: create cart with a product", () =>
+    const arranged = await test.step("arrange: cart with a product", () =>
       arrangeCart(graphqlClient, cleanupStack, frontendContext, [{ productId: PRODUCT_ID, quantity: 1 }]));
 
-    await test.step("assert: cart is anonymous", async () => {
-      expect(cart).toMatchObject({ isAnonymous: true, customerId: frontendContext.userId });
+    const { cart } = await test.step(`act: get cart ${arranged.id}`, () =>
+      graphqlClient.execute(GetCartDocument, { ...cartScope(frontendContext), cartId: arranged.id }));
+
+    await test.step("assert: the anonymous user's cart with its product is returned", async () => {
+      expect(cart).toMatchObject({ id: arranged.id, isAnonymous: true, customerId: frontendContext.userId });
+      expect(cart?.items).toEqual([expect.objectContaining({ productId: PRODUCT_ID, quantity: 1 })]);
     });
   });
 
@@ -47,15 +50,18 @@ test.describe("cart lifecycle (anonymous)", () => {
   });
 });
 
-test.describe("cart lifecycle (registered user)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, REGISTERED_USERNAME)) });
+test.describe("cart lifecycle (customer account)", () => {
+  test("get the cart of a signed-in customer", async ({ customerAccount, cleanupStack }) => {
+    const { graphqlClient, context, userId } = customerAccount;
+    const arranged = await test.step("arrange: cart with a product", () =>
+      arrangeCart(graphqlClient, cleanupStack, context, [{ productId: PRODUCT_ID, quantity: 1 }]));
 
-  test("get the cart of a registered user", async ({ graphqlClient, cleanupStack, frontendContext }) => {
-    const cart = await test.step("act: create cart with a product", () =>
-      arrangeCart(graphqlClient, cleanupStack, frontendContext, [{ productId: PRODUCT_ID, quantity: 1 }]));
+    const { cart } = await test.step(`act: get cart ${arranged.id}`, () =>
+      graphqlClient.execute(GetCartDocument, { ...cartScope(context), cartId: arranged.id }));
 
-    await test.step("assert: cart belongs to the registered user", async () => {
-      expect(cart).toMatchObject({ isAnonymous: false, customerId: frontendContext.userId });
+    await test.step("assert: the customer's cart with its product is returned", async () => {
+      expect(cart).toMatchObject({ id: arranged.id, isAnonymous: false, customerId: userId });
+      expect(cart?.items).toEqual([expect.objectContaining({ productId: PRODUCT_ID, quantity: 1 })]);
     });
   });
 });

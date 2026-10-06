@@ -2,9 +2,9 @@ import type { CatalogData, CatalogLanguage, CatalogProductData, CategoryData } f
 
 import { uniqueId } from "@core/unique-id";
 
-export const SEEDED_CATALOG_ID = "catalog-acme-electronics";
+import { SEEDED_LANGUAGE } from "../seeded";
 
-export const DEFAULT_LANGUAGE = { languageCode: "en-US", isDefault: true } satisfies CatalogLanguage;
+export const DEFAULT_LANGUAGE = { languageCode: SEEDED_LANGUAGE, isDefault: true } satisfies CatalogLanguage;
 
 export function newCatalog(name = uniqueId("test-catalog")): CatalogData {
   return { name, isVirtual: false, defaultLanguage: DEFAULT_LANGUAGE, languages: [DEFAULT_LANGUAGE] };

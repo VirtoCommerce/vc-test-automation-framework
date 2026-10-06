@@ -2,17 +2,14 @@ import * as allure from "allure-js-commons";
 
 import { CustomersClient } from "@api/rest/clients/customers-client";
 import { newAddress, newContact } from "@dataset/builders/customer";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Contacts / Contacts");
 });
 
 test.describe("contacts (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a contact", async ({ httpClient, cleanupStack }) => {
     const { contacts } = new CustomersClient(httpClient);
@@ -94,10 +91,10 @@ test.describe("contacts (admin)", () => {
 
   test("get contacts by ids", async ({ httpClient, cleanupStack }) => {
     const { contacts } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two contacts", () =>
-      Promise.all([contacts.create(newContact()), contacts.create(newContact())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newContact(), newContact()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete contacts ${ids.join(", ")}`, () => contacts.delete(ids));
+    await test.step("arrange: two contacts", () => Promise.all(drafts.map((draft) => contacts.create(draft))));
 
     const found = await test.step("act: get contacts by ids", () => contacts.getMany(ids));
 
@@ -108,10 +105,11 @@ test.describe("contacts (admin)", () => {
 
   test("rename contacts in bulk", async ({ httpClient, cleanupStack }) => {
     const { contacts } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two contacts", () =>
-      Promise.all([contacts.create(newContact()), contacts.create(newContact())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newContact(), newContact()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete contacts ${ids.join(", ")}`, () => contacts.delete(ids));
+    const created = await test.step("arrange: two contacts", () =>
+      Promise.all(drafts.map((draft) => contacts.create(draft))));
     const renamed = created.map((contact) => ({ ...contact, firstName: `${contact.firstName}-renamed` }));
 
     await test.step("act: rename both contacts", () => contacts.updateMany(renamed));
@@ -126,10 +124,10 @@ test.describe("contacts (admin)", () => {
 
   test("delete contacts in bulk", async ({ httpClient, cleanupStack }) => {
     const { contacts } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two contacts", () =>
-      Promise.all([contacts.create(newContact()), contacts.create(newContact())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newContact(), newContact()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete contacts ${ids.join(", ")}`, () => contacts.delete(ids));
+    await test.step("arrange: two contacts", () => Promise.all(drafts.map((draft) => contacts.create(draft))));
 
     await test.step("act: delete both contacts", () => contacts.delete(ids));
 

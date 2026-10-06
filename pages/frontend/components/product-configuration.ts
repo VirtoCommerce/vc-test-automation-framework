@@ -1,5 +1,9 @@
 import type { Locator } from "@playwright/test";
 
+import { expect } from "@playwright/test";
+
+import { exactText, startsWithText } from "../../text-match";
+
 const COLLAPSED_CLASS = "vc-widget--collapsed";
 
 export class ProductConfigurationOption {
@@ -36,19 +40,19 @@ export class ProductConfigurationSection {
   }
 
   async isExpanded(): Promise<boolean> {
-    const classes = (await this.root.getAttribute("class")) ?? "";
-    return !classes.split(/\s+/).includes(COLLAPSED_CLASS);
+    return this.root.evaluate((element, collapsed) => !element.classList.contains(collapsed), COLLAPSED_CLASS);
   }
 
   async expand(): Promise<void> {
     if (!(await this.isExpanded())) {
       await this.header.click();
+      await expect.poll(() => this.isExpanded(), { message: "the configuration section expands" }).toBe(true);
     }
   }
 
   option(name: string): ProductConfigurationOption {
     return new ProductConfigurationOption(
-      this.options.filter({ has: this.root.page().locator("a", { hasText: name }) }).first(),
+      this.options.filter({ has: this.root.page().locator("a", { hasText: exactText(name) }) }),
     );
   }
 
@@ -71,9 +75,9 @@ export class ProductConfigurationArea {
 
   section(name: string): ProductConfigurationSection {
     return new ProductConfigurationSection(
-      this.sections
-        .filter({ has: this.root.page().locator("[data-test-id='section-title']", { hasText: name }) })
-        .first(),
+      this.sections.filter({
+        has: this.root.page().locator("[data-test-id='section-title']", { hasText: startsWithText(name) }),
+      }),
     );
   }
 

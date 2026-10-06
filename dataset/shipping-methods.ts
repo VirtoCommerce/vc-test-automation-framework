@@ -1,18 +1,21 @@
+import type { output } from "zod";
 import type { ShippingMethodsClient } from "@api/rest/clients/shipping-methods-client";
 import type { ShippingMethodData } from "@api/rest/types/shipping";
 import type { Logger } from "@core/logger";
 import type { Dataset } from "./dataset";
 
-import { array, boolean, object, string, unknown } from "zod";
+import { array, boolean, object, unknown } from "zod";
+
+import { nonEmptyString, parseOrThrow } from "@core/validation";
 
 const SeededShippingMethodSchema = object({
-  storeId: string().min(1),
-  code: string().min(1),
+  storeId: nonEmptyString,
+  code: nonEmptyString,
   isActive: boolean(),
-  settings: array(object({ name: string().min(1), value: unknown() }).loose()).default([]),
+  settings: array(object({ name: nonEmptyString, value: unknown() }).loose()).default([]),
 }).loose();
 
-type SeededShippingMethod = ReturnType<typeof SeededShippingMethodSchema.parse>;
+type SeededShippingMethod = output<typeof SeededShippingMethodSchema>;
 
 const SEARCH_TAKE = 20;
 
@@ -22,7 +25,7 @@ export async function ensureShippingMethods(
   logger: Logger,
 ): Promise<void> {
   for (const item of dataset.shippingMethods) {
-    const seeded = SeededShippingMethodSchema.parse(item);
+    const seeded = parseOrThrow(SeededShippingMethodSchema, item, "Invalid seeded shipping method");
     const label = `${seeded.storeId} / ${seeded.code}`;
     const stored = await findStored(shippingMethodsClient, seeded);
     const problems = mismatches(seeded, stored);

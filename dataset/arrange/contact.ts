@@ -1,5 +1,6 @@
 import type { InputMemberAddressType, MemberAddressFragment } from "@api/graphql/generated/graphql";
 import type { GraphqlClient } from "@api/graphql/graphql-client";
+import type { MemberAddressDraft } from "../builders/address";
 
 import { UpdateMemberAddressesDocument } from "@api/graphql/generated/graphql";
 import { requireFields } from "@core/required-fields";
@@ -17,7 +18,7 @@ export type SavedMemberAddress = MemberAddressFragment & {
 export async function saveMemberAddresses(
   graphqlClient: GraphqlClient,
   memberId: string,
-  drafts: readonly (InputMemberAddressType & { readonly description: string })[],
+  drafts: readonly MemberAddressDraft[],
 ): Promise<SavedMemberAddress[]> {
   const { updateMemberAddresses } = await graphqlClient.execute(UpdateMemberAddressesDocument, {
     command: { memberId, addresses: [...drafts] },
@@ -35,34 +36,16 @@ export async function saveMemberAddresses(
 export async function saveMemberAddress(
   graphqlClient: GraphqlClient,
   memberId: string,
-  draft: InputMemberAddressType & { readonly description: string },
+  draft: MemberAddressDraft,
 ): Promise<SavedMemberAddress> {
   const [saved] = await saveMemberAddresses(graphqlClient, memberId, [draft]);
   return requireFields(saved, ["id"], `Saved address ${draft.description}`);
 }
 
-export function toMemberAddressInput(address: SavedMemberAddress): InputMemberAddressType {
-  return {
-    id: address.id,
-    key: address.key,
-    addressType: address.addressType,
-    city: address.city,
-    countryCode: address.countryCode,
-    countryName: address.countryName,
-    description: address.description,
-    email: address.email,
-    firstName: address.firstName,
-    middleName: address.middleName,
-    lastName: address.lastName,
-    line1: address.line1,
-    line2: address.line2,
-    name: address.name,
-    organization: address.organization,
-    outerId: address.outerId,
-    phone: address.phone,
-    postalCode: address.postalCode,
-    regionId: address.regionId,
-    regionName: address.regionName,
-    zip: address.zip,
-  };
+export function toMemberAddressInput({
+  isDefault: _isDefault,
+  isFavorite: _isFavorite,
+  ...address
+}: SavedMemberAddress): InputMemberAddressType {
+  return address;
 }

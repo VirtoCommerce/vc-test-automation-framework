@@ -3,7 +3,8 @@ import type { CustomerOrderData, OrderLineItemData } from "@api/rest/types/order
 import type { WithRequired } from "@core/required-fields";
 import type { DatasetUser } from "../dataset";
 
-export const ORDER_CURRENCY = "USD";
+import { SEEDED_CURRENCY } from "../seeded";
+
 export const MAX_ORDER_NUMBER_LENGTH = 64;
 
 export type CustomerOrderDraft = WithRequired<CustomerOrderData, "id" | "number" | "items">;
@@ -16,7 +17,7 @@ export function newOrder(storeId: string, customer: DatasetUser, items: OrderLin
     storeId,
     customerId: customer.id,
     customerName: customer.userName,
-    currency: ORDER_CURRENCY,
+    currency: SEEDED_CURRENCY,
     status: "New",
     items,
   };
@@ -30,7 +31,7 @@ export function newLineItem(product: CatalogProduct, price: number, quantity = 1
     name: product.name,
     catalogId: product.catalogId,
     productType: "Physical",
-    currency: ORDER_CURRENCY,
+    currency: SEEDED_CURRENCY,
     price,
     quantity,
   };

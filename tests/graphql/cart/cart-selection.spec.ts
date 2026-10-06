@@ -6,9 +6,10 @@ import {
   UnSelectCartItemsDocument,
 } from "@api/graphql/generated/graphql";
 import { arrangeCart, cartScope, lineItemFor } from "@dataset/arrange/cart";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_IDS = ["smartphone-apple-iphone-17-256gb-black", "smartphone-apple-iphone-17-256gb-mist-blue"] as const;
+const PRODUCT_IDS = [SEEDED_PRODUCTS.iphone17Black, SEEDED_PRODUCTS.iphone17MistBlue] as const;
 
 test.beforeEach(async () => {
   await allure.feature("Cart / Item Selection");

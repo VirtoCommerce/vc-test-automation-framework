@@ -3,17 +3,14 @@ import * as allure from "allure-js-commons";
 import { CatalogClient } from "@api/rest/clients/catalog-client";
 import { uniqueId } from "@core/unique-id";
 import { DEFAULT_LANGUAGE, newCatalog, newCategory, newProduct } from "@dataset/builders/catalog";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Catalog / Catalogs");
 });
 
 test.describe("catalogs (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a physical catalog with a default language", async ({ httpClient, cleanupStack }) => {
     const catalogClient = new CatalogClient(httpClient);
@@ -52,8 +49,7 @@ test.describe("catalogs (admin)", () => {
     cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
     const newName = `${catalog.name}-renamed`;
 
-    await test.step("act: rename catalog", () =>
-      catalogClient.updateCatalog({ ...catalog, name: newName, properties: catalog.properties ?? [] }));
+    await test.step("act: rename catalog", () => catalogClient.updateCatalog({ ...catalog, name: newName }));
 
     await test.step("assert: catalog is found by the new name", async () => {
       const found = await catalogClient.searchCatalogs({ keyword: newName });

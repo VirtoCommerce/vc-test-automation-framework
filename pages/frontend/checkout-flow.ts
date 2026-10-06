@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import type { CheckoutMode } from "@core/env";
+import type { Env } from "@core/env";
 import type { PaymentDetailsSection } from "./components/payment-details-section";
 import type { ShippingDetailsSection } from "./components/shipping-details-section";
 
@@ -8,7 +8,7 @@ import { CheckoutPaymentPage, CheckoutReviewOrderPage, CheckoutShippingPage } fr
 import { CheckoutCompletedPage } from "./pages/simple-pages";
 
 export class CheckoutFlow {
-  readonly mode: CheckoutMode;
+  readonly mode: Env["checkoutMode"];
   readonly cartPage: CartPage;
   readonly shippingDetails: ShippingDetailsSection;
   readonly paymentDetails: PaymentDetailsSection;
@@ -18,7 +18,7 @@ export class CheckoutFlow {
   readonly #paymentPage: CheckoutPaymentPage;
   readonly #reviewPage: CheckoutReviewOrderPage;
 
-  constructor(page: Page, mode: CheckoutMode) {
+  constructor(page: Page, mode: Env["checkoutMode"]) {
     this.mode = mode;
     this.cartPage = new CartPage(page);
     this.#shippingPage = new CheckoutShippingPage(page);

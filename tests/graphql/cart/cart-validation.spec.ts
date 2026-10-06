@@ -13,20 +13,24 @@ import {
   RemoveCartItemDocument,
   UpdateCartQuantityDocument,
 } from "@api/graphql/generated/graphql";
+import { requireFields } from "@core/required-fields";
 import { arrangeCart, cartScope, lineItemFor } from "@dataset/arrange/cart";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_ID = "smartphone-apple-iphone-17-256gb-black";
+const PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
 const SIBLING_PRODUCT_ID = "smartphone-apple-iphone-17-256gb-sage";
 const VALID_QUANTITY = 1;
 const SIBLING_QUANTITY = 2;
 const OVER_STOCK_QUANTITY = 500_000;
-const QUANTITY_ERROR_CODES = ["PRODUCT_QTY_CHANGED", "PRODUCT_QTY_INSUFFICIENT"];
+const QUANTITY_CHANGED = "PRODUCT_QTY_CHANGED";
+const QUANTITY_ERROR_CODES = [QUANTITY_CHANGED, "PRODUCT_QTY_INSUFFICIENT"];
+const LINE_ITEM_OBJECT_TYPE = "LineItem";
 
 interface ValidationError {
-  readonly errorCode?: string | null;
-  readonly objectType?: string | null;
-  readonly objectId?: string | null;
+  readonly errorCode: string | null;
+  readonly objectType: string | null;
+  readonly objectId: string | null;
 }
 
 test.beforeEach(async () => {
@@ -47,8 +51,7 @@ test.describe("cart validation (anonymous)", () => {
     await test.step("assert: the line is invalid with a quantity error on that line", async () => {
       const line = lineItemFor(lines, PRODUCT_ID);
       expect(line.isValid).toBe(false);
-      expectQuantityError(line.validationErrors);
-      expectScopedToLine(line.validationErrors, line.id);
+      expectQuantityChangedOnLine(line.validationErrors, line.id);
     });
   });
 
@@ -68,8 +71,7 @@ test.describe("cart validation (anonymous)", () => {
     await test.step("assert: the over-stock line is still invalid", async () => {
       const line = lineItemFor(await readLines(graphqlClient, frontendContext, cart), PRODUCT_ID);
       expect(line.isValid).toBe(false);
-      expectQuantityError(line.validationErrors);
-      expectScopedToLine(line.validationErrors, line.id);
+      expectQuantityChangedOnLine(line.validationErrors, line.id);
     });
   });
 
@@ -91,8 +93,7 @@ test.describe("cart validation (anonymous)", () => {
       const lines = await readLines(graphqlClient, frontendContext, cart);
       const overStock = lineItemFor(lines, PRODUCT_ID);
       expect(overStock.isValid).toBe(false);
-      expectQuantityError(overStock.validationErrors);
-      expectScopedToLine(overStock.validationErrors, overStock.id);
+      expectQuantityChangedOnLine(overStock.validationErrors, overStock.id);
       expect(lineItemFor(lines, SIBLING_PRODUCT_ID)).toMatchObject({ isValid: true, validationErrors: [] });
     });
   });
@@ -182,7 +183,7 @@ test.describe("cart validation (anonymous)", () => {
     await test.step("assert: the cart has no quantity error and no such line", async () => {
       const validation = await readCartValidation(graphqlClient, frontendContext, cart, "*");
       expectNoQuantityError(validation.validationErrors);
-      expect(validation.items?.map((item) => item?.productId)).not.toContain(PRODUCT_ID);
+      expect(validation.items.map(({ productId }) => productId)).not.toContain(PRODUCT_ID);
     });
   });
 });
@@ -215,7 +216,7 @@ async function readLines(graphqlClient: GraphqlClient, context: FrontendContext,
     ...cartScope(context),
     cartId: cart.id,
   });
-  return lines;
+  return requireFields(lines, ["items"], `Line validation of cart ${cart.id}`);
 }
 
 async function readCartValidation(
@@ -229,7 +230,11 @@ async function readCartValidation(
     cartId: cart.id,
     ruleSet,
   });
-  return { validationErrors: validation?.validationErrors, items: validation?.items };
+  return requireFields(
+    validation,
+    ["validationErrors", "items"],
+    `Validation of cart ${cart.id} with rule set "${ruleSet}"`,
+  );
 }
 
 async function readAliasedValidation(
@@ -245,32 +250,29 @@ async function readAliasedValidation(
     ruleSetA,
     ruleSetB,
   });
-  return { errorsA: validation?.errorsA, errorsB: validation?.errorsB };
-}
-
-function quantityErrorCodes(errors: readonly (ValidationError | null)[] | null | undefined): string[] {
-  return (errors ?? []).map((error) => error?.errorCode ?? "").filter((code) => QUANTITY_ERROR_CODES.includes(code));
-}
-
-function expectQuantityError(errors: readonly (ValidationError | null)[] | null | undefined): void {
-  expect(quantityErrorCodes(errors), `expected one of ${QUANTITY_ERROR_CODES.join(", ")}`).not.toEqual([]);
-}
-
-function expectNoQuantityError(errors: readonly (ValidationError | null)[] | null | undefined): void {
-  expect(quantityErrorCodes(errors)).toEqual([]);
-}
-
-function expectScopedToLine(errors: readonly (ValidationError | null)[] | null | undefined, lineItemId: string): void {
-  const scoped = (errors ?? []).filter((error) => error?.objectType != null || error?.objectId != null);
-  if (scoped.length === 0) {
-    test.info().annotations.push({
-      type: "not asserted",
-      description: "validation errors carry no objectType/objectId, so line scoping was not checked",
-    });
-    return;
-  }
-  const linkedToLine = scoped.some(
-    (error) => error?.objectId === lineItemId || /lineitem/i.test(error?.objectType ?? ""),
+  return requireFields(
+    validation,
+    ["errorsA", "errorsB"],
+    `Validation of cart ${cart.id} with rule sets "${ruleSetA}" and "${ruleSetB}"`,
   );
-  expect(linkedToLine, `expected an error scoped to line item ${lineItemId}`).toBe(true);
+}
+
+function quantityErrorCodes(errors: readonly ValidationError[]): string[] {
+  return errors.flatMap(({ errorCode }) =>
+    errorCode !== null && QUANTITY_ERROR_CODES.includes(errorCode) ? [errorCode] : [],
+  );
+}
+
+function expectQuantityError(errors: readonly ValidationError[]): void {
+  expect(errors.map(({ errorCode }) => errorCode)).toEqual([QUANTITY_CHANGED]);
+}
+
+function expectQuantityChangedOnLine(errors: readonly ValidationError[], lineItemId: string): void {
+  expect(errors).toEqual([
+    expect.objectContaining({ errorCode: QUANTITY_CHANGED, objectType: LINE_ITEM_OBJECT_TYPE, objectId: lineItemId }),
+  ]);
+}
+
+function expectNoQuantityError(errors: readonly ValidationError[]): void {
+  expect(quantityErrorCodes(errors)).toEqual([]);
 }

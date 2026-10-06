@@ -7,11 +7,17 @@ import type {
   CompletenessEntry,
   CompletenessEntryData,
   EvaluateCompletenessNotification,
+  EvaluateCompletenessNotificationData,
 } from "../types/completeness";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
-import { COMPLETENESS_CHANNEL_FIELDS, COMPLETENESS_ENTRY_FIELDS } from "../types/completeness";
+import {
+  COMPLETENESS_CHANNEL_FIELDS,
+  COMPLETENESS_ENTRY_FIELDS,
+  EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS,
+} from "../types/completeness";
+import { findPushNotification } from "./push-notifications";
 
 const COMPLETENESS_PATH = "/api/completeness";
 const CHANNELS_PATH = `${COMPLETENESS_PATH}/channels`;
@@ -24,24 +30,13 @@ export class CompletenessClient {
   }
 
   async getChannel(id: string): Promise<CompletenessChannel> {
-    const response = await this.#httpClient.get(`${CHANNELS_PATH}/${encodeURIComponent(id)}`);
-    return requireFields(
-      response.expectOk().json<CompletenessChannelData>(),
-      COMPLETENESS_CHANNEL_FIELDS,
-      `Channel "${id}"`,
-    );
+    return requireFields(await this.findChannel(id), COMPLETENESS_CHANNEL_FIELDS, `Channel "${id}"`);
   }
 
   async findChannel(id: string): Promise<CompletenessChannel | undefined> {
     const response = await this.#httpClient.get(`${CHANNELS_PATH}/${encodeURIComponent(id)}`);
-    if (response.status === 404) {
-      return undefined;
-    }
-    return requireFields(
-      response.expectOk().json<CompletenessChannelData>(),
-      COMPLETENESS_CHANNEL_FIELDS,
-      `Channel "${id}"`,
-    );
+    const channel = response.jsonOrUndefined<CompletenessChannelData>();
+    return channel === undefined ? undefined : requireFields(channel, COMPLETENESS_CHANNEL_FIELDS, `Channel "${id}"`);
   }
 
   async createChannel(channel: CompletenessChannelData): Promise<CompletenessChannel> {
@@ -60,7 +55,7 @@ export class CompletenessClient {
   async searchChannels(criteria: CompletenessChannelSearchCriteria): Promise<CompletenessChannel[]> {
     const response = await this.#httpClient.post(`${CHANNELS_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<CompletenessChannelSearchResult>();
-    return (results ?? []).map((channel) => requireFields(channel, COMPLETENESS_CHANNEL_FIELDS, "Found channel"));
+    return requireEach(results, COMPLETENESS_CHANNEL_FIELDS, "Found channel");
   }
 
   async deleteChannel(id: string): Promise<void> {
@@ -73,15 +68,35 @@ export class CompletenessClient {
 
   async evaluateChannel(id: string): Promise<EvaluateCompletenessNotification> {
     const response = await this.#httpClient.post(`${CHANNELS_PATH}/${encodeURIComponent(id)}/evaluate`);
-    return response.expectOk().json<EvaluateCompletenessNotification>();
+    return requireFields(
+      response.expectOk().json<EvaluateCompletenessNotificationData>(),
+      EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS,
+      `Evaluation of channel "${id}"`,
+    );
+  }
+
+  async findEvaluation(notificationId: string): Promise<EvaluateCompletenessNotification | undefined> {
+    const evaluation = await findPushNotification<EvaluateCompletenessNotificationData>(
+      this.#httpClient,
+      notificationId,
+    );
+    return evaluation === undefined
+      ? undefined
+      : requireFields(
+          evaluation,
+          EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS,
+          `Completeness evaluation "${notificationId}"`,
+        );
   }
 
   async evaluateProducts(channelId: string, productIds: string[]): Promise<CompletenessEntry[]> {
     const path = `${CHANNELS_PATH}/${encodeURIComponent(channelId)}/products/evaluate`;
-    const entries = (await this.#httpClient.post(path, { json: productIds }))
-      .expectOk()
-      .json<CompletenessEntryData[]>();
-    return entries.map((entry) => requireFields(entry, COMPLETENESS_ENTRY_FIELDS, "Evaluated completeness entry"));
+    const response = await this.#httpClient.post(path, { json: productIds });
+    return requireEach(
+      response.expectOk().json<CompletenessEntryData[]>(),
+      COMPLETENESS_ENTRY_FIELDS,
+      "Evaluated completeness entry",
+    );
   }
 
   async saveEntries(entries: CompletenessEntryData[]): Promise<void> {

@@ -1,7 +1,9 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, APIResponse } from "@playwright/test";
 import type { HttpMethod } from "./http-method";
 
 import { setTimeout as sleep } from "node:timers/promises";
+
+import { redactSecrets } from "@core/redact";
 
 import { HttpResponse } from "./http-response";
 
@@ -57,10 +59,6 @@ export class HttpClient {
     return this.send("PUT", path, options);
   }
 
-  patch(path: string, options?: RequestOptions): Promise<HttpResponse> {
-    return this.send("PATCH", path, options);
-  }
-
   delete(path: string, options?: RequestOptions): Promise<HttpResponse> {
     return this.send("DELETE", path, options);
   }
@@ -72,7 +70,7 @@ export class HttpClient {
         return response;
       }
       process.emitWarning(
-        `${method} ${response.url} → ${response.status} (database conflict), retrying in ${delayMs} ms`,
+        redactSecrets(`${method} ${response.url} → ${response.status} (database conflict), retrying in ${delayMs} ms`),
       );
       await sleep(delayMs);
       response = await this.#sendOnce(method, path, options);
@@ -81,7 +79,7 @@ export class HttpClient {
   }
 
   async #sendOnce(method: HttpMethod, path: string, options: RequestOptions): Promise<HttpResponse> {
-    const response = await this.#context.fetch(path, {
+    const response = await this.#fetch(path, {
       method,
       params: toSearchParams(options.query ?? {}),
       headers: {
@@ -107,6 +105,14 @@ export class HttpClient {
       });
     } finally {
       await response.dispose();
+    }
+  }
+
+  async #fetch(...[path, options]: Parameters<APIRequestContext["fetch"]>): Promise<APIResponse> {
+    try {
+      return await this.#context.fetch(path, options);
+    } catch (error) {
+      throw new Error(redactSecrets(error instanceof Error ? error.message : String(error)));
     }
   }
 

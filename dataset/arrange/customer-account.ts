@@ -3,7 +3,7 @@ import type { TokenManager } from "@api/auth/token-manager";
 import type { HttpClient } from "@api/http/http-client";
 import type { OrganizationMembership } from "@api/rest/types/memberships";
 import type { CleanupStack } from "@core/cleanup-stack";
-import type { FrontendContext } from "../frontend-context";
+import type { FrontendContext, StoreContext } from "../frontend-context";
 
 import { authHeader, TokenAuthClient } from "@api/auth/token-auth-client";
 import { GraphqlClient } from "@api/graphql/graphql-client";
@@ -40,23 +40,44 @@ export async function arrangeCustomerAccount(
   cleanupStack: CleanupStack,
   options: CustomerAccountOptions,
 ): Promise<CustomerAccount> {
-  const customersClient = new CustomersClient(platformAdminHttpClient);
-  const organizationId = options.organizationId ?? (await arrangeOrganizationWith(customersClient, cleanupStack));
+  const organizationId = options.organizationId ?? (await arrangeOrganization(platformAdminHttpClient, cleanupStack));
+  const { contacts } = new CustomersClient(platformAdminHttpClient);
   const contact = { ...newContact([organizationId]), defaultOrganizationId: organizationId };
-  cleanupStack.push(`delete contact ${contact.id}`, () => customersClient.contacts.delete([contact.id]));
-  await customersClient.contacts.create(contact);
+  cleanupStack.push(`delete contact ${contact.id}`, () => contacts.delete([contact.id]));
+  await contacts.create(contact);
   const draft = newUser(options.storeId, {
     userType: "Customer",
     memberId: contact.id,
     roles: [{ id: options.role, name: ORGANIZATION_ROLE_NAMES[options.role] }],
   });
   const user = await arrangeUser(new UsersClient(platformAdminHttpClient), cleanupStack, draft);
-  const membershipsClient = new OrganizationMembershipsClient(platformAdminHttpClient);
-  const membership =
-    (await membershipsClient.find(user.id, organizationId)) ??
-    (await membershipsClient.create({ userId: user.id, organizationId, roles: [{ roleId: options.role }] }));
-  cleanupStack.push(`delete membership ${membership.id}`, () => membershipsClient.delete([membership.id]));
+  await arrangeMembership(platformAdminHttpClient, cleanupStack, user.id, organizationId, options.role);
   return { credentials: credentialsOf(draft), userId: user.id, contactId: contact.id, organizationId };
+}
+
+export async function addOrganizationMembership(
+  platformAdminHttpClient: HttpClient,
+  cleanupStack: CleanupStack,
+  account: CustomerAccount,
+  organizationId: string,
+  role?: OrganizationRole,
+): Promise<OrganizationMembership> {
+  const { contacts } = new CustomersClient(platformAdminHttpClient);
+  const contact = await contacts.get(account.contactId);
+  await contacts.update({ ...contact, organizations: [...(contact.organizations ?? []), organizationId] });
+  return arrangeMembership(platformAdminHttpClient, cleanupStack, account.userId, organizationId, role);
+}
+
+export async function arrangeOrganization(
+  platformAdminHttpClient: HttpClient,
+  cleanupStack: CleanupStack,
+  name?: string,
+): Promise<string> {
+  const { organizations } = new CustomersClient(platformAdminHttpClient);
+  const organization = newOrganization(name);
+  cleanupStack.push(`delete organization ${organization.id}`, () => organizations.delete([organization.id]));
+  await organizations.create(organization);
+  return organization.id;
 }
 
 export async function signInGraphqlClient(
@@ -77,32 +98,9 @@ export async function signInWithoutCache(
   return new GraphqlClient(anonymousHttpClient.withHeaders(authHeader(token)));
 }
 
-export async function addOrganizationMembership(
-  platformAdminHttpClient: HttpClient,
-  cleanupStack: CleanupStack,
-  account: CustomerAccount,
-  organizationId: string,
-): Promise<OrganizationMembership> {
-  const { contacts } = new CustomersClient(platformAdminHttpClient);
-  const contact = await contacts.get(account.contactId);
-  await contacts.update({ ...contact, organizations: [...(contact.organizations ?? []), organizationId] });
-  const membershipsClient = new OrganizationMembershipsClient(platformAdminHttpClient);
-  const membership = await membershipsClient.create({ userId: account.userId, organizationId });
-  cleanupStack.push(`delete membership ${membership.id}`, () => membershipsClient.delete([membership.id]));
-  return membership;
-}
-
-export async function arrangeOrganization(
-  platformAdminHttpClient: HttpClient,
-  cleanupStack: CleanupStack,
-  name?: string,
-): Promise<string> {
-  return arrangeOrganizationWith(new CustomersClient(platformAdminHttpClient), cleanupStack, name);
-}
-
-export function customerAccountContext(context: FrontendContext, account: CustomerAccount): FrontendContext {
+export function customerAccountContext(storeContext: StoreContext, account: CustomerAccount): FrontendContext {
   return {
-    ...context,
+    ...storeContext,
     userId: account.userId,
     userName: account.credentials.username,
     contactId: account.contactId,
@@ -110,15 +108,21 @@ export function customerAccountContext(context: FrontendContext, account: Custom
   };
 }
 
-async function arrangeOrganizationWith(
-  customersClient: CustomersClient,
+async function arrangeMembership(
+  platformAdminHttpClient: HttpClient,
   cleanupStack: CleanupStack,
-  name?: string,
-): Promise<string> {
-  const organization = newOrganization(name);
-  cleanupStack.push(`delete organization ${organization.id}`, () =>
-    customersClient.organizations.delete([organization.id]),
-  );
-  await customersClient.organizations.create(organization);
-  return organization.id;
+  userId: string,
+  organizationId: string,
+  role: OrganizationRole | undefined,
+): Promise<OrganizationMembership> {
+  const membershipsClient = new OrganizationMembershipsClient(platformAdminHttpClient);
+  const membership =
+    (await membershipsClient.find(userId, organizationId)) ??
+    (await membershipsClient.create({
+      userId,
+      organizationId,
+      ...(role === undefined ? {} : { roles: [{ roleId: role }] }),
+    }));
+  cleanupStack.push(`delete membership ${membership.id}`, () => membershipsClient.delete([membership.id]));
+  return membership;
 }

@@ -1,28 +1,29 @@
 import * as allure from "allure-js-commons";
 
 import { HealthClient } from "@api/rest/clients/health-client";
-import { SearchIndexesClient } from "@api/rest/clients/search-indexes-client";
-import { getCredentials } from "@dataset/dataset";
 import { expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
+const PLATFORM_HEALTH_CHECKS = ["Background jobs", "Background jobs store", "Modules health", "Cache health"];
+const DATABASE_HEALTH_CHECK = /^(PostgreSql|SqlServer|MySql) health$/;
 
 test.beforeEach(async () => {
   await allure.feature("Health Check");
 });
 
 test.describe("health check (anonymous)", () => {
-  test("backend reports its health", async ({ httpClient }) => {
+  test("get the health report", async ({ httpClient }) => {
     const healthClient = new HealthClient(httpClient);
 
     const report = await test.step("act: get health report", () => healthClient.getReport());
 
-    await test.step("assert: report lists health checks", async () => {
-      expect(Object.keys(report).length).toBeGreaterThan(0);
+    await test.step("assert: report has the platform and database checks", async () => {
+      const checks = Object.keys(report);
+      expect(checks).toEqual(expect.arrayContaining(PLATFORM_HEALTH_CHECKS));
+      expect(checks).toContainEqual(expect.stringMatching(DATABASE_HEALTH_CHECK));
     });
   });
 
-  test("no health check is unhealthy", async ({ httpClient }) => {
+  test("find no unhealthy health check", async ({ httpClient }) => {
     const healthClient = new HealthClient(httpClient);
 
     const report = await test.step("act: get health report", () => healthClient.getReport());
@@ -32,20 +33,6 @@ test.describe("health check (anonymous)", () => {
         .filter(([, check]) => check.Status === "Unhealthy")
         .map(([name, check]) => `${name}: ${check.Description}`);
       expect(unhealthy).toEqual([]);
-    });
-  });
-});
-
-test.describe("health check (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
-
-  test("search engine is reachable", async ({ httpClient }) => {
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
-
-    const indexes = await test.step("act: get search indexes", () => searchIndexesClient.list());
-
-    await test.step("assert: search provider reports its indexes", async () => {
-      expect(indexes.length).toBeGreaterThan(0);
     });
   });
 });

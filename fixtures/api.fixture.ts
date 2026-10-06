@@ -6,7 +6,10 @@ import { TokenAuthClient } from "@api/auth/token-auth-client";
 import { TokenManager } from "@api/auth/token-manager";
 import { GraphqlClient } from "@api/graphql/graphql-client";
 import { HttpClient } from "@api/http/http-client";
-import { HttpError } from "@api/http/http-error";
+import { isClientError } from "@api/http/http-error";
+import { UsersClient } from "@api/rest/clients/users-client";
+import { expectSucceeded } from "@dataset/arrange/security";
+import { credentialsOf, newUser } from "@dataset/builders/security";
 
 import { test as base } from "./env.fixture";
 
@@ -16,6 +19,7 @@ export interface ApiOptions {
 
 export interface ApiWorkerFixtures {
   readonly tokenManager: TokenManager;
+  readonly workerAdministrator: Credentials;
 }
 
 export interface ApiFixtures {
@@ -35,7 +39,7 @@ export const test = base.extend<ApiOptions & ApiFixtures, ApiWorkerFixtures>({
 
   tokenManager: [
     async ({ playwright, env }, use) => {
-      const context = await openBackendContext(playwright, env);
+      const context = await openRequestContext(playwright, env, env.backendBaseUrl);
       const tokenManager = new TokenManager(new TokenAuthClient(new HttpClient(context)));
       try {
         await use(tokenManager);
@@ -47,8 +51,31 @@ export const test = base.extend<ApiOptions & ApiFixtures, ApiWorkerFixtures>({
     { scope: "worker" },
   ],
 
+  workerAdministrator: [
+    async ({ playwright, env, tokenManager }, use) => {
+      const context = await openRequestContext(playwright, env, env.backendBaseUrl);
+      try {
+        const admin = await withSignInHint(env.admin, () =>
+          tokenManager.authorize(new HttpClient(context), env.admin, env.storeId),
+        );
+        const usersClient = new UsersClient(admin);
+        const draft = newUser(env.storeId, { userType: "Administrator", isAdministrator: true });
+        expectSucceeded(await usersClient.create(draft), `Create worker administrator ${draft.userName}`);
+        try {
+          await use(credentialsOf(draft));
+        } finally {
+          await tokenManager.signOut(draft.userName, env.storeId);
+          await usersClient.delete([draft.userName]);
+        }
+      } finally {
+        await context.dispose();
+      }
+    },
+    { scope: "worker" },
+  ],
+
   httpClient: async ({ user, playwright, env, tokenManager }, use) => {
-    const context = await openBackendContext(playwright, env);
+    const context = await openRequestContext(playwright, env, env.backendBaseUrl);
     try {
       const anonymous = new HttpClient(context);
       await use(
@@ -62,7 +89,7 @@ export const test = base.extend<ApiOptions & ApiFixtures, ApiWorkerFixtures>({
   },
 
   anonymousHttpClient: async ({ playwright, env }, use) => {
-    const context = await openBackendContext(playwright, env);
+    const context = await openRequestContext(playwright, env, env.backendBaseUrl);
     try {
       await use(new HttpClient(context));
     } finally {
@@ -70,10 +97,8 @@ export const test = base.extend<ApiOptions & ApiFixtures, ApiWorkerFixtures>({
     }
   },
 
-  platformAdminHttpClient: async ({ anonymousHttpClient, env, tokenManager }, use) => {
-    await use(
-      await withSignInHint(env.admin, () => tokenManager.authorize(anonymousHttpClient, env.admin, env.storeId)),
-    );
+  platformAdminHttpClient: async ({ anonymousHttpClient, workerAdministrator, env, tokenManager }, use) => {
+    await use(await tokenManager.authorize(anonymousHttpClient, workerAdministrator, env.storeId));
   },
 
   graphqlClient: async ({ httpClient }, use) => {
@@ -81,23 +106,13 @@ export const test = base.extend<ApiOptions & ApiFixtures, ApiWorkerFixtures>({
   },
 });
 
-export function openBackendContext(
+export function openRequestContext(
   playwright: PlaywrightWorkerArgs["playwright"],
   env: Env,
+  baseURL: string,
 ): Promise<APIRequestContext> {
   return playwright.request.newContext({
-    baseURL: env.backendBaseUrl,
-    timeout: env.requestTimeoutMs,
-    ignoreHTTPSErrors: !env.verifySsl,
-  });
-}
-
-export function openFrontendContext(
-  playwright: PlaywrightWorkerArgs["playwright"],
-  env: Env,
-): Promise<APIRequestContext> {
-  return playwright.request.newContext({
-    baseURL: env.frontendBaseUrl,
+    baseURL,
     timeout: env.requestTimeoutMs,
     ignoreHTTPSErrors: !env.verifySsl,
   });
@@ -107,10 +122,17 @@ export async function withSignInHint<T>(user: Credentials, signIn: () => Promise
   try {
     return await signIn();
   } catch (error) {
-    if (error instanceof HttpError && error.status >= 400 && error.status < 500) {
+    if (isClientError(error)) {
       const hint = "check the credentials, or seed the dataset with `npm run seed`";
       throw new Error(`Cannot sign in as ${user.username}: ${hint}`, { cause: error });
     }
     throw error;
   }
+}
+
+export async function asWorkerAdministrator(
+  { workerAdministrator }: Pick<ApiWorkerFixtures, "workerAdministrator">,
+  use: (user: Credentials | undefined) => Promise<void>,
+): Promise<void> {
+  await use(workerAdministrator);
 }

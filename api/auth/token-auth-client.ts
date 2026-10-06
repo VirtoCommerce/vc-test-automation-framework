@@ -4,19 +4,21 @@ import type { Credentials } from "./credentials";
 
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { number, object, string } from "zod";
+import { number, object } from "zod";
 
-const TOKEN_PATH = "/connect/token";
+import { nonEmptyString } from "@core/validation";
+
+export const TOKEN_PATH = "/connect/token";
 const REVOKE_PATH = "/revoke/token";
 const OFFLINE_ACCESS_SCOPE = "offline_access";
-const MAX_ATTEMPTS = 3;
-const RETRY_BASE_DELAY_MS = 200;
+const MAX_ATTEMPTS = 6;
+const RETRY_BASE_DELAY_MS = 300;
 
 const TokenResponseSchema = object({
-  access_token: string().min(1),
-  token_type: string().min(1),
+  access_token: nonEmptyString,
+  token_type: nonEmptyString,
   expires_in: number().int().positive(),
-  refresh_token: string().min(1).optional(),
+  refresh_token: nonEmptyString.optional(),
 });
 
 export interface AuthToken {
@@ -34,16 +36,18 @@ export class TokenAuthClient {
   }
 
   requestToken(credentials: Credentials, storeId: string): Promise<AuthToken> {
-    return this.#tokenRequest({
-      grant_type: "password",
-      username: credentials.username,
-      password: credentials.password,
-      storeId,
-      scope: OFFLINE_ACCESS_SCOPE,
-    });
+    return this.#tokenRequest(passwordGrant(credentials, storeId));
   }
 
-  refreshToken(refreshToken: string): Promise<AuthToken> {
+  postPasswordGrant(
+    credentials: Credentials,
+    storeId: string,
+    extra: Readonly<Record<string, string>> = {},
+  ): Promise<HttpResponse> {
+    return this.#httpClient.post(TOKEN_PATH, { form: { ...passwordGrant(credentials, storeId), ...extra } });
+  }
+
+  refresh(refreshToken: string): Promise<AuthToken> {
     return this.#tokenRequest({ grant_type: "refresh_token", refresh_token: refreshToken });
   }
 
@@ -70,9 +74,19 @@ export class TokenAuthClient {
       if (response.status < 500 || attempt === MAX_ATTEMPTS) {
         return response;
       }
-      await sleep(RETRY_BASE_DELAY_MS * attempt + Math.random() * RETRY_BASE_DELAY_MS);
+      await sleep(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) + Math.random() * RETRY_BASE_DELAY_MS);
     }
   }
+}
+
+function passwordGrant(credentials: Credentials, storeId: string): Readonly<Record<string, string>> {
+  return {
+    grant_type: "password",
+    username: credentials.username,
+    password: credentials.password,
+    storeId,
+    scope: OFFLINE_ACCESS_SCOPE,
+  };
 }
 
 export function authHeader(token: AuthToken): HttpHeaders {

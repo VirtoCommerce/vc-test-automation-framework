@@ -40,7 +40,7 @@ test.describe("contact registration (anonymous)", () => {
           account: { username: email, email, password: newPassword() },
         },
       }));
-    const contact = requireFields(requestRegistration?.contact ?? undefined, ["id"], "Registered contact");
+    const contact = requireFields(requestRegistration?.contact, ["id"], "Registered contact");
 
     await test.step("assert: registration succeeded without an organization", async () => {
       expect(requestRegistration).toMatchObject({
@@ -55,7 +55,7 @@ test.describe("contact registration (anonymous)", () => {
       await expect
         .poll(async () => (await contacts.find(contact.id))?.status, { timeout: REGISTRATION_TIMEOUT_MS })
         .toBe(APPROVED);
-      expect((await contacts.get(contact.id)).organizations ?? []).toEqual([]);
+      expect((await contacts.get(contact.id)).organizations).toEqual([]);
     });
   });
 
@@ -84,12 +84,8 @@ test.describe("contact registration (anonymous)", () => {
           organization: { name: organizationName },
         },
       }));
-    const contact = requireFields(requestRegistration?.contact ?? undefined, ["id"], "Registered contact");
-    const organization = requireFields(
-      requestRegistration?.organization ?? undefined,
-      ["id"],
-      "Registered organization",
-    );
+    const contact = requireFields(requestRegistration?.contact, ["id"], "Registered contact");
+    const organization = requireFields(requestRegistration?.organization, ["id"], "Registered organization");
     const { contacts, organizations } = new CustomersClient(platformAdminHttpClient);
     cleanupStack.push(`delete organization ${organization.id}`, () => organizations.delete([organization.id]));
 
@@ -103,7 +99,7 @@ test.describe("contact registration (anonymous)", () => {
     });
     await test.step("assert: the approved contact belongs to the organization", async () => {
       await expect
-        .poll(async () => (await contacts.find(contact.id))?.organizations ?? [], { timeout: REGISTRATION_TIMEOUT_MS })
+        .poll(async () => (await contacts.find(contact.id))?.organizations, { timeout: REGISTRATION_TIMEOUT_MS })
         .toContain(organization.id);
       expect((await contacts.get(contact.id)).status).toBe(APPROVED);
     });

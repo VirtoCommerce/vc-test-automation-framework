@@ -23,10 +23,6 @@ export class ModulesClient {
     );
   }
 
-  async list(): Promise<ModuleDescriptorData[]> {
-    return (await this.#httpClient.get(MODULES_PATH)).expectOk().json<ModuleDescriptorData[]>();
-  }
-
   async reload(): Promise<void> {
     (await this.#httpClient.post(`${MODULES_PATH}/reload`)).expectOk();
   }

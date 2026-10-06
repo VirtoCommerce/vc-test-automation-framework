@@ -2,12 +2,11 @@ import * as allure from "allure-js-commons";
 
 import { SettingsClient } from "@api/rest/clients/settings-client";
 import { uniqueId } from "@core/unique-id";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { addSettingValue, registerSettingRestore, registerSettingValuesRemoval } from "@dataset/arrange/settings";
+import { FILE_EXTENSIONS_BLACKLIST_SETTING } from "@dataset/builders/content";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
-const BOOLEAN_SETTING = "VirtoCommerce.Search.IndexingJobs.Enable";
-const BLACKLIST_SETTING = "VirtoCommerce.Platform.Security.FileExtensionsBlackList";
+const BOOLEAN_SETTING = "Inventory.LogInventoryChanges";
 const CATALOG_MODULE_ID = "VirtoCommerce.Catalog";
 
 test.beforeEach(async () => {
@@ -15,7 +14,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("platform settings (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("list all settings", async ({ httpClient }) => {
     const settingsClient = new SettingsClient(httpClient);
@@ -64,8 +63,8 @@ test.describe("platform settings (admin)", () => {
 
     test("toggle a boolean setting", async ({ httpClient, cleanupStack }) => {
       const settingsClient = new SettingsClient(httpClient);
-      const original = await test.step("arrange: current value", () => settingsClient.get(BOOLEAN_SETTING));
-      cleanupStack.push(`restore setting ${BOOLEAN_SETTING}`, () => settingsClient.save([original]));
+      const original = await test.step("arrange: current value", () =>
+        registerSettingRestore(settingsClient, cleanupStack, BOOLEAN_SETTING));
       const toggled = !(original.value ?? original.defaultValue);
 
       await test.step(`act: set ${BOOLEAN_SETTING} to ${toggled}`, () =>
@@ -78,15 +77,14 @@ test.describe("platform settings (admin)", () => {
 
     test("add a file extension to the blacklist", async ({ httpClient, cleanupStack }) => {
       const settingsClient = new SettingsClient(httpClient);
-      const original = await test.step("arrange: current blacklist", () => settingsClient.get(BLACKLIST_SETTING));
-      cleanupStack.push(`restore setting ${BLACKLIST_SETTING}`, () => settingsClient.save([original]));
       const extension = `.${uniqueId("qa")}`;
+      registerSettingValuesRemoval(settingsClient, cleanupStack, FILE_EXTENSIONS_BLACKLIST_SETTING, [extension]);
 
       await test.step(`act: blacklist ${extension}`, () =>
-        settingsClient.save([{ ...original, allowedValues: [...(original.allowedValues ?? []), extension] }]));
+        addSettingValue(settingsClient, FILE_EXTENSIONS_BLACKLIST_SETTING, extension));
 
       await test.step("assert: extension is blacklisted", async () => {
-        expect((await settingsClient.get(BLACKLIST_SETTING)).allowedValues).toContain(extension);
+        expect((await settingsClient.get(FILE_EXTENSIONS_BLACKLIST_SETTING)).allowedValues).toContain(extension);
       });
     });
   });

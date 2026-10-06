@@ -11,6 +11,7 @@ export interface PageFields {
 }
 
 export class PageDetailsBlade extends Blade {
+  static readonly PERMALINK_PREFIX = "[data-test-id='permalink-prefix']";
   readonly basicSection: Card;
   readonly personalizationSection: Card;
   readonly schedulingSection: Card;
@@ -33,7 +34,7 @@ export class PageDetailsBlade extends Blade {
     this.schedulingSection = this.card(Section.scheduling);
     this.nameInput = this.textInput(Field.name);
     this.permalinkInput = this.textInput(Field.permalink);
-    this.permalinkPrefix = this.field(Field.permalink).locator("[data-test-id='permalink-prefix']");
+    this.permalinkPrefix = this.field(Field.permalink).locator(PageDetailsBlade.PERMALINK_PREFIX);
     this.language = this.select(Field.language);
     this.userGroups = this.select(Field.userGroups);
     this.organization = this.select(Field.organization);

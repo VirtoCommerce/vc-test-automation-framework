@@ -1,7 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { Currency, CurrencyData } from "../types/core";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach } from "@core/required-fields";
 
 import { CURRENCY_FIELDS } from "../types/core";
 
@@ -15,8 +15,8 @@ export class CurrenciesClient {
   }
 
   async list(): Promise<Currency[]> {
-    const currencies = (await this.#httpClient.get(CURRENCIES_PATH)).expectOk().json<CurrencyData[]>();
-    return currencies.map((currency) => requireFields(currency, CURRENCY_FIELDS, "Currency"));
+    const response = await this.#httpClient.get(CURRENCIES_PATH);
+    return requireEach(response.expectOk().json<CurrencyData[]>(), CURRENCY_FIELDS, "Currency");
   }
 
   async find(code: string): Promise<Currency | undefined> {

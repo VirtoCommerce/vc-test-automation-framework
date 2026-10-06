@@ -19,6 +19,14 @@ export function arrangeDraftPage(
     arrangePage(pageBuilderClient, cleanupStack, newPage(storeId, { name, cultureName: DEFAULT_LANGUAGE })));
 }
 
+export async function findPagesNamed(
+  pageBuilderClient: PageBuilderClient,
+  storeId: string,
+  name: string,
+): Promise<GroupedPage[]> {
+  return (await pageBuilderClient.search({ storeId, keyword: name, take: 10 })).filter((page) => page.name === name);
+}
+
 export function uiPageName(
   pageBuilderClient: PageBuilderClient,
   cleanupStack: CleanupStack,

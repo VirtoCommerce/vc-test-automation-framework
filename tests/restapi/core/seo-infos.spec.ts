@@ -1,20 +1,17 @@
 import * as allure from "allure-js-commons";
 
 import { SeoInfosClient } from "@api/rest/clients/seo-infos-client";
-import { SEEDED_CATALOG_ID } from "@dataset/builders/catalog";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { SEEDED_CATALOG_ID } from "@dataset/seeded";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Core / SEO");
 });
 
 test.describe("seo infos (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
-  test("seeded catalog has no SEO duplicates", async ({ httpClient }) => {
+  test("find no SEO duplicates in the seeded catalog", async ({ httpClient }) => {
     const seoInfosClient = new SeoInfosClient(httpClient);
 
     const duplicates = await test.step("act: find SEO duplicates", () =>

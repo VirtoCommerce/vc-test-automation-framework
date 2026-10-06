@@ -3,12 +3,13 @@ import type { ContentType } from "@api/rest/types/content";
 import * as allure from "allure-js-commons";
 
 import { ContentClient, contentPath } from "@api/rest/clients/content-client";
+import { SettingsClient } from "@api/rest/clients/settings-client";
 import { uniqueId } from "@core/unique-id";
-import { FORBIDDEN_EXTENSION, newMarkdownFile } from "@dataset/builders/content";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { arrangeSettingValue } from "@dataset/arrange/settings";
+import { FILE_EXTENSIONS_BLACKLIST_SETTING, FORBIDDEN_EXTENSION, newMarkdownFile } from "@dataset/builders/content";
+import { describeIssue, KNOWN_ISSUES } from "@dataset/known-issues";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const SEARCHABLE_CONTENT_TYPES: readonly ContentType[] = ["pages", "blogs", "themes"];
 
 test.beforeEach(async () => {
@@ -16,7 +17,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("content files (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("get content statistic", async ({ httpClient, env }) => {
     const contentClient = new ContentClient(httpClient, env.storeId);
@@ -81,6 +82,13 @@ test.describe("content files (admin)", () => {
     const folderName = uniqueId("test-folder");
     const file = newMarkdownFile("test-post");
     const renamedFileName = `renamed-${file.name}`;
+    await test.step(`arrange: ${FORBIDDEN_EXTENSION} is blacklisted`, () =>
+      arrangeSettingValue(
+        new SettingsClient(httpClient),
+        cleanupStack,
+        FILE_EXTENSIONS_BLACKLIST_SETTING,
+        FORBIDDEN_EXTENSION,
+      ));
     cleanupStack.push(`remove blogs folder ${folderName}`, () => contentClient.removeFolder("blogs", folderName));
     await test.step("arrange: blog folder", () => contentClient.createFolder("blogs", folderName));
     await test.step("arrange: uploaded post", () => contentClient.upload("blogs", folderName, file));
@@ -133,6 +141,6 @@ test.describe("content files (admin)", () => {
   });
 
   test("upload and unpack a theme archive", async () => {
-    test.fixme(true, "Needs a theme .zip fixture with a known internal file (Katalon used qwetheme_test_x.zip)");
+    test.fixme(true, describeIssue(KNOWN_ISSUES.themeZipFixture));
   });
 });

@@ -27,6 +27,8 @@ export class GraphqlError extends Error {
 }
 
 function describe(entry: GraphqlErrorEntry): string {
+  const code = entry.extensions?.["code"];
+  const prefix = typeof code === "string" ? `[${code}] ` : "";
   const location = entry.path === undefined ? "" : ` (at ${entry.path.join(".")})`;
-  return `  - ${entry.message}${location}`;
+  return `  - ${prefix}${entry.message}${location}`;
 }

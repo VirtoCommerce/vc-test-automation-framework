@@ -1,13 +1,11 @@
 import type { WithRequired } from "@core/required-fields";
 import type {
-  VirtoCommerceContentModuleCoreModelContentFolder as ContentFolderData,
   VirtoCommerceContentModuleCoreModelContentItem as ContentItemData,
   VirtoCommerceContentModuleCoreModelContentStatistic as ContentStatisticData,
-  VirtoCommerceContentModuleCoreModelMenuLink as MenuLink,
   VirtoCommerceContentModuleCoreModelMenuLinkList as MenuLinkListData,
 } from "../generated/rest-api";
 
-export type { ContentFolderData, ContentItemData, ContentStatisticData, MenuLink, MenuLinkListData };
+export type { ContentItemData, ContentStatisticData, MenuLinkListData };
 
 export type ContentType = "pages" | "blogs" | "themes";
 

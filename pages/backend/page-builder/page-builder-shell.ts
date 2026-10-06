@@ -1,15 +1,20 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Locator, Page, Response } from "@playwright/test";
 import type { PageBuilderRoute } from "./constants";
+import type { PageFields } from "./page-details-blade";
+
+import { expect } from "@playwright/test";
 
 import { AppMenu, ConfirmationPopup, Notifications } from "../shell/controls";
 import { MenuItem, Route } from "./constants";
 import { PageDetailsBlade } from "./page-details-blade";
-import { PagesListBlade } from "./pages-list-blade";
+import { isPagesSearch, PagesListBlade } from "./pages-list-blade";
 
 const LIST_REFRESH_TIMEOUT_MS = 45_000;
-const LIST_REFRESH_INTERVAL_MS = 2_000;
+const LIST_REFRESH_INTERVALS_MS = [2_000];
+const SAVE_PAGE_PATH = "/api/page-builder-pages/grouped";
+const RELOAD_PARAMETER = "reload";
 
-export const MENU_ITEM_FOR_ROUTE: Readonly<Record<PageBuilderRoute, string>> = {
+const MENU_ITEM_FOR_ROUTE: Readonly<Record<PageBuilderRoute, string>> = {
   [Route.all]: MenuItem.all,
   [Route.draft]: MenuItem.draft,
   [Route.pending]: MenuItem.pending,
@@ -42,8 +47,10 @@ export class PageBuilderShell {
     this.blades = page.locator(".vc-blade");
     this.popup = new ConfirmationPopup(page);
     this.notifications = new Notifications(page);
-    this.listBlade = new PagesListBlade(this.blades.first());
-    this.detailsBlade = new PageDetailsBlade(this.blades.last());
+    this.listBlade = new PagesListBlade(this.blades.filter({ has: page.locator(PagesListBlade.SEARCH_INPUT) }));
+    this.detailsBlade = new PageDetailsBlade(
+      this.blades.filter({ has: page.locator(PageDetailsBlade.PERMALINK_PREFIX) }),
+    );
     this.logo = page.locator(".sidebar-header__logo-image");
     this.userName = page.locator(".vc-user-info__name");
     this.userRole = page.locator(".vc-user-info__role");
@@ -55,19 +62,37 @@ export class PageBuilderShell {
   }
 
   async open(route: PageBuilderRoute = Route.all): Promise<void> {
-    const insideShell = this.page.url().includes(this.#options.path);
-    await this.page.goto(this.url(route));
-    if (insideShell) {
-      await this.page.reload();
-    }
-    await this.page.waitForLoadState("networkidle");
-    await this.blades.first().waitFor({ state: "visible" });
+    const url = this.url(route).replace("#", `&${RELOAD_PARAMETER}=${Date.now()}#`);
+    await Promise.all([this.page.waitForResponse(isPagesSearch), this.page.goto(url)]);
+    await this.listBlade.root.waitFor({ state: "visible" });
   }
 
-  async openPage(name: string): Promise<PageDetailsBlade> {
+  async openPage(name: string, route?: PageBuilderRoute): Promise<PageDetailsBlade> {
+    if (route !== undefined) {
+      await this.open(route);
+    }
     await this.listBlade.openPage(name);
     await this.detailsBlade.nameInput.waitFor({ state: "visible" });
     return this.detailsBlade;
+  }
+
+  async createPage(fields: Required<PageFields>, language: string): Promise<Response> {
+    await this.open(Route.draft);
+    const details = await this.addPage();
+    await details.fill(fields);
+    await details.language.select(language);
+    const [response] = await Promise.all([
+      this.page.waitForResponse(
+        (candidate) => candidate.request().method() === "POST" && new URL(candidate.url()).pathname === SAVE_PAGE_PATH,
+      ),
+      details.saveButton.click(),
+    ]);
+    return response;
+  }
+
+  async saveDetails(): Promise<void> {
+    await this.detailsBlade.saveButton.click();
+    await expect(this.notifications.success.first()).toBeVisible();
   }
 
   async addPage(): Promise<PageDetailsBlade> {
@@ -76,28 +101,39 @@ export class PageBuilderShell {
     return this.detailsBlade;
   }
 
-  async waitUntilListed(route: PageBuilderRoute, name: string, listed = true): Promise<PagesListBlade> {
-    const deadline = Date.now() + LIST_REFRESH_TIMEOUT_MS;
-    for (;;) {
-      await this.open(route);
-      if ((await this.listBlade.reveal(name)) === listed || Date.now() >= deadline) {
-        return this.listBlade;
-      }
-      await this.page.waitForTimeout(LIST_REFRESH_INTERVAL_MS);
-    }
+  async expectListed(route: PageBuilderRoute, name: string, listed = true): Promise<PagesListBlade> {
+    await expect
+      .poll(
+        async () => {
+          await this.open(route);
+          return this.listBlade.reveal(name);
+        },
+        {
+          message: `${name} is ${listed ? "" : "not "}listed under ${route}`,
+          timeout: LIST_REFRESH_TIMEOUT_MS,
+          intervals: LIST_REFRESH_INTERVALS_MS,
+        },
+      )
+      .toBe(listed);
+    return this.listBlade;
   }
 
-  async waitUntilCounterMatchesList(route: PageBuilderRoute): Promise<{ counter: number; total: number }> {
+  async expectCounterMatchesList(route: PageBuilderRoute): Promise<void> {
     const menuItem = MENU_ITEM_FOR_ROUTE[route];
-    const deadline = Date.now() + LIST_REFRESH_TIMEOUT_MS;
-    for (;;) {
-      await this.open(route);
-      const counter = await this.menu.counter(menuItem);
-      const total = await this.listBlade.grid.totalCount();
-      if (counter === total || Date.now() >= deadline) {
-        return { counter, total };
-      }
-      await this.page.waitForTimeout(LIST_REFRESH_INTERVAL_MS);
-    }
+    await expect
+      .poll(
+        async () => {
+          await this.open(route);
+          const listed = await this.listBlade.grid.totalCount();
+          const counter = await this.menu.counter(menuItem);
+          return counter === (listed === 0 ? undefined : listed) ? "match" : `counter ${counter}, listed ${listed}`;
+        },
+        {
+          message: `the ${menuItem} menu counter matches the number of listed pages`,
+          timeout: LIST_REFRESH_TIMEOUT_MS,
+          intervals: LIST_REFRESH_INTERVALS_MS,
+        },
+      )
+      .toBe("match");
   }
 }

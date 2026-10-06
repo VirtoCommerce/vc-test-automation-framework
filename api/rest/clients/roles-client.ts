@@ -8,7 +8,7 @@ import type {
   SecurityResult,
 } from "../types/security";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { ROLE_FIELDS } from "../types/security";
 
@@ -30,16 +30,15 @@ export class RolesClient {
   }
 
   async find(name: string): Promise<Role | undefined> {
-    const role = (await this.#httpClient.get(`${ROLES_PATH}/${encodeURIComponent(name)}`))
-      .expectOk()
-      .json<RoleData | null>();
-    return role === null ? undefined : requireFields(role, ROLE_FIELDS, `Role "${name}"`);
+    const response = await this.#httpClient.get(`${ROLES_PATH}/${encodeURIComponent(name)}`);
+    const role = response.jsonOrUndefined<RoleData>();
+    return role === undefined ? undefined : requireFields(role, ROLE_FIELDS, `Role "${name}"`);
   }
 
   async search(criteria: RoleSearchCriteria): Promise<Role[]> {
     const response = await this.#httpClient.post(`${ROLES_PATH}/search`, { json: criteria });
     const { roles } = response.expectOk().json<RoleSearchResult>();
-    return (roles ?? []).map((role) => requireFields(role, ROLE_FIELDS, "Found role"));
+    return requireEach(roles, ROLE_FIELDS, "Found role");
   }
 
   async delete(ids: readonly string[]): Promise<void> {

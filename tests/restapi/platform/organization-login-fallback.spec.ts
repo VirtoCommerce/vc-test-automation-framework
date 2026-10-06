@@ -1,22 +1,20 @@
 import * as allure from "allure-js-commons";
 
+import { TokenAuthClient } from "@api/auth/token-auth-client";
 import { CustomersClient } from "@api/rest/clients/customers-client";
 import { OrganizationMembershipsClient } from "@api/rest/clients/organization-memberships-client";
 import { UsersClient } from "@api/rest/clients/users-client";
 import { arrangeUser } from "@dataset/arrange/security";
 import { newContact, newOrganization } from "@dataset/builders/customer";
-import { newUser } from "@dataset/builders/security";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { credentialsOf, newUser } from "@dataset/builders/security";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Platform / Organization Login Fallback");
 });
 
 test.describe("organization login fallback (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("VCST-5317: sign in with a stale organization once every organization is locked", async ({
     httpClient,
@@ -51,15 +49,8 @@ test.describe("organization login fallback (admin)", () => {
     });
 
     const response = await test.step("act: sign in with the first, now locked, organization", () =>
-      anonymousHttpClient.post("/connect/token", {
-        form: {
-          grant_type: "password",
-          scope: "offline_access",
-          username: draft.userName,
-          password: draft.password,
-          storeId: env.storeId,
-          organization_id: staleOrganization.id,
-        },
+      new TokenAuthClient(anonymousHttpClient).postPasswordGrant(credentialsOf(draft), env.storeId, {
+        organization_id: staleOrganization.id,
       }));
 
     await test.step("assert: sign-in succeeds without the stale organization", async () => {

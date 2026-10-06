@@ -1,19 +1,19 @@
 import * as allure from "allure-js-commons";
 
 import { PricingClient } from "@api/rest/clients/pricing-client";
-import { SEEDED_CATALOG_ID } from "@dataset/builders/catalog";
 import { newPricelist, newPricelistAssignment } from "@dataset/builders/pricing";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { SEEDED_CATALOG_ID } from "@dataset/seeded";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
+const PRICE_CONDITION_TREE = "PriceConditionTree";
+const BLOCK_PRICING_CONDITION = "BlockPricingCondition";
 
 test.beforeEach(async () => {
   await allure.feature("Pricing / Assignments");
 });
 
 test.describe("pricelist assignments (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create an assignment", async ({ httpClient, cleanupStack }) => {
     const pricingClient = new PricingClient(httpClient);
@@ -68,8 +68,11 @@ test.describe("pricelist assignments (admin)", () => {
     const template = await test.step("act: get new assignment", () => pricingClient.getNewAssignment());
 
     await test.step("assert: template is unsaved and has a condition tree", async () => {
-      expect(template.id ?? null).toBeNull();
-      expect(template.dynamicExpression).toBeTruthy();
+      expect(template.id == null, "the template has no id").toBe(true);
+      expect(template.dynamicExpression).toMatchObject({
+        id: PRICE_CONDITION_TREE,
+        availableChildren: [expect.objectContaining({ id: BLOCK_PRICING_CONDITION })],
+      });
     });
   });
 

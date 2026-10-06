@@ -1,10 +1,11 @@
 import * as allure from "allure-js-commons";
 
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test, withItems } from "@fixtures";
 import { CartPage } from "@pages/frontend/pages/cart-page";
 import { isGraphqlOperation } from "@pages/graphql-traffic";
 
-const PRODUCT_ID = "smartphone-samsung-galaxy-a57-5g";
+const PRODUCT_ID = SEEDED_PRODUCTS.galaxyA57;
 const QUANTITY = 3;
 
 test.beforeEach(async () => {

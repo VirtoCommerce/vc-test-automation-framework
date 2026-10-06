@@ -1,16 +1,11 @@
-import type { Role, RoleData } from "@api/rest/types/security";
-import type { CleanupStack } from "@core/cleanup-stack";
-
 import * as allure from "allure-js-commons";
 
 import { RolesClient } from "@api/rest/clients/roles-client";
 import { UsersClient } from "@api/rest/clients/users-client";
-import { arrangeUser } from "@dataset/arrange/security";
+import { arrangeRole, arrangeUser, expectSucceeded, registerRoleRemoval } from "@dataset/arrange/security";
 import { newRole, newUser } from "@dataset/builders/security";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const CALL_API_PERMISSION = "security:call_api";
 const RESET_CACHE_PERMISSION = "cache:reset";
 
@@ -19,13 +14,17 @@ test.beforeEach(async () => {
 });
 
 test.describe("roles (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a role", async ({ httpClient, cleanupStack }) => {
     const rolesClient = new RolesClient(httpClient);
     const draft = newRole([CALL_API_PERMISSION]);
 
-    const role = await test.step("act: create role", () => arrangeRole(rolesClient, cleanupStack, draft));
+    registerRoleRemoval(rolesClient, cleanupStack, draft.name);
+    const role = await test.step("act: create role", async () => {
+      expectSucceeded(await rolesClient.save(draft), `Create role ${draft.name}`);
+      return rolesClient.get(draft.name);
+    });
 
     await test.step("assert: role has its permission", async () => {
       expect(role.name).toBe(draft.name);
@@ -125,21 +124,3 @@ test.describe("roles (admin)", () => {
     });
   });
 });
-
-async function arrangeRole(
-  rolesClient: RolesClient,
-  cleanupStack: CleanupStack,
-  draft: RoleData & { name: string },
-): Promise<Role> {
-  cleanupStack.push(`delete role ${draft.name}`, async () => {
-    const role = await rolesClient.find(draft.name);
-    if (role !== undefined) {
-      await rolesClient.delete([role.id]);
-    }
-  });
-  const result = await rolesClient.save(draft);
-  if (result.succeeded !== true) {
-    throw new Error(`Cannot create role ${draft.name}: ${JSON.stringify(result.errors)}`);
-  }
-  return rolesClient.get(draft.name);
-}

@@ -3,12 +3,13 @@ import type { SignedInCustomerAccount } from "@fixtures";
 import * as allure from "allure-js-commons";
 
 import { GetShoppingListsDocument } from "@api/graphql/generated/graphql";
+import { requireItems } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
 import { cartScope } from "@dataset/arrange/cart";
 import { registerShoppingListsRemoval } from "@dataset/arrange/shopping-list";
-import { expect, test } from "@fixtures";
+import { expect, test, withCustomerAccount } from "@fixtures";
 import { AccountListsPage } from "@pages/frontend/pages/account-pages";
-import { isGraphqlMutation } from "@pages/graphql-traffic";
+import { isGraphqlOperation } from "@pages/graphql-traffic";
 
 const SCOPES = [
   { scope: "Private", label: "Private" },
@@ -21,7 +22,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("wishlist management (customer account)", () => {
-  test.use({ shopperAccount: "customer-account" });
+  test.use({ browserCustomerAccount: withCustomerAccount });
 
   for (const { scope, label } of SCOPES) {
     test(`create a wishlist shared with ${label}`, async ({ page, customerAccount, cleanupStack }) => {
@@ -40,7 +41,7 @@ test.describe("wishlist management (customer account)", () => {
         await listsPage.settingsModal.descriptionInput.fill(`${scope} list created by an automated test`);
         await listsPage.settingsModal.selectScope(label);
         await Promise.all([
-          page.waitForResponse(isGraphqlMutation("wishlist")),
+          page.waitForResponse(isGraphqlOperation("AddWishlist")),
           listsPage.settingsModal.saveButton.click(),
         ]);
       });
@@ -63,7 +64,7 @@ test.describe("wishlist management (customer account)", () => {
       await listsPage.createListButton.click();
       await listsPage.settingsModal.nameInput.fill(name);
       await Promise.all([
-        page.waitForResponse(isGraphqlMutation("wishlist")),
+        page.waitForResponse(isGraphqlOperation("AddWishlist")),
         listsPage.settingsModal.saveButton.click(),
       ]);
       await expect(listsPage.card(name).root).toBeVisible();
@@ -77,7 +78,7 @@ test.describe("wishlist management (customer account)", () => {
       await listsPage.settingsModal.descriptionInput.fill("Edited by an automated test");
       await listsPage.settingsModal.selectScope("Organization");
       await Promise.all([
-        page.waitForResponse(isGraphqlMutation("wishlist")),
+        page.waitForResponse(isGraphqlOperation("ChangeWishlist")),
         listsPage.settingsModal.saveButton.click(),
       ]);
     });
@@ -92,7 +93,7 @@ test.describe("wishlist management (customer account)", () => {
       await card.menuButton.click();
       await card.removeMenuItem.click();
       await Promise.all([
-        page.waitForResponse(isGraphqlMutation("wishlist")),
+        page.waitForResponse(isGraphqlOperation("DeleteWishlist")),
         listsPage.deleteModal.confirmButton.click(),
       ]);
     });
@@ -110,7 +111,8 @@ async function listScopes(
   account: SignedInCustomerAccount,
 ): Promise<{ readonly name: string; readonly scope: string | null | undefined }[]> {
   const { wishlists } = await account.graphqlClient.execute(GetShoppingListsDocument, cartScope(account.context));
-  return (wishlists?.items ?? []).flatMap((list) =>
-    list === null ? [] : [{ name: list.name, scope: list.sharingSetting?.scope }],
-  );
+  return requireItems(wishlists?.items, "Shopping lists").map((list) => ({
+    name: list.name,
+    scope: list.sharingSetting?.scope,
+  }));
 }

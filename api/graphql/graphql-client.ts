@@ -46,18 +46,25 @@ export class GraphqlClient {
 
   async executeRaw<R, V>(document: GraphqlDocument<R, V>, ...[variables]: VariablesArg<V>): Promise<GraphqlResult<R>> {
     const query = document.toString();
-    const operationName = OPERATION_NAME.exec(query)?.[1] ?? ANONYMOUS_OPERATION;
+    const operationName = OPERATION_NAME.exec(query)?.[1];
 
     const response = await this.#httpClient.post(GRAPHQL_PATH, {
       json: { query, operationName, variables: variables ?? {} },
     });
+    if (!response.ok && !response.header("content-type")?.includes("json")) {
+      response.expectOk();
+    }
     const body = response.parse(GraphqlResponseSchema);
     const errors = body.errors ?? [];
-
     if (!response.ok && errors.length === 0) {
       response.expectOk();
     }
 
-    return { operationName, status: response.status, data: (body.data ?? null) as R | null, errors };
+    return {
+      operationName: operationName ?? ANONYMOUS_OPERATION,
+      status: response.status,
+      data: (body.data ?? null) as R | null,
+      errors,
+    };
   }
 }

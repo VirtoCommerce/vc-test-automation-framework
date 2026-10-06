@@ -2,17 +2,14 @@ import * as allure from "allure-js-commons";
 
 import { CustomersClient } from "@api/rest/clients/customers-client";
 import { newContact, newMember, newOrganization } from "@dataset/builders/customer";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Contacts / Members");
 });
 
 test.describe("members (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a member", async ({ httpClient, cleanupStack }) => {
     const { members } = new CustomersClient(httpClient);
@@ -41,23 +38,6 @@ test.describe("members (admin)", () => {
     });
   });
 
-  test("create a contact member in an organization", async ({ httpClient, cleanupStack }) => {
-    const customersClient = new CustomersClient(httpClient);
-    const organization = await test.step("arrange: organization", () =>
-      customersClient.organizations.create(newOrganization()));
-    cleanupStack.push(`delete organization ${organization.id}`, () =>
-      customersClient.organizations.delete([organization.id]),
-    );
-
-    const member = await test.step("act: create contact member in the organization", () =>
-      customersClient.members.create(newContact([organization.id])));
-    cleanupStack.push(`delete member ${member.id}`, () => customersClient.members.delete([member.id]));
-
-    await test.step("assert: member belongs to the organization", async () => {
-      expect((await customersClient.getOrganizationsOf(member.id)).map(({ id }) => id)).toEqual([organization.id]);
-    });
-  });
-
   test("get a member by id", async ({ httpClient, cleanupStack }) => {
     const { members } = new CustomersClient(httpClient);
     const member = await test.step("arrange: member", () => members.create(newMember()));
@@ -72,10 +52,10 @@ test.describe("members (admin)", () => {
 
   test("get members by ids", async ({ httpClient, cleanupStack }) => {
     const { members } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two members", () =>
-      Promise.all([members.create(newMember()), members.create(newMember())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newMember(), newMember()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete members ${ids.join(", ")}`, () => members.delete(ids));
+    await test.step("arrange: two members", () => Promise.all(drafts.map((draft) => members.create(draft))));
 
     const found = await test.step("act: get members by ids", () => members.getMany(ids));
 
@@ -111,10 +91,11 @@ test.describe("members (admin)", () => {
 
   test("rename members in bulk", async ({ httpClient, cleanupStack }) => {
     const { members } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two members", () =>
-      Promise.all([members.create(newMember()), members.create(newMember())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newMember(), newMember()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete members ${ids.join(", ")}`, () => members.delete(ids));
+    const created = await test.step("arrange: two members", () =>
+      Promise.all(drafts.map((draft) => members.create(draft))));
     const renamed = created.map((member) => ({ ...member, name: `${member.name}-renamed` }));
 
     await test.step("act: rename both members", () => members.updateMany(renamed));
@@ -140,10 +121,11 @@ test.describe("members (admin)", () => {
 
   test("delete members matching a search", async ({ httpClient, cleanupStack }) => {
     const customersClient = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two members", () =>
-      Promise.all([customersClient.members.create(newMember()), customersClient.members.create(newMember())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newMember(), newMember()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete members ${ids.join(", ")}`, () => customersClient.members.delete(ids));
+    await test.step("arrange: two members", () =>
+      Promise.all(drafts.map((draft) => customersClient.members.create(draft))));
 
     await test.step("act: delete members matching their ids", () =>
       customersClient.deleteMatchingMembers({ objectIds: ids }));

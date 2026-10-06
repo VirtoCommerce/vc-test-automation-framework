@@ -1,7 +1,7 @@
 import * as allure from "allure-js-commons";
 
 import { TEST_ADDRESS } from "@dataset/builders/address";
-import { expect, test, withItems } from "@fixtures";
+import { expect, test, withCustomerAccount, withItems } from "@fixtures";
 import { CheckoutFlow } from "@pages/frontend/checkout-flow";
 import { EditAddressModal } from "@pages/frontend/components/edit-address-modal";
 import { SelectAddressModal } from "@pages/frontend/components/select-address-modal";
@@ -48,7 +48,7 @@ test.describe("checkout billing (anonymous)", () => {
 
 test.describe("checkout billing (customer account with a saved address)", () => {
   test.use({
-    shopperAccount: "customer-account",
+    browserCustomerAccount: withCustomerAccount,
     cart: withItems([{ productId: PRODUCT_ID, quantity: QUANTITY }]),
   });
 

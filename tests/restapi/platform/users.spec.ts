@@ -5,17 +5,14 @@ import { UsersClient } from "@api/rest/clients/users-client";
 import { requireFields } from "@core/required-fields";
 import { arrangeUser } from "@dataset/arrange/security";
 import { credentialsOf, newUser } from "@dataset/builders/security";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Platform / Users");
 });
 
 test.describe("platform users (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a user", async ({ httpClient, cleanupStack, env }) => {
     const usersClient = new UsersClient(httpClient);
@@ -108,23 +105,18 @@ test.describe("platform users (admin)", () => {
     });
   });
 
-  test("sign a user in and out", async ({ httpClient, anonymousHttpClient, cleanupStack, env }) => {
+  test("sign a user out", async ({ httpClient, anonymousHttpClient, cleanupStack, env }) => {
     const usersClient = new UsersClient(httpClient);
     const tokenAuthClient = new TokenAuthClient(anonymousHttpClient);
     const draft = newUser(env.storeId);
     await test.step("arrange: user", () => arrangeUser(usersClient, cleanupStack, draft));
-
-    const token = await test.step("act: sign in", () =>
+    const token = await test.step("arrange: signed-in session", () =>
       tokenAuthClient.requestToken(credentialsOf(draft), env.storeId));
-    await test.step("assert: user gets a refreshable token", async () => {
-      expect(token).toMatchObject({ accessToken: expect.any(String), refreshToken: expect.any(String) });
-    });
-
     const { refreshToken } = requireFields(token, ["refreshToken"], `Token of ${draft.userName}`);
 
     await test.step("act: sign out", () => tokenAuthClient.revokeToken(token));
     await test.step("assert: revoked session cannot be refreshed", async () => {
-      await expect(tokenAuthClient.refreshToken(refreshToken)).rejects.toMatchObject({ status: 400 });
+      await expect(tokenAuthClient.refresh(refreshToken)).rejects.toMatchObject({ status: 400 });
     });
   });
 });

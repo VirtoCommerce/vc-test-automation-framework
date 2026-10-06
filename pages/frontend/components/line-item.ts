@@ -3,6 +3,16 @@ import type { Locator } from "@playwright/test";
 import { AddToCartButton } from "./add-to-cart-button";
 import { QuantityStepper } from "./quantity-stepper";
 
+const PRODUCT_ITEM = "[data-product-sku]";
+
+export function productItems(scope: Locator): Locator {
+  return scope.locator(PRODUCT_ITEM);
+}
+
+export function productItem(scope: Locator, sku: string): Locator {
+  return scope.locator(`[data-product-sku='${sku}']`);
+}
+
 export class LineItem {
   readonly root: Locator;
   readonly quantityStepper: QuantityStepper;

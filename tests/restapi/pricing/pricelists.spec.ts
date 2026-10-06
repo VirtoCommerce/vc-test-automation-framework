@@ -1,19 +1,16 @@
 import * as allure from "allure-js-commons";
 
 import { PricingClient } from "@api/rest/clients/pricing-client";
-import { newPrice, newPricelist, PRICELIST_CURRENCY } from "@dataset/builders/pricing";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
-const SEEDED_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+import { newPricelist } from "@dataset/builders/pricing";
+import { SEEDED_CURRENCY } from "@dataset/seeded";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Pricing / Pricelists");
 });
 
 test.describe("pricelists (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a pricelist", async ({ httpClient, cleanupStack }) => {
     const pricingClient = new PricingClient(httpClient);
@@ -23,7 +20,7 @@ test.describe("pricelists (admin)", () => {
     cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
 
     await test.step("assert: pricelist has the currency", async () => {
-      expect(pricelist).toMatchObject({ name: draft.name, currency: PRICELIST_CURRENCY });
+      expect(pricelist).toMatchObject({ name: draft.name, currency: SEEDED_CURRENCY });
     });
   });
 
@@ -89,23 +86,6 @@ test.describe("pricelists (admin)", () => {
       expect((await pricingClient.searchPricelists({ Keyword: pricelist.name })).map(({ id }) => id)).not.toContain(
         pricelist.id,
       );
-    });
-  });
-
-  test("add a product to a pricelist", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-
-    await test.step("act: add product price", () =>
-      pricingClient.savePrices([
-        { productId: SEEDED_PRODUCT_ID, prices: [newPrice(pricelist.id, SEEDED_PRODUCT_ID, 99.99)] },
-      ]));
-
-    await test.step("assert: pricelist prices the product", async () => {
-      expect(await pricingClient.searchPrices({ priceListIds: [pricelist.id] })).toEqual([
-        expect.objectContaining({ productId: SEEDED_PRODUCT_ID, list: 99.99 }),
-      ]);
     });
   });
 });

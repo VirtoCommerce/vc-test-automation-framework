@@ -10,7 +10,6 @@ import type {
   VirtoCommerceCatalogModuleCoreModelListEntryListEntryBase as ListEntryData,
   VirtoCommerceCatalogModuleCoreModelSearchCatalogListEntrySearchCriteria as ListEntrySearchCriteria,
   VirtoCommerceCatalogModuleCoreModelSearchListEntrySearchResult as ListEntrySearchResult,
-  VirtoCommerceCatalogModuleCoreModelAsset as ProductAsset,
   VirtoCommerceCatalogModuleCoreModelImage as ProductImage,
 } from "../generated/rest-api";
 
@@ -25,7 +24,6 @@ export type {
   ListEntryData,
   ListEntrySearchCriteria,
   ListEntrySearchResult,
-  ProductAsset,
   ProductImage,
 };
 

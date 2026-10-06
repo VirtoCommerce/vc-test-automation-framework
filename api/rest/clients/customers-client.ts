@@ -12,7 +12,7 @@ import type {
   VendorSearchResult,
 } from "../types/customers";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { MEMBER_FIELDS } from "../types/customers";
 
@@ -32,17 +32,14 @@ export class MemberResource<Data extends MemberBaseData> {
   }
 
   async find(id: string): Promise<Member<Data> | undefined> {
-    const response = (await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`)).expectOk();
-    const member = response.text === "" ? null : response.json<Data | null>();
-    return member === null ? undefined : requireFields(member, MEMBER_FIELDS, `${this.#label} "${id}"`);
+    const response = await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`);
+    const member = response.jsonOrUndefined<Data>();
+    return member === undefined ? undefined : requireFields(member, MEMBER_FIELDS, `${this.#label} "${id}"`);
   }
 
   async getMany(ids: readonly string[]): Promise<Member<Data>[]> {
     const response = await this.#httpClient.get(this.#path, { query: { ids } });
-    return response
-      .expectOk()
-      .json<Data[]>()
-      .map((member) => requireFields(member, MEMBER_FIELDS, this.#label));
+    return requireEach(response.expectOk().json<Data[]>(), MEMBER_FIELDS, this.#label);
   }
 
   async create(member: Data): Promise<Member<Data>> {
@@ -65,7 +62,7 @@ export class MemberResource<Data extends MemberBaseData> {
   async search(criteria: MembersSearchCriteria): Promise<Member<Data>[]> {
     const response = await this.#httpClient.post(`${this.#path}/search`, { json: criteria });
     const { results } = response.expectOk().json<{ results?: Data[] | null }>();
-    return (results ?? []).map((member) => requireFields(member, MEMBER_FIELDS, `Found ${this.#label}`));
+    return requireEach(results, MEMBER_FIELDS, `Found ${this.#label}`);
   }
 
   async delete(ids: readonly string[]): Promise<void> {
@@ -92,18 +89,12 @@ export class CustomersClient {
 
   async getOrganizationsOf(memberId: string): Promise<Member<OrganizationData>[]> {
     const response = await this.#httpClient.get(`/api/members/${encodeURIComponent(memberId)}/organizations`);
-    return response
-      .expectOk()
-      .json<OrganizationData[]>()
-      .map((organization) => requireFields(organization, MEMBER_FIELDS, `Organization of "${memberId}"`));
+    return requireEach(response.expectOk().json<OrganizationData[]>(), MEMBER_FIELDS, `Organization of "${memberId}"`);
   }
 
   async listOrganizations(): Promise<Member<OrganizationData>[]> {
     const response = await this.#httpClient.get("/api/members/organizations");
-    return response
-      .expectOk()
-      .json<OrganizationData[]>()
-      .map((organization) => requireFields(organization, MEMBER_FIELDS, "Organization"));
+    return requireEach(response.expectOk().json<OrganizationData[]>(), MEMBER_FIELDS, "Organization");
   }
 
   async createEmployee(employee: EmployeeData): Promise<Member<EmployeeData>> {
@@ -113,10 +104,7 @@ export class CustomersClient {
 
   async getEmployees(ids: readonly string[]): Promise<Member<EmployeeData>[]> {
     const response = await this.#httpClient.get("/api/employees", { query: { ids } });
-    return response
-      .expectOk()
-      .json<EmployeeData[]>()
-      .map((employee) => requireFields(employee, MEMBER_FIELDS, "Employee"));
+    return requireEach(response.expectOk().json<EmployeeData[]>(), MEMBER_FIELDS, "Employee");
   }
 
   async saveEmployees(employees: EmployeeData[]): Promise<void> {
@@ -126,7 +114,7 @@ export class CustomersClient {
   async searchVendors(criteria: MembersSearchCriteria): Promise<Member<VendorData>[]> {
     const response = await this.#httpClient.post("/api/vendors/search", { json: criteria });
     const { results } = response.expectOk().json<VendorSearchResult>();
-    return (results ?? []).map((vendor) => requireFields(vendor, MEMBER_FIELDS, "Found vendor"));
+    return requireEach(results, MEMBER_FIELDS, "Found vendor");
   }
 
   async saveAddresses(memberId: string, addresses: CustomerAddress[]): Promise<void> {

@@ -8,44 +8,47 @@ import { CatalogClient } from "@api/rest/clients/catalog-client";
 import { PersonalizationClient } from "@api/rest/clients/personalization-client";
 import { SettingsClient } from "@api/rest/clients/settings-client";
 import { uniqueId } from "@core/unique-id";
-import { newCatalog, newCategory, newProduct } from "@dataset/builders/catalog";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { createCategoryWithProduct } from "@dataset/arrange/catalog";
+import {
+  addSettingValue,
+  arrangeSettingValue,
+  registerSettingRestore,
+  registerSettingValuesRemoval,
+} from "@dataset/arrange/settings";
+import { newCatalog, newCategory } from "@dataset/builders/catalog";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const MEMBER_GROUPS_SETTING = "Customer.MemberGroups";
 const INHERITANCE_POLICY_SETTING = "CatalogPersonalization.TagsInheritancePolicy";
+const SYNCHRONIZATION_TIMEOUT_MS = 60_000;
 
 test.beforeEach(async () => {
   await allure.feature("Catalog / Personalization");
 });
 
 test.describe("catalog personalization (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test.describe("tags", () => {
-    test("get member groups", async ({ httpClient }) => {
+    test("get member groups", async ({ httpClient, cleanupStack }) => {
       const settingsClient = new SettingsClient(httpClient);
+      const group = uniqueId("test-group");
+      await test.step(`arrange: member group ${group}`, () =>
+        arrangeSettingValue(settingsClient, cleanupStack, MEMBER_GROUPS_SETTING, group));
 
       const groups = await test.step("act: get member groups", () => settingsClient.getValues(MEMBER_GROUPS_SETTING));
 
-      await test.step("assert: member groups are a list of names", async () => {
-        expect(Array.isArray(groups)).toBe(true);
-        for (const group of groups) {
-          expect(group).toEqual(expect.any(String));
-        }
+      await test.step("assert: the arranged group is listed", async () => {
+        expect(groups).toContain(group);
       });
     });
 
     test("add a tag to the member groups", async ({ httpClient, cleanupStack }) => {
       const settingsClient = new SettingsClient(httpClient);
-      const original = await test.step("arrange: current member groups", () =>
-        settingsClient.get(MEMBER_GROUPS_SETTING));
-      cleanupStack.push(`restore setting ${MEMBER_GROUPS_SETTING}`, () => settingsClient.save([original]));
       const tag = uniqueId("test-tag");
+      registerSettingValuesRemoval(settingsClient, cleanupStack, MEMBER_GROUPS_SETTING, [tag]);
 
-      await test.step("act: add tag", () =>
-        settingsClient.save([{ ...original, allowedValues: [...(original.allowedValues ?? []), tag] }]));
+      await test.step("act: add tag", () => addSettingValue(settingsClient, MEMBER_GROUPS_SETTING, tag));
 
       await test.step("assert: tag is a member group", async () => {
         expect(await settingsClient.getValues(MEMBER_GROUPS_SETTING)).toContain(tag);
@@ -186,29 +189,27 @@ test.describe("catalog personalization (admin)", () => {
       const notification = await test.step("act: start outlines synchronization", () =>
         personalizationClient.synchronizeOutlines());
 
-      await test.step("assert: synchronization job is started", async () => {
-        expect(notification).toMatchObject({ errorCount: 0, jobId: expect.any(String) });
+      await test.step("assert: synchronization finishes without errors", async () => {
+        await expect
+          .poll(async () => (await personalizationClient.findSynchronization(notification.id))?.finished, {
+            timeout: SYNCHRONIZATION_TIMEOUT_MS,
+          })
+          .toEqual(expect.any(String));
+        expect(await personalizationClient.findSynchronization(notification.id)).toMatchObject({
+          errorCount: 0,
+          errors: [],
+        });
       });
     });
   });
 });
-
-async function createCategoryWithProduct(
-  catalogClient: CatalogClient,
-  catalogId: string,
-): Promise<{ category: Category; product: CatalogProduct }> {
-  const category = await catalogClient.saveCategory(newCategory(catalogId));
-  const product = await catalogClient.saveProduct(newProduct(catalogId, category.id));
-  return { category, product };
-}
 
 async function arrangeInheritancePolicy(
   settingsClient: SettingsClient,
   cleanupStack: CleanupStack,
   policy: string,
 ): Promise<void> {
-  const original = await settingsClient.get(INHERITANCE_POLICY_SETTING);
-  cleanupStack.push(`restore setting ${INHERITANCE_POLICY_SETTING}`, () => settingsClient.save([original]));
+  const original = await registerSettingRestore(settingsClient, cleanupStack, INHERITANCE_POLICY_SETTING);
   await settingsClient.save([{ ...original, value: policy }]);
 }
 

@@ -1,32 +1,28 @@
+import type { output } from "zod";
 import type { PageBuilderClient } from "@api/rest/clients/page-builder-client";
-import type { PageStatus } from "@api/rest/types/page-builder";
 import type { Logger } from "@core/logger";
 import type { Dataset } from "./dataset";
 
-import { enum as enumOf, object, string } from "zod";
+import { enum as enumOf, object } from "zod";
 
 import { PAGE_STATUSES } from "@api/rest/types/page-builder";
+import { nonEmptyString, parseOrThrow } from "@core/validation";
 
 const SeededPageSchema = object({
-  id: string().min(1),
-  name: string().min(1),
-  storeId: string().min(1),
+  id: nonEmptyString,
+  name: nonEmptyString,
+  storeId: nonEmptyString,
   status: enumOf(PAGE_STATUSES).default("Draft"),
 });
 
-interface SeededPage {
-  readonly id: string;
-  readonly name: string;
-  readonly storeId: string;
-  readonly status: PageStatus;
-}
+type SeededPage = output<typeof SeededPageSchema>;
 
 export async function applyPageStatuses(
   pageBuilderClient: PageBuilderClient,
   dataset: Dataset,
   logger: Logger,
 ): Promise<void> {
-  const pages = dataset.pages.map((item) => SeededPageSchema.parse(item));
+  const pages = dataset.pages.map((item) => parseOrThrow(SeededPageSchema, item, "Invalid seeded page"));
   const currentStatuses = await findCurrentStatuses(pageBuilderClient, pages);
   for (const page of pages) {
     const current = currentStatuses.get(page.id);

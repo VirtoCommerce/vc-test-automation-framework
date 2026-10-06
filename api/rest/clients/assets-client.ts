@@ -1,7 +1,7 @@
 import type { HttpClient, MultipartFile } from "../../http/http-client";
 import type { BlobEntry, BlobEntrySearchResult, BlobInfo, BlobInfoData } from "../types/assets";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { BLOB_FIELDS } from "../types/assets";
 
@@ -17,7 +17,7 @@ export class AssetsClient {
   async list(folderUrl = ""): Promise<BlobEntry[]> {
     const response = await this.#httpClient.get(ASSETS_PATH, { query: { folderUrl } });
     const { results } = response.expectOk().json<BlobEntrySearchResult>();
-    return (results ?? []).map((entry) => requireFields(entry, BLOB_FIELDS, `Asset entry in "${folderUrl}"`));
+    return requireEach(results, BLOB_FIELDS, `Asset entry in "${folderUrl}"`);
   }
 
   async find(name: string, folderUrl = ""): Promise<BlobEntry | undefined> {

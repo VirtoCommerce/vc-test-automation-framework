@@ -14,7 +14,7 @@ export class CleanupStack {
     this.#entries.push({ description, action });
   }
 
-  async unwind(run: CleanupRunner = runAction): Promise<void> {
+  async unwind(run: CleanupRunner): Promise<void> {
     const errors: unknown[] = [];
     for (let entry = this.#entries.pop(); entry !== undefined; entry = this.#entries.pop()) {
       try {
@@ -30,8 +30,4 @@ export class CleanupStack {
       throw new AggregateError(errors, `${errors.length} cleanup actions failed`);
     }
   }
-}
-
-function runAction(_description: string, action: CleanupAction): Promise<unknown> {
-  return action();
 }

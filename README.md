@@ -8,7 +8,7 @@ Automated tests for the Virto Commerce **platform** (REST API and xAPI GraphQL),
 | `graphql` | xAPI GraphQL (`/graphql`) | 156 (+1 destructive) |
 | `e2e-frontend` | vc-frontend in a browser | 68 |
 | `e2e-backend` | Page-builder shell in the platform admin | 30 |
-| `seed` | Loads the test dataset into the platform (setup, not tests) | 2 |
+| `seed` | Loads the test dataset into the platform (setup, not tests) | 3 steps |
 
 ## Contents
 
@@ -22,6 +22,7 @@ Automated tests for the Virto Commerce **platform** (REST API and xAPI GraphQL),
 - [Code generation](#code-generation)
 - [Code quality](#code-quality)
 - [Continuous integration](#continuous-integration)
+- [AI-assisted workflow](#ai-assisted-workflow)
 - [Known platform issues](#known-platform-issues)
 
 ## Prerequisites
@@ -71,7 +72,7 @@ Commands in `shell` blocks are the same in PowerShell and bash; where the syntax
    npm run seed
    ```
 
-   This loads everything in `dataset/data` (store, catalog, products, prices, inventory, contacts, organizations, users, pages, …) and then moves page-builder pages to the status each page file declares (pages are always created as Draft). Running it again updates the existing records; re-seeded pages drop back to Draft and are moved to their declared status again. The seed step is allowed up to 15 minutes.
+   This loads everything in `dataset/data` (store, catalog, products, prices, inventory, contacts, organizations, users, pages, …) and then moves page-builder pages to the status each page file declares (pages are always created as Draft). Running it again updates the existing records; re-seeded pages drop back to Draft and are moved to their declared status again. Seeded users are created when missing and otherwise get their password reset to `USERS_PASSWORD`, so changing that variable and re-seeding is enough to apply it. Each seed step is allowed up to 15 minutes.
 
 5. **Check the setup** with a quick run:
 
@@ -137,6 +138,8 @@ SEED_ONLY=products,prices npm run seed
 
 In PowerShell, `$env:` variables stay set for the rest of the session; remove one with `Remove-Item Env:SEED_ONLY`. The bash form applies to that one command only.
 
+Entities whose module is not installed are skipped (with a warning when they were asked for in `SEED_ONLY`), and so are entities with an empty data folder. "Apply page statuses" runs when `pages` or `pagesContent` was seeded, "verify shipping methods" when `shippingMethods` was. A failing request names the item it was seeding (`item "<id>"`), and the error keeps the platform's response.
+
 ### Reports
 
 Every run writes Allure results to `allure-results/`, plus traces and screenshots of failed tests to `test-results/`.
@@ -180,8 +183,7 @@ All settings come from environment variables, loaded from `.env` when it exists 
 | `REQUEST_TIMEOUT_MS` | `30000` | Timeout of API requests |
 | `VERIFY_SSL` | `true` | Set `false` for self-signed certificates, including a local frontend dev server on `https://localhost:3000` (Node does not trust it even when the browser does) |
 | `RUN_DESTRUCTIVE_TESTS` | `false` | Include `@destructive` tests |
-| `PAGE_SIZE` | `20` | Default page size for list/search requests |
-| `E2E_WORKERS` | 2 on CI, otherwise half the CPU cores | Parallel browser workers for `e2e-frontend` (`e2e-backend` always uses 1) |
+| `E2E_WORKERS` | 3 | Parallel browser workers for `e2e-frontend` (`e2e-backend` always uses 1) |
 | `QUANTITY_CONTROL` | `stepper` | Frontend quantity control: `stepper` or `button` |
 | `RANGE_FILTER_TYPE` | `slider` | Frontend price filter: `slider` or `default` (checkboxes) |
 | `CHECKOUT_MODE` | `single-page` | Frontend checkout: `single-page` or `multi-step` |
@@ -194,13 +196,7 @@ All settings come from environment variables, loaded from `.env` when it exists 
 
 `E2E_WORKERS` sets how many browsers the `e2e-frontend` project runs at the same time. Each worker is a separate browser that loads frontend pages, and every page load sends catalog, cart and menu queries through xAPI to the platform, which answers most of them from Elasticsearch. So the right number depends on how much concurrent traffic **the platform and its search engine** can serve, not on how many CPU cores the test machine has.
 
-How the number is chosen:
-
-| Situation | `e2e-frontend` workers |
-|---|---|
-| `E2E_WORKERS` is set (environment or `.env`) | that value, always |
-| not set, running on CI (the `CI` variable is set, as on GitHub Actions and most CI systems) | 2 |
-| not set, running locally | Playwright's default: half the logical CPU cores |
+The default is 3, locally and on CI; `E2E_WORKERS` in the environment or `.env` overrides it.
 
 Other projects are not affected: `e2e-backend` always runs with 1 worker (the page builder's counters, status lists and search are shared state), and `restapi` / `graphql` use Playwright's default because they do not render pages.
 
@@ -223,7 +219,7 @@ $env:E2E_WORKERS = '2'; npm run test:e2e:frontend; Remove-Item Env:E2E_WORKERS
 E2E_WORKERS=2 npm run test:e2e:frontend
 ```
 
-To make it permanent for your machine, put `E2E_WORKERS=4` (or another value) in `.env`. On CI, set it as a pipeline variable when the runner can take more or less than the default 2. Playwright's `--workers` option caps the whole run, so it can only lower the number further (for example `npx playwright test --project=e2e-frontend --workers=1` to run one test at a time); to raise it, change `E2E_WORKERS`.
+To make it permanent for your machine, put `E2E_WORKERS=4` (or another value) in `.env`. On CI, set it in the env secret when the runner can take more or less than the default 3. Playwright's `--workers` option caps the whole run, so it can only lower the number further (for example `npx playwright test --project=e2e-frontend --workers=1` to run one test at a time); to raise it, change `E2E_WORKERS`.
 
 ## Project structure
 
@@ -243,9 +239,10 @@ api/                 Clients for the platform: HTTP, auth, REST and GraphQL
 core/                Framework-free utilities: env, logger, cleanup stack, unique ids, …
 dataset/             Test data and everything that creates it
   data/                JSON records seeded into the platform, plus manifest.json
+  seeded.ts            Names for seeded values the specs use (users, products, catalog, currency, language)
   builders/            new…() functions returning valid drafts (contacts, pages, carts, …)
   arrange/             arrange…() functions that create data and register its cleanup
-  seeder.ts            Seeds dataset/data in manifest order
+  seeder.ts            Seeds dataset/data in manifest order (users: create or reset password)
   page-statuses.ts     Moves seeded pages to their declared status
   stock.ts             Queries over seeded inventory (which center stocks what)
 pages/               Page objects (Playwright locators and UI actions, no API calls)
@@ -259,6 +256,8 @@ tests/
   e2e/frontend/        Frontend specs: account, cart, catalog, checkout, site, wishlists
   e2e/backend/         Page-builder shell specs
 biome/               Lint, import-order and layer rules (extended by biome.json)
+CLAUDE.md            Short guide for Claude Code (and humans) working in this repo
+.claude/             Claude Code agents, commands and skills (see AI-assisted workflow)
 .github/workflows/   CI: manual test runs (see Continuous integration)
 backend-packages.json Platform image and module versions the CI stack installs
 playwright.config.ts Projects, timeouts and reporters
@@ -290,7 +289,8 @@ Tests get their clients and data through fixtures (`fixtures/`):
 |---|---|
 | `env`, `dataset` | Validated settings; the loaded `dataset/data` |
 | `httpClient`, `graphqlClient` | Clients signed in as the `user` option, or anonymous |
-| `platformAdminHttpClient` | REST client signed in as the platform admin |
+| `platformAdminHttpClient` | REST client signed in as the worker's administrator (see below) |
+| `workerAdministrator` | Credentials of an administrator account created when the worker starts and deleted when it ends; `test.use({ user: asWorkerAdministrator })` signs `httpClient` in as it |
 | `anonymousHttpClient` | A fresh unauthenticated client |
 | `frontendContext` | Store, catalog, currency, culture and user ids for the current user |
 | `customerAccount` | A **fresh** organization + contact + customer user, signed in, deleted after the test |
@@ -301,25 +301,31 @@ Tests get their clients and data through fixtures (`fixtures/`):
 
 Options set with `test.use(...)`:
 
-- `user`: sign in as a dataset user, e.g. `test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, "acme_store_employee_1@acme.com")) })`.
-- `shopperAccount: "customer-account"`: sign a fresh customer account into the browser.
-- `customerAccountRole` (`org-employee` or `org-maintainer`) and `customerAccountOrganizationId`.
+- `user`: sign in as a dataset user, e.g. `test.use({ user: seededUser(SEEDED_USERS.storeEmployee) })`. Seeded usernames and shared product ids live in `dataset/seeded.ts`.
+- `browserCustomerAccount: withCustomerAccount`: sign a fresh customer account into the browser.
+- `customerAccountRole`: `org-employee` (default) or `org-maintainer`.
 
 The `e2e-backend` project signs the browser in as the platform admin by default.
 
 ## How tests are written
 
 - **Arrange / act / assert steps.** Every test is split into `test.step("arrange: …")`, `test.step("act: …")` and `test.step("assert: …")`, so reports read as a script.
-- **Own your data.** A test that changes state creates what it needs through `dataset/arrange` or a fixture, and registers the undo in `cleanupStack` right after creating it. Tests that change account state (carts, lists, addresses, organizations) use `customerAccount` instead of shared seeded users, so they can run in parallel. Seeded data is read-only.
+- **Own your data.** A test that changes state creates what it needs through `dataset/arrange` or a fixture, and registers the undo in `cleanupStack` right after creating it, or before when the builder sets the id up front. Tests that change account state (carts, lists, addresses, organizations) use `customerAccount` instead of shared seeded users, so they can run in parallel. Seeded data is read-only.
+- **Seeded values by name.** Seeded usernames and the products several specs use come from `dataset/seeded.ts` (`SEEDED_USERS`, `SEEDED_PRODUCTS`, `SEEDED_CATALOG_ID`, …), never as string literals in specs.
 - **Unique names** via `uniqueId(prefix)` for anything a test creates.
+- **Global settings are shared by every test running at the same time**, so a test undoes only its own change, never a snapshot of the whole setting:
+  - list settings (file-extension blacklist, member groups, review types): `arrangeSettingValue(...)` adds a value only if missing and removes only that value afterwards; when adding the value is the test's action, `registerSettingValuesRemoval(...)` + `addSettingValue`/`replaceSettingValue`;
+  - single values: `registerSettingRestore(...)` puts back the effective value (the default when the setting was unset), in a `mode: "default"` file, and only for settings no other file reads.
+- **Missing data fails loudly.** Optional API fields are checked with `requireFields(value, fields, label)`, not hidden behind `?? ""`, `?? []` or `?? 0`; a missing field then fails with a message naming it.
 - **Wait with the web-first API**, never with sleeps: `expect(locator)…` for the UI, `expect.poll(...)` for eventually-consistent APIs (search indexes, pickup locations).
-- **Known product issues** are marked with `test.fail(true, "<reason>")`. They pass while the issue exists and fail once it is fixed, so the reason gets revisited.
+- **Known product issues** are listed once in `dataset/known-issues.ts` (tracker key and summary) and marked with `test.fail(true, describeIssue(KNOWN_ISSUES.<key>))`, or `test.fixme` for a test that cannot run yet. They pass while the issue exists and fail once it is fixed, so the reason gets revisited. Issues without a tracker key show `[no tracker key]` in the report: fill in `tracker` when the issue is filed.
 - **Page objects** expose locators and user actions; assertions stay in the tests.
 - The `e2e-backend` project runs with **one worker**: page-builder counters, status lists and search are global state that parallel tests would disturb.
 - **Tests of one file run in parallel** (`fullyParallel: true`), so every test must work while its neighbours run at the same moment:
   - Assert on what the test created, not on the whole result: a search can also return other tests' data, so use `toContainEqual` / `not.toContain` with the test's own ids instead of `toEqual([...])`.
   - A file whose tests share platform-wide state (global settings, the indexing queue) opts out with `test.describe.configure({ mode: "default" })`, which runs its tests in order on one worker.
   - Before acting in the UI, wait for the state the action depends on (for example, the cart badge before signing in to merge a cart), not just for the page to load.
+- **One administrator per worker.** Concurrent sign-ins of the same user can fail on the platform (HTTP 500), and some state belongs to the signed-in user (push notifications, saved lists). So `admin` (`ADMIN_USERNAME`) is only used to create a throwaway administrator for each worker (`workerAdministrator`); `platformAdminHttpClient` and `asWorkerAdministrator` sign in as it, and it is signed out and deleted when the worker ends. Tests inside a worker run one at a time, so no two running tests share credentials. Seeded users (`seededUser`) remain for tests that need a specific seeded identity.
 - **Database conflicts are retried.** `HttpClient` repeats a request up to three times (after 0.3, 1 and 2 seconds) when the platform answers 500 with a SQL deadlock or "An error occurred while saving the entity changes", which SQL Server returns under parallel writes; each retry prints a Node warning. A conflict that persists still fails the test.
 
 ## Signed-in users and prefilled carts in e2e tests
@@ -334,7 +340,7 @@ The `storageState` fixture (`fixtures/browser.fixture.ts`) builds the browser's 
 |---|---|---|
 | Anonymous visitor (default) | A random user id per test | `localStorage["user-id"]` on the frontend origin |
 | Dataset user (`user` option) | A token from `/connect/token` | `localStorage["auth"]` on the frontend origin |
-| Fresh customer account (`shopperAccount: "customer-account"`) | The account is created, then its token is issued | `localStorage["auth"]` on the frontend origin |
+| Fresh customer account (`browserCustomerAccount: withCustomerAccount`) | The account is created, then its token is issued | `localStorage["auth"]` on the frontend origin |
 | Platform admin (`e2e-backend` default) | Cookie sign-in through `/api/platform/security/login` | the platform identity cookie |
 
 Browser tokens are requested through the frontend (`FRONTEND_BASE_URL/connect/token`), not directly from the platform. The platform checks a token's issuer against the host a request arrives on and treats a mismatch as anonymous without an error, so a token issued by `BACKEND_BASE_URL` would not sign the browser in behind a proxy that forwards the frontend host (the CI nginx does). Going through the frontend's proxy makes the issuer match in every setup. Because of this, the Node side must trust the frontend's certificate: with a self-signed local dev server set `VERIFY_SSL=false`, or point `NODE_EXTRA_CA_CERTS` at its root CA.
@@ -351,9 +357,9 @@ The `shopper` fixture describes whoever is in the browser: their `credentials`, 
   ```ts
   import { saveMemberAddress } from "@dataset/arrange/contact";
   import { newMemberAddress } from "@dataset/builders/address";
-  import { test } from "@fixtures";
+  import { test, withCustomerAccount } from "@fixtures";
 
-  test.use({ shopperAccount: "customer-account" });
+  test.use({ browserCustomerAccount: withCustomerAccount });
 
   test("pick a saved address", async ({ page, customerAccount }) => {
     await saveMemberAddress(customerAccount.graphqlClient, customerAccount.organizationId, newMemberAddress("test"));
@@ -370,13 +376,14 @@ The `shopper` fixture describes whoever is in the browser: their `credentials`, 
 Use `withItems` in `test.use`:
 
 ```ts
-import { test, withItems } from "@fixtures";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
+import { test, withCustomerAccount, withItems } from "@fixtures";
 import { CartPage } from "@pages/frontend/pages/cart-page";
 
 test.describe("cart line items", () => {
   test.use({
-    shopperAccount: "customer-account",
-    cart: withItems([{ productId: "smartphone-samsung-galaxy-a57-5g", quantity: 3 }]),
+    browserCustomerAccount: withCustomerAccount,
+    cart: withItems([{ productId: SEEDED_PRODUCTS.galaxyA57, quantity: 3 }]),
   });
 
   test("remove a line item", async ({ page }) => {
@@ -395,7 +402,7 @@ Before the test starts, `withItems`:
 
 The `cart` fixture is automatic: without `withItems` it does nothing. The test can read the created cart when it needs ids or totals: `async ({ page, cart }) => …`.
 
-When a test uses `withItems` or the `shopper` fixture, the shopper's whole default cart is removed after the test, including anything the test added through the UI. A test that only adds products through the UI and uses neither leaves a cart behind for its (random) anonymous id; request `shopper` in such tests to have it removed.
+After every frontend e2e test, the whole default cart of the browser's user (signed-in or anonymous) is removed, including anything the test added through the UI; `storageState` registers this, so a test needs no fixture for it.
 
 ### When not to use them
 
@@ -405,7 +412,7 @@ When a test uses `withItems` or the `shopper` fixture, the shopper's whole defau
 
 ### Things to keep in mind
 
-- **Default cart vs named carts.** API and GraphQL tests use `arrangeCart`, which creates a cart with a unique name so parallel tests never share one. The frontend only shows the unnamed default cart, which is why e2e tests use `withItems` (or `arrangeDefaultCart` for an account other than the shopper, as in the cart-merge test).
+- **Default cart vs named carts.** API and GraphQL tests use `arrangeCart`, which creates a cart with a unique name so parallel tests never share one and registers its removal. The frontend only shows the unnamed default cart, which is why e2e tests use `withItems` (or `addToDefaultCart` for an account other than the shopper, as in the cart-merge test). `addToDefaultCart` registers no cleanup: register `registerDefaultCartRemoval` before calling it (every frontend test already does this for the browser's user).
 - **The frontend signs in with an e-mail.** Fresh accounts therefore use their e-mail address as user name.
 - **Product links may open a new tab.** The frontend opens product pages from cards according to the theme setting `details_browser_target` (`_blank` in release builds); its dev server always uses the same tab. Follow such links through the page object (for example `ProductCard.openConfigurations()`, which returns the page the product opened in), never by clicking and then asserting on the original `page`.
 - **Storage is fixed when the page opens.** Anything that affects the session itself (a lock, a password change) must happen before a UI sign-in, not before a pre-signed-in page.
@@ -458,7 +465,7 @@ The workflow calls the shared Playwright workflow from [`VirtoCommerce/.github`]
 1. starts the platform in Docker with the image and modules listed in [`backend-packages.json`](backend-packages.json), plus the frontend build (search engine: the one the module list installs, Elasticsearch 8 today; databases: SQL Server, MySQL and PostgreSQL by default, so a run executes the suites once per database);
 2. writes `.env` from the env-file secret, setting `BACKEND_BASE_URL=http://localhost:8090`, `FRONTEND_BASE_URL=http://localhost` (the production frontend build, not a dev server) and the admin account;
 3. installs dependencies and Chromium, runs the `seed` project and a full re-index;
-4. runs the chosen suites one project at a time with list, JUnit, JSON and Allure reporters (the `CI` variable is set, so `e2e-frontend` uses 2 workers unless `E2E_WORKERS` is in the env secret);
+4. runs the chosen suites one project at a time with list, JUnit, JSON and Allure reporters (the `CI` variable is set, so failed tests are retried once and reported as flaky when the retry passes; `e2e-frontend` uses 3 workers unless `E2E_WORKERS` is in the env secret);
 5. builds the Allure report, lists failed tests in the run summary, and uploads a `playwright-test-results-<run>-<attempt>-<database>-<engine>` artifact (see [Reports](#reports) for opening it).
 
 **Secrets** used by the workflow:
@@ -474,7 +481,27 @@ The workflow calls the shared Playwright workflow from [`VirtoCommerce/.github`]
 
 The shared workflow is currently referenced by a feature branch (`vcst-6033-playwright-workflow`); it moves to a release tag once VCST-6033 is released. Open CI work is tracked in [REFINEMENTS.md](REFINEMENTS.md) (section 8).
 
+## AI-assisted workflow
+
+[CLAUDE.md](CLAUDE.md) gives [Claude Code](https://claude.com/claude-code) the commands, layers and conventions of this repo; `.claude/` adds agents, commands and skills that follow them.
+
+| Command | Does |
+|---|---|
+| `/qa-plan <ticket or requirement>` | Test strategy and file-by-file implementation plan (`qa-planner` agent) |
+| `/qa-implement` | Implements the plan, then runs typecheck, lint, `--list` and the new specs (`qa-automation-expert` agent) |
+| `/qa-review [files or PR]` | Reviews the changes against the project checklists (`qa-reviewer` agent) |
+| `/code-review-full [scope]` | Nine parallel reviews (tests, lint, quality, security, style, test quality, runtime, dependencies/CI, simplification) |
+| `/migrate-katalon-module <Module> [ticket]` | Moves a Katalon REST module into `tests/restapi` with endpoint and 1-to-1 checks |
+| `/generate-coverage-report` | Sprint coverage report and presentation from `playwright test --list` and git history |
+
+The agents use skills for each artifact: `write-rest-api-test`, `write-graphql-test`, `write-e2e-test`, `create-rest-client`, `create-graphql-layer`, `create-ui-layer`, `plan-test-strategy`, `plan-implementation`, `review-test-code`, `review-pr`. When a convention changes, update CLAUDE.md and the affected skills in the same change.
+
 ## Known platform issues
 
 - **Parallel sign-ins of the same user fail.** Concurrent `POST /connect/token` requests for one user sometimes return HTTP 500, so the first test of a worker can fail at sign-in. See [BUG-concurrent-token-sign-in-500.md](BUG-concurrent-token-sign-in-500.md).
 - **Page-builder search window.** The page search applies the keyword only to the newest 20 pages of the default sort; one reason `e2e-backend` runs with a single worker.
+- **Indexation lock survives a crash.** Indexation holds a distributed lock (`IndexationJob`, 12-hour timeout, stored in Redis when the platform uses it). If the platform stops during an indexation, every later indexation is refused with "Indexation is already in progress" until the lock expires, also after a platform restart; search results go stale and the indexing tests fail. Delete the lock key in Redis or restart Redis to recover.
+- **Indexation jobs report `Succeeded` even when indexing failed or was refused.** The real outcome is in the indexation's progress notification (`description`, `errorCount`, `errors`); tests read it with `SearchIndexesClient.getProgress`, never the job state.
+- **Verification emails are not sent.** `POST /api/platform/security/users/{id}/sendVerificationEmail` answers 200, but no `ConfirmationEmailNotification` reaches the notification journal, for managers and customers alike and also with `Stores.EmailVerificationEnabled` on. "send a verification email" is marked `test.fail` until the platform sends it.
+- **White-labeling settings cannot be deleted.** `/api/white-labeling` has no delete, and deleting an organization leaves its setting behind. The page-context white-labeling test disables its setting in cleanup and carries a `leaves data` annotation.
+- **Local-storage uploads cannot be deleted.** `POST /api/platform/assets/localstorage` saves the file to the platform's local upload folder (used for imports) and returns only its name; no endpoint lists, downloads or deletes it. The "upload a file to local storage" test leaves one small, uniquely named file per run and says so in its `leaves data` annotation; clear the folder on the platform host if it matters.

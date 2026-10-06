@@ -11,74 +11,64 @@ import type {
   NamedEntityData,
 } from "../types/marketing";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
-const NAMED_ENTITY_FIELDS = ["id", "name"] as const;
+import { NAMED_ENTITY_FIELDS } from "../types/marketing";
 
-export class DynamicContentResource<Data extends NamedEntityData> {
-  protected readonly httpClient: HttpClient;
-  protected readonly path: string;
-  protected readonly label: string;
+export class DynamicContentResource<Data extends NamedEntityData, Criteria = never> {
+  readonly #httpClient: HttpClient;
+  readonly #path: string;
+  readonly #label: string;
 
   constructor(httpClient: HttpClient, path: string, label: string) {
-    this.httpClient = httpClient;
-    this.path = path;
-    this.label = label;
+    this.#httpClient = httpClient;
+    this.#path = path;
+    this.#label = label;
   }
 
   async get(id: string): Promise<NamedEntity<Data>> {
-    return requireFields(await this.find(id), NAMED_ENTITY_FIELDS, `${this.label} "${id}"`);
+    return requireFields(await this.find(id), NAMED_ENTITY_FIELDS, `${this.#label} "${id}"`);
   }
 
   async find(id: string): Promise<NamedEntity<Data> | undefined> {
-    const response = await this.httpClient.get(`${this.path}/${encodeURIComponent(id)}`);
-    if (response.status === 404) {
-      return undefined;
-    }
-    return requireFields(response.expectOk().json<Data>(), NAMED_ENTITY_FIELDS, `${this.label} "${id}"`);
+    const response = await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`);
+    const entity = response.jsonOrUndefined<Data>();
+    return entity === undefined ? undefined : requireFields(entity, NAMED_ENTITY_FIELDS, `${this.#label} "${id}"`);
   }
 
   async create(entity: Data): Promise<NamedEntity<Data>> {
-    const response = await this.httpClient.post(this.path, { json: entity });
-    return requireFields(response.expectOk().json<Data>(), NAMED_ENTITY_FIELDS, `Created ${this.label}`);
+    const response = await this.#httpClient.post(this.#path, { json: entity });
+    return requireFields(response.expectOk().json<Data>(), NAMED_ENTITY_FIELDS, `Created ${this.#label}`);
   }
 
   async update(entity: Data): Promise<void> {
-    (await this.httpClient.put(this.path, { json: entity })).expectOk();
+    (await this.#httpClient.put(this.#path, { json: entity })).expectOk();
+  }
+
+  async search(criteria: Criteria): Promise<NamedEntity<Data>[]> {
+    const response = await this.#httpClient.post(`${this.#path}/search`, { json: criteria });
+    const { results } = response.expectOk().json<{ results?: Data[] | null }>();
+    return requireEach(results, NAMED_ENTITY_FIELDS, `Found ${this.#label}`);
   }
 
   async delete(ids: readonly string[]): Promise<void> {
-    (await this.httpClient.delete(this.path, { query: { ids } })).expectOk();
-  }
-}
-
-export class SearchableDynamicContentResource<
-  Data extends NamedEntityData,
-  Criteria,
-> extends DynamicContentResource<Data> {
-  async search(criteria: Criteria): Promise<NamedEntity<Data>[]> {
-    const response = await this.httpClient.post(`${this.path}/search`, { json: criteria });
-    const { results } = response.expectOk().json<{ results?: Data[] | null }>();
-    return (results ?? []).map((entity) => requireFields(entity, NAMED_ENTITY_FIELDS, `Found ${this.label}`));
+    (await this.#httpClient.delete(this.#path, { query: { ids } })).expectOk();
   }
 }
 
 export class DynamicContentClient {
   readonly folders: DynamicContentResource<DynamicContentFolderData>;
-  readonly items: SearchableDynamicContentResource<DynamicContentItemData, DynamicContentItemSearchCriteria>;
-  readonly places: SearchableDynamicContentResource<DynamicContentPlaceData, DynamicContentPlaceSearchCriteria>;
-  readonly publications: SearchableDynamicContentResource<
-    DynamicContentPublicationData,
-    DynamicContentPublicationSearchCriteria
-  >;
+  readonly items: DynamicContentResource<DynamicContentItemData, DynamicContentItemSearchCriteria>;
+  readonly places: DynamicContentResource<DynamicContentPlaceData, DynamicContentPlaceSearchCriteria>;
+  readonly publications: DynamicContentResource<DynamicContentPublicationData, DynamicContentPublicationSearchCriteria>;
   readonly #httpClient: HttpClient;
 
   constructor(httpClient: HttpClient) {
     this.#httpClient = httpClient;
     this.folders = new DynamicContentResource(httpClient, "/api/marketing/contentfolders", "Content folder");
-    this.items = new SearchableDynamicContentResource(httpClient, "/api/marketing/contentitems", "Content item");
-    this.places = new SearchableDynamicContentResource(httpClient, "/api/marketing/contentplaces", "Content place");
-    this.publications = new SearchableDynamicContentResource(
+    this.items = new DynamicContentResource(httpClient, "/api/marketing/contentitems", "Content item");
+    this.places = new DynamicContentResource(httpClient, "/api/marketing/contentplaces", "Content place");
+    this.publications = new DynamicContentResource(
       httpClient,
       "/api/marketing/contentpublications",
       "Content publication",

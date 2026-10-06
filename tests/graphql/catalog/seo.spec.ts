@@ -1,10 +1,11 @@
 import * as allure from "allure-js-commons";
 
 import { SlugInfoDocument } from "@api/graphql/generated/graphql";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
 const CATEGORY_SLUG = "smartphones";
-const PRODUCT_ID = "smartphone-apple-iphone-17-256gb-black";
+const PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
 const PRODUCT_PERMALINK = "smartphones/apple-iphone-17-256gb-black";
 const PRODUCT_SEMANTIC_URL = "apple-iphone-17-256gb-black";
 

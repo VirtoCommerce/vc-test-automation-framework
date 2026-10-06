@@ -1,7 +1,7 @@
 import { PageBuilderClient } from "@api/rest/clients/page-builder-client";
 import { PageBuilderShell } from "@pages/backend/page-builder/page-builder-shell";
 
-import { test as base } from "./shopper.fixture";
+import { test as base } from "./api.fixture";
 
 export interface PageBuilderFixtures {
   readonly pageBuilder: PageBuilderShell;

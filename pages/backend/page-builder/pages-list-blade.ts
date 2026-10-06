@@ -1,17 +1,32 @@
-import type { Locator } from "@playwright/test";
+import type { Locator, Response } from "@playwright/test";
 import type { GridRow } from "../shell/data-grid";
+
+import { expect } from "@playwright/test";
 
 import { Blade } from "../shell/blade";
 import { Column, ListToolbar } from "./constants";
 
-const SEARCH_ENDPOINT = "page-builder-pages/search";
+const SEARCH_PATH = "/api/page-builder-pages/search";
+const ROWS_TIMEOUT_MS = 10_000;
+
+export function isPagesSearch(response: Response, keyword?: string): boolean {
+  if (response.request().method() !== "POST" || new URL(response.url()).pathname !== SEARCH_PATH) {
+    return false;
+  }
+  if (keyword === undefined) {
+    return true;
+  }
+  const criteria = response.request().postDataJSON() as { readonly keyword?: string | null } | null;
+  return (criteria?.keyword ?? "") === keyword;
+}
 
 export class PagesListBlade extends Blade {
+  static readonly SEARCH_INPUT = ".vc-input input[placeholder='Search...']";
   readonly searchInput: Locator;
 
   constructor(root: Locator) {
     super(root);
-    this.searchInput = root.locator(".vc-input input[placeholder='Search...']");
+    this.searchInput = root.locator(PagesListBlade.SEARCH_INPUT);
   }
 
   pageRows(name: string): Locator {
@@ -34,13 +49,15 @@ export class PagesListBlade extends Blade {
     if ((await this.searchInput.inputValue()) === term) {
       return;
     }
-    const page = this.root.page();
     const [response] = await Promise.all([
-      page.waitForResponse((candidate) => candidate.url().includes(SEARCH_ENDPOINT)),
+      this.root.page().waitForResponse((candidate) => isPagesSearch(candidate, term)),
       this.searchInput.fill(term),
     ]);
-    const { totalCount } = (await response.json()) as { readonly totalCount?: number };
-    await this.waitForRows(totalCount ?? 0);
+    const { totalCount } = (await response.json()) as { readonly totalCount?: unknown };
+    if (typeof totalCount !== "number") {
+      throw new Error(`Page search for "${term}" answered without a totalCount`);
+    }
+    await this.expectRows(totalCount);
   }
 
   async clearSearch(): Promise<void> {
@@ -79,10 +96,12 @@ export class PagesListBlade extends Blade {
       : pagination.total === expected && count === pagination.last - pagination.first + 1;
   }
 
-  async waitForRows(expected: number): Promise<void> {
-    const page = this.root.page();
-    for (let attempt = 0; attempt < 40 && !(await this.#matchesTotal(expected)); attempt++) {
-      await page.waitForTimeout(200);
-    }
+  async expectRows(expected: number): Promise<void> {
+    await expect
+      .poll(() => this.#matchesTotal(expected), {
+        message: `the grid shows the ${expected} found pages`,
+        timeout: ROWS_TIMEOUT_MS,
+      })
+      .toBe(true);
   }
 }

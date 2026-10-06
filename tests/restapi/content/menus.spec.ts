@@ -3,10 +3,8 @@ import * as allure from "allure-js-commons";
 import { MenuLinkListsClient } from "@api/rest/clients/menu-link-lists-client";
 import { uniqueId } from "@core/unique-id";
 import { newMenuLinkList } from "@dataset/builders/content";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const LANGUAGE = "en-US";
 
 test.beforeEach(async () => {
@@ -14,7 +12,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("menu link lists (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("list menu link lists", async ({ httpClient, cleanupStack, env }) => {
     const menuLinkListsClient = new MenuLinkListsClient(httpClient, env.storeId);

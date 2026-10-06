@@ -9,11 +9,6 @@ export type AddAddressToFavoritesCommandType = {
   addressId: string;
 };
 
-export type CancelQuoteCommandType = {
-  comment: string;
-  quoteId: string;
-};
-
 export type ChangeQuoteCommentCommandType = {
   comment: string;
   quoteId: string;
@@ -142,17 +137,6 @@ export type InputAddOrUpdateCartShipmentType = {
   shipment: InputShipmentType;
   storeId: string;
   userId: string;
-};
-
-export type InputAddWishlistBulkItemType = {
-  /** Configurable product support. List of configurable product sections */
-  configurationSections?: Array<ConfigurationSectionInput | null | undefined> | null | undefined;
-  /** Wish list ids */
-  listIds: Array<string | null | undefined>;
-  /** Product id to add */
-  productId: string;
-  /** Product quantity to add */
-  quantity?: number | null | undefined;
 };
 
 export type InputAddWishlistItemsType = {
@@ -313,17 +297,9 @@ export type InputCreateWishlistType = {
   userId: string;
 };
 
-export type InputDeleteContactType = {
-  contactId: string;
-};
-
 export type InputDeleteMemberAddressType = {
   addresses: Array<InputMemberAddressType | null | undefined>;
   memberId: string;
-};
-
-export type InputDeleteUserType = {
-  userNames: Array<string | null | undefined>;
 };
 
 export type InputDynamicPropertyValueType = {
@@ -1253,11 +1229,6 @@ export type GiftItemFragment = {
   productId: string | null;
   name: string;
   lineItemId: string | null;
-};
-
-export type IdentityResultFragment = {
-  succeeded: boolean;
-  errors: Array<{ code: string | null; description: string | null } | null> | null;
 };
 
 export type LanguageFragment = { cultureName: string; nativeName: string };
@@ -4328,12 +4299,6 @@ export type ChangeOrganizationContactRoleMutation = {
   } | null;
 };
 
-export type DeleteContactMutationVariables = Exact<{
-  command: InputDeleteContactType;
-}>;
-
-export type DeleteContactMutation = { deleteContact: boolean | null };
-
 export type DeleteMemberAddressesMutationVariables = Exact<{
   command: InputDeleteMemberAddressType;
 }>;
@@ -4418,32 +4383,6 @@ export type GetContactRolesInOrganizationQueryVariables = Exact<{
 
 export type GetContactRolesInOrganizationQuery = {
   contact: { rolesInOrganization: Array<{ id: string; name: string } | null> | null } | null;
-};
-
-export type GetContactQueryVariables = Exact<{
-  id: string;
-}>;
-
-export type GetContactQuery = {
-  contact: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-    status: string | null;
-    organizationId: string | null;
-    organizationsIds: Array<string | null> | null;
-    securityAccounts: Array<{
-      id: string;
-      userName: string;
-      email: string | null;
-      emailConfirmed: boolean;
-      isAdministrator: boolean;
-      memberId: string | null;
-      storeId: string | null;
-      roles: Array<{ id: string; name: string; normalizedName: string } | null> | null;
-    } | null> | null;
-  } | null;
 };
 
 export type GetCurrentCustomerAddressesQueryVariables = Exact<{
@@ -4725,51 +4664,6 @@ export type OrderQuery = {
       status: string | null;
       total: { amount: number; formattedAmount: string };
     }>;
-  } | null;
-};
-
-export type OrdersQueryVariables = Exact<{
-  userId?: string | null | undefined;
-  filter?: string | null | undefined;
-  sort?: string | null | undefined;
-  cultureName?: string | null | undefined;
-  first?: number | null | undefined;
-  after?: string | null | undefined;
-}>;
-
-export type OrdersQuery = {
-  orders: {
-    items: Array<{
-      id: string;
-      number: string;
-      status: string | null;
-      createdDate: string;
-      total: { amount: number; formattedAmount: string };
-      items: Array<{
-        id: string;
-        name: string;
-        sku: string;
-        productId: string;
-        quantity: number;
-        price: { amount: number; formattedAmount: string };
-        extendedPrice: { amount: number; formattedAmount: string };
-      }>;
-      inPayments: Array<{
-        id: string;
-        number: string;
-        gatewayCode: string | null;
-        status: string | null;
-        sum: { amount: number; formattedAmount: string };
-      }>;
-      shipments: Array<{
-        id: string;
-        number: string;
-        shipmentMethodCode: string | null;
-        shipmentMethodOption: string | null;
-        status: string | null;
-        total: { amount: number; formattedAmount: string };
-      }>;
-    } | null> | null;
   } | null;
 };
 
@@ -5132,42 +5026,6 @@ export type ProductsQuery = {
       vendor: { id: string; name: string } | null;
       price: { list: { amount: number; formattedAmount: string }; actual: { amount: number; formattedAmount: string } };
     } | null> | null;
-  } | null;
-};
-
-export type CancelQuoteRequestMutationVariables = Exact<{
-  command: CancelQuoteCommandType;
-}>;
-
-export type CancelQuoteRequestMutation = {
-  cancelQuoteRequest: {
-    id: string;
-    number: string;
-    status: string | null;
-    storeId: string;
-    customerId: string | null;
-    comment: string | null;
-    isAnonymous: boolean;
-    isCancelled: boolean;
-    totals: {
-      originalSubTotalExlTax: { amount: number; formattedAmount: string };
-      subTotalExlTax: { amount: number; formattedAmount: string };
-      shippingTotal: { amount: number; formattedAmount: string };
-      discountTotal: { amount: number; formattedAmount: string };
-      taxTotal: { amount: number; formattedAmount: string };
-      grandTotalExlTax: { amount: number; formattedAmount: string };
-      grandTotalInclTax: { amount: number; formattedAmount: string };
-    };
-    items: Array<{
-      id: string;
-      name: string;
-      sku: string | null;
-      productId: string | null;
-      quantity: number;
-      listPrice: { amount: number; formattedAmount: string };
-      salePrice: { amount: number; formattedAmount: string };
-      proposalPrices: Array<{ quantity: number; price: { amount: number; formattedAmount: string } }>;
-    }>;
   } | null;
 };
 
@@ -6235,27 +6093,6 @@ export type SlugInfoQuery = {
   } | null;
 };
 
-export type AddBulkItemToShoppingListMutationVariables = Exact<{
-  command: InputAddWishlistBulkItemType;
-}>;
-
-export type AddBulkItemToShoppingListMutation = {
-  addWishlistBulkItem: {
-    wishlists: Array<{
-      id: string;
-      name: string;
-      storeId: string | null;
-      customerId: string | null;
-      customerName: string | null;
-      itemsCount: number | null;
-      description: string | null;
-      items: Array<{ id: string; sku: string; productId: string; name: string; quantity: number } | null> | null;
-      subTotal: { amount: number; formattedAmount: string };
-      sharingSetting: { id: string; scope: WishlistScopeType | null } | null;
-    } | null> | null;
-  } | null;
-};
-
 export type AddItemsToShoppingListMutationVariables = Exact<{
   command: InputAddWishlistItemsType;
 }>;
@@ -6398,17 +6235,6 @@ export type UpdateShoppingListItemsMutation = {
     items: Array<{ id: string; sku: string; productId: string; name: string; quantity: number } | null> | null;
     subTotal: { amount: number; formattedAmount: string };
     sharingSetting: { id: string; scope: WishlistScopeType | null } | null;
-  } | null;
-};
-
-export type DeleteUsersMutationVariables = Exact<{
-  command: InputDeleteUserType;
-}>;
-
-export type DeleteUsersMutation = {
-  deleteUsers: {
-    succeeded: boolean;
-    errors: Array<{ code: string | null; description: string | null } | null> | null;
   } | null;
 };
 
@@ -7181,18 +7007,6 @@ export const CustomIdentityResultFragmentDoc = new TypedDocumentString(
     `,
   { fragmentName: "CustomIdentityResult" },
 ) as unknown as TypedDocumentString<CustomIdentityResultFragment, unknown>;
-export const IdentityResultFragmentDoc = new TypedDocumentString(
-  `
-    fragment IdentityResult on IdentityResultType {
-  succeeded
-  errors {
-    code
-    description
-  }
-}
-    `,
-  { fragmentName: "IdentityResult" },
-) as unknown as TypedDocumentString<IdentityResultFragment, unknown>;
 export const MemberAddressFragmentDoc = new TypedDocumentString(
   `
     fragment MemberAddress on MemberAddressType {
@@ -11074,11 +10888,6 @@ export const ChangeOrganizationContactRoleDocument = new TypedDocumentString(`
   ChangeOrganizationContactRoleMutation,
   ChangeOrganizationContactRoleMutationVariables
 >;
-export const DeleteContactDocument = new TypedDocumentString(`
-    mutation DeleteContact($command: InputDeleteContactType!) {
-  deleteContact(command: $command)
-}
-    `) as unknown as TypedDocumentString<DeleteContactMutation, DeleteContactMutationVariables>;
 export const DeleteMemberAddressesDocument = new TypedDocumentString(`
     mutation DeleteMemberAddresses($command: InputDeleteMemberAddressType!) {
   deleteMemberAddresses(command: $command) {
@@ -11169,41 +10978,6 @@ export const GetContactRolesInOrganizationDocument = new TypedDocumentString(`
   GetContactRolesInOrganizationQuery,
   GetContactRolesInOrganizationQueryVariables
 >;
-export const GetContactDocument = new TypedDocumentString(`
-    query GetContact($id: String!) {
-  contact(id: $id) {
-    ...Contact
-  }
-}
-    fragment Contact on ContactType {
-  id
-  firstName
-  lastName
-  fullName
-  status
-  organizationId
-  organizationsIds
-  securityAccounts {
-    ...User
-  }
-}
-fragment Role on RoleType {
-  id
-  name
-  normalizedName
-}
-fragment User on UserType {
-  id
-  userName
-  email
-  emailConfirmed
-  isAdministrator
-  memberId
-  storeId
-  roles {
-    ...Role
-  }
-}`) as unknown as TypedDocumentString<GetContactQuery, GetContactQueryVariables>;
 export const GetCurrentCustomerAddressesDocument = new TypedDocumentString(`
     query GetCurrentCustomerAddresses($after: String, $first: Int, $countryCodes: [String], $regionIds: [String], $cities: [String], $keyword: String, $sort: String) {
   currentCustomerAddresses(
@@ -11557,75 +11331,6 @@ fragment Order on CustomerOrderType {
     ...OrderShipment
   }
 }`) as unknown as TypedDocumentString<OrderQuery, OrderQueryVariables>;
-export const OrdersDocument = new TypedDocumentString(`
-    query Orders($userId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {
-  orders(
-    userId: $userId
-    filter: $filter
-    sort: $sort
-    cultureName: $cultureName
-    first: $first
-    after: $after
-  ) {
-    items {
-      ...Order
-    }
-  }
-}
-    fragment Money on MoneyType {
-  amount
-  formattedAmount
-}
-fragment OrderLineItem on OrderLineItemType {
-  id
-  name
-  sku
-  productId
-  quantity
-  price {
-    ...Money
-  }
-  extendedPrice {
-    ...Money
-  }
-}
-fragment OrderPayment on PaymentInType {
-  id
-  number
-  gatewayCode
-  status
-  sum {
-    ...Money
-  }
-}
-fragment OrderShipment on OrderShipmentType {
-  id
-  number
-  shipmentMethodCode
-  shipmentMethodOption
-  status
-  total {
-    ...Money
-  }
-}
-fragment Order on CustomerOrderType {
-  id
-  number
-  status
-  createdDate
-  total {
-    ...Money
-  }
-  items {
-    ...OrderLineItem
-  }
-  inPayments {
-    ...OrderPayment
-  }
-  shipments {
-    ...OrderShipment
-  }
-}`) as unknown as TypedDocumentString<OrdersQuery, OrdersQueryVariables>;
 export const OrganizationOrdersDocument = new TypedDocumentString(`
     query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {
   organizationOrders(
@@ -12182,74 +11887,6 @@ fragment Vendor on CommonVendor {
   id
   name
 }`) as unknown as TypedDocumentString<ProductsQuery, ProductsQueryVariables>;
-export const CancelQuoteRequestDocument = new TypedDocumentString(`
-    mutation CancelQuoteRequest($command: CancelQuoteCommandType!) {
-  cancelQuoteRequest(command: $command) {
-    ...Quote
-  }
-}
-    fragment Money on MoneyType {
-  amount
-  formattedAmount
-}
-fragment QuoteItem on QuoteItemType {
-  id
-  name
-  sku
-  productId
-  quantity
-  listPrice {
-    ...Money
-  }
-  salePrice {
-    ...Money
-  }
-  proposalPrices {
-    quantity
-    price {
-      ...Money
-    }
-  }
-}
-fragment QuoteTotals on QuoteTotalsType {
-  originalSubTotalExlTax {
-    ...Money
-  }
-  subTotalExlTax {
-    ...Money
-  }
-  shippingTotal {
-    ...Money
-  }
-  discountTotal {
-    ...Money
-  }
-  taxTotal {
-    ...Money
-  }
-  grandTotalExlTax {
-    ...Money
-  }
-  grandTotalInclTax {
-    ...Money
-  }
-}
-fragment Quote on QuoteType {
-  id
-  number
-  status
-  storeId
-  customerId
-  comment
-  isAnonymous
-  isCancelled
-  totals {
-    ...QuoteTotals
-  }
-  items {
-    ...QuoteItem
-  }
-}`) as unknown as TypedDocumentString<CancelQuoteRequestMutation, CancelQuoteRequestMutationVariables>;
 export const ChangeQuoteCommentDocument = new TypedDocumentString(`
     mutation ChangeQuoteComment($command: ChangeQuoteCommentCommandType!) {
   changeQuoteComment(command: $command) {
@@ -13402,44 +13039,6 @@ fragment SlugInfo on SlugInfoResponseType {
   }
   redirectUrl
 }`) as unknown as TypedDocumentString<SlugInfoQuery, SlugInfoQueryVariables>;
-export const AddBulkItemToShoppingListDocument = new TypedDocumentString(`
-    mutation AddBulkItemToShoppingList($command: InputAddWishlistBulkItemType!) {
-  addWishlistBulkItem(command: $command) {
-    wishlists {
-      ...ShoppingList
-    }
-  }
-}
-    fragment Money on MoneyType {
-  amount
-  formattedAmount
-}
-fragment ShoppingList on WishlistType {
-  id
-  name
-  storeId
-  customerId
-  customerName
-  items {
-    ...WishlistLineItem
-  }
-  itemsCount
-  description
-  subTotal {
-    ...Money
-  }
-  sharingSetting {
-    id
-    scope
-  }
-}
-fragment WishlistLineItem on LineItemType {
-  id
-  sku
-  productId
-  name
-  quantity
-}`) as unknown as TypedDocumentString<AddBulkItemToShoppingListMutation, AddBulkItemToShoppingListMutationVariables>;
 export const AddItemsToShoppingListDocument = new TypedDocumentString(`
     mutation AddItemsToShoppingList($command: InputAddWishlistItemsType!) {
   addWishlistItems(command: $command) {
@@ -13707,19 +13306,6 @@ fragment WishlistLineItem on LineItemType {
   name
   quantity
 }`) as unknown as TypedDocumentString<UpdateShoppingListItemsMutation, UpdateShoppingListItemsMutationVariables>;
-export const DeleteUsersDocument = new TypedDocumentString(`
-    mutation DeleteUsers($command: InputDeleteUserType!) {
-  deleteUsers(command: $command) {
-    ...IdentityResult
-  }
-}
-    fragment IdentityResult on IdentityResultType {
-  succeeded
-  errors {
-    code
-    description
-  }
-}`) as unknown as TypedDocumentString<DeleteUsersMutation, DeleteUsersMutationVariables>;
 export const GetMeDocument = new TypedDocumentString(`
     query GetMe {
   me {

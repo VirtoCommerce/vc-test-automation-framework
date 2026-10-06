@@ -7,6 +7,8 @@ export interface SeedScope {
   readonly skipped: readonly ManifestItem[];
 }
 
+const KNOWN_NAMES: readonly string[] = MANIFEST_ITEMS.map((item) => item.name);
+
 export function resolveSeedScope(
   installedModuleIds: ReadonlySet<string>,
   only: readonly ManifestItemName[] | undefined,
@@ -26,10 +28,13 @@ export function parseSeedOnly(value: string | undefined): readonly ManifestItemN
   if (names.length === 0) {
     return undefined;
   }
-  const knownNames: readonly string[] = MANIFEST_ITEMS.map((item) => item.name);
-  const unknownNames = names.filter((name) => !knownNames.includes(name));
+  const unknownNames = names.filter((name) => !isManifestItemName(name));
   if (unknownNames.length > 0) {
-    throw new Error(`Unknown entities: ${unknownNames.join(", ")}. Known entities: ${knownNames.join(", ")}`);
+    throw new Error(`Unknown entities: ${unknownNames.join(", ")}. Known entities: ${KNOWN_NAMES.join(", ")}`);
   }
-  return names as ManifestItemName[];
+  return names.filter(isManifestItemName);
+}
+
+function isManifestItemName(name: string): name is ManifestItemName {
+  return KNOWN_NAMES.includes(name);
 }

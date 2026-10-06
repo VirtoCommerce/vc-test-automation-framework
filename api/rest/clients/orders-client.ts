@@ -1,19 +1,18 @@
 import type { HttpClient } from "../../http/http-client";
 import type {
-  ChangeLogSearchResult,
   CustomerOrder,
   CustomerOrderChangesSearchCriteria,
   CustomerOrderData,
   CustomerOrderSearchCriteria,
   CustomerOrderSearchResult,
-  OperationLog,
   OrderShipment,
   OrderShipmentData,
   PaymentIn,
   PaymentInData,
 } from "../types/orders";
+import type { ChangeLogSearchResult } from "../types/platform";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { CUSTOMER_ORDER_FIELDS, ORDER_DOCUMENT_FIELDS } from "../types/orders";
 
@@ -56,7 +55,7 @@ export class OrdersClient {
   async search(criteria: CustomerOrderSearchCriteria): Promise<CustomerOrder[]> {
     const response = await this.#httpClient.post(`${CUSTOMER_ORDERS_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<CustomerOrderSearchResult>();
-    return (results ?? []).map((order) => requireFields(order, CUSTOMER_ORDER_FIELDS, "Found order"));
+    return requireEach(results, CUSTOMER_ORDER_FIELDS, "Found order");
   }
 
   async isIndexedSearchEnabled(): Promise<boolean> {
@@ -88,20 +87,12 @@ export class OrdersClient {
     return response.expectOk().json<ChangeLogSearchResult>();
   }
 
-  async getChanges(orderId: string): Promise<OperationLog[]> {
-    const response = await this.#httpClient.get(`${CUSTOMER_ORDERS_PATH}/${encodeURIComponent(orderId)}/changes`);
-    return response.expectOk().json<OperationLog[]>();
-  }
-
   async delete(id: string): Promise<void> {
     (await this.#httpClient.delete(CUSTOMER_ORDERS_PATH, { query: { ids: id } })).expectOk();
   }
 
   async #fetch(path: string, label: string): Promise<CustomerOrder | undefined> {
-    const response = await this.#httpClient.get(path);
-    if (response.status === 404) {
-      return undefined;
-    }
-    return requireFields(response.expectOk().json<CustomerOrderData>(), CUSTOMER_ORDER_FIELDS, label);
+    const order = (await this.#httpClient.get(path)).jsonOrUndefined<CustomerOrderData>();
+    return order === undefined ? undefined : requireFields(order, CUSTOMER_ORDER_FIELDS, label);
   }
 }

@@ -8,7 +8,7 @@ import type {
   PageStatus,
 } from "../types/page-builder";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { GROUPED_PAGE_FIELDS } from "../types/page-builder";
 
@@ -24,7 +24,7 @@ export class PageBuilderClient {
   async search(criteria: PageSearchCriteria): Promise<GroupedPage[]> {
     const response = await this.#httpClient.post(`${PAGES_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<GroupedPageSearchResult>();
-    return (results ?? []).map((page) => requireFields(page, GROUPED_PAGE_FIELDS, "Found page"));
+    return requireEach(results, GROUPED_PAGE_FIELDS, "Found page");
   }
 
   async createGroupPage(request: CreateGroupedPageRequest): Promise<GroupedPage> {

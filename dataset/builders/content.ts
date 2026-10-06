@@ -4,7 +4,10 @@ import type { WithRequired } from "@core/required-fields";
 
 import { uniqueId } from "@core/unique-id";
 
+import { SEEDED_LANGUAGE } from "../seeded";
+
 export const FORBIDDEN_EXTENSION = ".exe";
+export const FILE_EXTENSIONS_BLACKLIST_SETTING = "VirtoCommerce.Platform.Security.FileExtensionsBlackList";
 
 export function newMarkdownFile(prefix: string): MultipartFile {
   return {
@@ -29,7 +32,7 @@ export function newMenuLinkList(storeId: string, name = uniqueId("test-menu")): 
     id: crypto.randomUUID(),
     name,
     storeId,
-    language: "en-US",
+    language: SEEDED_LANGUAGE,
     menuLinks: [
       { priority: 10, title: "About us", url: "~/pages/about_us" },
       { priority: 0, title: "Pages", url: "~/pages" },

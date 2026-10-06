@@ -1,5 +1,0 @@
-query GetContact($id: String!) {
-  contact(id: $id) {
-    ...Contact
-  }
-}

@@ -3,11 +3,9 @@ import * as allure from "allure-js-commons";
 import { TokenAuthClient } from "@api/auth/token-auth-client";
 import { UsersClient } from "@api/rest/clients/users-client";
 import { arrangeApiKey, arrangeUser } from "@dataset/arrange/security";
-import { credentialsOf, newUser } from "@dataset/builders/security";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { credentialsOf, newApiKey, newUser } from "@dataset/builders/security";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const PROTECTED_PATH = "/api/platform/settings/VirtoCommerce.Search.IndexingJobs.Enable";
 
 test.beforeEach(async () => {
@@ -15,9 +13,9 @@ test.beforeEach(async () => {
 });
 
 test.describe("user lock (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
-  test("a locked user cannot sign in until unlocked", async ({
+  test("block the sign-in of a locked user until it is unlocked", async ({
     httpClient,
     anonymousHttpClient,
     cleanupStack,
@@ -43,7 +41,7 @@ test.describe("user lock (admin)", () => {
     });
   });
 
-  test("a deleted user cannot sign in", async ({ httpClient, anonymousHttpClient, cleanupStack, env }) => {
+  test("reject the sign-in of a deleted user", async ({ httpClient, anonymousHttpClient, cleanupStack, env }) => {
     const usersClient = new UsersClient(httpClient);
     const tokenAuthClient = new TokenAuthClient(anonymousHttpClient);
     const draft = newUser(env.storeId);
@@ -58,10 +56,10 @@ test.describe("user lock (admin)", () => {
     });
   });
 
-  test("a deactivated API key is rejected", async ({ httpClient, anonymousHttpClient, cleanupStack, env }) => {
+  test("reject a deactivated API key", async ({ httpClient, anonymousHttpClient, cleanupStack, env }) => {
     const usersClient = new UsersClient(httpClient);
     const user = await test.step("arrange: user", () => arrangeUser(usersClient, cleanupStack, newUser(env.storeId)));
-    const apiKey = crypto.randomUUID().replaceAll("-", "");
+    const apiKey = newApiKey();
     const key = await test.step("arrange: active API key", () =>
       arrangeApiKey(usersClient, cleanupStack, user, apiKey));
 

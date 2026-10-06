@@ -2,17 +2,14 @@ import * as allure from "allure-js-commons";
 
 import { CustomersClient } from "@api/rest/clients/customers-client";
 import { newEmployee } from "@dataset/builders/customer";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Contacts / Employees");
 });
 
 test.describe("employees (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create an employee", async ({ httpClient, cleanupStack }) => {
     const customersClient = new CustomersClient(httpClient);
@@ -53,10 +50,11 @@ test.describe("employees (admin)", () => {
 
   test("rename employees in bulk", async ({ httpClient, cleanupStack }) => {
     const customersClient = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two employees", () =>
-      Promise.all([customersClient.createEmployee(newEmployee()), customersClient.createEmployee(newEmployee())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newEmployee(), newEmployee()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete employees ${ids.join(", ")}`, () => customersClient.members.delete(ids));
+    const created = await test.step("arrange: two employees", () =>
+      Promise.all(drafts.map((draft) => customersClient.createEmployee(draft))));
     const renamed = created.map((employee) => ({ ...employee, firstName: `${employee.firstName}-renamed` }));
 
     await test.step("act: save both employees", () => customersClient.saveEmployees(renamed));
@@ -71,10 +69,11 @@ test.describe("employees (admin)", () => {
 
   test("delete employees in bulk", async ({ httpClient, cleanupStack }) => {
     const customersClient = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two employees", () =>
-      Promise.all([customersClient.createEmployee(newEmployee()), customersClient.createEmployee(newEmployee())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newEmployee(), newEmployee()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete employees ${ids.join(", ")}`, () => customersClient.members.delete(ids));
+    await test.step("arrange: two employees", () =>
+      Promise.all(drafts.map((draft) => customersClient.createEmployee(draft))));
 
     await test.step("act: delete both employees", () => customersClient.members.delete(ids));
 

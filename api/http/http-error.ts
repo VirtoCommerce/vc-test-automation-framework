@@ -7,3 +7,7 @@ export class HttpError extends Error {
     this.status = status;
   }
 }
+
+export function isClientError(error: unknown): error is HttpError {
+  return error instanceof HttpError && error.status >= 400 && error.status < 500;
+}

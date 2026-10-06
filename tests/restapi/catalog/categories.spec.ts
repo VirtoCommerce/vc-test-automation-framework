@@ -3,17 +3,14 @@ import * as allure from "allure-js-commons";
 import { CATEGORIES_PATH, CatalogClient } from "@api/rest/clients/catalog-client";
 import { uniqueId } from "@core/unique-id";
 import { newCatalog, newCategory } from "@dataset/builders/catalog";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Catalog / Categories");
 });
 
 test.describe("categories (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a category", async ({ httpClient, cleanupStack }) => {
     const catalogClient = new CatalogClient(httpClient);

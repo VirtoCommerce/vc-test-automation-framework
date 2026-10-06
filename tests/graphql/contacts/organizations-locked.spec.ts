@@ -5,6 +5,8 @@ import * as allure from "allure-js-commons";
 
 import { GetOrganizationsDocument } from "@api/graphql/generated/graphql";
 import { OrganizationMembershipsClient } from "@api/rest/clients/organization-memberships-client";
+import { daysFromNow } from "@core/dates";
+import { requireFields } from "@core/required-fields";
 import {
   addOrganizationMembership,
   arrangeCustomerAccount,
@@ -15,7 +17,6 @@ import { expect, test } from "@fixtures";
 
 const ORGANIZATIONS_PAGE_SIZE = 200;
 const LOCK_VISIBLE_TIMEOUT_MS = 20_000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 interface OrganizationFlag {
   readonly id: string;
@@ -69,10 +70,7 @@ test.describe("locked organizations (customer account)", () => {
       addOrganizationMembership(platformAdminHttpClient, cleanupStack, customerAccount, organizationId));
 
     await test.step("act: lock the account until yesterday", () =>
-      new OrganizationMembershipsClient(platformAdminHttpClient).lock(
-        membership.id,
-        new Date(Date.now() - ONE_DAY_MS),
-      ));
+      new OrganizationMembershipsClient(platformAdminHttpClient).lock(membership.id, daysFromNow(-1)));
 
     await test.step("assert: the organization is listed as not locked", async () => {
       expect(await flagOf(anonymousHttpClient, customerAccount.credentials, env.storeId, organizationId)).toBe(false);
@@ -120,10 +118,14 @@ async function listOrganizations(
 ): Promise<{ totalCount: number; items: OrganizationFlag[] }> {
   const graphqlClient = await signInWithoutCache(anonymousHttpClient, credentials, storeId);
   const { me } = await graphqlClient.execute(GetOrganizationsDocument, { first: ORGANIZATIONS_PAGE_SIZE });
-  const organizations = me?.contact?.organizations;
+  const { totalCount, items } = requireFields(
+    me?.contact?.organizations,
+    ["totalCount", "items"],
+    `Organizations of ${credentials.username}`,
+  );
   return {
-    totalCount: organizations?.totalCount ?? 0,
-    items: (organizations?.items ?? []).flatMap((item) =>
+    totalCount,
+    items: items.flatMap((item) =>
       item === null ? [] : [{ id: item.id, isLockedForCurrentUser: item.isLockedForCurrentUser }],
     ),
   };

@@ -1,16 +1,17 @@
 import * as allure from "allure-js-commons";
 
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 import { CategoryPage } from "@pages/frontend/pages/category-page";
 import { ProductPage } from "@pages/frontend/pages/product-page";
-import { isGraphqlMutation } from "@pages/graphql-traffic";
+import { isGraphqlOperation } from "@pages/graphql-traffic";
 
 const SMARTPHONES = "smartphones";
 const LAPTOPS = "laptops";
-const PRODUCT_SKU = "smartphone-samsung-galaxy-a57-5g";
-const CONFIGURABLE_SKU = "laptop-acer-predator-helios-neo-16-ai";
+const PRODUCT_SKU = SEEDED_PRODUCTS.galaxyA57;
+const CONFIGURABLE_SKU = SEEDED_PRODUCTS.configurableLaptop;
 const CONFIGURABLE_SLUG = "acer-predator-helios-neo-16-ai";
-const VARIATIONS_PARENT_SKU = "smartphone-google-pixel-10-frost";
+const VARIATIONS_PARENT_SKU = SEEDED_PRODUCTS.pixel10Frost;
 const VARIATION_SKUS = ["smartphone-google-pixel-10-indigo", "smartphone-google-pixel-10-lemongrass"] as const;
 const PRICE_RANGE = { from: "1000", to: "2000" } as const;
 const PRICE_FACETS = ["filter-price-[1000 TO 1300)", "filter-price-[1300 TO 1500)", "filter-price-[1500 TO 2000)"];
@@ -87,9 +88,10 @@ test.describe("category page (anonymous)", () => {
 
     const card = await test.step(`arrange: find ${PRODUCT_SKU}`, async () => {
       await categoryPage.navigate();
-      return categoryPage.scrollToProduct(PRODUCT_SKU);
+      const found = await categoryPage.scrollToProduct(PRODUCT_SKU);
+      await expect(found.quantityStepper.root).toBeVisible();
+      return found;
     });
-    await expect(card.quantityStepper.root).toBeVisible();
 
     await test.step("act: narrow the viewport", () => page.setViewportSize(NARROW_VIEWPORT));
 
@@ -104,9 +106,10 @@ test.describe("category page (anonymous)", () => {
 
     const card = await test.step(`arrange: find ${PRODUCT_SKU}`, async () => {
       await categoryPage.navigate();
-      return categoryPage.scrollToProduct(PRODUCT_SKU);
+      const found = await categoryPage.scrollToProduct(PRODUCT_SKU);
+      await expect(found.addToCartButton.textButton).toBeVisible();
+      return found;
     });
-    await expect(card.addToCartButton.textButton).toBeVisible();
 
     await test.step("act: narrow the viewport", () => page.setViewportSize(NARROW_VIEWPORT));
 
@@ -129,8 +132,9 @@ test.describe("category page (anonymous)", () => {
       [quantityStepper.incrementButton, "2"],
       [quantityStepper.decrementButton, "1"],
     ] as const) {
-      await test.step(`act and assert: the cart badge shows ${expected}`, async () => {
-        await Promise.all([page.waitForResponse(isGraphqlMutation()), button.click()]);
+      await test.step("act: click the stepper", () =>
+        Promise.all([page.waitForResponse(isGraphqlOperation("UpdateShortCartItemQuantity")), button.click()]));
+      await test.step(`assert: the cart badge shows ${expected}`, async () => {
         await expect(categoryPage.cartQuantityLabel).toHaveText(expected);
       });
     }
@@ -146,9 +150,11 @@ test.describe("category page (anonymous)", () => {
     });
 
     for (const quantity of ["1", "2"]) {
-      await test.step(`act and assert: adding ${quantity} makes the cart badge show ${quantity}`, async () => {
+      await test.step(`act: add ${quantity}`, async () => {
         await addToCartButton.quantityInput.fill(quantity);
         await addToCartButton.textButton.click();
+      });
+      await test.step(`assert: the cart badge shows ${quantity}`, async () => {
         await expect(categoryPage.cartQuantityLabel).toHaveText(quantity);
       });
     }
@@ -175,10 +181,12 @@ test.describe("category page (anonymous)", () => {
       [firstSku, "decrement", "3"],
       [secondSku, "decrement", "2"],
     ] as const) {
-      await test.step(`act and assert: ${button} ${sku} makes the cart badge show ${expected}`, async () => {
+      await test.step(`act: ${button} ${sku}`, () => {
         const { quantityStepper } = card.variation(sku);
         const control = button === "increment" ? quantityStepper.incrementButton : quantityStepper.decrementButton;
-        await Promise.all([page.waitForResponse(isGraphqlMutation()), control.click()]);
+        return Promise.all([page.waitForResponse(isGraphqlOperation("UpdateShortCartItemQuantity")), control.click()]);
+      });
+      await test.step(`assert: the cart badge shows ${expected}`, async () => {
         await expect(categoryPage.cartQuantityLabel).toHaveText(expected);
       });
     }
@@ -201,9 +209,11 @@ test.describe("category page (anonymous)", () => {
       const { addToCartButton } = card.variation(sku);
       for (const quantity of [1, 2]) {
         expectedTotal += 1;
-        await test.step(`act and assert: setting ${sku} to ${quantity} makes the badge show ${expectedTotal}`, async () => {
+        await test.step(`act: set ${sku} to ${quantity}`, async () => {
           await addToCartButton.quantityInput.fill(String(quantity));
           await addToCartButton.iconButton.click();
+        });
+        await test.step(`assert: the cart badge shows ${expectedTotal}`, async () => {
           await expect(categoryPage.cartQuantityLabel).toHaveText(String(expectedTotal));
         });
       }

@@ -8,6 +8,7 @@ import {
   GetCurrentCustomerAddressesDocument,
   GetCurrentOrganizationAddressesDocument,
 } from "@api/graphql/generated/graphql";
+import { requireFields } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
 import { saveMemberAddresses } from "@dataset/arrange/contact";
 import { newMemberAddress } from "@dataset/builders/address";
@@ -102,9 +103,9 @@ for (const scope of SCOPES) {
       const page = await test.step("act: list addresses", () =>
         waitForAddresses(scope, customerAccount.graphqlClient, [draft.description]));
 
-      await test.step("assert: the address is listed and counted", async () => {
-        expect(page.totalCount).toBeGreaterThanOrEqual(1);
-        expect(descriptionsOf(page)).toContain(draft.description);
+      await test.step("assert: exactly the arranged address is listed and counted", async () => {
+        expect(page.totalCount).toBe(1);
+        expect(descriptionsOf(page)).toEqual([draft.description]);
       });
     });
 
@@ -112,18 +113,19 @@ for (const scope of SCOPES) {
       const drafts = [newMemberAddress(`test-${scope.name}-a`), newMemberAddress(`test-${scope.name}-b`)];
       await test.step("arrange: two addresses", () =>
         saveMemberAddresses(customerAccount.graphqlClient, scope.ownerOf(customerAccount), drafts));
-      await waitForAddresses(
-        scope,
-        customerAccount.graphqlClient,
-        drafts.map(({ description }) => description),
-      );
+      await test.step("arrange: wait until the addresses are listed", () =>
+        waitForAddresses(
+          scope,
+          customerAccount.graphqlClient,
+          drafts.map(({ description }) => description),
+        ));
 
       const page = await test.step("act: request one address", () =>
         scope.query(customerAccount.graphqlClient, { first: 1 }));
 
-      await test.step("assert: one address is returned out of at least two", async () => {
+      await test.step("assert: one address is returned out of two", async () => {
         expect(page.items).toHaveLength(1);
-        expect(page.totalCount).toBeGreaterThanOrEqual(2);
+        expect(page.totalCount).toBe(2);
       });
     });
 
@@ -131,11 +133,12 @@ for (const scope of SCOPES) {
       const drafts = ["a", "b", "c"].map((suffix) => newMemberAddress(`test-${scope.name}-${suffix}`));
       await test.step("arrange: three addresses", () =>
         saveMemberAddresses(customerAccount.graphqlClient, scope.ownerOf(customerAccount), drafts));
-      const baseline = await waitForAddresses(
-        scope,
-        customerAccount.graphqlClient,
-        drafts.map(({ description }) => description),
-      );
+      const baseline = await test.step("arrange: wait until the addresses are listed", () =>
+        waitForAddresses(
+          scope,
+          customerAccount.graphqlClient,
+          drafts.map(({ description }) => description),
+        ));
 
       const pages = await test.step("act: read the first two pages of one address", async () => [
         await scope.query(customerAccount.graphqlClient, { first: 1, after: "0" }),
@@ -155,7 +158,8 @@ for (const scope of SCOPES) {
         const draft = newMemberAddress(`test-${scope.name}-address`, draftOverrides);
         await test.step("arrange: matching address", () =>
           saveMemberAddresses(customerAccount.graphqlClient, scope.ownerOf(customerAccount), [draft]));
-        await waitForAddresses(scope, customerAccount.graphqlClient, [draft.description]);
+        await test.step("arrange: wait until the addresses are listed", () =>
+          waitForAddresses(scope, customerAccount.graphqlClient, [draft.description]));
 
         const page = await test.step(`act: filter by ${filter}`, () =>
           scope.query(customerAccount.graphqlClient, query));
@@ -172,7 +176,8 @@ for (const scope of SCOPES) {
       const other = newMemberAddress(`test-${scope.name}-address`);
       await test.step("arrange: one address in the city and one elsewhere", () =>
         saveMemberAddresses(customerAccount.graphqlClient, scope.ownerOf(customerAccount), [matching, other]));
-      await waitForAddresses(scope, customerAccount.graphqlClient, [matching.description, other.description]);
+      await test.step("arrange: wait until the addresses are listed", () =>
+        waitForAddresses(scope, customerAccount.graphqlClient, [matching.description, other.description]));
 
       const page = await test.step(`act: filter by city ${city}`, () =>
         scope.query(customerAccount.graphqlClient, { cities: [city] }));
@@ -188,7 +193,8 @@ for (const scope of SCOPES) {
       const other = newMemberAddress(`test-${scope.name}-address`);
       await test.step("arrange: one address with the keyword and one without", () =>
         saveMemberAddresses(customerAccount.graphqlClient, scope.ownerOf(customerAccount), [matching, other]));
-      await waitForAddresses(scope, customerAccount.graphqlClient, [matching.description, other.description]);
+      await test.step("arrange: wait until the addresses are listed", () =>
+        waitForAddresses(scope, customerAccount.graphqlClient, [matching.description, other.description]));
 
       const page = await test.step(`act: search "${keyword}"`, () =>
         scope.query(customerAccount.graphqlClient, { keyword }));
@@ -204,11 +210,12 @@ for (const scope of SCOPES) {
       const drafts = citiesInSaveOrder.map((city) => newMemberAddress(`test-${scope.name}-address`, { city }));
       await test.step("arrange: addresses saved out of city order", () =>
         saveMemberAddresses(customerAccount.graphqlClient, scope.ownerOf(customerAccount), drafts));
-      await waitForAddresses(
-        scope,
-        customerAccount.graphqlClient,
-        drafts.map(({ description }) => description),
-      );
+      await test.step("arrange: wait until the addresses are listed", () =>
+        waitForAddresses(
+          scope,
+          customerAccount.graphqlClient,
+          drafts.map(({ description }) => description),
+        ));
 
       const page = await test.step("act: list addresses sorted by city", () =>
         scope.query(customerAccount.graphqlClient, { sort: "city:asc", first: ALL_ADDRESSES_PAGE_SIZE }));
@@ -299,8 +306,6 @@ function descriptionsOf(page: AddressPage): (string | null)[] {
 function toPage(
   connection: { totalCount: number | null; items: readonly (MemberAddressFragment | null)[] | null } | null | undefined,
 ): AddressPage {
-  return {
-    totalCount: connection?.totalCount ?? 0,
-    items: (connection?.items ?? []).flatMap((item) => (item === null ? [] : [item])),
-  };
+  const { totalCount, items } = requireFields(connection, ["totalCount", "items"], "Address page");
+  return { totalCount, items: items.flatMap((item) => (item === null ? [] : [item])) };
 }

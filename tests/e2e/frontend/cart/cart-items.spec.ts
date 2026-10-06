@@ -1,11 +1,12 @@
 import * as allure from "allure-js-commons";
 
-import { expect, test, withItems } from "@fixtures";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
+import { expect, test, withCustomerAccount, withItems } from "@fixtures";
 import { AccountSavedForLaterPage } from "@pages/frontend/pages/account-pages";
 import { CartPage } from "@pages/frontend/pages/cart-page";
-import { isGraphqlMutation } from "@pages/graphql-traffic";
+import { isGraphqlOperation } from "@pages/graphql-traffic";
 
-const PRODUCT_ID = "smartphone-samsung-galaxy-a57-5g";
+const PRODUCT_ID = SEEDED_PRODUCTS.galaxyA57;
 const ORIGINAL_QUANTITY = 3;
 const UPDATED_QUANTITY = 4;
 
@@ -15,7 +16,7 @@ test.beforeEach(async () => {
 
 test.describe("cart line items (customer account)", () => {
   test.use({
-    shopperAccount: "customer-account",
+    browserCustomerAccount: withCustomerAccount,
     cart: withItems([{ productId: PRODUCT_ID, quantity: ORIGINAL_QUANTITY }]),
   });
 
@@ -30,7 +31,10 @@ test.describe("cart line items (customer account)", () => {
     });
 
     await test.step("act: increment the quantity", () =>
-      Promise.all([page.waitForResponse(isGraphqlMutation()), quantityStepper.incrementButton.click()]));
+      Promise.all([
+        page.waitForResponse(isGraphqlOperation("ChangeFullCartItemsQuantity")),
+        quantityStepper.incrementButton.click(),
+      ]));
 
     await test.step(`assert: the cart badge shows ${UPDATED_QUANTITY}`, async () => {
       await expect(cartPage.cartQuantityLabel).toHaveText(String(UPDATED_QUANTITY));

@@ -3,16 +3,17 @@ import type { SignedInCustomerAccount } from "@fixtures";
 
 import * as allure from "allure-js-commons";
 
-import { arrangeDefaultCart, registerDefaultCartRemoval } from "@dataset/arrange/cart";
+import { addToDefaultCart, registerDefaultCartRemoval } from "@dataset/arrange/cart";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test, withItems } from "@fixtures";
 import { CartPage, CONFIGURED_SKU_PREFIX } from "@pages/frontend/pages/cart-page";
 import { ProductPage } from "@pages/frontend/pages/product-page";
 import { SignInPage } from "@pages/frontend/pages/simple-pages";
 
-const PRODUCT_ID = "smartphone-samsung-galaxy-a57-5g";
+const PRODUCT_ID = SEEDED_PRODUCTS.galaxyA57;
 const QUANTITY = 3;
 const REGULAR_QUANTITY = 2;
-const CONFIGURABLE_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+const CONFIGURABLE_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
 const CONFIGURABLE_PRODUCT_PATH = "laptops/acer-predator-helios-neo-16-ai";
 const MEMORY = "Memory";
 const MEMORY_OPTION = "Samsung DDR5-4800 8GB";
@@ -54,11 +55,11 @@ test.describe("cart merge (anonymous cart, then sign-in)", () => {
     customerAccount,
     cleanupStack,
   }) => {
+    registerDefaultCartRemoval(customerAccount.graphqlClient, cleanupStack, customerAccount.context);
     await test.step(`arrange: the customer's cart holds ${PRODUCT_ID} ×${REGULAR_QUANTITY}`, () =>
-      arrangeDefaultCart(customerAccount.graphqlClient, cleanupStack, customerAccount.context, [
+      addToDefaultCart(customerAccount.graphqlClient, customerAccount.context, [
         { productId: PRODUCT_ID, quantity: REGULAR_QUANTITY },
       ]));
-    registerDefaultCartRemoval(customerAccount.graphqlClient, cleanupStack, customerAccount.context);
     const productPage = new ProductPage(page, CONFIGURABLE_PRODUCT_PATH);
 
     await test.step("arrange: add a configured product as the anonymous shopper", async () => {

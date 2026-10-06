@@ -6,7 +6,7 @@ import type {
   DynamicPropertySearchResult,
 } from "../types/platform";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { DYNAMIC_PROPERTY_FIELDS } from "../types/platform";
 
@@ -32,7 +32,7 @@ export class DynamicPropertiesClient {
   async search(criteria: DynamicPropertySearchCriteria): Promise<DynamicProperty[]> {
     const response = await this.#httpClient.post(`${PROPERTIES_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<DynamicPropertySearchResult>();
-    return (results ?? []).map((property) => requireFields(property, DYNAMIC_PROPERTY_FIELDS, "Found property"));
+    return requireEach(results, DYNAMIC_PROPERTY_FIELDS, "Found property");
   }
 
   async delete(ids: readonly string[]): Promise<void> {

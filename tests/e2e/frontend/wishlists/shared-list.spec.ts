@@ -8,10 +8,11 @@ import { ChangeShoppingListDocument } from "@api/graphql/generated/graphql";
 import { requireFields } from "@core/required-fields";
 import { cartScope } from "@dataset/arrange/cart";
 import { addShoppingListItems, arrangeShoppingList } from "@dataset/arrange/shopping-list";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 import { SharedListPage } from "@pages/frontend/pages/account-pages";
 
-const PRODUCT_IDS = ["smartphone-apple-iphone-17-256gb-black", "smartphone-apple-iphone-17-256gb-mist-blue"];
+const PRODUCT_IDS = [SEEDED_PRODUCTS.iphone17Black, SEEDED_PRODUCTS.iphone17MistBlue];
 const PUBLIC_SCOPE = "AnyoneAnonymous";
 const PRIVATE_SCOPE = "Private";
 const UNKNOWN_SHARING_KEY = "non-existent-sharing-key-000000";
@@ -78,7 +79,7 @@ async function arrangeSharedList(
   const { changeWishlist } = await account.graphqlClient.execute(ChangeShoppingListDocument, {
     command: { listId: created.id, scope: PUBLIC_SCOPE },
   });
-  const sharing = requireFields(changeWishlist?.sharingSetting ?? undefined, ["id"], `Sharing of ${created.name}`);
+  const sharing = requireFields(changeWishlist?.sharingSetting, ["id"], `Sharing of ${created.name}`);
   const list = await addShoppingListItems(
     account.graphqlClient,
     created.id,

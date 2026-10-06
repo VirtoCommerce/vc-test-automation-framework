@@ -8,13 +8,10 @@ import type {
   VirtoCommerceMarketingModuleCoreModelDynamicContentFolder as DynamicContentFolderData,
   VirtoCommerceMarketingModuleCoreModelDynamicContentItem as DynamicContentItemData,
   VirtoCommerceMarketingModuleCoreModelDynamicContentItemSearchCriteria as DynamicContentItemSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentSearchDynamicContentItemSearchResult as DynamicContentItemSearchResult,
   VirtoCommerceMarketingModuleCoreModelDynamicContentPlace as DynamicContentPlaceData,
   VirtoCommerceMarketingModuleCoreModelDynamicContentPlaceSearchCriteria as DynamicContentPlaceSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentSearchDynamicContentPlaceSearchResult as DynamicContentPlaceSearchResult,
   VirtoCommerceMarketingModuleCoreModelDynamicContentPublication as DynamicContentPublicationData,
   VirtoCommerceMarketingModuleCoreModelDynamicContentPublicationSearchCriteria as DynamicContentPublicationSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentSearchDynamicContentPublicationSearchResult as DynamicContentPublicationSearchResult,
   VirtoCommerceMarketingModuleCoreModelPromotionsPromotion as PromotionData,
   VirtoCommerceMarketingModuleCoreModelPromotionsSearchPromotionSearchCriteria as PromotionSearchCriteria,
   VirtoCommerceMarketingModuleCoreModelPromotionsSearchPromotionSearchResult as PromotionSearchResult,
@@ -29,13 +26,10 @@ export type {
   DynamicContentFolderData,
   DynamicContentItemData,
   DynamicContentItemSearchCriteria,
-  DynamicContentItemSearchResult,
   DynamicContentPlaceData,
   DynamicContentPlaceSearchCriteria,
-  DynamicContentPlaceSearchResult,
   DynamicContentPublicationData,
   DynamicContentPublicationSearchCriteria,
-  DynamicContentPublicationSearchResult,
   PromotionData,
   PromotionSearchCriteria,
   PromotionSearchResult,
@@ -47,9 +41,11 @@ export const COUPON_FIELDS = ["id", "code", "promotionId"] as const;
 export type Promotion = WithRequired<PromotionData, (typeof PROMOTION_FIELDS)[number]>;
 export type Coupon = WithRequired<CouponData, (typeof COUPON_FIELDS)[number]>;
 
+export const NAMED_ENTITY_FIELDS = ["id", "name"] as const;
+
 export interface NamedEntityData {
   id?: string | null;
   name?: string | null;
 }
 
-export type NamedEntity<Data extends NamedEntityData> = WithRequired<Data, "id" | "name">;
+export type NamedEntity<Data extends NamedEntityData> = WithRequired<Data, (typeof NAMED_ENTITY_FIELDS)[number]>;

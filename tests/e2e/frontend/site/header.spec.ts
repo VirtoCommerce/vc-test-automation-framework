@@ -2,7 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { saveMemberAddress } from "@dataset/arrange/contact";
 import { newMemberAddress, TEST_ADDRESS } from "@dataset/builders/address";
-import { expect, test } from "@fixtures";
+import { expect, test, withCustomerAccount } from "@fixtures";
 import { EditAddressModal } from "@pages/frontend/components/edit-address-modal";
 import { HomePage } from "@pages/frontend/pages/simple-pages";
 
@@ -66,7 +66,7 @@ test.describe("top header (anonymous)", () => {
 });
 
 test.describe("top header (customer account)", () => {
-  test.use({ shopperAccount: "customer-account" });
+  test.use({ browserCustomerAccount: withCustomerAccount });
 
   test("pick a saved address from the ship-to selector", async ({ page, customerAccount }) => {
     const address = await test.step("arrange: a saved organization address", () =>

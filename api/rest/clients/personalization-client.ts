@@ -1,6 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type {
   OutlineSyncNotification,
+  OutlineSyncNotificationData,
   TaggedEntity,
   TaggedItem,
   TaggedItemData,
@@ -8,9 +9,10 @@ import type {
   TaggedItemSearchResult,
 } from "../types/personalization";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
-import { TAGGED_ITEM_FIELDS } from "../types/personalization";
+import { OUTLINE_SYNC_NOTIFICATION_FIELDS, TAGGED_ITEM_FIELDS } from "../types/personalization";
+import { findPushNotification } from "./push-notifications";
 
 const PERSONALIZATION_PATH = "/api/personalization";
 const TAGGED_ITEM_PATH = `${PERSONALIZATION_PATH}/taggeditem`;
@@ -35,7 +37,7 @@ export class PersonalizationClient {
   async search(criteria: TaggedItemSearchCriteria): Promise<TaggedItem[]> {
     const response = await this.#httpClient.post(`${PERSONALIZATION_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<TaggedItemSearchResult>();
-    return (results ?? []).map((item) => requireFields(item, TAGGED_ITEM_FIELDS, "Found tagged item"));
+    return requireEach(results, TAGGED_ITEM_FIELDS, "Found tagged item");
   }
 
   async setTags(entity: TaggedEntity, tags: string[]): Promise<void> {
@@ -46,6 +48,17 @@ export class PersonalizationClient {
 
   async synchronizeOutlines(): Promise<OutlineSyncNotification> {
     const response = await this.#httpClient.post(`${PERSONALIZATION_PATH}/outlines/synchronize`, { json: {} });
-    return response.expectOk().json<OutlineSyncNotification>();
+    return requireFields(
+      response.expectOk().json<OutlineSyncNotificationData>(),
+      OUTLINE_SYNC_NOTIFICATION_FIELDS,
+      "Outline synchronization",
+    );
+  }
+
+  async findSynchronization(notificationId: string): Promise<OutlineSyncNotification | undefined> {
+    const synchronization = await findPushNotification<OutlineSyncNotificationData>(this.#httpClient, notificationId);
+    return synchronization === undefined
+      ? undefined
+      : requireFields(synchronization, OUTLINE_SYNC_NOTIFICATION_FIELDS, `Outline synchronization "${notificationId}"`);
   }
 }

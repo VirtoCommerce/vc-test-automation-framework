@@ -3,7 +3,7 @@ import type { WithRequired } from "@core/required-fields";
 
 import { uniqueId } from "@core/unique-id";
 
-import { SEEDED_CATALOG_ID } from "./catalog";
+import { SEEDED_CATALOG_ID } from "../seeded";
 
 export type StoreDraft = WithRequired<StoreData, "id" | "name" | "catalog">;
 

@@ -10,6 +10,10 @@ export function newPassword(): string {
   return `Test-${crypto.randomUUID().slice(0, 8)}!aA1`;
 }
 
+export function newApiKey(): string {
+  return crypto.randomUUID().replaceAll("-", "");
+}
+
 export function newUser(
   storeId: string,
   overrides: Omit<Partial<ApplicationUserData>, "userName" | "email" | "password"> = {},

@@ -4,10 +4,8 @@ import * as allure from "allure-js-commons";
 
 import { DynamicPropertiesClient } from "@api/rest/clients/dynamic-properties-client";
 import { uniqueId } from "@core/unique-id";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const CONTACT_TYPE = "VirtoCommerce.CustomerModule.Core.Model.Contact";
 const OBJECT_TYPES = [
   "VirtoCommerce.CartModule.Core.Model.LineItem",
@@ -44,7 +42,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("dynamic properties (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("list object types that support dynamic properties", async ({ httpClient }) => {
     const dynamicPropertiesClient = new DynamicPropertiesClient(httpClient);

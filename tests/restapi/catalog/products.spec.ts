@@ -1,15 +1,15 @@
-import type { CatalogProduct, ProductImage } from "@api/rest/types/catalog";
+import type { ProductImage } from "@api/rest/types/catalog";
 
 import * as allure from "allure-js-commons";
 
 import { CatalogClient } from "@api/rest/clients/catalog-client";
 import { SettingsClient } from "@api/rest/clients/settings-client";
 import { uniqueId } from "@core/unique-id";
+import { createCategoryWithProduct } from "@dataset/arrange/catalog";
+import { addSettingValue, registerSettingValuesRemoval, replaceSettingValue } from "@dataset/arrange/settings";
 import { newCatalog, newCategory, newProduct } from "@dataset/builders/catalog";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const REVIEW_TYPES_SETTING = "Catalog.EditorialReviewTypes";
 const IMAGE = {
   name: "qa-image.svg",
@@ -24,7 +24,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("products (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a product", async ({ httpClient, cleanupStack }) => {
     const catalogClient = new CatalogClient(httpClient);
@@ -49,7 +49,8 @@ test.describe("products (admin)", () => {
     const catalogClient = new CatalogClient(httpClient);
     const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
     cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", () => createProduct(catalogClient, catalog.id));
+    const product = await test.step("arrange: product", async () =>
+      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
     const newName = `${product.name}-renamed`;
 
     await test.step("act: update product", () => catalogClient.saveProduct({ ...product, name: newName, weight: 2.5 }));
@@ -63,7 +64,8 @@ test.describe("products (admin)", () => {
     const catalogClient = new CatalogClient(httpClient);
     const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
     cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", () => createProduct(catalogClient, catalog.id));
+    const product = await test.step("arrange: product", async () =>
+      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
 
     const reloaded = await test.step("act: get product", () => catalogClient.getProduct(product.id));
 
@@ -76,7 +78,8 @@ test.describe("products (admin)", () => {
     const catalogClient = new CatalogClient(httpClient);
     const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
     cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", () => createProduct(catalogClient, catalog.id));
+    const product = await test.step("arrange: product", async () =>
+      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
 
     await test.step("act: delete product", () => catalogClient.deleteListEntries([product.id]));
 
@@ -89,7 +92,8 @@ test.describe("products (admin)", () => {
     const catalogClient = new CatalogClient(httpClient);
     const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
     cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", () => createProduct(catalogClient, catalog.id));
+    const product = await test.step("arrange: product", async () =>
+      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
 
     await test.step("act: attach image", () => catalogClient.saveProduct({ ...product, images: [IMAGE] }));
 
@@ -103,7 +107,8 @@ test.describe("products (admin)", () => {
     const catalogClient = new CatalogClient(httpClient);
     const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
     cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", () => createProduct(catalogClient, catalog.id));
+    const product = await test.step("arrange: product", async () =>
+      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
 
     const clone = await test.step("act: get clone", () => catalogClient.getProductClone(product.id));
 
@@ -116,7 +121,8 @@ test.describe("products (admin)", () => {
     const catalogClient = new CatalogClient(httpClient);
     const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
     cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", () => createProduct(catalogClient, catalog.id));
+    const product = await test.step("arrange: product", async () =>
+      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
     const clone = await test.step("arrange: clone", () => catalogClient.getProductClone(product.id));
     const code = uniqueId("test-product-clone");
 
@@ -134,7 +140,8 @@ test.describe("products (admin)", () => {
     cleanupStack.push(`delete catalog ${source.id}`, () => catalogClient.deleteCatalog(source.id));
     const target = await test.step("arrange: target catalog", () => catalogClient.saveCatalog(newCatalog()));
     cleanupStack.push(`delete catalog ${target.id}`, () => catalogClient.deleteCatalog(target.id));
-    const product = await test.step("arrange: product", () => createProduct(catalogClient, source.id));
+    const product = await test.step("arrange: product", async () =>
+      (await createCategoryWithProduct(catalogClient, source.id)).product);
 
     await test.step("act: move product", () =>
       catalogClient.moveListEntries({
@@ -158,21 +165,18 @@ test.describe("products (admin)", () => {
 
   test("add and rename an editorial review type", async ({ httpClient, cleanupStack }) => {
     const settingsClient = new SettingsClient(httpClient);
-    const original = await test.step("arrange: current review types", () => settingsClient.get(REVIEW_TYPES_SETTING));
-    cleanupStack.push(`restore setting ${REVIEW_TYPES_SETTING}`, () => settingsClient.save([original]));
-    const originalValues = original.allowedValues ?? [];
     const reviewType = uniqueId("test-review-type");
     const renamedType = `${reviewType}-renamed`;
+    registerSettingValuesRemoval(settingsClient, cleanupStack, REVIEW_TYPES_SETTING, [reviewType, renamedType]);
 
-    await test.step("act: add review type", () =>
-      settingsClient.save([{ ...original, allowedValues: [...originalValues, reviewType] }]));
+    await test.step("act: add review type", () => addSettingValue(settingsClient, REVIEW_TYPES_SETTING, reviewType));
 
     await test.step("assert: review type is added", async () => {
       expect((await settingsClient.get(REVIEW_TYPES_SETTING)).allowedValues).toContain(reviewType);
     });
 
     await test.step("act: rename review type", () =>
-      settingsClient.save([{ ...original, allowedValues: [...originalValues, renamedType] }]));
+      replaceSettingValue(settingsClient, REVIEW_TYPES_SETTING, reviewType, renamedType));
 
     await test.step("assert: review type is renamed", async () => {
       const { allowedValues } = await settingsClient.get(REVIEW_TYPES_SETTING);
@@ -192,8 +196,3 @@ test.describe("products (admin)", () => {
     });
   });
 });
-
-async function createProduct(catalogClient: CatalogClient, catalogId: string): Promise<CatalogProduct> {
-  const category = await catalogClient.saveCategory(newCategory(catalogId));
-  return catalogClient.saveProduct(newProduct(catalogId, category.id));
-}

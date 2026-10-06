@@ -2,23 +2,19 @@ import * as allure from "allure-js-commons";
 
 import { ASSETS_PATH, AssetsClient } from "@api/rest/clients/assets-client";
 import { uniqueId } from "@core/unique-id";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
-const MARKDOWN_FILE_URL = "https://raw.githubusercontent.com/VirtoCommerce/vc-testing-module/dev/README.md";
-const DOTFILE_URL = "https://raw.githubusercontent.com/VirtoCommerce/vc-testing-module/dev/.gitignore";
+import { REMOTE_FILES } from "@dataset/remote-files";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Platform / Assets");
 });
 
 test.describe("platform assets (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   for (const { title, url, name } of [
-    { title: "a markdown file", url: MARKDOWN_FILE_URL, name: "README.md" },
-    { title: "a dotfile", url: DOTFILE_URL, name: ".gitignore" },
+    { title: "a markdown file", ...REMOTE_FILES.markdown },
+    { title: "a dotfile", ...REMOTE_FILES.dotfile },
   ]) {
     test(`upload ${title} from a URL`, async ({ httpClient, cleanupStack }) => {
       const assetsClient = new AssetsClient(httpClient);
@@ -52,7 +48,13 @@ test.describe("platform assets (admin)", () => {
     });
   });
 
-  test("upload a file to local storage", async ({ httpClient }) => {
+  test("upload a file to local storage", {
+    annotation: {
+      type: "leaves data",
+      description:
+        "The platform has no API to list or delete files in its local upload folder; every run leaves one small, uniquely named file there",
+    },
+  }, async ({ httpClient }) => {
     const assetsClient = new AssetsClient(httpClient);
     const name = `${uniqueId("test-local-storage")}.txt`;
 
@@ -84,7 +86,7 @@ test.describe("platform assets (admin)", () => {
     });
   });
 
-  test("a deleted file is not served", async ({ httpClient, cleanupStack }) => {
+  test("stop serving a deleted file", async ({ httpClient, cleanupStack }) => {
     const assetsClient = new AssetsClient(httpClient);
     const folderName = uniqueId("test-folder");
     cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
@@ -167,6 +169,16 @@ test.describe("platform assets (admin)", () => {
     await test.step("assert: folder name is required", async () => {
       expect(response.status).toBe(400);
       expect(response.text).toContain("Folder name must not be empty");
+    });
+  });
+});
+
+test.describe("platform assets (anonymous)", () => {
+  test("reject listing assets anonymously", async ({ httpClient }) => {
+    const response = await test.step("act: get assets anonymously", () => httpClient.get(ASSETS_PATH));
+
+    await test.step("assert: access is denied", async () => {
+      expect(response.status).toBe(401);
     });
   });
 });

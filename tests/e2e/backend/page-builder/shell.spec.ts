@@ -53,8 +53,7 @@ test.describe("page builder shell (platform admin)", () => {
     const page = await arrangeDraftPage(pageBuilderClient, cleanupStack, env.storeId);
 
     const details = await test.step(`act: open ${page.name}`, async () => {
-      await pageBuilder.open(Route.draft);
-      return pageBuilder.openPage(page.name);
+      return pageBuilder.openPage(page.name, Route.draft);
     });
 
     await test.step("assert: the permalink prefix is the frontend origin", async () => {

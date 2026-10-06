@@ -1,23 +1,19 @@
 import type { WithRequired } from "@core/required-fields";
 import type {
-  VirtoCommercePlatformCoreChangeLogChangeLogSearchResult as ChangeLogSearchResult,
   VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderHistorySearchCriteria as CustomerOrderChangesSearchCriteria,
   VirtoCommerceOrdersModuleCoreModelCustomerOrder as CustomerOrderData,
   VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderSearchCriteria as CustomerOrderSearchCriteria,
   VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderSearchResult as CustomerOrderSearchResult,
-  VirtoCommercePlatformCoreChangeLogOperationLog as OperationLog,
   OrderLineItem as OrderLineItemData,
   OrderShipment as OrderShipmentData,
   VirtoCommerceOrdersModuleCoreModelPaymentIn as PaymentInData,
 } from "../generated/rest-api";
 
 export type {
-  ChangeLogSearchResult,
   CustomerOrderChangesSearchCriteria,
   CustomerOrderData,
   CustomerOrderSearchCriteria,
   CustomerOrderSearchResult,
-  OperationLog,
   OrderLineItemData,
   OrderShipmentData,
   PaymentInData,

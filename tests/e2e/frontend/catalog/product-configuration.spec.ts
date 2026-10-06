@@ -1,12 +1,13 @@
 import * as allure from "allure-js-commons";
 
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 import { LineItem } from "@pages/frontend/components/line-item";
 import { CartPage, CONFIGURED_SKU_PREFIX } from "@pages/frontend/pages/cart-page";
 import { ProductPage } from "@pages/frontend/pages/product-page";
 import { isGraphqlOperation } from "@pages/graphql-traffic";
 
-const PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+const PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
 const PRODUCT_PATH = "laptops/acer-predator-helios-neo-16-ai";
 const CONFIGURED_SKU = `${CONFIGURED_SKU_PREFIX}${PRODUCT_ID}`;
 const MEMORY = "Memory";

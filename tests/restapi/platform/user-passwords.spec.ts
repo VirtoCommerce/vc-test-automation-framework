@@ -1,20 +1,22 @@
 import * as allure from "allure-js-commons";
 
 import { TokenAuthClient } from "@api/auth/token-auth-client";
+import { NotificationsClient } from "@api/rest/clients/notifications-client";
 import { UsersClient } from "@api/rest/clients/users-client";
 import { arrangeUser } from "@dataset/arrange/security";
 import { credentialsOf, newPassword, newUser } from "@dataset/builders/security";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { describeIssue, KNOWN_ISSUES } from "@dataset/known-issues";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
+const CONFIRMATION_EMAIL_NOTIFICATION = "ConfirmationEmailNotification";
+const NOTIFICATION_TIMEOUT_MS = 10_000;
 
 test.beforeEach(async () => {
   await allure.feature("Platform / User Passwords");
 });
 
 test.describe("user passwords (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("reset a password as an administrator", async ({ httpClient, anonymousHttpClient, cleanupStack, env }) => {
     const usersClient = new UsersClient(httpClient);
@@ -76,11 +78,31 @@ test.describe("user passwords (admin)", () => {
     });
   });
 
-  test("send a verification email", async ({ httpClient, cleanupStack, env }) => {
+  test("send a verification email", async ({ httpClient, platformAdminHttpClient, cleanupStack, env }) => {
+    test.fail(true, describeIssue(KNOWN_ISSUES.verificationEmailNotSent));
     const usersClient = new UsersClient(httpClient);
-    const user = await test.step("arrange: user", () => arrangeUser(usersClient, cleanupStack, newUser(env.storeId)));
+    const draft = newUser(env.storeId, { emailConfirmed: false });
+    const user = await test.step("arrange: user with an unconfirmed email", () =>
+      arrangeUser(usersClient, cleanupStack, draft));
 
     await test.step("act: send verification email", () => usersClient.sendVerificationEmail(user.id));
+
+    await test.step("assert: a confirmation email is sent to the user", async () => {
+      const notificationsClient = new NotificationsClient(platformAdminHttpClient);
+      await expect
+        .poll(
+          async () =>
+            (
+              await notificationsClient.searchJournal({
+                notificationType: CONFIRMATION_EMAIL_NOTIFICATION,
+                keyword: draft.email,
+                take: 1,
+              })
+            ).map(({ to }) => to),
+          { timeout: NOTIFICATION_TIMEOUT_MS },
+        )
+        .toEqual([draft.email]);
+    });
   });
 
   test("reject a password change with a wrong current password", async ({

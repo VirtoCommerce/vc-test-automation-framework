@@ -1,7 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { SettingEntry, SettingEntryData } from "../types/settings";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { SETTING_FIELDS } from "../types/settings";
 
@@ -42,7 +42,7 @@ export class SettingsClient {
   }
 
   async #list(path: string, label: string): Promise<SettingEntry[]> {
-    const settings = (await this.#httpClient.get(path)).expectOk().json<SettingEntryData[]>();
-    return settings.map((setting) => requireFields(setting, SETTING_FIELDS, label));
+    const response = await this.#httpClient.get(path);
+    return requireEach(response.expectOk().json<SettingEntryData[]>(), SETTING_FIELDS, label);
   }
 }

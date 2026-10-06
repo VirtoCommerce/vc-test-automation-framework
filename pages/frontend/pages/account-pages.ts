@@ -1,7 +1,8 @@
 import type { Locator, Page } from "@playwright/test";
 
+import { exactText } from "../../text-match";
 import { ConfirmationModal } from "../components/confirmation-modal";
-import { LineItem } from "../components/line-item";
+import { LineItem, productItem, productItems } from "../components/line-item";
 import { WishlistCard, WishlistSettingsModal } from "../components/wishlist";
 import { MainLayout } from "../layouts/main-layout";
 
@@ -25,7 +26,9 @@ export class AccountListsPage extends MainLayout {
   }
 
   card(name: string): WishlistCard {
-    return new WishlistCard(this.cards.filter({ hasText: name }).first());
+    return new WishlistCard(
+      this.cards.filter({ has: this.page.locator(".wishlist-card__title", { hasText: exactText(name) }) }),
+    );
   }
 }
 
@@ -37,12 +40,12 @@ export class AccountListDetailsPage extends MainLayout {
   constructor(page: Page, listId: string) {
     super(page);
     this.path = `/account/lists/${listId}`;
-    this.lineItems = page.locator("[data-product-sku]");
+    this.lineItems = productItems(this.root);
     this.addAllToCartButton = page.locator("[data-test-id='add-all-to-cart-button']");
   }
 
   lineItem(sku: string): LineItem {
-    return new LineItem(this.page.locator(`[data-product-sku='${sku}']`));
+    return new LineItem(productItem(this.root, sku));
   }
 }
 
@@ -53,7 +56,7 @@ export class AccountSavedForLaterPage extends MainLayout {
 
   constructor(page: Page) {
     super(page);
-    this.lineItems = page.locator("[data-product-sku]");
+    this.lineItems = productItems(this.root);
     this.removeItemModal = new ConfirmationModal(
       page.locator("[data-test-id='delete-wishlist-product-modal']"),
       "delete-button",
@@ -62,7 +65,7 @@ export class AccountSavedForLaterPage extends MainLayout {
   }
 
   lineItem(sku: string): LineItem {
-    return new LineItem(this.page.locator(`[data-product-sku='${sku}']`));
+    return new LineItem(productItem(this.root, sku));
   }
 }
 
@@ -77,7 +80,7 @@ export class SharedListPage extends MainLayout {
     super(page);
     this.path = `/shared-list/${sharingKey}`;
     this.listTitle = page.locator(".shared-list__name");
-    this.lineItems = page.locator("[data-product-sku]");
+    this.lineItems = productItems(this.root);
     this.addToCartControls = page.locator("[data-test-id='add-to-cart-component']");
     this.notFound = page.getByRole("heading", { name: "404" });
   }

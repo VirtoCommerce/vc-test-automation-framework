@@ -1,16 +1,34 @@
 import type { HttpClient } from "@api/http/http-client";
+import type { ApplicationUserData } from "@api/rest/types/security";
 import type { Logger } from "@core/logger";
 import type { Dataset, DatasetItem } from "./dataset";
-import type { ManifestEntry, ManifestItemName } from "./manifest";
+import type { ManifestItem, ManifestItemName } from "./manifest";
+import type { SeedRequest } from "./seed-requests";
 
 import { ModulesClient } from "@api/rest/clients/modules-client";
+import { UsersClient } from "@api/rest/clients/users-client";
+import { requireFields } from "@core/required-fields";
 
+import { expectSucceeded } from "./arrange/security";
 import { seedRequests } from "./seed-requests";
 import { resolveSeedScope } from "./seed-scope";
 
 export interface SeedOptions {
   readonly only?: readonly ManifestItemName[] | undefined;
 }
+
+interface EntityResult {
+  readonly requests: number;
+  readonly failures: readonly unknown[];
+}
+
+type EntitySeeder = (
+  httpClient: HttpClient,
+  entity: ManifestItem,
+  items: readonly DatasetItem[],
+) => Promise<EntityResult>;
+
+const CUSTOM_SEEDERS: Partial<Record<ManifestItemName, EntitySeeder>> = { users: seedUsers };
 
 export async function seedDataset(
   httpClient: HttpClient,
@@ -36,14 +54,16 @@ export async function seedDataset(
   logger.info(`seeding ${entities.length} entities: ${entities.map((entity) => entity.name).join(", ")}`);
 
   for (const entity of entities) {
-    const items = dataset[entity.name];
+    const items = dataset[entity.name] as readonly DatasetItem[];
     if (items.length === 0) {
       logger.warn(`${entity.name}: no items in ${entity.dir}, skipped`);
       warningCount++;
+      continue;
     }
     const entityStarted = Date.now();
+    const seed = CUSTOM_SEEDERS[entity.name] ?? seedEntity;
     try {
-      const { requests, failures } = await seedEntity(httpClient, entity, items);
+      const { requests, failures } = await seed(httpClient, entity, items);
       requestCount += requests;
       for (const failure of failures) {
         logger.warn(`${entity.name} (optional): ${firstLine(failure)}`);
@@ -66,22 +86,46 @@ export async function seedDataset(
 
 async function seedEntity(
   httpClient: HttpClient,
-  entry: ManifestEntry,
+  entity: ManifestItem,
   items: readonly DatasetItem[],
-): Promise<{ requests: number; failures: readonly unknown[] }> {
-  const requests = seedRequests(entry, items);
+): Promise<EntityResult> {
+  const requests = seedRequests(entity, items);
   const failures: unknown[] = [];
-  for (const { path, body } of requests) {
+  for (const request of requests) {
     try {
-      (await httpClient.send(entry.method, path, { json: body })).expectOk();
+      (await httpClient.send(entity.method, request.path, { json: request.body })).expectOk();
     } catch (error) {
-      if (!entry.optional) {
-        throw error;
+      const failure = describedFailure(request, error);
+      if (!entity.optional) {
+        throw failure;
       }
-      failures.push(error);
+      failures.push(failure);
     }
   }
   return { requests: requests.length, failures };
+}
+
+async function seedUsers(
+  httpClient: HttpClient,
+  _entity: ManifestItem,
+  items: readonly DatasetItem[],
+): Promise<EntityResult> {
+  const usersClient = new UsersClient(httpClient);
+  for (const item of items) {
+    const user = requireFields(item as ApplicationUserData, ["userName", "password"], "Dataset user");
+    const existing = await usersClient.find(user.userName);
+    const result =
+      existing === undefined
+        ? await usersClient.create(user)
+        : await usersClient.resetPassword(user.userName, user.password);
+    expectSucceeded(result, `${existing === undefined ? "Create" : "Reset the password of"} user ${user.userName}`);
+  }
+  return { requests: items.length * 2, failures: [] };
+}
+
+function describedFailure(request: SeedRequest, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${request.label}: ${message}`, { cause: error });
 }
 
 function firstLine(error: unknown): string {

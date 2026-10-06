@@ -1,7 +1,4 @@
-import type {
-  DynamicContentResource,
-  SearchableDynamicContentResource,
-} from "@api/rest/clients/dynamic-content-client";
+import type { DynamicContentResource } from "@api/rest/clients/dynamic-content-client";
 import type { NamedEntityData } from "@api/rest/types/marketing";
 
 import * as allure from "allure-js-commons";
@@ -9,10 +6,8 @@ import * as allure from "allure-js-commons";
 import { DynamicContentClient } from "@api/rest/clients/dynamic-content-client";
 import { uniqueId } from "@core/unique-id";
 import { ageConditionTree, newInactivePublication } from "@dataset/builders/marketing";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const READ_AFTER_WRITE_TIMEOUT_MS = 5_000;
 
 interface ContentResourceCase {
@@ -21,7 +16,7 @@ interface ContentResourceCase {
   readonly select: (client: DynamicContentClient) => DynamicContentResource<NamedEntityData>;
   readonly selectSearchable?: (
     client: DynamicContentClient,
-  ) => SearchableDynamicContentResource<NamedEntityData, { keyword?: string | null }>;
+  ) => DynamicContentResource<NamedEntityData, { keyword?: string | null }>;
 }
 
 const CONTENT_RESOURCES: readonly ContentResourceCase[] = [
@@ -51,7 +46,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("dynamic content (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   for (const { title, prefix, select, selectSearchable } of CONTENT_RESOURCES) {
     test(`create a ${title}`, async ({ httpClient, cleanupStack }) => {
@@ -120,10 +115,15 @@ test.describe("dynamic content (admin)", () => {
 
       test(`delete ${title}s in bulk`, async ({ httpClient, cleanupStack }) => {
         const resource = selectSearchable(new DynamicContentClient(httpClient));
-        const entities = await test.step(`arrange: two ${title}s`, () =>
-          Promise.all([resource.create({ name: uniqueId(prefix) }), resource.create({ name: uniqueId(prefix) })]));
-        const ids = entities.map(({ id }) => id);
-        cleanupStack.push(`delete ${title}s ${ids.join(", ")}`, () => resource.delete(ids));
+        const ids = await test.step(`arrange: two ${title}s`, async () => {
+          const created: string[] = [];
+          for (const name of [uniqueId(prefix), uniqueId(prefix)]) {
+            const { id } = await resource.create({ name });
+            cleanupStack.push(`delete ${title} ${id}`, () => resource.delete([id]));
+            created.push(id);
+          }
+          return created;
+        });
 
         await test.step(`act: delete both ${title}s`, () => resource.delete(ids));
 
@@ -140,7 +140,7 @@ test.describe("dynamic content (admin)", () => {
     const template = await test.step("act: get new publication", () => dynamicContentClient.newPublication());
 
     await test.step("assert: template is unsaved and has a condition tree", async () => {
-      expect(template.id ?? null).toBeNull();
+      expect(template.id == null, "the template has no id").toBe(true);
       expect(template.dynamicExpression).toMatchObject({ id: "DynamicContentConditionTree" });
     });
   });
@@ -159,7 +159,8 @@ test.describe("dynamic content (admin)", () => {
       });
     });
 
-    const withCondition = await publications.get(publication.id);
+    const withCondition = await test.step("arrange: the publication with its condition", () =>
+      publications.get(publication.id));
     await test.step("act: change the age condition to 31", () =>
       publications.update({ ...withCondition, dynamicExpression: ageConditionTree(31) }));
     await test.step("assert: condition value is updated", async () => {

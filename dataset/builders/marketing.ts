@@ -30,10 +30,6 @@ export function newCoupon(promotionId: string, maxUsesNumber: number, maxUsesPer
   return { promotionId, code: uniqueId("TEST-COUPON").toUpperCase(), maxUsesNumber, maxUsesPerUser };
 }
 
-export function newNamedContent(prefix: string): { name: string } {
-  return { name: uniqueId(prefix) };
-}
-
 export function newInactivePublication(name = uniqueId("test-publication")): DynamicContentPublicationData {
   return { name, isActive: false };
 }

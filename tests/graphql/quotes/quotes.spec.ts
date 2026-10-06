@@ -1,27 +1,21 @@
-import type { QuoteFragment } from "@api/graphql/generated/graphql";
-import type { HttpClient } from "@api/http/http-client";
-import type { CleanupStack } from "@core/cleanup-stack";
-import type { SignedInCustomerAccount } from "@fixtures";
-
 import * as allure from "allure-js-commons";
 
 import {
   ChangeQuoteCommentDocument,
   ChangeQuoteItemQuantityDocument,
   CreateQuoteDocument,
-  CreateQuoteFromCartDocument,
   GetQuoteDocument,
   RemoveQuoteItemDocument,
   SubmitQuoteRequestDocument,
   UpdateQuoteAddressesDocument,
 } from "@api/graphql/generated/graphql";
-import { QuotesClient } from "@api/rest/clients/quotes-client";
-import { requireFields } from "@core/required-fields";
 import { arrangeCart, cartScope, lineItemFor } from "@dataset/arrange/cart";
+import { arrangeQuoteFromCart, registerQuoteRemoval } from "@dataset/arrange/quote";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_ID = "smartphone-apple-iphone-17-256gb-black";
-const SECOND_PRODUCT_ID = "sodimm-crucial-ddr4-2400-8gb";
+const PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
+const SECOND_PRODUCT_ID = SEEDED_PRODUCTS.crucialDdr4Sodimm;
 const SHIPPING_ADDRESS_TYPE = 1;
 const BILLING_ADDRESS_TYPE = 2;
 const QUOTE_ADDRESS = {
@@ -56,7 +50,7 @@ test.describe("quotes (customer account)", () => {
       ]));
 
     const quote = await test.step("act: create a quote from the cart", () =>
-      quoteFromCart(customerAccount, platformAdminHttpClient, cleanupStack, cart.id));
+      arrangeQuoteFromCart(customerAccount.graphqlClient, platformAdminHttpClient, cleanupStack, cart.id));
 
     await test.step("assert: the quote carries the cart item", async () => {
       expect(quote.storeId).toBe(customerAccount.context.storeId);
@@ -70,7 +64,7 @@ test.describe("quotes (customer account)", () => {
         { productId: PRODUCT_ID, quantity: 1 },
       ]));
     const quote = await test.step("arrange: quote from the cart", () =>
-      quoteFromCart(customerAccount, platformAdminHttpClient, cleanupStack, cart.id));
+      arrangeQuoteFromCart(customerAccount.graphqlClient, platformAdminHttpClient, cleanupStack, cart.id));
     const quoteItem = lineItemFor(quote, PRODUCT_ID);
 
     const { changeQuoteItemQuantity } = await test.step("act: change the item quantity to 5", () =>
@@ -90,7 +84,7 @@ test.describe("quotes (customer account)", () => {
         { productId: PRODUCT_ID, quantity: 1 },
       ]));
     const quote = await test.step("arrange: quote from the cart", () =>
-      quoteFromCart(customerAccount, platformAdminHttpClient, cleanupStack, cart.id));
+      arrangeQuoteFromCart(customerAccount.graphqlClient, platformAdminHttpClient, cleanupStack, cart.id));
 
     const { changeQuoteComment } = await test.step("act: change the comment", () =>
       customerAccount.graphqlClient.execute(ChangeQuoteCommentDocument, {
@@ -112,7 +106,7 @@ test.describe("quotes (customer account)", () => {
         { productId: PRODUCT_ID, quantity: 1 },
       ]));
     const quote = await test.step("arrange: quote from the cart", () =>
-      quoteFromCart(customerAccount, platformAdminHttpClient, cleanupStack, cart.id));
+      arrangeQuoteFromCart(customerAccount.graphqlClient, platformAdminHttpClient, cleanupStack, cart.id));
     const addresses = [SHIPPING_ADDRESS_TYPE, BILLING_ADDRESS_TYPE].map((addressType) => ({
       ...QUOTE_ADDRESS,
       addressType,
@@ -145,7 +139,7 @@ test.describe("quotes (customer account)", () => {
         { productId: SECOND_PRODUCT_ID, quantity: 1 },
       ]));
     const quote = await test.step("arrange: quote from the cart", () =>
-      quoteFromCart(customerAccount, platformAdminHttpClient, cleanupStack, cart.id));
+      arrangeQuoteFromCart(customerAccount.graphqlClient, platformAdminHttpClient, cleanupStack, cart.id));
 
     const { removeQuoteItem } = await test.step(`act: remove ${PRODUCT_ID}`, () =>
       customerAccount.graphqlClient.execute(RemoveQuoteItemDocument, {
@@ -164,7 +158,7 @@ test.describe("quotes (customer account)", () => {
         { productId: PRODUCT_ID, quantity: 1 },
       ]));
     const quote = await test.step("arrange: quote from the cart", () =>
-      quoteFromCart(customerAccount, platformAdminHttpClient, cleanupStack, cart.id));
+      arrangeQuoteFromCart(customerAccount.graphqlClient, platformAdminHttpClient, cleanupStack, cart.id));
 
     const { submitQuoteRequest } = await test.step("act: submit the quote", () =>
       customerAccount.graphqlClient.execute(SubmitQuoteRequestDocument, {
@@ -177,27 +171,3 @@ test.describe("quotes (customer account)", () => {
     });
   });
 });
-
-async function quoteFromCart(
-  customerAccount: SignedInCustomerAccount,
-  platformAdminHttpClient: HttpClient,
-  cleanupStack: CleanupStack,
-  cartId: string,
-): Promise<QuoteFragment & { id: string }> {
-  const { createQuoteFromCart } = await customerAccount.graphqlClient.execute(CreateQuoteFromCartDocument, {
-    command: { cartId, comment: "Quote requested by an automated test" },
-  });
-  return registerQuoteRemoval(platformAdminHttpClient, cleanupStack, createQuoteFromCart);
-}
-
-function registerQuoteRemoval(
-  platformAdminHttpClient: HttpClient,
-  cleanupStack: CleanupStack,
-  quote: QuoteFragment | null | undefined,
-): QuoteFragment & { id: string } {
-  const created = requireFields(quote ?? undefined, ["id"], "Created quote");
-  cleanupStack.push(`delete quote ${created.number}`, () =>
-    new QuotesClient(platformAdminHttpClient).delete([created.id]),
-  );
-  return created;
-}

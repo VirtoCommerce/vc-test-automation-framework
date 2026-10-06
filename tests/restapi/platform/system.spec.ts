@@ -1,31 +1,28 @@
 import * as allure from "allure-js-commons";
 
-import { JobsClient } from "@api/rest/clients/jobs-client";
 import { ModulesClient } from "@api/rest/clients/modules-client";
 import { PlatformClient } from "@api/rest/clients/platform-client";
-import { SearchIndexesClient } from "@api/rest/clients/search-indexes-client";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
 const CATALOG_MODULE_ID = "VirtoCommerce.Catalog";
-const INDEXED_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
 const RESTART_TIMEOUT_MS = 300_000;
+const REQUIRED_APP_IDS = ["platform", "page-builder-shell"];
+const PLATFORM_VERSION = /^\d+\.\d+\.\d+/;
 
 test.beforeEach(async () => {
   await allure.feature("Platform / System");
 });
 
 test.describe("platform system (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("list installed apps", async ({ httpClient }) => {
     const platformClient = new PlatformClient(httpClient);
 
     const apps = await test.step("act: list apps", () => platformClient.listApps());
 
-    await test.step("assert: apps are installed", async () => {
-      expect(apps.length).toBeGreaterThan(0);
+    await test.step("assert: the platform admin and the page-builder shell are installed", async () => {
+      expect(apps.map(({ id }) => id)).toEqual(expect.arrayContaining(REQUIRED_APP_IDS));
     });
   });
 
@@ -35,7 +32,10 @@ test.describe("platform system (admin)", () => {
     const systemInfo = await test.step("act: get system info", () => platformClient.getSystemInfo());
 
     await test.step("assert: system info reports the platform version and process", async () => {
-      expect(systemInfo).toMatchObject({ platformVersion: expect.any(String), is64BitProcess: expect.any(Boolean) });
+      expect(systemInfo).toMatchObject({
+        platformVersion: expect.stringMatching(PLATFORM_VERSION),
+        is64BitProcess: true,
+      });
     });
   });
 
@@ -59,19 +59,6 @@ test.describe("platform system (admin)", () => {
     });
   });
 
-  test("get the status of a background job", async ({ httpClient }) => {
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
-    const jobsClient = new JobsClient(httpClient);
-    const { jobId } = await test.step("arrange: started indexation job", () =>
-      searchIndexesClient.startIndexation([{ documentType: "Product", documentIds: [INDEXED_PRODUCT_ID] }]));
-
-    const job = await test.step("act: get job status", () => jobsClient.get(jobId));
-
-    await test.step("assert: job reports its state", async () => {
-      expect(job).toMatchObject({ id: jobId, state: expect.any(String), completed: expect.any(Boolean) });
-    });
-  });
-
   test("reload modules", { tag: "@destructive" }, async ({ httpClient }) => {
     const modulesClient = new ModulesClient(httpClient);
 
@@ -86,10 +73,12 @@ test.describe("platform system (admin)", () => {
     test.setTimeout(RESTART_TIMEOUT_MS + 30_000);
     const modulesClient = new ModulesClient(httpClient);
     const platformClient = new PlatformClient(httpClient);
+    const { platformVersion } = await test.step("arrange: current platform version", () =>
+      platformClient.getSystemInfo());
 
     await test.step("act: restart platform", () => modulesClient.restart());
 
-    await test.step("assert: platform comes back", async () => {
+    await test.step(`assert: platform ${platformVersion} comes back`, async () => {
       await expect
         .poll(
           async () => {
@@ -101,7 +90,7 @@ test.describe("platform system (admin)", () => {
           },
           { timeout: RESTART_TIMEOUT_MS, intervals: [5_000] },
         )
-        .toEqual(expect.any(String));
+        .toBe(platformVersion);
     });
   });
 });

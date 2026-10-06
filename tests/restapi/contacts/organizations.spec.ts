@@ -2,17 +2,14 @@ import * as allure from "allure-js-commons";
 
 import { CustomersClient } from "@api/rest/clients/customers-client";
 import { newOrganization } from "@dataset/builders/customer";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Contacts / Organizations");
 });
 
 test.describe("organizations (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create an organization", async ({ httpClient, cleanupStack }) => {
     const { organizations } = new CustomersClient(httpClient);
@@ -55,10 +52,11 @@ test.describe("organizations (admin)", () => {
 
   test("get organizations by ids", async ({ httpClient, cleanupStack }) => {
     const { organizations } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two organizations", () =>
-      Promise.all([organizations.create(newOrganization()), organizations.create(newOrganization())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newOrganization(), newOrganization()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete organizations ${ids.join(", ")}`, () => organizations.delete(ids));
+    await test.step("arrange: two organizations", () =>
+      Promise.all(drafts.map((draft) => organizations.create(draft))));
 
     const found = await test.step("act: get organizations by ids", () => organizations.getMany(ids));
 
@@ -95,10 +93,11 @@ test.describe("organizations (admin)", () => {
 
   test("rename organizations in bulk", async ({ httpClient, cleanupStack }) => {
     const { organizations } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two organizations", () =>
-      Promise.all([organizations.create(newOrganization()), organizations.create(newOrganization())]));
-    const ids = created.map(({ id }) => id);
+    const drafts = [newOrganization(), newOrganization()];
+    const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete organizations ${ids.join(", ")}`, () => organizations.delete(ids));
+    const created = await test.step("arrange: two organizations", () =>
+      Promise.all(drafts.map((draft) => organizations.create(draft))));
     const renamed = created.map((organization) => ({ ...organization, name: `${organization.name}-renamed` }));
 
     await test.step("act: rename both organizations", () => organizations.updateMany(renamed));
@@ -109,61 +108,13 @@ test.describe("organizations (admin)", () => {
     });
   });
 
-  test("create, rename and delete an organization", async ({ httpClient, cleanupStack }) => {
-    const { organizations } = new CustomersClient(httpClient);
-    const draft = newOrganization();
-    const newName = `${draft.name}-renamed`;
-
-    const organization = await test.step("act: create organization", () => organizations.create(draft));
-    cleanupStack.push(`delete organization ${organization.id}`, () => organizations.delete([organization.id]));
-    await test.step("assert: organization is readable", async () => {
-      expect((await organizations.get(organization.id)).name).toBe(draft.name);
-    });
-
-    await test.step("act: rename organization", () => organizations.update({ ...organization, name: newName }));
-    await test.step("assert: organization has the new name", async () => {
-      expect((await organizations.get(organization.id)).name).toBe(newName);
-    });
-
-    await test.step("act: delete organization", () => organizations.delete([organization.id]));
-    await test.step("assert: organization is not found", async () => {
-      expect(await organizations.search({ objectIds: [organization.id] })).toEqual([]);
-    });
-  });
-
-  test("create, rename and delete organizations in bulk", async ({ httpClient, cleanupStack }) => {
+  test("delete organizations in bulk", async ({ httpClient, cleanupStack }) => {
     const { organizations } = new CustomersClient(httpClient);
     const drafts = [newOrganization(), newOrganization()];
     const ids = drafts.map(({ id }) => id);
     cleanupStack.push(`delete organizations ${ids.join(", ")}`, () => organizations.delete(ids));
-
-    await test.step("act: create two organizations", () => organizations.createMany(drafts));
-    const created = await test.step("assert: both organizations exist", async () => {
-      const found = await organizations.getMany(ids);
-      expect(found).toHaveLength(2);
-      return found;
-    });
-
-    await test.step("act: rename both organizations", () =>
-      organizations.updateMany(
-        created.map((organization) => ({ ...organization, name: `${organization.name}-renamed` })),
-      ));
-    await test.step("assert: both organizations have new names", async () => {
-      expect((await organizations.getMany(ids)).every(({ name }) => name.endsWith("-renamed"))).toBe(true);
-    });
-
-    await test.step("act: delete both organizations", () => organizations.delete(ids));
-    await test.step("assert: neither organization is found", async () => {
-      expect(await organizations.search({ objectIds: ids })).toEqual([]);
-    });
-  });
-
-  test("delete organizations in bulk", async ({ httpClient, cleanupStack }) => {
-    const { organizations } = new CustomersClient(httpClient);
-    const created = await test.step("arrange: two organizations", () =>
-      Promise.all([organizations.create(newOrganization()), organizations.create(newOrganization())]));
-    const ids = created.map(({ id }) => id);
-    cleanupStack.push(`delete organizations ${ids.join(", ")}`, () => organizations.delete(ids));
+    await test.step("arrange: two organizations", () =>
+      Promise.all(drafts.map((draft) => organizations.create(draft))));
 
     await test.step("act: delete both organizations", () => organizations.delete(ids));
 

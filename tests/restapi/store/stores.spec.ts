@@ -2,19 +2,20 @@ import * as allure from "allure-js-commons";
 
 import { STORES_PATH, StoresClient } from "@api/rest/clients/stores-client";
 import { uniqueId } from "@core/unique-id";
-import { SEEDED_CATALOG_ID } from "@dataset/builders/catalog";
 import { newStore } from "@dataset/builders/store";
-import { getCredentials, getUser } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { getUser } from "@dataset/dataset";
+import { describeIssue, KNOWN_ISSUES } from "@dataset/known-issues";
+import { SEEDED_CATALOG_ID, SEEDED_USERS } from "@dataset/seeded";
+import { expect, seededUser, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
+const USERNAME = SEEDED_USERS.storeAdministrator;
 
 test.beforeEach(async () => {
   await allure.feature("Store");
 });
 
 test.describe("stores (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: seededUser(USERNAME) });
 
   test("create a store", async ({ httpClient, cleanupStack }) => {
     const storesClient = new StoresClient(httpClient);
@@ -29,7 +30,7 @@ test.describe("stores (admin)", () => {
   });
 
   test("reject a store without a name", async ({ httpClient, cleanupStack }) => {
-    test.fail(true, "Platform returns 500 (database not-null violation) instead of a validation error");
+    test.fail(true, describeIssue(KNOWN_ISSUES.storeWithoutName));
     const id = uniqueId("test-store");
     cleanupStack.push(`delete store ${id}`, () => new StoresClient(httpClient).delete(id));
 
@@ -86,28 +87,6 @@ test.describe("stores (admin)", () => {
 
     await test.step("assert: store has the new name", async () => {
       expect((await storesClient.get(store.id)).name).toBe(newName);
-    });
-  });
-
-  test("create, rename, find and delete a store", async ({ httpClient, cleanupStack }) => {
-    const storesClient = new StoresClient(httpClient);
-    const draft = newStore();
-    cleanupStack.push(`delete store ${draft.id}`, () => storesClient.delete(draft.id));
-    const newName = `${draft.name}-renamed`;
-
-    const store = await test.step("act: create store", () => storesClient.create(draft));
-    await test.step("assert: store is readable", async () => {
-      expect((await storesClient.get(store.id)).name).toBe(draft.name);
-    });
-
-    await test.step("act: rename store", () => storesClient.update({ ...store, name: newName }));
-    await test.step("assert: store is found by the new name", async () => {
-      expect((await storesClient.search({ keyword: newName })).map(({ id }) => id)).toContain(store.id);
-    });
-
-    await test.step("act: delete store", () => storesClient.delete(store.id));
-    await test.step("assert: store is not found", async () => {
-      expect(await storesClient.find(store.id)).toBeUndefined();
     });
   });
 

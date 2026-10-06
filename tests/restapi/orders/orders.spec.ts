@@ -1,26 +1,33 @@
 import type { CustomerOrder } from "@api/rest/types/orders";
-import type { CleanupStack } from "@core/cleanup-stack";
 import type { CustomerOrderDraft } from "@dataset/builders/order";
 import type { Dataset } from "@dataset/dataset";
 
 import * as allure from "allure-js-commons";
 
 import { CUSTOMER_ORDERS_PATH, OrdersClient } from "@api/rest/clients/orders-client";
+import { SearchIndexesClient } from "@api/rest/clients/search-indexes-client";
+import { requireFields } from "@core/required-fields";
+import { arrangeOrder } from "@dataset/arrange/order";
 import { MAX_ORDER_NUMBER_LENGTH, newLineItem, newOrder } from "@dataset/builders/order";
-import { getCredentials, getProduct, getUser } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { getProduct, getUser } from "@dataset/dataset";
+import { SEEDED_PRODUCTS, SEEDED_USERS } from "@dataset/seeded";
+import { expect, seededUser, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
-const SEEDED_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+const USERNAME = SEEDED_USERS.storeAdministrator;
+const SEEDED_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
 const LINE_ITEM_PRICE = 100;
 const CHANGE_LOG_TIMEOUT_MS = 30_000;
+const ORDER_DOCUMENT_TYPE = "CustomerOrder";
+const NEWEST_ORDERS_TAKE = 20;
+const PAYMENT_NUMBER = /^PI\d{6}-\d{5}$/;
+const SHIPMENT_NUMBER = /^SH\d{6}-\d{5}$/;
 
 test.beforeEach(async () => {
   await allure.feature("Orders");
 });
 
 test.describe("customer orders (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: seededUser(USERNAME) });
 
   test("create an order", async ({ httpClient, cleanupStack, dataset, env }) => {
     const ordersClient = new OrdersClient(httpClient);
@@ -70,13 +77,18 @@ test.describe("customer orders (admin)", () => {
 
   test("list orders", async ({ httpClient, cleanupStack, dataset, env }) => {
     const ordersClient = new OrdersClient(httpClient);
-    await test.step("arrange: order", () =>
+    const order = await test.step("arrange: order", () =>
       arrangeOrder(ordersClient, cleanupStack, newOrder(env.storeId, getUser(dataset, USERNAME))));
 
-    const orders = await test.step("act: list orders", () => ordersClient.search({ take: 5 }));
+    const orders = await test.step("act: list the newest orders", () =>
+      ordersClient.search({ sort: "createdDate:desc", take: NEWEST_ORDERS_TAKE }));
 
-    await test.step("assert: orders are listed", async () => {
-      expect(orders.length).toBeGreaterThan(0);
+    await test.step("assert: the new order is listed and the list is newest first", async () => {
+      expect(orders.map(({ id }) => id)).toContain(order.id);
+      const createdTimes = orders.map((listed) =>
+        Date.parse(requireFields(listed, ["createdDate"], `Order ${listed.number}`).createdDate),
+      );
+      expect(createdTimes).toEqual([...createdTimes].sort((left, right) => right - left));
     });
   });
 
@@ -93,13 +105,15 @@ test.describe("customer orders (admin)", () => {
     });
   });
 
-  test("check whether indexed order search is enabled", async ({ httpClient }) => {
+  test("the indexed order search flag matches the registered order index", async ({ httpClient }) => {
     const ordersClient = new OrdersClient(httpClient);
+    const searchIndexesClient = new SearchIndexesClient(httpClient);
 
     const enabled = await test.step("act: check indexed search", () => ordersClient.isIndexedSearchEnabled());
 
-    await test.step("assert: flag is a boolean", async () => {
-      expect(typeof enabled).toBe("boolean");
+    await test.step(`assert: the ${ORDER_DOCUMENT_TYPE} index is registered exactly when the flag is ${enabled}`, async () => {
+      const documentTypes = (await searchIndexesClient.list()).map(({ documentType }) => documentType);
+      expect(documentTypes.includes(ORDER_DOCUMENT_TYPE)).toBe(enabled);
     });
   });
 
@@ -110,8 +124,14 @@ test.describe("customer orders (admin)", () => {
 
     const payment = await test.step("act: generate payment", () => ordersClient.newPayment(order.id));
 
-    await test.step("assert: payment is numbered and belongs to the order customer", async () => {
-      expect(payment).toMatchObject({ customerId: order.customerId, number: expect.any(String) });
+    await test.step("assert: a new incoming payment of the order customer, numbered and in the order currency", async () => {
+      expect(payment).toMatchObject({
+        operationType: "PaymentIn",
+        status: "New",
+        customerId: order.customerId,
+        currency: order.currency,
+      });
+      expect(payment.number).toMatch(PAYMENT_NUMBER);
     });
   });
 
@@ -122,8 +142,9 @@ test.describe("customer orders (admin)", () => {
 
     const shipment = await test.step("act: generate shipment", () => ordersClient.newShipment(order.id));
 
-    await test.step("assert: shipment is numbered", async () => {
-      expect(shipment.number).toEqual(expect.any(String));
+    await test.step("assert: a new shipment, numbered and in the order currency", async () => {
+      expect(shipment).toMatchObject({ operationType: "Shipment", status: "New", currency: order.currency });
+      expect(shipment.number).toMatch(SHIPMENT_NUMBER);
     });
   });
 
@@ -176,8 +197,12 @@ test.describe("customer orders (admin)", () => {
     const ordersClient = new OrdersClient(httpClient);
     const order = await test.step("arrange: order with a line item", () =>
       arrangeOrder(ordersClient, cleanupStack, orderWithLineItem(dataset, env.storeId)));
-    const initial = await test.step("arrange: initial change count", () =>
-      ordersClient.searchChanges({ orderId: order.id, take: 10 }));
+    const initial = await test.step("arrange: initial change count", async () =>
+      requireFields(
+        await ordersClient.searchChanges({ orderId: order.id, take: 10 }),
+        ["totalCount"],
+        "Initial change log",
+      ));
     const payment = await test.step("arrange: new payment", () => ordersClient.newPayment(order.id));
     const shipment = await test.step("arrange: new shipment", () => ordersClient.newShipment(order.id));
 
@@ -195,7 +220,7 @@ test.describe("customer orders (admin)", () => {
         .poll(async () => (await ordersClient.searchChanges({ orderId: order.id, take: 10 })).totalCount, {
           timeout: CHANGE_LOG_TIMEOUT_MS,
         })
-        .toBeGreaterThan(initial.totalCount ?? 0);
+        .toBeGreaterThan(initial.totalCount);
     });
   });
 
@@ -214,10 +239,13 @@ test.describe("customer orders (admin)", () => {
 
   test("reject an order number that is too long", async ({ httpClient, cleanupStack, dataset, env }) => {
     const ordersClient = new OrdersClient(httpClient);
-    const draft = { ...newOrder(env.storeId, getUser(dataset, USERNAME)), number: "X".repeat(65) };
+    const draft = {
+      ...newOrder(env.storeId, getUser(dataset, USERNAME)),
+      number: "X".repeat(MAX_ORDER_NUMBER_LENGTH + 1),
+    };
     cleanupStack.push(`delete order ${draft.id}`, () => ordersClient.delete(draft.id));
 
-    const response = await test.step("act: create order with a 65-character number", () =>
+    const response = await test.step(`act: create order with a ${MAX_ORDER_NUMBER_LENGTH + 1}-character number`, () =>
       httpClient.post(CUSTOMER_ORDERS_PATH, { json: draft }));
 
     await test.step("assert: order number length is rejected", async () => {
@@ -226,15 +254,6 @@ test.describe("customer orders (admin)", () => {
     });
   });
 });
-
-async function arrangeOrder(
-  ordersClient: OrdersClient,
-  cleanupStack: CleanupStack,
-  draft: CustomerOrderDraft,
-): Promise<CustomerOrder> {
-  cleanupStack.push(`delete order ${draft.number}`, () => ordersClient.delete(draft.id));
-  return ordersClient.create(draft);
-}
 
 function orderWithLineItem(dataset: Dataset, storeId: string): CustomerOrderDraft {
   const product = getProduct(dataset, SEEDED_PRODUCT_ID);

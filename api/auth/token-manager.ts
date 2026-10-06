@@ -1,8 +1,9 @@
-import type { HttpClient } from "../http/http-client";
+import type { HttpClient } from "@api/http/http-client";
 import type { Credentials } from "./credentials";
 import type { AuthToken, TokenAuthClient } from "./token-auth-client";
 
-import { HttpError } from "../http/http-error";
+import { isClientError } from "@api/http/http-error";
+
 import { authHeader } from "./token-auth-client";
 
 const EXPIRY_MARGIN_MS = 60_000;
@@ -10,7 +11,7 @@ const EXPIRY_MARGIN_MS = 60_000;
 interface ManagedSession {
   readonly storeId: string;
   readonly credentials: Credentials;
-  readonly token: AuthToken;
+  readonly token: Promise<AuthToken>;
 }
 
 export class TokenManager {
@@ -26,12 +27,20 @@ export class TokenManager {
     return httpClient.withHeaders(async () => authHeader(await this.getToken(credentials, storeId)));
   }
 
-  async getToken(credentials: Credentials, storeId: string): Promise<AuthToken> {
-    const session = this.#sessions.get(sessionKey(storeId, credentials.username));
-    if (session === undefined || session.credentials.password !== credentials.password) {
-      return this.#signIn(credentials, storeId);
-    }
-    return this.#refresh(session);
+  getToken(credentials: Credentials, storeId: string): Promise<AuthToken> {
+    const key = sessionKey(storeId, credentials.username);
+    const session = this.#sessions.get(key);
+    const token =
+      session === undefined || session.credentials.password !== credentials.password
+        ? this.#tokenAuthClient.requestToken(credentials, storeId)
+        : session.token.then((current) => (isFresh(current) ? current : this.#renew(current, credentials, storeId)));
+    this.#sessions.set(key, { storeId, credentials, token });
+    token.catch(() => {
+      if (this.#sessions.get(key)?.token === token) {
+        this.#sessions.delete(key);
+      }
+    });
+    return token;
   }
 
   async signOut(username: string, storeId: string): Promise<void> {
@@ -41,46 +50,30 @@ export class TokenManager {
       return;
     }
     this.#sessions.delete(key);
-    const token = await this.#revocableToken(session);
-    if (token !== undefined) {
+    const token = await session.token.catch(() => undefined);
+    if (token !== undefined && isFresh(token)) {
       await this.#tokenAuthClient.revokeToken(token);
     }
   }
 
   async signOutAll(): Promise<void> {
-    await Promise.all(
+    const results = await Promise.allSettled(
       [...this.#sessions.values()].map((session) => this.signOut(session.credentials.username, session.storeId)),
     );
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure !== undefined) {
+      throw failure.reason;
+    }
   }
 
-  async #refresh(session: ManagedSession): Promise<AuthToken> {
-    if (session.token.expiresAt - EXPIRY_MARGIN_MS > Date.now()) {
-      return session.token;
-    }
-    if (session.token.refreshToken !== undefined) {
-      const refreshed = await this.#tokenAuthClient.refreshToken(session.token.refreshToken).catch(rejectedRefresh);
+  async #renew(token: AuthToken, credentials: Credentials, storeId: string): Promise<AuthToken> {
+    if (token.refreshToken !== undefined) {
+      const refreshed = await this.#tokenAuthClient.refresh(token.refreshToken).catch(ignoreClientError);
       if (refreshed !== undefined) {
-        this.#sessions.set(sessionKey(session.storeId, session.credentials.username), { ...session, token: refreshed });
         return refreshed;
       }
     }
-    return this.#signIn(session.credentials, session.storeId);
-  }
-
-  async #revocableToken(session: ManagedSession): Promise<AuthToken | undefined> {
-    if (session.token.expiresAt - EXPIRY_MARGIN_MS > Date.now()) {
-      return session.token;
-    }
-    if (session.token.refreshToken === undefined) {
-      return undefined;
-    }
-    return this.#tokenAuthClient.refreshToken(session.token.refreshToken).catch(rejectedRefresh);
-  }
-
-  async #signIn(credentials: Credentials, storeId: string): Promise<AuthToken> {
-    const token = await this.#tokenAuthClient.requestToken(credentials, storeId);
-    this.#sessions.set(sessionKey(storeId, credentials.username), { storeId, credentials, token });
-    return token;
+    return this.#tokenAuthClient.requestToken(credentials, storeId);
   }
 }
 
@@ -88,8 +81,12 @@ function sessionKey(storeId: string, username: string): string {
   return JSON.stringify([storeId, username]);
 }
 
-function rejectedRefresh(error: unknown): undefined {
-  if (error instanceof HttpError && error.status >= 400 && error.status < 500) {
+function isFresh(token: AuthToken): boolean {
+  return token.expiresAt - EXPIRY_MARGIN_MS > Date.now();
+}
+
+function ignoreClientError(error: unknown): undefined {
+  if (isClientError(error)) {
     return undefined;
   }
   throw error;

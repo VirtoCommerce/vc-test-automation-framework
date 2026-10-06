@@ -1,7 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { MenuLinkList, MenuLinkListData } from "../types/content";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { MENU_LINK_LIST_FIELDS } from "../types/content";
 
@@ -15,17 +15,17 @@ export class MenuLinkListsClient {
   }
 
   async list(): Promise<MenuLinkList[]> {
-    const response = (await this.#httpClient.get(this.#path)).expectOk();
-    const lists = response.text === "" ? [] : response.json<MenuLinkListData[]>();
-    return lists.map((list) => requireFields(list, MENU_LINK_LIST_FIELDS, "Menu link list"));
+    const response = await this.#httpClient.get(this.#path);
+    return requireEach(response.jsonOrUndefined<MenuLinkListData[]>(), MENU_LINK_LIST_FIELDS, "Menu link list");
   }
 
   async get(id: string): Promise<MenuLinkList> {
-    return requireFields(await this.#fetch(id), MENU_LINK_LIST_FIELDS, `Menu link list "${id}"`);
+    return requireFields(await this.find(id), MENU_LINK_LIST_FIELDS, `Menu link list "${id}"`);
   }
 
   async find(id: string): Promise<MenuLinkList | undefined> {
-    const list = await this.#fetch(id);
+    const response = await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`);
+    const list = response.jsonOrUndefined<MenuLinkListData>();
     return list === undefined ? undefined : requireFields(list, MENU_LINK_LIST_FIELDS, `Menu link list "${id}"`);
   }
 
@@ -42,10 +42,5 @@ export class MenuLinkListsClient {
       query: { name, language, id: listId },
     });
     return response.expectOk().json<{ result: boolean }>().result;
-  }
-
-  async #fetch(id: string): Promise<MenuLinkListData | undefined> {
-    const response = (await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`)).expectOk();
-    return response.json<MenuLinkListData | null>() ?? undefined;
   }
 }

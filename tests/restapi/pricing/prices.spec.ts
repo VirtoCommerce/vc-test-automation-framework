@@ -1,13 +1,14 @@
+import type { PriceData } from "@api/rest/types/pricing";
+
 import * as allure from "allure-js-commons";
 
 import { PricingClient } from "@api/rest/clients/pricing-client";
-import { SEEDED_CATALOG_ID } from "@dataset/builders/catalog";
 import { newPrice, newPricelist } from "@dataset/builders/pricing";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { getProductPrices } from "@dataset/dataset";
+import { SEEDED_CATALOG_ID, SEEDED_PRODUCTS } from "@dataset/seeded";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
-const SEEDED_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+const SEEDED_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
 const SECOND_SEEDED_PRODUCT_ID = "laptop-apple-macbook-air-15-midnight-16gb-1tb";
 
 test.beforeEach(async () => {
@@ -15,7 +16,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("prices (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("add a price to a product", async ({ httpClient, cleanupStack }) => {
     const pricingClient = new PricingClient(httpClient);
@@ -146,15 +147,18 @@ test.describe("prices (admin)", () => {
     });
   });
 
-  test("get the prices widget of a product", async ({ httpClient }) => {
+  test("get the prices widget of a product", async ({ httpClient, dataset }) => {
     const pricingClient = new PricingClient(httpClient);
 
     const prices = await test.step("act: get prices widget", () =>
       pricingClient.getPricesWidget(SEEDED_PRODUCT_ID, SEEDED_CATALOG_ID));
 
-    await test.step("assert: widget lists the seeded product prices", async () => {
-      expect(prices.length).toBeGreaterThan(0);
-      expect(prices.map(({ productId }) => productId)).toEqual(prices.map(() => SEEDED_PRODUCT_ID));
+    await test.step("assert: widget lists exactly the seeded product prices", async () => {
+      expect(prices.map(priceKey).sort()).toEqual(getProductPrices(dataset, SEEDED_PRODUCT_ID).map(priceKey).sort());
     });
   });
 });
+
+function priceKey({ productId, pricelistId, currency, list, minQuantity }: PriceData): string {
+  return [productId, pricelistId, currency, list, minQuantity].join(" ");
+}

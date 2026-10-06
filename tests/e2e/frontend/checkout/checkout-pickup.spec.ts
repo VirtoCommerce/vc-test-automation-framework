@@ -10,7 +10,7 @@ import * as allure from "allure-js-commons";
 
 import { CartPickupLocationsDocument } from "@api/graphql/generated/graphql";
 import { PickupLocationsClient } from "@api/rest/clients/pickup-locations-client";
-import { requireFields } from "@core/required-fields";
+import { requireFields, requireItems } from "@core/required-fields";
 import { arrangePickupLocations, locationsArrangedIn } from "@dataset/arrange/pickup-location";
 import { findFulfillmentCenter } from "@dataset/stock";
 import { expect, test, withItems } from "@fixtures";
@@ -128,7 +128,7 @@ async function arrangeWashingtonLocation(
           cultureName: shopper.context.cultureName,
           first: 100,
         });
-        return locationsArrangedIn(cartPickupLocations?.items ?? [], arranged).length;
+        return locationsArrangedIn(requireItems(cartPickupLocations?.items, "Cart pickup locations"), arranged).length;
       })
       .toBe(1);
   });

@@ -7,7 +7,7 @@ import type {
   ContentType,
 } from "../types/content";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { CONTENT_ITEM_FIELDS, CONTENT_STATISTIC_FIELDS } from "../types/content";
 
@@ -45,18 +45,16 @@ export class ContentClient {
       query: { folderUrl },
       multipart: { file },
     });
-    return response
-      .expectOk()
-      .json<ContentItemData[]>()
-      .map((item) => requireFields(item, CONTENT_ITEM_FIELDS, `Uploaded ${contentType} item`));
+    return requireEach(
+      response.expectOk().json<ContentItemData[]>(),
+      CONTENT_ITEM_FIELDS,
+      `Uploaded ${contentType} item`,
+    );
   }
 
   async search(contentType: ContentType, keyword: string): Promise<ContentItem[]> {
     const response = await this.#httpClient.get(`${this.#path(contentType)}/search`, { query: { keyword } });
-    return response
-      .expectOk()
-      .json<ContentItemData[]>()
-      .map((item) => requireFields(item, CONTENT_ITEM_FIELDS, `Found ${contentType} item`));
+    return requireEach(response.expectOk().json<ContentItemData[]>(), CONTENT_ITEM_FIELDS, `Found ${contentType} item`);
   }
 
   async getByName(contentType: ContentType, name: string): Promise<ContentItem> {

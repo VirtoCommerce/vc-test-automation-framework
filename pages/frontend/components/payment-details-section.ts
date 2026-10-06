@@ -1,5 +1,7 @@
 import type { Locator } from "@playwright/test";
 
+import { expect } from "@playwright/test";
+
 export class PaymentDetailsSection {
   readonly root: Locator;
   readonly billingEqualsShippingCheckbox: Locator;
@@ -16,7 +18,8 @@ export class PaymentDetailsSection {
   }
 
   async useSeparateBillingAddress(): Promise<void> {
-    await this.billingEqualsShippingCheckbox.locator("input").uncheck({ force: true });
+    await this.billingEqualsShippingCheckbox.locator("label").click();
+    await expect(this.billingEqualsShippingCheckbox.locator("input")).not.toBeChecked();
   }
 
   selectedPaymentMethod(code: string): Locator {

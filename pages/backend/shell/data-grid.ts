@@ -2,7 +2,7 @@ import type { Locator } from "@playwright/test";
 
 import { exactText } from "../../text-match";
 
-const DATA_ROW = "[role='row']:has([role='cell'])";
+const DATA_ROW = "[role='row']:has([role='cell']):has([data-column-id])";
 const HEADER_ROW = "[role='row']:has([role='columnheader'])";
 const PAGINATION = ".vc-data-table__pagination";
 const RANGE = /(\d+)\s*\D\s*(\d+)\s+of\s+(\d+)/;

@@ -1,6 +1,8 @@
 import * as allure from "allure-js-commons";
 
 import { OrdersClient } from "@api/rest/clients/orders-client";
+import { requireFields } from "@core/required-fields";
+import { registerCustomerOrdersRemoval } from "@dataset/arrange/order";
 import { TEST_ADDRESS } from "@dataset/builders/address";
 import { expect, test, withItems } from "@fixtures";
 import { CheckoutFlow } from "@pages/frontend/checkout-flow";
@@ -31,8 +33,9 @@ test.describe("checkout payment and order (anonymous)", () => {
     });
   });
 
-  test("place an order", async ({ page, env, platformAdminHttpClient, cleanupStack }) => {
+  test("place an order", async ({ page, env, platformAdminHttpClient, cleanupStack, anonymousUserId }) => {
     const flow = new CheckoutFlow(page, env.checkoutMode);
+    const ordersClient = new OrdersClient(platformAdminHttpClient);
 
     await test.step(`arrange: ship and pay on the ${env.checkoutMode} checkout`, async () => {
       await shipToTestAddress(flow, new EditAddressModal(page));
@@ -40,18 +43,16 @@ test.describe("checkout payment and order (anonymous)", () => {
       await expect(flow.paymentDetails.selectedPaymentMethod(MANUAL_PAYMENT_METHOD)).toBeVisible();
     });
 
+    registerCustomerOrdersRemoval(ordersClient, cleanupStack, anonymousUserId);
     await test.step("act: place the order", () => flow.placeOrder());
 
-    await test.step("assert: the completed page shows the new order number", async () => {
+    await test.step("assert: the completed page shows the number of the shopper's new order", async () => {
       await expect(flow.completedPage.createdOrderNumberLabel).toHaveAttribute(ORDER_NUMBER_ATTRIBUTE, /\S/);
+      const orders = await ordersClient.search({ customerIds: [anonymousUserId] });
+      expect(orders).toHaveLength(1);
+      const { number } = requireFields(orders[0], ["number"], "Placed order");
+      await expect(flow.completedPage.createdOrderNumberLabel).toHaveAttribute(ORDER_NUMBER_ATTRIBUTE, number);
     });
-    const orderNumber = await flow.completedPage.createdOrderNumberLabel.getAttribute(ORDER_NUMBER_ATTRIBUTE);
-    if (orderNumber !== null) {
-      const ordersClient = new OrdersClient(platformAdminHttpClient);
-      cleanupStack.push(`delete order ${orderNumber}`, async () => {
-        await ordersClient.delete((await ordersClient.getByNumber(orderNumber)).id);
-      });
-    }
   });
 });
 

@@ -1,12 +1,12 @@
 import * as allure from "allure-js-commons";
 
-import { CreateConfiguredLineItemDocument, ProductConfigurationDocument } from "@api/graphql/generated/graphql";
-import { requireFields } from "@core/required-fields";
-import { cartScope } from "@dataset/arrange/cart";
+import { CreateConfiguredLineItemDocument } from "@api/graphql/generated/graphql";
+import { getProductConfiguration } from "@dataset/arrange/catalog";
 import { optionOfEachSection } from "@dataset/builders/product-configuration";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const CONFIGURABLE_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+const CONFIGURABLE_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
 
 test.beforeEach(async () => {
   await allure.feature("Catalog / Configurable Product");
@@ -14,12 +14,8 @@ test.beforeEach(async () => {
 
 test.describe("configurable product (anonymous)", () => {
   test("configure a product into a line item", async ({ graphqlClient, frontendContext }) => {
-    const { productConfiguration } = await test.step("arrange: product configuration", () =>
-      graphqlClient.execute(ProductConfigurationDocument, {
-        configurableProductId: CONFIGURABLE_PRODUCT_ID,
-        ...cartScope(frontendContext),
-      }));
-    const configuration = requireFields(productConfiguration ?? undefined, ["configurationSections"], "Configuration");
+    const configuration = await test.step("arrange: product configuration", () =>
+      getProductConfiguration(graphqlClient, frontendContext, CONFIGURABLE_PRODUCT_ID));
     await test.step("assert: every section offers options", async () => {
       expect(configuration.configurationSections.length).toBeGreaterThan(0);
       for (const section of configuration.configurationSections) {

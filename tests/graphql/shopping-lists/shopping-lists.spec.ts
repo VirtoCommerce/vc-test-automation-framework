@@ -10,9 +10,10 @@ import {
 import { uniqueId } from "@core/unique-id";
 import { cartScope, lineItemFor } from "@dataset/arrange/cart";
 import { addShoppingListItems, arrangeShoppingList } from "@dataset/arrange/shopping-list";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_ID = "smartphone-apple-iphone-17-256gb-black";
+const PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
 const ORGANIZATION_SCOPE = "Organization";
 
 test.beforeEach(async () => {

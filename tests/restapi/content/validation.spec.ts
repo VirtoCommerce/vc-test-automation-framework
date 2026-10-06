@@ -1,17 +1,14 @@
 import type { ContentType } from "@api/rest/types/content";
-import type { CleanupStack } from "@core/cleanup-stack";
 
 import * as allure from "allure-js-commons";
 
 import { ContentClient, contentPath } from "@api/rest/clients/content-client";
 import { SettingsClient } from "@api/rest/clients/settings-client";
 import { uniqueId } from "@core/unique-id";
-import { FORBIDDEN_EXTENSION, newForbiddenFile } from "@dataset/builders/content";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { arrangeSettingValue } from "@dataset/arrange/settings";
+import { FILE_EXTENSIONS_BLACKLIST_SETTING, FORBIDDEN_EXTENSION, newForbiddenFile } from "@dataset/builders/content";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
-const FILE_EXTENSIONS_BLACKLIST_SETTING = "VirtoCommerce.Platform.Security.FileExtensionsBlackList";
 const UPLOAD_CONTENT_TYPES: readonly ContentType[] = ["pages", "blogs", "themes"];
 const INVALID_FOLDER_NAMES = [
   { title: "whitespace only", name: " ", reason: "Folder name must not be empty" },
@@ -25,7 +22,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("content validation (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   for (const { title, name, reason } of INVALID_FOLDER_NAMES) {
     test(`reject a folder name: ${title}`, async ({ httpClient, cleanupStack, env }) => {
@@ -55,7 +52,7 @@ test.describe("content validation (admin)", () => {
         const settingsClient = new SettingsClient(httpClient);
         const folderName = uniqueId("test-folder");
         await test.step(`arrange: ${FORBIDDEN_EXTENSION} is blacklisted`, () =>
-          arrangeBlacklistedExtension(settingsClient, cleanupStack, FORBIDDEN_EXTENSION));
+          arrangeSettingValue(settingsClient, cleanupStack, FILE_EXTENSIONS_BLACKLIST_SETTING, FORBIDDEN_EXTENSION));
         cleanupStack.push(`remove ${contentType} folder ${folderName}`, () =>
           contentClient.removeFolder(contentType, folderName),
         );
@@ -75,17 +72,3 @@ test.describe("content validation (admin)", () => {
     }
   });
 });
-
-async function arrangeBlacklistedExtension(
-  settingsClient: SettingsClient,
-  cleanupStack: CleanupStack,
-  extension: string,
-): Promise<void> {
-  const original = await settingsClient.get(FILE_EXTENSIONS_BLACKLIST_SETTING);
-  const blacklist = original.allowedValues ?? [];
-  if (blacklist.includes(extension)) {
-    return;
-  }
-  cleanupStack.push(`restore setting ${FILE_EXTENSIONS_BLACKLIST_SETTING}`, () => settingsClient.save([original]));
-  await settingsClient.save([{ ...original, allowedValues: [...blacklist, extension] }]);
-}

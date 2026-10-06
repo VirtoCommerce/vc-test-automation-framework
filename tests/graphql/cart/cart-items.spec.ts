@@ -8,10 +8,11 @@ import {
 } from "@api/graphql/generated/graphql";
 import { uniqueId } from "@core/unique-id";
 import { arrangeCart, cartScope, lineItemFor, registerCartRemoval, requireCart } from "@dataset/arrange/cart";
+import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_ID = "smartphone-apple-iphone-17-256gb-black";
-const VARIATION_ID = "smartphone-apple-iphone-17-256gb-mist-blue";
+const PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
+const VARIATION_ID = SEEDED_PRODUCTS.iphone17MistBlue;
 
 test.beforeEach(async () => {
   await allure.feature("Cart / Items");

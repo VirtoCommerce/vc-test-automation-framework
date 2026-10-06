@@ -7,6 +7,8 @@ import { AddItemsCartDocument, GetCartDocument, RemoveCartDocument } from "@api/
 import { requireFields } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
 
+import { describeShopper } from "../frontend-context";
+
 export interface CartScope {
   readonly storeId: string;
   readonly userId: string;
@@ -37,30 +39,18 @@ export async function arrangeCart(
   items: readonly CartItem[],
   extraItemFields: Partial<InputNewCartItemType> = {},
 ): Promise<ArrangedCart> {
-  const { addItemsCart } = await graphqlClient.execute(AddItemsCartDocument, {
-    command: {
-      ...cartScope(context),
-      cartName: uniqueId("test-cart"),
-      cartItems: items.map((item) => ({ ...extraItemFields, ...item })),
-    },
-  });
-  const cart = requireFields(addItemsCart ?? undefined, ["id"], "Arranged cart");
+  const cartItems = items.map((item) => ({ ...extraItemFields, ...item }));
+  const cart = await addItems(graphqlClient, context, cartItems, uniqueId("test-cart"));
   registerCartRemoval(graphqlClient, cleanupStack, context, cart.id);
   return cart;
 }
 
-export async function arrangeDefaultCart(
+export function addToDefaultCart(
   graphqlClient: GraphqlClient,
-  cleanupStack: CleanupStack,
   context: FrontendContext,
   items: readonly CartItem[],
 ): Promise<ArrangedCart> {
-  const { addItemsCart } = await graphqlClient.execute(AddItemsCartDocument, {
-    command: { ...cartScope(context), cartItems: [...items] },
-  });
-  const cart = requireFields(addItemsCart ?? undefined, ["id"], "Arranged default cart");
-  registerCartRemoval(graphqlClient, cleanupStack, context, cart.id);
-  return cart;
+  return addItems(graphqlClient, context, [...items], undefined);
 }
 
 export async function findDefaultCart(
@@ -76,10 +66,10 @@ export function registerDefaultCartRemoval(
   cleanupStack: CleanupStack,
   context: FrontendContext,
 ): void {
-  cleanupStack.push(`remove the default cart of ${context.userName ?? context.userId}`, async () => {
+  cleanupStack.push(`remove the default cart of ${describeShopper(context)}`, async () => {
     const cart = await findDefaultCart(graphqlClient, context);
     if (cart !== undefined) {
-      await graphqlClient.execute(RemoveCartDocument, { command: { cartId: cart.id, userId: context.userId } });
+      await removeCart(graphqlClient, context, cart.id);
     }
   });
 }
@@ -90,9 +80,7 @@ export function registerCartRemoval(
   context: FrontendContext,
   cartId: string,
 ): void {
-  cleanupStack.push(`remove cart ${cartId}`, () =>
-    graphqlClient.execute(RemoveCartDocument, { command: { cartId, userId: context.userId } }),
-  );
+  cleanupStack.push(`remove cart ${cartId}`, () => removeCart(graphqlClient, context, cartId));
 }
 
 interface LineItemIdentity {
@@ -109,10 +97,29 @@ export function lineItemFor<Item extends LineItemIdentity>(
   cart: { readonly items?: readonly (Item | null)[] | null | undefined } | null | undefined,
   productId: string,
 ): IdentifiedLineItem<Item> {
-  const lineItem = cart?.items?.find((item) => item?.productId === productId) ?? undefined;
+  const lineItem = cart?.items?.find((item) => item?.productId === productId);
   return requireFields(lineItem, ["id", "productId"], `Line item of product "${productId}"`);
 }
 
 export function requireCart(cart: CartFragment | null | undefined, label: string): ArrangedCart {
-  return requireFields(cart ?? undefined, ["id"], label);
+  return requireFields(cart, ["id"], label);
+}
+
+async function addItems(
+  graphqlClient: GraphqlClient,
+  context: FrontendContext,
+  cartItems: InputNewCartItemType[],
+  cartName: string | undefined,
+): Promise<ArrangedCart> {
+  const { addItemsCart } = await graphqlClient.execute(AddItemsCartDocument, {
+    command: { ...cartScope(context), cartItems, ...(cartName === undefined ? {} : { cartName }) },
+  });
+  return requireCart(
+    addItemsCart,
+    cartName === undefined ? `Default cart of ${describeShopper(context)}` : `Arranged cart ${cartName}`,
+  );
+}
+
+async function removeCart(graphqlClient: GraphqlClient, context: FrontendContext, cartId: string): Promise<void> {
+  await graphqlClient.execute(RemoveCartDocument, { command: { cartId, userId: context.userId } });
 }

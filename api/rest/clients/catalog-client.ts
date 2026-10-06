@@ -14,7 +14,7 @@ import type {
   ListEntrySearchResult,
 } from "../types/catalog";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { CATALOG_FIELDS, CATALOG_PRODUCT_FIELDS, CATEGORY_FIELDS, LIST_ENTRY_FIELDS } from "../types/catalog";
 
@@ -42,7 +42,7 @@ export class CatalogClient {
   async searchCatalogs(criteria: CatalogSearchCriteria): Promise<Catalog[]> {
     const response = await this.#httpClient.post(`${CATALOGS_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<CatalogSearchResult>();
-    return (results ?? []).map((catalog) => requireFields(catalog, CATALOG_FIELDS, "Found catalog"));
+    return requireEach(results, CATALOG_FIELDS, "Found catalog");
   }
 
   async deleteCatalog(id: string): Promise<void> {
@@ -55,11 +55,12 @@ export class CatalogClient {
   }
 
   async getProduct(id: string): Promise<CatalogProduct> {
-    return requireFields(await this.#fetchProduct(id), CATALOG_PRODUCT_FIELDS, `Product "${id}"`);
+    return requireFields(await this.findProduct(id), CATALOG_PRODUCT_FIELDS, `Product "${id}"`);
   }
 
   async findProduct(id: string): Promise<CatalogProduct | undefined> {
-    const product = await this.#fetchProduct(id);
+    const response = await this.#httpClient.get(PRODUCTS_PATH, { query: { ids: id } });
+    const [product] = response.jsonOrUndefined<CatalogProductData[]>() ?? [];
     return product === undefined ? undefined : requireFields(product, CATALOG_PRODUCT_FIELDS, `Product "${id}"`);
   }
 
@@ -80,7 +81,7 @@ export class CatalogClient {
   async searchListEntries(criteria: ListEntrySearchCriteria): Promise<ListEntry[]> {
     const response = await this.#httpClient.post(LIST_ENTRIES_PATH, { json: criteria });
     const { results } = response.expectOk().json<ListEntrySearchResult>();
-    return (results ?? []).map((entry) => requireFields(entry, LIST_ENTRY_FIELDS, "Found list entry"));
+    return requireEach(results, LIST_ENTRY_FIELDS, "Found list entry");
   }
 
   async getCategory(id: string): Promise<Category> {
@@ -99,10 +100,5 @@ export class CatalogClient {
 
   async moveListEntries(request: ListEntriesMoveRequest): Promise<void> {
     (await this.#httpClient.post(`${LIST_ENTRIES_PATH}/move`, { json: request })).expectOk();
-  }
-
-  async #fetchProduct(id: string): Promise<CatalogProductData | undefined> {
-    const response = (await this.#httpClient.get(PRODUCTS_PATH, { query: { ids: id } })).expectOk();
-    return response.status === 204 ? undefined : response.json<CatalogProductData[]>()[0];
   }
 }

@@ -89,15 +89,19 @@ export class DatePicker {
   readonly root: Locator;
   readonly input: Locator;
   readonly menu: Locator;
+  readonly monthHeader: Locator;
+  readonly nextMonthButton: Locator;
 
   constructor(root: Locator) {
     this.root = root;
     this.input = root.locator("[data-test-id='dp-input']").first();
     this.menu = root.page().locator(".dp__menu").first();
+    this.monthHeader = this.menu.locator(".dp__month_year_wrap").first();
+    this.nextMonthButton = this.menu.locator(".dp--arrow-btn-nav").last();
   }
 
   day(date: Date): Locator {
-    return this.root.page().locator(`[data-test-id='dp-${isoDate(date)}']`);
+    return this.menu.locator(`[data-test-id='dp-${isoDate(date)}']:not(.dp__cell_offset):not(:has(.dp__cell_offset))`);
   }
 
   async select(date: Date): Promise<void> {
@@ -106,19 +110,21 @@ export class DatePicker {
     for (let step = 0; step < DATE_NAVIGATION_STEPS; step++) {
       const cell = this.day(date);
       if ((await cell.count()) > 0) {
-        await cell.first().click();
+        await cell.click();
         await this.close();
         return;
       }
-      await this.menu.locator(".dp--arrow-btn-nav").last().click();
+      const shownMonth = await this.monthHeader.innerText();
+      await this.nextMonthButton.click();
+      await expect(this.monthHeader).not.toHaveText(shownMonth);
     }
     throw new Error(`Date ${isoDate(date)} is not reachable in the date picker`);
   }
 
   async close(): Promise<void> {
     if (await this.menu.isVisible()) {
-      await this.root.page().locator(".vc-blade-header__title").last().click();
-      await this.menu.waitFor({ state: "hidden" });
+      await this.root.page().keyboard.press("Escape");
+      await expect(this.menu).toBeHidden();
     }
   }
 }
@@ -180,13 +186,16 @@ export class AppMenu {
     return this.items.and(this.items.page().locator(`[data-test-id='${routeId}']`));
   }
 
-  async counter(routeId: string): Promise<number> {
+  async counter(routeId: string): Promise<number | undefined> {
     const badge = this.item(routeId).locator(".vc-badge__text");
     if ((await badge.count()) === 0) {
-      return 0;
+      return undefined;
     }
     const text = (await badge.first().innerText()).trim();
-    return /^\d+$/.test(text) ? Number(text) : 0;
+    if (!/^\d+$/.test(text)) {
+      throw new Error(`The ${routeId} menu badge shows "${text}", not a number`);
+    }
+    return Number(text);
   }
 }
 

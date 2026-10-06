@@ -2,17 +2,14 @@ import * as allure from "allure-js-commons";
 
 import { CustomersClient } from "@api/rest/clients/customers-client";
 import { newMember } from "@dataset/builders/customer";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
-
-const USERNAME = "acme_store_administrator@acme.com";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.feature("Contacts / Vendors");
 });
 
 test.describe("vendors (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("search vendors", async ({ httpClient, cleanupStack }) => {
     const customersClient = new CustomersClient(httpClient);

@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 import { ConfirmationModal } from "../components/confirmation-modal";
-import { LineItem } from "../components/line-item";
+import { LineItem, productItem, productItems } from "../components/line-item";
 import { PaymentDetailsSection } from "../components/payment-details-section";
 import { ShippingDetailsSection } from "../components/shipping-details-section";
 import { MainLayout } from "../layouts/main-layout";
@@ -12,18 +12,19 @@ export class CartPage extends MainLayout {
   readonly path = "/cart";
   readonly shippingDetails: ShippingDetailsSection;
   readonly paymentDetails: PaymentDetailsSection;
+  readonly products: Locator;
   readonly lineItems: Locator;
   readonly clearCartButton: Locator;
   readonly clearCartModal: ConfirmationModal;
   readonly checkoutButton: Locator;
   readonly placeOrderButton: Locator;
-  readonly shippingCostLabel: Locator;
 
   constructor(page: Page) {
     super(page);
     this.shippingDetails = new ShippingDetailsSection(page.locator("[data-test-id='shipping-details-section']"));
     this.paymentDetails = new PaymentDetailsSection(page.locator("[data-test-id='payment-details-section']"));
-    this.lineItems = page.locator("[data-product-sku]");
+    this.products = page.locator("[data-test-id='cart.products-section']");
+    this.lineItems = productItems(this.products);
     this.clearCartButton = page.locator("[data-test-id='clear-cart-button']");
     this.clearCartModal = new ConfirmationModal(
       page.locator("[data-test-id='clear-cart-modal']"),
@@ -32,15 +33,14 @@ export class CartPage extends MainLayout {
     );
     this.checkoutButton = page.locator("[data-test-id='checkout-button']");
     this.placeOrderButton = page.locator("[data-test-id='place-order-button']");
-    this.shippingCostLabel = page.locator("[data-test-id='shipping-cost-label']");
   }
 
   lineItem(sku: string): LineItem {
-    return new LineItem(this.page.locator(`[data-product-sku='${sku}']`));
+    return new LineItem(productItem(this.products, sku));
   }
 
   configuredLineItems(productId: string): Locator {
-    return this.page.locator(`[data-product-sku='${CONFIGURED_SKU_PREFIX}${productId}']`);
+    return productItem(this.products, `${CONFIGURED_SKU_PREFIX}${productId}`);
   }
 
   configuredLineItem(productId: string, text: string): LineItem {

@@ -10,7 +10,7 @@ import type {
   PromotionSearchResult,
 } from "../types/marketing";
 
-import { requireFields } from "@core/required-fields";
+import { requireEach, requireFields } from "@core/required-fields";
 
 import { COUPON_FIELDS, PROMOTION_FIELDS } from "../types/marketing";
 
@@ -30,10 +30,8 @@ export class PromotionsClient {
 
   async find(id: string): Promise<Promotion | undefined> {
     const response = await this.#httpClient.get(`${PROMOTIONS_PATH}/${encodeURIComponent(id)}`);
-    if (response.status === 404) {
-      return undefined;
-    }
-    return requireFields(response.expectOk().json<PromotionData>(), PROMOTION_FIELDS, `Promotion "${id}"`);
+    const promotion = response.jsonOrUndefined<PromotionData>();
+    return promotion === undefined ? undefined : requireFields(promotion, PROMOTION_FIELDS, `Promotion "${id}"`);
   }
 
   async getNew(): Promise<PromotionData> {
@@ -52,7 +50,7 @@ export class PromotionsClient {
   async search(criteria: PromotionSearchCriteria): Promise<Promotion[]> {
     const response = await this.#httpClient.post(`${PROMOTIONS_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<PromotionSearchResult>();
-    return (results ?? []).map((promotion) => requireFields(promotion, PROMOTION_FIELDS, "Found promotion"));
+    return requireEach(results, PROMOTION_FIELDS, "Found promotion");
   }
 
   async delete(id: string): Promise<void> {
@@ -68,9 +66,9 @@ export class PromotionsClient {
   }
 
   async findCoupon(id: string): Promise<Coupon | undefined> {
-    const response = (await this.#httpClient.get(`${COUPONS_PATH}/${encodeURIComponent(id)}`)).expectOk();
-    const coupon = response.json<CouponData | null>();
-    return coupon === null ? undefined : requireFields(coupon, COUPON_FIELDS, `Coupon "${id}"`);
+    const response = await this.#httpClient.get(`${COUPONS_PATH}/${encodeURIComponent(id)}`);
+    const coupon = response.jsonOrUndefined<CouponData>();
+    return coupon === undefined ? undefined : requireFields(coupon, COUPON_FIELDS, `Coupon "${id}"`);
   }
 
   async getCouponByCode(promotionId: string, code: string): Promise<Coupon> {
@@ -81,7 +79,7 @@ export class PromotionsClient {
   async searchCoupons(criteria: CouponSearchCriteria): Promise<Coupon[]> {
     const response = await this.#httpClient.post(`${COUPONS_PATH}/search`, { json: criteria });
     const { results } = response.expectOk().json<CouponSearchResult>();
-    return (results ?? []).map((coupon) => requireFields(coupon, COUPON_FIELDS, "Found coupon"));
+    return requireEach(results, COUPON_FIELDS, "Found coupon");
   }
 
   async deleteCoupons(ids: readonly string[]): Promise<void> {

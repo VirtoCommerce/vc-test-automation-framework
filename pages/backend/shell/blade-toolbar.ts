@@ -1,6 +1,16 @@
 import type { Locator } from "@playwright/test";
 
-export const DISABLED_TOOLBAR_BUTTON = /(^|\s)vc-blade-toolbar-base-button--disabled(\s|$)/;
+import { expect } from "@playwright/test";
+
+const DISABLED_TOOLBAR_BUTTON = /(^|\s)vc-blade-toolbar-base-button--disabled(\s|$)/;
+
+export async function expectToolbarButtonEnabled(button: Locator): Promise<void> {
+  await expect(button).not.toHaveClass(DISABLED_TOOLBAR_BUTTON);
+}
+
+export async function expectToolbarButtonDisabled(button: Locator): Promise<void> {
+  await expect(button).toHaveClass(DISABLED_TOOLBAR_BUTTON);
+}
 
 export class BladeToolbar {
   readonly root: Locator;
@@ -15,12 +25,5 @@ export class BladeToolbar {
 
   async click(itemId: string): Promise<void> {
     await this.button(itemId).click();
-  }
-
-  async itemIds(): Promise<string[]> {
-    const ids = await this.root
-      .locator("button[data-test-id]")
-      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-test-id")));
-    return ids.filter((id): id is string => id !== null);
   }
 }

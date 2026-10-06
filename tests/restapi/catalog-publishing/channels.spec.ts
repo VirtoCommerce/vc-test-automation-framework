@@ -1,21 +1,29 @@
 import * as allure from "allure-js-commons";
 
 import { CompletenessClient } from "@api/rest/clients/completeness-client";
-import { SEEDED_CATALOG_ID } from "@dataset/builders/catalog";
+import { requireFields } from "@core/required-fields";
 import { DEFAULT_COMPLETENESS_EVALUATOR, newCompletenessChannel } from "@dataset/builders/completeness";
-import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { SEEDED_CATALOG_ID, SEEDED_PRODUCTS } from "@dataset/seeded";
+import { asWorkerAdministrator, expect, test } from "@fixtures";
 
-const USERNAME = "acme_store_administrator@acme.com";
-const SEEDED_PRODUCT_ID = "laptop-acer-predator-helios-neo-16-ai";
+const SEEDED_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
 const EVALUATION_TIMEOUT_MS = 30_000;
+const SEEDED_PRODUCT_COMPLETENESS = {
+  percent: 75,
+  details: [
+    ["Properties", 100],
+    ["Descriptions", 0],
+    ["Prices", 100],
+    ["Seo", 100],
+  ],
+} as const;
 
 test.beforeEach(async () => {
   await allure.feature("Catalog / Publishing");
 });
 
 test.describe("completeness channels (admin)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, USERNAME)) });
+  test.use({ user: asWorkerAdministrator });
 
   test("create a channel", async ({ httpClient, cleanupStack }) => {
     const completenessClient = new CompletenessClient(httpClient);
@@ -98,14 +106,26 @@ test.describe("completeness channels (admin)", () => {
       completenessClient.createChannel(newCompletenessChannel()));
     cleanupStack.push(`delete channel ${channel.id}`, () => completenessClient.deleteChannel(channel.id));
 
-    await test.step("act: evaluate channel", () => completenessClient.evaluateChannel(channel.id));
+    const evaluation = await test.step("act: evaluate channel", () => completenessClient.evaluateChannel(channel.id));
 
-    await test.step("assert: channel gets a completeness percent", async () => {
+    await test.step("assert: every product of the catalog is evaluated without errors", async () => {
       await expect
-        .poll(async () => (await completenessClient.getChannel(channel.id)).completenessPercent, {
+        .poll(async () => (await completenessClient.findEvaluation(evaluation.id))?.finished, {
           timeout: EVALUATION_TIMEOUT_MS,
         })
-        .toEqual(expect.any(Number));
+        .toEqual(expect.any(String));
+      const { totalCount, processedCount, errorCount } = requireFields(
+        await completenessClient.findEvaluation(evaluation.id),
+        ["totalCount", "processedCount", "errorCount"],
+        "Finished evaluation",
+      );
+      expect(totalCount).toBeGreaterThan(0);
+      expect({ processedCount, errorCount }).toEqual({ processedCount: totalCount, errorCount: 0 });
+    });
+    await test.step("assert: the channel stores a percent between 0 and 100", async () => {
+      const { completenessPercent } = await completenessClient.getChannel(channel.id);
+      expect(completenessPercent).toBeGreaterThanOrEqual(0);
+      expect(completenessPercent).toBeLessThanOrEqual(100);
     });
   });
 
@@ -123,7 +143,10 @@ test.describe("completeness channels (admin)", () => {
         expect.objectContaining({
           channelId: channel.id,
           productId: SEEDED_PRODUCT_ID,
-          completenessPercent: expect.any(Number),
+          completenessPercent: SEEDED_PRODUCT_COMPLETENESS.percent,
+          details: SEEDED_PRODUCT_COMPLETENESS.details.map(([name, completenessPercent]) =>
+            expect.objectContaining({ name, completenessPercent }),
+          ),
         }),
       ]);
     });
@@ -136,7 +159,13 @@ test.describe("completeness channels (admin)", () => {
     cleanupStack.push(`delete channel ${channel.id}`, () => completenessClient.deleteChannel(channel.id));
     const entries = await test.step("arrange: evaluated seeded product", () =>
       completenessClient.evaluateProducts(channel.id, [SEEDED_PRODUCT_ID]));
+    const savedPercent = requireFields(entries[0], ["completenessPercent"], "Evaluated entry").completenessPercent;
 
     await test.step("act: save completeness entries", () => completenessClient.saveEntries(entries));
+
+    await test.step("assert: the channel takes the saved product completeness", async () => {
+      expect(entries).toHaveLength(1);
+      expect((await completenessClient.getChannel(channel.id)).completenessPercent).toBe(savedPercent);
+    });
   });
 });

@@ -10,7 +10,7 @@ import { OrganizationMembershipsClient } from "@api/rest/clients/organization-me
 import { requireFields } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
 import { addOrganizationMembership, arrangeOrganization } from "@dataset/arrange/customer-account";
-import { expect, test } from "@fixtures";
+import { expect, test, withCustomerAccount } from "@fixtures";
 import { HomePage, SignInPage } from "@pages/frontend/pages/simple-pages";
 
 const NO_MATCH = "NonExistentOrg";
@@ -33,10 +33,11 @@ test.beforeEach(async () => {
 });
 
 test.describe("organizations menu (signed-in customer account)", () => {
-  test.use({ shopperAccount: "customer-account" });
+  test.use({ browserCustomerAccount: withCustomerAccount });
 
   test("switch the active organization", async ({ page, customerAccount, platformAdminHttpClient, cleanupStack }) => {
-    const defaultName = await organizationName(platformAdminHttpClient, customerAccount.organizationId);
+    const defaultName = await test.step("arrange: name of the default organization", () =>
+      organizationName(platformAdminHttpClient, customerAccount.organizationId));
     const other = await arrangeMemberOrganization(platformAdminHttpClient, cleanupStack, customerAccount);
     const { topHeader } = new HomePage(page);
 
@@ -62,10 +63,11 @@ test.describe("organizations menu (signed-in customer account)", () => {
     cleanupStack,
   }) => {
     const token = uniqueId("org");
-    await arrangeSearchableOrganizations(platformAdminHttpClient, cleanupStack, customerAccount, [
-      `${token} Alpha`,
-      `${token} Beta`,
-    ]);
+    await test.step("arrange: enough organizations to show the search", () =>
+      arrangeSearchableOrganizations(platformAdminHttpClient, cleanupStack, customerAccount, [
+        `${token} Alpha`,
+        `${token} Beta`,
+      ]));
     const { topHeader } = new HomePage(page);
 
     await test.step("arrange: open the account menu", () => openAccountMenu(page));
@@ -85,7 +87,8 @@ test.describe("organizations menu (signed-in customer account)", () => {
     platformAdminHttpClient,
     cleanupStack,
   }) => {
-    await arrangeSearchableOrganizations(platformAdminHttpClient, cleanupStack, customerAccount, []);
+    await test.step("arrange: enough organizations to show the search", () =>
+      arrangeSearchableOrganizations(platformAdminHttpClient, cleanupStack, customerAccount, []));
     const { topHeader } = new HomePage(page);
 
     await test.step("arrange: open the account menu", () => openAccountMenu(page));
@@ -104,9 +107,10 @@ test.describe("organizations menu (signed-in customer account)", () => {
       platformAdminHttpClient,
       cleanupStack,
     }) => {
-      const [other] = await arrangeSearchableOrganizations(platformAdminHttpClient, cleanupStack, customerAccount, [
-        `${term} ${uniqueId("org")}`,
-      ]);
+      const [other] = await test.step("arrange: enough organizations to show the search", () =>
+        arrangeSearchableOrganizations(platformAdminHttpClient, cleanupStack, customerAccount, [
+          `${term} ${uniqueId("org")}`,
+        ]));
       const { topHeader } = new HomePage(page);
 
       await test.step("arrange: open the account menu", () => openAccountMenu(page));
@@ -129,7 +133,8 @@ test.describe("organizations menu with locked memberships (sign-in after locking
     platformAdminHttpClient,
     cleanupStack,
   }) => {
-    const defaultName = await organizationName(platformAdminHttpClient, customerAccount.organizationId);
+    const defaultName = await test.step("arrange: name of the default organization", () =>
+      organizationName(platformAdminHttpClient, customerAccount.organizationId));
     const locked = await arrangeMemberOrganization(platformAdminHttpClient, cleanupStack, customerAccount);
     await test.step(`arrange: lock the membership in ${locked.name}`, () =>
       new OrganizationMembershipsClient(platformAdminHttpClient).lock(locked.membershipId));

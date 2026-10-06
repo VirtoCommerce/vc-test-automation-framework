@@ -1,5 +1,7 @@
 import type { Locator } from "@playwright/test";
 
+import { exactText } from "../../text-match";
+
 export interface FormAddress {
   readonly firstName?: string | null;
   readonly lastName?: string | null;
@@ -44,23 +46,29 @@ export class AddressForm {
 
   async selectCountry(country: string): Promise<void> {
     await this.countrySelect.click();
-    await this.countrySelect.locator("button").filter({ hasText: country }).click();
+    await this.countrySelect
+      .locator("button")
+      .filter({ hasText: exactText(country) })
+      .click();
   }
 
   async selectRegion(region: string): Promise<void> {
     await this.regionSelect.click();
-    await this.regionSelect.locator("button").filter({ hasText: region }).click();
+    await this.regionSelect
+      .locator("button")
+      .filter({ hasText: exactText(region) })
+      .click();
   }
 
   async fill(address: FormAddress): Promise<void> {
     await fillIfGiven(this.firstNameInput, address.firstName);
     await fillIfGiven(this.lastNameInput, address.lastName);
     await fillIfGiven(this.phoneInput, address.phone);
-    if (address.countryName) {
+    if (address.countryName !== undefined && address.countryName !== null) {
       await this.selectCountry(address.countryName);
     }
     await fillIfGiven(this.postalCodeInput, address.postalCode);
-    if (address.regionName) {
+    if (address.regionName !== undefined && address.regionName !== null) {
       await this.selectRegion(address.regionName);
     }
     await fillIfGiven(this.cityInput, address.city);
@@ -71,7 +79,7 @@ export class AddressForm {
 }
 
 async function fillIfGiven(input: Locator, value: string | null | undefined): Promise<void> {
-  if (value) {
+  if (value !== undefined && value !== null) {
     await input.fill(value);
   }
 }

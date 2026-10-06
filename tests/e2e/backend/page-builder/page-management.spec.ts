@@ -2,7 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { expect, test } from "@fixtures";
 import { Column, DetailsToolbar, Route, Status } from "@pages/backend/page-builder/constants";
-import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/blade-toolbar";
+import { expectToolbarButtonEnabled } from "@pages/backend/shell/blade-toolbar";
 
 import { arrangeDraftPage, DEFAULT_LANGUAGE, uiPageName } from "./page-builder-support";
 
@@ -21,12 +21,11 @@ test.describe("page management (platform admin)", () => {
       const details = await pageBuilder.addPage();
       await details.fill({ name, permalink: `/${name}` });
       await details.language.select(DEFAULT_LANGUAGE);
-      await details.saveButton.click();
-      await expect(pageBuilder.notifications.success.first()).toBeVisible();
+      await pageBuilder.saveDetails();
     });
 
     await test.step("assert: the draft list shows the page with the entered values", async () => {
-      const listing = await pageBuilder.waitUntilListed(Route.draft, name);
+      const listing = await pageBuilder.expectListed(Route.draft, name);
       const row = listing.pageRow(name);
       expect(await row.value(Column.permalink)).toBe(`/${name}`);
       expect(await row.value(Column.language)).toBe(DEFAULT_LANGUAGE);
@@ -34,8 +33,7 @@ test.describe("page management (platform admin)", () => {
     });
 
     await test.step("assert: the draft counter matches the draft list", async () => {
-      const { counter, total } = await pageBuilder.waitUntilCounterMatchesList(Route.draft);
-      expect(counter).toBe(total);
+      await pageBuilder.expectCounterMatchesList(Route.draft);
     });
   });
 
@@ -51,8 +49,7 @@ test.describe("page management (platform admin)", () => {
 
     await test.step(`act: rename to ${renamed} and save`, async () => {
       await pageBuilder.detailsBlade.fill({ name: renamed, permalink: `/${renamed}` });
-      await pageBuilder.detailsBlade.saveButton.click();
-      await expect(pageBuilder.notifications.success.first()).toBeVisible();
+      await pageBuilder.saveDetails();
     });
 
     await test.step("assert: the blade keeps the new values", async () => {
@@ -61,8 +58,8 @@ test.describe("page management (platform admin)", () => {
     });
 
     await test.step("assert: the list shows only the new name with a fresh modified date", async () => {
-      expect(await (await pageBuilder.waitUntilListed(Route.draft, page.name, false)).hasPage(page.name)).toBe(false);
-      const row = (await pageBuilder.waitUntilListed(Route.draft, renamed)).pageRow(renamed);
+      await pageBuilder.expectListed(Route.draft, page.name, false);
+      const row = (await pageBuilder.expectListed(Route.draft, renamed)).pageRow(renamed);
       expect(await row.value(Column.permalink)).toBe(`/${renamed}`);
       expect(await row.value(Column.modified)).not.toBe(modifiedBefore);
     });
@@ -71,12 +68,12 @@ test.describe("page management (platform admin)", () => {
   test("open a page in the designer", async ({ pageBuilder, pageBuilderClient, cleanupStack, env }) => {
     const page = await arrangeDraftPage(pageBuilderClient, cleanupStack, env.storeId);
 
-    const details = await test.step(`arrange: open ${page.name}`, async () => {
+    const designerButton = await test.step(`arrange: open ${page.name} with the designer enabled`, async () => {
       await pageBuilder.open(Route.draft);
-      return pageBuilder.openPage(page.name);
+      const button = (await pageBuilder.openPage(page.name)).toolbar.button(DetailsToolbar.openDesigner);
+      await expectToolbarButtonEnabled(button);
+      return button;
     });
-    const designerButton = details.toolbar.button(DetailsToolbar.openDesigner);
-    await expect(designerButton).not.toHaveClass(DISABLED_TOOLBAR_BUTTON);
 
     const designer = await test.step("act: open the designer", async () => {
       const [popup] = await Promise.all([pageBuilder.page.context().waitForEvent("page"), designerButton.click()]);
@@ -105,8 +102,8 @@ test.describe("page management (platform admin)", () => {
     });
 
     await test.step("assert: the page left the draft list for the archived list", async () => {
-      expect(await (await pageBuilder.waitUntilListed(Route.draft, page.name, false)).hasPage(page.name)).toBe(false);
-      const row = (await pageBuilder.waitUntilListed(Route.archived, page.name)).pageRow(page.name);
+      await pageBuilder.expectListed(Route.draft, page.name, false);
+      const row = (await pageBuilder.expectListed(Route.archived, page.name)).pageRow(page.name);
       expect(await row.badges(Column.status)).toEqual([Status.archived]);
     });
   });

@@ -10,11 +10,12 @@ import { requireFields } from "@core/required-fields";
 import { arrangeCart, cartScope } from "@dataset/arrange/cart";
 import { comparableAddress, TEST_ADDRESS } from "@dataset/builders/address";
 import { getCredentials } from "@dataset/dataset";
-import { expect, test } from "@fixtures";
+import { SEEDED_PRODUCTS, SEEDED_USERS } from "@dataset/seeded";
+import { expect, seededUser, test } from "@fixtures";
 
-const PRODUCT_ID = "smartphone-apple-iphone-17-256gb-black";
-const REGISTERED_USERNAME = "acme_store_employee_1@acme.com";
-const ADMIN_USERNAME = "acme_store_administrator@acme.com";
+const PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
+const REGISTERED_USERNAME = SEEDED_USERS.storeEmployee;
+const ADMIN_USERNAME = SEEDED_USERS.storeAdministrator;
 const MANUAL_PAYMENT_METHOD = "DefaultManualPaymentMethod";
 const AUTHORIZE_NET_PAYMENT_METHOD = "AuthorizeNetPaymentMethod";
 const FIXED_RATE_METHOD = "FixedRate";
@@ -39,7 +40,7 @@ test.describe("cart checkout (anonymous)", () => {
       graphqlClient.execute(AddOrUpdateCartPaymentDocument, {
         command: { ...command, payment: { paymentGatewayCode: MANUAL_PAYMENT_METHOD, billingAddress: TEST_ADDRESS } },
       }));
-    const payment = requireFields(withPayment?.payments?.[0] ?? undefined, ["id"], "Cart payment");
+    const payment = requireFields(withPayment?.payments?.[0], ["id"], "Cart payment");
     await test.step("assert: payment has the method and billing address", async () => {
       expect(withPayment?.payments).toHaveLength(1);
       expect(payment).toMatchObject({
@@ -88,7 +89,7 @@ test.describe("cart checkout (anonymous)", () => {
           },
         },
       }));
-    const shipment = requireFields(withShipment?.shipments?.[0] ?? undefined, ["id"], "Cart shipment");
+    const shipment = requireFields(withShipment?.shipments?.[0], ["id"], "Cart shipment");
     await test.step("assert: shipment has the method, price and delivery address", async () => {
       expect(withShipment?.shipments).toHaveLength(1);
       expect(shipment).toMatchObject({
@@ -161,7 +162,7 @@ test.describe("cart checkout (anonymous)", () => {
 
     const { createOrderFromCart } = await test.step("act: create order from cart", () =>
       graphqlClient.execute(CreateOrderFromCartDocument, { command: { cartId: cart.id } }));
-    const order = requireFields(createOrderFromCart ?? undefined, ["id", "number"], "Created order");
+    const order = requireFields(createOrderFromCart, ["id", "number"], "Created order");
     cleanupStack.push(`delete order ${order.number}`, () => ordersClient.delete(order.id));
 
     await test.step("assert: order has the cart item, payment and shipment", async () => {
@@ -176,7 +177,7 @@ test.describe("cart checkout (anonymous)", () => {
 });
 
 test.describe("cart checkout (registered user)", () => {
-  test.use({ user: async ({ dataset }, use) => use(getCredentials(dataset, REGISTERED_USERNAME)) });
+  test.use({ user: seededUser(REGISTERED_USERNAME) });
 
   for (const { method, option, price } of SHIPMENT_COST_CASES) {
     test(`shipping total follows the ${method} ${option} price`, async ({

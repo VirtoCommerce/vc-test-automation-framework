@@ -3,7 +3,7 @@ import * as allure from "allure-js-commons";
 import { expect, test } from "@fixtures";
 
 const PLATFORM_HEALTH_CHECKS = ["Background jobs", "Background jobs store", "Modules health", "Cache health"];
-const DATABASE_HEALTH_CHECK = /^(PostgreSql|SqlServer|MySql) health$/;
+const DATABASE_HEALTH_CHECK = /^(postgre ?sql|sql ?server|my ?sql) health$/i;
 
 test.beforeEach(async () => {
   await allure.epic("REST API");

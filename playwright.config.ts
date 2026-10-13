@@ -34,7 +34,7 @@ export default defineConfig<BrowserOptions>({
       testDir: "tests/setup",
       testMatch: "*.setup.ts",
       retries: 0,
-      use: { trace: "off" },
+      use: { baseURL: env.backendBaseUrl, ignoreHTTPSErrors: !env.verifySsl, trace: "retain-on-failure" },
     },
     {
       name: "graphql",

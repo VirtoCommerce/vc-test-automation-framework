@@ -203,7 +203,7 @@ npm run report:open   # opens it
 
 `allure-results/` keeps growing across runs; delete it for a report of one run only.
 
-A failed test keeps its Playwright trace (`trace: "retain-on-failure"`; `seed` records none). Open it from the Allure
+A failed test keeps its Playwright trace (`trace: "retain-on-failure"`). Open it from the Allure
 report's attachments, or locally:
 
 ```bash
@@ -212,7 +212,9 @@ npx playwright show-trace test-results/<test folder>/trace.zip
 
 Browser traces hold every action, DOM snapshot, console message and network request. API traces show the steps and
 the error but not the HTTP calls, which go through a worker-wide request context that per-test tracing does not
-record. Traces are not masked: they can hold tokens and passwords, so share them only where the `.env` values may
+record. The seed sends its requests through the test's own request context, so a failed seed's trace holds every
+call with its status; CI runs the seed without the Allure reporter, so its trace is in the artifact's
+`test-results/seed/`. Traces are not masked: they can hold tokens and passwords, so share them only where the `.env` values may
 be seen.
 
 ### Destructive tests

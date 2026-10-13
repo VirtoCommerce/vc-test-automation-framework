@@ -138,7 +138,8 @@ test.describe("pickup locations (anonymous)", () => {
   test("filter pickup locations by keyword", async ({ api, dataset }) => {
     await allure.story("Search");
     await allure.description(
-      `Searching "${KEYWORD}" finds every dataset location named with ${KEYWORD} and nothing else; the city is not searched.`,
+      `Searching "${KEYWORD}" finds every dataset location named with ${KEYWORD}, and every result mentions ` +
+        `${KEYWORD} in its name or address: PostgreSQL matches names only, SQL Server and MySQL also the address.`,
     );
     const datasetMatches = dataset.pickupLocations
       .filter((location) => location.name?.includes(KEYWORD) === true)
@@ -148,10 +149,17 @@ test.describe("pickup locations (anonymous)", () => {
     const { pickupLocations } = await test.step(`act: search the locations for "${KEYWORD}"`, () =>
       api.graphql.execute(PickupLocationsDocument, { storeId, keyword: KEYWORD, first: ALL_LOCATIONS }));
 
-    await test.step(`assert: every ${KEYWORD} location is found and nothing else`, () => {
+    await test.step(`assert: every ${KEYWORD} location is found, and every result mentions ${KEYWORD}`, () => {
       const found = requireDefined(pickupLocations?.items, "Pickup location");
       expect(found.map((location) => location.name)).toEqual(expect.arrayContaining(datasetMatches));
-      expect(found.filter((location) => !location.name.toLowerCase().includes(KEYWORD.toLowerCase()))).toEqual([]);
+      expect(
+        found.filter(
+          ({ name, address }) =>
+            ![name, address?.city, address?.regionName, address?.line1].some((text) =>
+              text?.toLowerCase().includes(KEYWORD.toLowerCase()),
+            ),
+        ),
+      ).toEqual([]);
     });
   });
 });

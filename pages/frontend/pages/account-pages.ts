@@ -21,11 +21,7 @@ export class ListsPage extends FrontendPage {
     this.cards = page.locator("[data-test-id='wishlist-card']");
     this.settingsModal = new ListSettingsModal(page);
     this.sharingModal = new ListSharingModal(page);
-    this.deleteModal = new ConfirmationModal(
-      page.locator("[data-test-id='delete-wishlist-modal']"),
-      "delete-button",
-      "cancel-button",
-    );
+    this.deleteModal = new ConfirmationModal(page.locator("[data-test-id='delete-wishlist-modal']"), "delete-button");
   }
 
   /** @param name - List name, matched exactly. */

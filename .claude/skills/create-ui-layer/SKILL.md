@@ -15,7 +15,7 @@ user actions, no API calls, no test data. Specs hold no selectors, so every loca
 - Frontend pages: `pages/frontend/pages/` — `layout.ts` (`FrontendPage`), `cart-pages.ts` (`CartPage`,
   `SavedForLaterPage`, `CheckoutFlow`), `catalog-pages.ts`, `account-pages.ts`, `site-pages.ts`
 - Frontend components: `pages/frontend/components/` — `controls.ts` (`QuantityControl`, `ConfirmationModal`,
-  `Chip`, `DropdownFilter`), `product.ts`, `address.ts`, `checkout.ts`, `header.ts`, `wishlist.ts`
+  `DropdownFilter`), `product.ts`, `address.ts`, `checkout.ts`, `header.ts`, `wishlist.ts`
 - Admin UI building blocks: `pages/backend/shell/controls.ts` (`Blade`, `DataGrid`, `GridRow`, `Select`,
   `DatePicker`, `Card`, `AppMenu`, `Notifications`, `ConfirmationPopup`)
 - Page builder: `pages/backend/page-builder/page-builder.ts` (`PageBuilderShell`, the `pageBuilder` fixture;
@@ -44,11 +44,7 @@ export class CartPage extends FrontendPage {
     this.products = page.locator("[data-test-id='cart.products-section']");
     this.lineItems = productItems(this.products);
     this.clearCartButton = page.locator("[data-test-id='clear-cart-button']");
-    this.clearCartModal = new ConfirmationModal(
-      page.locator("[data-test-id='clear-cart-modal']"),
-      "yes-button",
-      "no-button",
-    );
+    this.clearCartModal = new ConfirmationModal(page.locator("[data-test-id='clear-cart-modal']"), "yes-button");
   }
 
   /** @param sku - Product SKU. */
@@ -70,12 +66,10 @@ export class CartPage extends FrontendPage {
 export class ConfirmationModal {
   readonly root: Locator;
   readonly confirmButton: Locator;
-  readonly cancelButton: Locator;
 
-  constructor(root: Locator, confirmButtonId: string, cancelButtonId: string) {
+  constructor(root: Locator, confirmButtonId: string) {
     this.root = root;
     this.confirmButton = root.locator(`[data-test-id='${confirmButtonId}']`);
-    this.cancelButton = root.locator(`[data-test-id='${cancelButtonId}']`);
   }
 }
 ```

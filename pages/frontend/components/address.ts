@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 import { attributeSelector, exactText } from "../../selectors";
-import { Chip, DropdownFilter } from "./controls";
+import { DropdownFilter } from "./controls";
 
 /** Address for {@link AddressForm.fill}; `undefined` or `null` fields are left untouched. */
 export interface FormAddress {
@@ -126,13 +126,13 @@ export class AddressFilters {
       (level): level is [DropdownFilter, string] => level[1] !== undefined,
     )) {
       await dropdown.apply(value);
-      await this.appliedChip(value).root.waitFor();
+      await this.appliedChip(value).waitFor();
     }
   }
 
   /** Chip of an applied filter value, matched by contained text. */
-  appliedChip(name: string): Chip {
-    return new Chip(this.appliedChips.filter({ hasText: name }));
+  appliedChip(name: string): Locator {
+    return this.appliedChips.filter({ hasText: name });
   }
 
   /** Types a keyword and clicks search; does not wait for the results. */

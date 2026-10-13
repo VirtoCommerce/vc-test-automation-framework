@@ -135,7 +135,6 @@ export interface PageFields {
  * using their fields. Field setters do not save; call {@link save}.
  */
 export class PageDetailsBlade extends Blade {
-  readonly basicSection: Card;
   readonly personalizationSection: Card;
   readonly schedulingSection: Card;
   readonly nameInput: Locator;
@@ -154,7 +153,6 @@ export class PageDetailsBlade extends Blade {
 
   constructor(root: Locator) {
     super(root);
-    this.basicSection = this.card("Basic information");
     this.personalizationSection = this.card("Personalization & Access control");
     this.schedulingSection = this.card("Scheduling");
     this.nameInput = this.textInput("Name*");

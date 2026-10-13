@@ -21,8 +21,6 @@ export class CartPage extends FrontendPage {
   readonly clearCartModal: ConfirmationModal;
   /** Leads to the shipping page in multi-step checkout mode; prefer {@link CheckoutFlow.start}. */
   readonly checkoutButton: Locator;
-  /** Page-wide: on the cart (single-page) or review page (multi-step); prefer {@link CheckoutFlow.placeOrder}. */
-  readonly placeOrderButton: Locator;
   readonly #quantityControl: QuantityControlKind;
 
   constructor(page: Page, quantityControl: QuantityControlKind) {
@@ -31,13 +29,8 @@ export class CartPage extends FrontendPage {
     this.products = page.locator("[data-test-id='cart.products-section']");
     this.lineItems = productItems(this.products);
     this.clearCartButton = page.locator("[data-test-id='clear-cart-button']");
-    this.clearCartModal = new ConfirmationModal(
-      page.locator("[data-test-id='clear-cart-modal']"),
-      "yes-button",
-      "no-button",
-    );
+    this.clearCartModal = new ConfirmationModal(page.locator("[data-test-id='clear-cart-modal']"), "yes-button");
     this.checkoutButton = page.locator("[data-test-id='checkout-button']");
-    this.placeOrderButton = page.locator("[data-test-id='place-order-button']");
   }
 
   /**
@@ -84,7 +77,6 @@ export class SavedForLaterPage extends FrontendPage {
     this.removeItemModal = new ConfirmationModal(
       page.locator("[data-test-id='delete-wishlist-product-modal']"),
       "delete-button",
-      "cancel-button",
     );
   }
 
@@ -108,7 +100,6 @@ export class CheckoutFlow {
   readonly cartPage: CartPage;
   readonly shippingDetails: ShippingDetailsSection;
   readonly paymentDetails: PaymentDetailsSection;
-  readonly shippingCostLabel: Locator;
   /** Shown after {@link placeOrder}; carries the order number. */
   readonly completedPage: CheckoutCompletedPage;
   readonly #page: Page;
@@ -120,7 +111,6 @@ export class CheckoutFlow {
     this.completedPage = new CheckoutCompletedPage(page);
     this.shippingDetails = new ShippingDetailsSection(page.locator("[data-test-id='shipping-details-section']"));
     this.paymentDetails = new PaymentDetailsSection(page.locator("[data-test-id='payment-details-section']"));
-    this.shippingCostLabel = page.locator("[data-test-id='shipping-cost-label']");
   }
 
   /** Opens the cart (and in multi-step mode clicks checkout), then waits for the shipping section. */

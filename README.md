@@ -113,7 +113,8 @@ npm run seed
 
 The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: records
 the platform already has are left as they are, dataset users get the current `USERS_PASSWORD`, and pages get their
-dataset status. Collections of modules the platform does not have are skipped.
+dataset status. Collections of modules the platform does not have are skipped with a warning, such as
+`[seed] WARN pickupLocations: module VirtoCommerce.XPickup is not installed, skipped`.
 
 The seeder does not touch the search index. After seeding a fresh platform, rebuild every document type in the
 admin UI's *Search index* blade and wait until it finishes; CI does this itself.

@@ -92,6 +92,9 @@ Fill in the values; every variable is validated when a run starts, and a wrong o
 The last three frontend settings must match how the frontend is configured; page objects adapt to them, so the
 same tests run against any configuration.
 
+An empty variable (`API_WORKERS=`) counts as unset: an optional one takes its default, a required one is reported
+missing.
+
 Variables set in the shell or on CI win over `.env`, so one run can override a value:
 
 ```bash

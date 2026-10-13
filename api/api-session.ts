@@ -132,7 +132,8 @@ export class ApiSession {
   }
 
   /**
-   * Returns the shared xAPI variables (store, culture, currency, user id); cached per session.
+   * Returns the shared xAPI variables (store, culture, currency, user id); cached per session once loaded, so a
+   * failed load is tried again on the next call.
    * A signed-in session fetches its user id once via `me`; an anonymous one gets a random id, so anonymous
    * sessions never share a cart.
    *
@@ -142,7 +143,10 @@ export class ApiSession {
    * @throws GraphqlError when the `me` query fails; Error when it returns no user id.
    */
   storeContext(): Promise<StoreContext> {
-    this.#storeContext ??= this.#loadStoreContext();
+    this.#storeContext ??= this.#loadStoreContext().catch((error: unknown) => {
+      this.#storeContext = undefined;
+      throw error;
+    });
     return this.#storeContext;
   }
 

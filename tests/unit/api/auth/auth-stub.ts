@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import { createServer } from "node:http";
 
 export const WRONG_PASSWORD = "wrong-password";
-export const SHORT_LIVED_SECONDS = 30;
+const SHORT_LIVED_SECONDS = 30;
 const LONG_LIVED_SECONDS = 3_600;
 
 export interface AuthStub {
@@ -24,7 +24,8 @@ export interface AuthStub {
  * (refreshed tokens live an hour),
  * `norefresh` gets no refresh token, `malformed` gets a token without `token_type`, `rejected` gets its
  * refresh tokens refused, `unrevokable` cannot be revoked, `slow` takes 300 ms to revoke.
- * `POST /graphql` answers `GetMe` with the token's user (id `id-of-<user name>`) and echoes the `Authorization`
+ * `POST /graphql` answers `GetMe` with the token's user (id `id-of-<user name>`; a `nomefirst` user gets no user on
+ * the first call) and echoes the `Authorization`
  * header for any other operation. `GET /echo` returns the `Authorization` header; `GET /protected` refuses with 401 the tokens of a user
  * whose sessions were ended (`endSessions`) and every token of a `banned` user. The admin UI sign-in sets a session cookie, or refuses `locked`,
  * `notallowed` and `twofactor` users with the matching flag.
@@ -109,8 +110,9 @@ export async function startAuthStub(): Promise<AuthStub> {
         const { operationName } = JSON.parse(body) as { operationName?: string };
         if (operationName === "GetMe") {
           const username = (request.headers.authorization ?? "").split(":")[1];
-          increment(getMeCalls, username ?? "");
-          reply(200, { data: { me: username === undefined ? null : { id: `id-of-${username}`, userName: username } } });
+          const call = increment(getMeCalls, username ?? "");
+          const missing = username === undefined || (username.includes("nomefirst") && call === 1);
+          reply(200, { data: { me: missing ? null : { id: `id-of-${username}`, userName: username } } });
           return;
         }
         reply(200, { data: { authorization: request.headers.authorization ?? null } });

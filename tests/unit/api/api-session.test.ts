@@ -179,6 +179,17 @@ test.describe("ApiSession", () => {
       expect(stub.getMeCalls(userName)).toBe(1);
     });
 
+    test("does not keep a failed load, so the next call asks the platform again", async () => {
+      const userName = known("nomefirst");
+      const session = await ApiSession.open(connection(), resolve, userName);
+
+      await expect(session.storeContext()).rejects.toThrow(`did not give the id of "${userName}"`);
+      const context = await session.storeContext();
+
+      expect(context).toEqual({ ...STORE, userId: `id-of-${userName}` });
+      expect(stub.getMeCalls(userName)).toBe(2);
+    });
+
     test("gives each anonymous session its own random user id, kept for the session", async () => {
       const first = await ApiSession.open(connection(), resolve, undefined);
       const second = await ApiSession.open(connection(), resolve, undefined);

@@ -80,7 +80,7 @@ test.describe("content files (store administrator)", () => {
         api.rest.content.items.upload(contentType, folderName, file));
       const uploaded = await test.step(`assert: the ${document} is found with its content`, async () => {
         const found = await api.rest.content.items.getByName(contentType, file.name);
-        expect(await api.rest.content.items.getText(contentType, found.relativeUrl)).toBe(file.buffer.toString());
+        expect(await api.rest.content.items.findText(contentType, found.relativeUrl)).toBe(file.buffer.toString());
         return found;
       });
       const renamedUrl = uploaded.url.replace(file.name, renamedName);

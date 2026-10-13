@@ -17,7 +17,7 @@ export const Route = {
 export type PageBuilderRoute = (typeof Route)[keyof typeof Route];
 
 /** Side menu item id of each list route, for {@link AppMenu.counter}. */
-export const MenuItem: Readonly<Record<PageBuilderRoute, string>> = {
+const MenuItem: Readonly<Record<PageBuilderRoute, string>> = {
   [Route.all]: "AllPagesList",
   [Route.draft]: "DraftPagesList",
   [Route.pending]: "PendingPagesList",
@@ -53,7 +53,7 @@ const ROWS_TIMEOUT_MS = 10_000;
  * Whether a response answers the page search (`POST /api/page-builder-pages/search`).
  * @param keyword - Required search keyword (`""` matches a search without one); omit to match any search.
  */
-export function isPagesSearch(response: Response, keyword?: string): boolean {
+function isPagesSearch(response: Response, keyword?: string): boolean {
   if (response.request().method() !== "POST" || new URL(response.url()).pathname !== SEARCH_PATH) {
     return false;
   }

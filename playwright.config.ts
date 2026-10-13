@@ -14,7 +14,7 @@ const BROWSER_USE = {
   viewport: { width: 1920, height: 1080 },
   ignoreHTTPSErrors: !env.verifySsl,
   screenshot: "only-on-failure",
-  trace: "off",
+  trace: "retain-on-failure",
   actionTimeout: 30_000,
   navigationTimeout: 30_000,
 } as const;
@@ -41,14 +41,14 @@ export default defineConfig<BrowserOptions>({
       testDir: "tests/graphql",
       workers: env.apiWorkers,
       timeout: API_TEST_TIMEOUT_MS,
-      use: { trace: "off" },
+      use: { trace: "retain-on-failure" },
     },
     {
       name: "restapi",
       testDir: "tests/restapi",
       workers: env.apiWorkers,
       timeout: API_TEST_TIMEOUT_MS,
-      use: { trace: "off" },
+      use: { trace: "retain-on-failure" },
     },
     {
       name: "e2e-frontend",
@@ -73,7 +73,7 @@ export default defineConfig<BrowserOptions>({
             testDir: "tests/isolated",
             timeout: API_TEST_TIMEOUT_MS,
             workers: 1,
-            use: { trace: "off" },
+            use: { trace: "retain-on-failure" },
           } as const,
         ]
       : []),

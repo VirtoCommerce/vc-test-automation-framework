@@ -142,8 +142,10 @@ and `unit` projects.
 
 #### Parallel workers
 
-Every project runs its tests in parallel workers (`fullyParallel`), even the tests of one file. Each group has its
-own number, because each loads the platform differently:
+Playwright starts several worker processes and hands them tests one by one. With `fullyParallel` on, any two tests
+may run at the same time, even two tests of one file, and in any order. A worker runs one test at a time.
+
+**How many workers each project gets:**
 
 | Projects | Workers | Why |
 |---|---|---|
@@ -155,7 +157,42 @@ own number, because each loads the platform differently:
 
 Raise `API_WORKERS` on a strong platform for faster runs; lower it when search-backed tests time out, typically on
 a local Elasticsearch with little memory. `--workers=N` on the command line, or the CI `workers` input, overrides
-every project for one run.
+every project for one run. Within one run, the projects' tests interleave, each project held to its own count;
+`npm test` therefore runs API and browser tests at the same time. CI runs each suite as its own Playwright run, one
+after another.
+
+**What a worker shares between its tests, and what each test gets new:**
+
+| Lives for | Fixtures | What it means for tests |
+|---|---|---|
+| The worker | `env`, `dataset`, `store`; the `api` request context and its token cache; the browser sign-in sessions | Each user signs in once per worker and the token is reused, so tests don't pay a sign-in each. Tokens are revoked when the worker ends. |
+| The test | `api` (the session), `arrange`, `cleanup`, `shopper`, `page`, `frontend`, `pageBuilder` | A new undo stack, a new browser context with its own storage, and for an anonymous session a new user id, so no two tests share a cart. |
+
+**Why tests don't collide:**
+
+- **Seeded data is read-only.** Every worker reads the same dataset records; no test changes them. A test that needs
+  to change something creates its own: `arrange` gives every record a unique name (`uniqueId`, e.g.
+  `test-pricelist-3f9a1c2e`) and, where the platform accepts it, a random id.
+- **Customers of their own.** A test that changes a customer's cart, lists, addresses or locks creates its own
+  customer (`arrange.customers.customerAccount()`, or `test.use({ shopperKind: "customer" })` in e2e), instead of
+  sharing a dataset user with tests in other workers.
+- **Assertions look at the test's own records.** Search and list checks pick out the ids or names the test created
+  (`expect(found.map(({ id }) => id)).toContain(created.id)`); they never assume the platform holds nothing else,
+  because other workers are creating records at the same moment. Counting all records is avoided for the same reason.
+- **Cleanup per test.** Each test removes what it created when it ends, so the platform does not fill up during a
+  run, and a failed test does not leave data that breaks another one.
+
+**When tests must not run in parallel:**
+
+- Tests that change platform-wide state go to `tests/isolated/` (one worker, own run).
+- Tests that share one platform-wide counter or list that others change can run in file order with
+  `test.describe.configure({ mode: "default" })`; `restapi/content/files.spec.ts` does this for the content
+  statistic. This orders tests within the file only; other files still run alongside.
+- The page builder's page list is shared, so `e2e-backend` runs with one worker.
+
+**Retries.** On CI a failed test is retried once (`retries: 1`) in a fresh worker; one that passes on the retry is
+reported as flaky. Locally there are no retries, so a flaky test shows up at once; use `--repeat-each=5` on a file
+to hunt for it.
 
 ### 5. Read the report
 
@@ -165,6 +202,18 @@ npm run report:open   # opens it
 ```
 
 `allure-results/` keeps growing across runs; delete it for a report of one run only.
+
+A failed test keeps its Playwright trace (`trace: "retain-on-failure"`; `seed` records none). Open it from the Allure
+report's attachments, or locally:
+
+```bash
+npx playwright show-trace test-results/<test folder>/trace.zip
+```
+
+Browser traces hold every action, DOM snapshot, console message and network request. API traces show the steps and
+the error but not the HTTP calls, which go through a worker-wide request context that per-test tracing does not
+record. Traces are not masked: they can hold tokens and passwords, so share them only where the `.env` values may
+be seen.
 
 ### Destructive tests
 

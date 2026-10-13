@@ -213,12 +213,14 @@ report's attachments, or locally:
 npx playwright show-trace test-results/<test folder>/trace.zip
 ```
 
-Browser traces hold every action, DOM snapshot, console message and network request. API traces show the steps and
-the error but not the HTTP calls, which go through a worker-wide request context that per-test tracing does not
-record. The seed sends its requests through the test's own request context, so a failed seed's trace holds every
-call with its status; CI runs the seed without the Allure reporter, so its trace is in the artifact's
-`test-results/seed/`. Traces are not masked: they can hold tokens and passwords, so share them only where the `.env` values may
-be seen.
+Browser traces hold every action, DOM snapshot, console message and network request. API traces hold the steps and
+every REST and GraphQL call of the test, from the sign-in and `arrange` through the test to cleanup, with headers,
+bodies, status and timing (the trace viewer's *Network* tab); browser traces hold these calls too. A sign-in reused
+from an earlier test of the worker sends nothing, so it is not in the trace. A failed seed's trace holds every call
+too; CI runs the seed without the Allure reporter, so its trace is in the artifact's `test-results/seed/`.
+
+Traces are not masked: they hold tokens, cookies and typed passwords. Use only throwaway credentials on a temporary
+platform, as CI does, and share traces only where the `.env` values may be seen.
 
 ### Destructive tests
 

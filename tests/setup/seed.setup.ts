@@ -10,14 +10,14 @@ import { seedFinishers } from "@dataset/seed/finishers";
 import { parseSeedOnly, resolveSeedScope } from "@dataset/seed/seed-scope";
 import { seedDataset } from "@dataset/seed/seeder";
 import { credentialsOf } from "@dataset/users";
-import { test } from "@fixtures";
+import { setupTest as test } from "@fixtures";
 
 const SEED_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_ADMIN_PASSWORD = "store";
 
 test.describe.configure({ timeout: SEED_TIMEOUT_MS });
 
-test("seed the dataset", async ({ request, dataset, env, store }) => {
+test("seed the dataset", async ({ playwright, dataset, env, store }) => {
   await allure.epic("Setup");
   await allure.feature("Dataset");
   await allure.description(
@@ -29,6 +29,11 @@ test("seed the dataset", async ({ request, dataset, env, store }) => {
       `${env.admin.password.reveal().length} characters; equals the image default "${DEFAULT_ADMIN_PASSWORD}": ` +
       `${env.admin.password.reveal() === DEFAULT_ADMIN_PASSWORD}`,
   );
+  const request = await playwright.request.newContext({
+    baseURL: env.backendBaseUrl,
+    timeout: env.requestTimeoutMs,
+    ignoreHTTPSErrors: !env.verifySsl,
+  });
   const tokens = new TokenManager(new TokenClient(new HttpClient(request), env.storeId));
   const connection = {
     context: request,
@@ -51,4 +56,5 @@ test("seed the dataset", async ({ request, dataset, env, store }) => {
       finishers: seedFinishers(admin.rest, admin.auth, dataset, logger),
     }));
   await tokens.signOutAll();
+  await request.dispose();
 });

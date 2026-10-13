@@ -1,0 +1,7 @@
+query PageContextWhiteLabeling($storeId: String, $userId: String, $cultureName: String, $organizationId: String) {
+  pageContext(storeId: $storeId, userId: $userId, cultureName: $cultureName, organizationId: $organizationId) {
+    whiteLabelingSettings {
+      ...WhiteLabelingSettings
+    }
+  }
+}

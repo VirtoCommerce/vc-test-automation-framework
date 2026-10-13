@@ -33,7 +33,7 @@ type Documents = {
   "fragment OrderPayment on PaymentInType {\n  id\n  number\n  gatewayCode\n  status\n  sum {\n    ...Money\n  }\n}": typeof types.OrderPaymentFragmentDoc;
   "fragment OrderShipment on OrderShipmentType {\n  id\n  number\n  shipmentMethodCode\n  shipmentMethodOption\n  status\n  total {\n    ...Money\n  }\n}": typeof types.OrderShipmentFragmentDoc;
   "fragment Order on CustomerOrderType {\n  id\n  number\n  status\n  createdDate\n  total {\n    ...Money\n  }\n  items {\n    ...OrderLineItem\n  }\n  inPayments {\n    ...OrderPayment\n  }\n  shipments {\n    ...OrderShipment\n  }\n}": typeof types.OrderFragmentDoc;
-  "fragment PageContext on PageContextResponseType {\n  slugInfo {\n    ...SlugInfo\n  }\n  store {\n    ...StoreInfo\n  }\n  whiteLabelingSettings {\n    ...WhiteLabelingSettings\n  }\n  user {\n    ...User\n  }\n}": typeof types.PageContextFragmentDoc;
+  "fragment PageContext on PageContextResponseType {\n  slugInfo {\n    ...SlugInfo\n  }\n  store {\n    ...StoreInfo\n  }\n  user {\n    ...User\n  }\n}": typeof types.PageContextFragmentDoc;
   "fragment Payment on PaymentType {\n  id\n  outerId\n  paymentGatewayCode\n  currency {\n    ...Currency\n  }\n  total {\n    ...Money\n  }\n  billingAddress {\n    ...CartAddress\n  }\n}": typeof types.PaymentFragmentDoc;
   "fragment PickupAddress on PickupAddressType {\n  id\n  key\n  name\n  organization\n  countryCode\n  countryName\n  city\n  postalCode\n  line1\n  line2\n  regionId\n  regionName\n  phone\n  email\n  outerId\n  description\n  addressType\n}": typeof types.PickupAddressFragmentDoc;
   "fragment PickupLocationAddress on PickupLocationAddressType {\n  id\n  key\n  name\n  organization\n  countryCode\n  countryName\n  city\n  postalCode\n  line1\n  line2\n  regionId\n  regionName\n  phone\n  email\n  outerId\n  description\n  addressType\n}": typeof types.PickupLocationAddressFragmentDoc;
@@ -97,6 +97,7 @@ type Documents = {
   "mutation UpdateMemberAddresses($command: InputUpdateMemberAddressType!) {\n  updateMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}": typeof types.UpdateMemberAddressesDocument;
   "query Order($number: String, $cultureName: String) {\n  order(number: $number, cultureName: $cultureName) {\n    ...Order\n  }\n}": typeof types.OrderDocument;
   "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}": typeof types.OrganizationOrdersDocument;
+  "query PageContextWhiteLabeling($storeId: String, $userId: String, $cultureName: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    organizationId: $organizationId\n  ) {\n    whiteLabelingSettings {\n      ...WhiteLabelingSettings\n    }\n  }\n}": typeof types.PageContextWhiteLabelingDocument;
   "query PageContext($storeId: String, $userId: String, $cultureName: String, $permalink: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    permalink: $permalink\n    organizationId: $organizationId\n  ) {\n    ...PageContext\n  }\n}": typeof types.PageContextDocument;
   "query CartPickupLocations($cartId: String!, $storeId: String!, $cultureName: String!, $keyword: String, $sort: String, $first: Int, $after: String, $facet: String, $filter: String) {\n  cartPickupLocations(\n    cartId: $cartId\n    storeId: $storeId\n    cultureName: $cultureName\n    keyword: $keyword\n    sort: $sort\n    first: $first\n    after: $after\n    facet: $facet\n    filter: $filter\n  ) {\n    items {\n      ...ProductPickupLocation\n    }\n  }\n}": typeof types.CartPickupLocationsDocument;
   "query PickupLocations($storeId: String, $keyword: String, $sort: String, $first: Int, $after: String) {\n  pickupLocations(\n    storeId: $storeId\n    keyword: $keyword\n    sort: $sort\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...PickupLocation\n    }\n  }\n}": typeof types.PickupLocationsDocument;
@@ -167,7 +168,7 @@ const documents: Documents = {
     types.OrderShipmentFragmentDoc,
   "fragment Order on CustomerOrderType {\n  id\n  number\n  status\n  createdDate\n  total {\n    ...Money\n  }\n  items {\n    ...OrderLineItem\n  }\n  inPayments {\n    ...OrderPayment\n  }\n  shipments {\n    ...OrderShipment\n  }\n}":
     types.OrderFragmentDoc,
-  "fragment PageContext on PageContextResponseType {\n  slugInfo {\n    ...SlugInfo\n  }\n  store {\n    ...StoreInfo\n  }\n  whiteLabelingSettings {\n    ...WhiteLabelingSettings\n  }\n  user {\n    ...User\n  }\n}":
+  "fragment PageContext on PageContextResponseType {\n  slugInfo {\n    ...SlugInfo\n  }\n  store {\n    ...StoreInfo\n  }\n  user {\n    ...User\n  }\n}":
     types.PageContextFragmentDoc,
   "fragment Payment on PaymentType {\n  id\n  outerId\n  paymentGatewayCode\n  currency {\n    ...Currency\n  }\n  total {\n    ...Money\n  }\n  billingAddress {\n    ...CartAddress\n  }\n}":
     types.PaymentFragmentDoc,
@@ -292,6 +293,8 @@ const documents: Documents = {
     types.OrderDocument,
   "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}":
     types.OrganizationOrdersDocument,
+  "query PageContextWhiteLabeling($storeId: String, $userId: String, $cultureName: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    organizationId: $organizationId\n  ) {\n    whiteLabelingSettings {\n      ...WhiteLabelingSettings\n    }\n  }\n}":
+    types.PageContextWhiteLabelingDocument,
   "query PageContext($storeId: String, $userId: String, $cultureName: String, $permalink: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    permalink: $permalink\n    organizationId: $organizationId\n  ) {\n    ...PageContext\n  }\n}":
     types.PageContextDocument,
   "query CartPickupLocations($cartId: String!, $storeId: String!, $cultureName: String!, $keyword: String, $sort: String, $first: Int, $after: String, $facet: String, $filter: String) {\n  cartPickupLocations(\n    cartId: $cartId\n    storeId: $storeId\n    cultureName: $cultureName\n    keyword: $keyword\n    sort: $sort\n    first: $first\n    after: $after\n    facet: $facet\n    filter: $filter\n  ) {\n    items {\n      ...ProductPickupLocation\n    }\n  }\n}":
@@ -485,7 +488,7 @@ export function graphql(
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(
-  source: "fragment PageContext on PageContextResponseType {\n  slugInfo {\n    ...SlugInfo\n  }\n  store {\n    ...StoreInfo\n  }\n  whiteLabelingSettings {\n    ...WhiteLabelingSettings\n  }\n  user {\n    ...User\n  }\n}",
+  source: "fragment PageContext on PageContextResponseType {\n  slugInfo {\n    ...SlugInfo\n  }\n  store {\n    ...StoreInfo\n  }\n  user {\n    ...User\n  }\n}",
 ): typeof import("./graphql").PageContextFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
@@ -865,6 +868,12 @@ export function graphql(
 export function graphql(
   source: "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}",
 ): typeof import("./graphql").OrganizationOrdersDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(
+  source: "query PageContextWhiteLabeling($storeId: String, $userId: String, $cultureName: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    organizationId: $organizationId\n  ) {\n    whiteLabelingSettings {\n      ...WhiteLabelingSettings\n    }\n  }\n}",
+): typeof import("./graphql").PageContextWhiteLabelingDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

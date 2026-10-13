@@ -316,7 +316,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 ├── fixtures/                Playwright fixtures; specs import `test`, `expect` and `knownIssue` from `@fixtures`
 │   ├── env.fixture.ts       `env`
 │   ├── dataset.fixture.ts   `dataset`, `store`
-│   ├── api.fixture.ts       `api` (anonymous by default; `test.use({ user })` signs in a dataset user)
+│   ├── api.fixture.ts       `api` (anonymous by default; `test.use({ user })` signs in a dataset user), `requiresModules`
 │   ├── cleanup.fixture.ts   `cleanup` (the stack `arrange` registers on)
 │   ├── arrange.fixture.ts   `arrange`
 │   ├── browser.fixture.ts   `shopper`, `frontend`, `pageBuilder`; signs the browser in
@@ -358,6 +358,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 | `env` | The validated configuration |
 | `dataset`, `store` | The seed dataset; the store under test (id, catalog, language, currency) |
 | `api` | An `ApiSession`: `api.rest.*`, `api.graphql.execute(...)`, `api.storeContext()`, `api.as(user)`, `api.anonymous()` |
+| `requiresModules` | Option: platform modules a test needs; without one installed the test is skipped, naming it |
 | `arrange` | Creates test data and removes it after the test |
 | `cleanup` | The cleanup stack, for undoing what the code under test creates |
 | `shopper` | The frontend browser's identity and its `api` session (`test.use({ shopperKind: "customer" })`) |
@@ -397,6 +398,10 @@ Methods named `…Later` create nothing: they register the removal of something 
 - Prove a deletion by reading the record by id, not by a search that might just miss it.
 - Waits for search-index reads live in `arrange` (or poll with `INDEX_LAG_TIMEOUT_MS`), never as sleeps.
 - A UI test checks the UI; data rules (search semantics, prices, validation) are checked once through the API.
+- A test that needs an optional platform module (one not every deployment installs, such as
+  `VirtoCommerce.WhiteLabeling`) declares it with `test.use({ requiresModules: ["VirtoCommerce.X"] })` on its
+  `describe`; it is skipped where the module is missing. Keep fields of such modules out of shared GraphQL
+  fragments: a field the schema lacks fails the whole query.
 - A test that hits a known defect starts with `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test runs
   and is expected to fail; without one it is skipped as `fixme`. Add the defect to `dataset/known-issues.ts` first.
 - No code comments; names and `test.step` titles say what happens.

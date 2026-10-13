@@ -72,6 +72,8 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
 - Known defects: add the entry to `dataset/known-issues.ts` and start the test with
   `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test is an expected failure; without one it is skipped
   as `fixme`. Never a bare `test.fail` or `test.fixme`.
+- A test that needs an optional module declares `test.use({ requiresModules: ["VirtoCommerce.X"] })` on its
+  `describe` and is skipped where it is not installed; keep that module's GraphQL fields out of shared fragments.
 - Tests that change platform-wide state (settings, index, restart) go to `tests/isolated/`, which runs only with
   `RUN_DESTRUCTIVE_TESTS=true`.
 - Place tests by platform module: users and accounts are `security`, not `customer`.

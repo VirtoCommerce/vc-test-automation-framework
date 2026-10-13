@@ -1,10 +1,11 @@
 import * as allure from "allure-js-commons";
 
-import { PageContextDocument } from "@api/graphql/generated/graphql";
+import { PageContextDocument, PageContextWhiteLabelingDocument } from "@api/graphql/generated/graphql";
 import { requireFields } from "@core/required-fields";
 import { expect, test } from "@fixtures";
 
 const LOGO_URL = "https://example.com/test-logo.png";
+const WHITE_LABELING_MODULE = "VirtoCommerce.WhiteLabeling";
 
 test.beforeEach(async () => {
   await allure.epic("GraphQL");
@@ -64,7 +65,9 @@ for (const { shopper, user, expectedUserName } of [
   });
 }
 
-test.describe("page context (customer of their own)", () => {
+test.describe("page context with white labeling (customer of their own)", () => {
+  test.use({ requiresModules: [WHITE_LABELING_MODULE] });
+
   test("return the white-labeling settings of the organization", {
     annotation: {
       type: "leaves data",
@@ -88,7 +91,7 @@ test.describe("page context (customer of their own)", () => {
     const { storeId, userId, cultureName } = await customer.api.storeContext();
 
     const { pageContext } = await test.step("act: get the customer's page context", () =>
-      customer.api.graphql.execute(PageContextDocument, {
+      customer.api.graphql.execute(PageContextWhiteLabelingDocument, {
         storeId,
         userId,
         cultureName,

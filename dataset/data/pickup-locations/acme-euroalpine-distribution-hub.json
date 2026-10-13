@@ -1,0 +1,24 @@
+{
+  "id": "pickup-location-acme-euroalpine-distribution-hub",
+  "name": "EuroAlpine Distribution Hub",
+  "description": "Distribution hub",
+  "storeId": "${ENV:STORE_ID}",
+  "geoLocation": "48.208174,16.373819",
+  "workingHours": "* **Mon - Sun**: 9 - 18",
+  "contactPhone": "+43 1 720 4411",
+  "contactEmail": "office@euroalpine-hub.at",
+  "isActive": true,
+  "fulfillmentCenterId": "fulfillment-center-usa-northgate-logistics-hub",
+  "transferFulfillmentCenterIds": [
+    "fulfillment-center-canada-mapleroute-distribution-hub",
+    "fulfillment-center-chile-andes-supply-node"
+  ],
+  "address": {
+    "addressType": "Shipping",
+    "city": "Vienna",
+    "countryCode": "AUT",
+    "countryName": "Austria",
+    "line1": "Stephansplatz 3",
+    "postalCode": "1010"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "productId": "product-sodimm-samsung-ddr4-2133-16gb",
+  "product": {
+    "id": "product-sodimm-samsung-ddr4-2133-16gb",
+    "name": "Samsung DDR4-2133 16GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-samsung-ddr4-2133-16gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 44.99,
+      "sale": 31.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-samsung-ddr4-2133-16gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-samsung-ddr4-2133-16gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 41.99,
+      "sale": 29.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-samsung-ddr4-2133-16gb"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "page-acme-seasonal-lookbook",
+  "name": "seasonal-lookbook",
+  "permalink": "/seasonal-lookbook",
+  "storeId": "${ENV:STORE_ID}",
+  "cultureName": "en-US",
+  "status": "Published",
+  "visibility": true,
+  "startDate": "2025-01-01T00:00:00Z",
+  "endDate": "2030-12-31T00:00:00Z"
+}

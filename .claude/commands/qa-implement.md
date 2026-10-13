@@ -14,41 +14,49 @@ If `$ARGUMENTS` is provided, use it as additional context or override instructio
 
 ### 1. Review the Plan
 
-Read the implementation plan from the conversation context. Identify:
-- Files to create/modify (in dependency order)
-- Which skill to invoke for each file
-- Pattern references for each file
+Read the implementation plan from the conversation. Identify:
+- Files to create or modify, in dependency order
+- The skill to invoke for each file
+- The pattern reference for each file
 
 ### 2. Execute Phase by Phase
 
 Spawn the `qa-automation-expert` agent and execute the plan in order:
 
-**Phase 1: Infrastructure** (types, operations, pages, components)
-- For GraphQL types and operations → agent invokes `/create-graphql-layer`
-- For page objects and components → agent invokes `/create-ui-layer`
-- For REST API operations → agent reads pattern references and creates directly
+**Phase 1: Infrastructure**
+- `.graphql` operations or fragments → `/create-graphql-layer` (includes `npm run codegen:graphql`)
+- REST client methods, clients or named types → `/create-rest-client`
+- Page objects and components → `/create-ui-layer`
+- Builders (`dataset/builders/`), `arrange` methods (`dataset/arrange/<domain>.ts`), dataset records (`dataset/data/`) and `KNOWN_ISSUES` entries → follow the pattern references in the plan and README.md
 
 **Phase 2: Tests**
-- For GraphQL tests → agent invokes `/write-graphql-test`
-- For E2E tests → agent invokes `/write-e2e-test`
-- For REST API tests → agent invokes `/write-rest-api-test`
-
-**Phase 3: Exports**
-- Update `__init__.py` files for new classes
+- REST specs → `/write-rest-api-test`
+- GraphQL specs → `/write-graphql-test`
+- e2e specs (frontend or page builder) → `/write-e2e-test`
+- TESTS.md, when a test of the old suite moved, merged or was dropped
 
 ### 3. Verify
 
-After implementation:
-- Run `pytest --collect-only` on the new test files to verify they are discoverable
-- Check for import errors
-- Report what was created
+Follow CLAUDE.md "Before handing work over":
+
+```shell
+npm run typecheck
+npm run check
+npx playwright test --list                         # every spec and fixture loads
+npm run test:<project> -- <new or changed specs>   # against a seeded platform
+npm run test:unit                                  # when core, api, dataset, pages or fixtures changed
+```
+
+New dataset records need `npm run seed` (and a reindex) before the specs that read them can pass. Tests in `tests/isolated/` run only with `RUN_DESTRUCTIVE_TESTS=true npm run test:isolated`.
+
+Fix every type error, lint finding and failing test before reporting. If the platform is not reachable, say so and report the run as not done.
 
 ### 4. Output
 
 Present a summary:
-- Files created/modified (with line counts)
-- Test functions added
-- Any issues encountered
+- Files created or modified
+- Tests added (titles)
+- Verification results, with any failures and their cause
 
 End with:
 ```

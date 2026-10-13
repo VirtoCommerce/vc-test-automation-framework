@@ -1,0 +1,21 @@
+{
+  "id": "catalog-property-electronics-memory-data-transfer-rate",
+  "catalogId": "catalog-acme-electronics",
+  "propertyGroupId": "catalog-property-group-electronics-memory",
+  "categoryId": null,
+  "name": "MemoryDataTransferRate",
+  "required": false,
+  "dictionary": false,
+  "multivalue": false,
+  "valueType": "Measure",
+  "measureId": "measure-data-transfer-rate",
+  "type": "Product",
+  "displayOrder": 16,
+  "values": [],
+  "displayNames": [
+    {
+      "name": "Memory data transfer rate",
+      "languageCode": "en-US"
+    }
+  ]
+}

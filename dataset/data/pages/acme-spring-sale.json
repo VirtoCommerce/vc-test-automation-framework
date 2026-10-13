@@ -1,0 +1,9 @@
+{
+  "id": "page-acme-spring-sale",
+  "name": "spring-sale",
+  "permalink": "/spring-sale",
+  "storeId": "${ENV:STORE_ID}",
+  "cultureName": "en-US",
+  "status": "Published",
+  "visibility": true
+}

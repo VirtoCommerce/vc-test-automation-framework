@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-google-pixel-10a-berry",
+  "product": {
+    "id": "product-smartphone-google-pixel-10a-berry",
+    "name": "Google Pixel 10a Berry"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-google-pixel-10a-berry",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 499.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-google-pixel-10a-berry"
+    },
+    {
+      "id": "price-acme-eur-smartphone-google-pixel-10a-berry",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 464.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-google-pixel-10a-berry"
+    }
+  ]
+}

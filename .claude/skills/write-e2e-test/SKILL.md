@@ -1,212 +1,157 @@
 ---
 name: write-e2e-test
-description: "Scaffold E2E UI test files following project patterns — Playwright assertions, Page Objects, Components, markers, fixtures, Allure decorators, BrowserStorage"
-argument-hint: "<domain> <test-scenario>"
+description: "Write e2e specs for the frontend and the page builder app — frontend and pageBuilder page objects, shopper fixture and shopperKind option, data arranged through the API, web-first assertions, Allure epic/feature/story"
+argument-hint: "<area> <test-scenario>"
 ---
 
-## E2E Test Scaffolding
+## E2E Spec Writing
 
-When writing an E2E test, follow these patterns exactly.
+- Frontend: `tests/e2e/frontend/<area>/<topic>.spec.ts` (areas: account, cart, catalog, checkout, lists, site),
+  project `e2e-frontend`, `FRONTEND_WORKERS` workers.
+- Page builder: `tests/e2e/backend/page-builder/<topic>.spec.ts`, project `e2e-backend`, one worker (the page
+  list is shared), browser signed in to the admin UI as the platform admin.
 
-## Required Imports
+A UI test checks the UI. Data rules (search semantics, prices, validation) are checked once through the API.
 
-```python
-import allure
-import pytest
-from playwright.sync_api import Page, expect
+Read first: CLAUDE.md "Writing tests", README "An e2e test". Copy the shape of
+`tests/e2e/frontend/cart/cart.spec.ts` or `tests/e2e/backend/page-builder/page-status.spec.ts`.
 
-from core.global_settings import GlobalSettings
-from page_objects.pages import CartPage, HomePage, SignInPage  # domain-specific pages
-from page_objects.components import ClearCartModal, LineItem    # domain-specific components
-from tests.context import Context
+## Step 1: Browser State Before the Test
+
+| Need | Use |
+|---|---|
+| Anonymous visitor | nothing (default `shopperKind`) |
+| A fresh signed-in customer | `test.use({ shopperKind: "customer" })`; `shopper.account` holds its ids and credentials |
+| Data the browser shows (cart, lists, addresses) | arrange it through `shopper.api`, the same identity as the browser |
+| A cart | `arrange.carts.defaultCart(shopper.api, items)` (the frontend shows the default cart) |
+| Page builder pages | `arrange.content.page()`, `arrange.content.publishedPage()` |
+
+Sign in through the UI only when sign-in itself is under test. The shopper's default cart is removed after every
+frontend test.
+
+## Step 2: Write the Spec
+
+```ts
+import * as allure from "allure-js-commons";
+
+import { expect, test } from "@fixtures";
+
+const PRODUCT = { id: "product-smartphone-samsung-galaxy-a57-5g", sku: "smartphone-samsung-galaxy-a57-5g" } as const;
+const QUANTITY = 3;
+const NEW_QUANTITY = 4;
+
+test.beforeEach(async () => {
+  await allure.epic("E2E");
+  await allure.feature("Frontend / Cart");
+});
+
+test.describe("cart (customer of their own)", () => {
+  test.use({ shopperKind: "customer" });
+
+  test("change the quantity of a line item", async ({ frontend, shopper, arrange }) => {
+    await allure.story("Line items");
+    await allure.description(`A line item's quantity goes from ${QUANTITY} to ${NEW_QUANTITY} in the cart badge.`);
+    await test.step(`arrange: the cart holds ${PRODUCT.sku} ×${QUANTITY}`, () =>
+      arrange.carts.defaultCart(shopper.api, [{ productId: PRODUCT.id, quantity: QUANTITY }]));
+    const cart = frontend.cart();
+    const { quantity } = cart.lineItem(PRODUCT.sku);
+
+    await test.step("arrange: open the cart", async () => {
+      await cart.navigate();
+      await expect(quantity.input).toHaveValue(String(QUANTITY));
+    });
+
+    await test.step(`act: set the quantity to ${NEW_QUANTITY}`, () => quantity.setQuantity(NEW_QUANTITY));
+
+    await test.step(`assert: the cart badge shows ${NEW_QUANTITY}`, async () => {
+      await expect(cart.cartQuantityLabel).toHaveText(String(NEW_QUANTITY));
+    });
+  });
+});
 ```
 
-## Allure Conventions
+- `allure.epic("E2E")` and `allure.feature("Frontend / <Area>")` or `allure.feature("Admin / Page builder")` in
+  `beforeEach`; `allure.story` and `allure.description` first in each test.
+- `test.describe("<topic> (<who>)")`: `(anonymous)`, `(customer of their own)`, `(platform admin)`.
+- `frontend` builds page objects for the configured frontend. `setQuantity` works for either `QUANTITY_CONTROL`;
+  `frontend.checkout()` walks the single-page or multi-step checkout. Specs never read `env.quantityControl`,
+  `env.rangeFilterType` or `env.checkoutMode`, and never skip on them.
+- To wait for what a click sends, use a predicate from `@pages/selectors`:
 
-```python
-@allure.feature("<Domain> (E2E)")   # e.g., "Cart (E2E)", "Authentication (E2E)"
-@allure.title("<Action description>")  # e.g., "Clear cart", "Sign in with valid credentials"
+```ts
+await Promise.all([page.waitForResponse(isGraphqlOperation("ClearCart")), cart.clearCartModal.confirmButton.click()]);
 ```
 
-## Pattern 1: Cart Fixture-Driven Test
+- Shared setup for a group of tests: a `beforeEach` with `arrange:` steps, or `test.extend` with a fixture that
+  arranges and yields the data (see `tests/e2e/frontend/checkout/checkout-delivery.spec.ts`).
 
-Use when the `with_cart` marker handles cart setup and teardown automatically.
+## Step 3: Page Builder Tests
 
-```python
-_PRODUCT_ID = "product-acme-laptop-asus-zenbook-a14-ux3407"
-_QUANTITY = 3
+```ts
+import { Column, Route } from "@pages/backend/page-builder/page-builder";
 
-@pytest.mark.e2e
-@allure.feature("Cart (E2E)")
-@allure.title("Clear cart")
-@pytest.mark.with_cart([(_PRODUCT_ID, _QUANTITY)])
-def test_cart_clear(page: Page, global_settings: GlobalSettings) -> None:
-    cart_page = CartPage(global_settings=global_settings, page=page)
-    cart_page.navigate()
-    expect(cart_page.line_items).to_be_visible()
-    expect(cart_page.line_items).to_have_count(1)
-    expect(cart_page.clear_cart_button).to_be_visible()
-    expect(cart_page.clear_cart_button).to_be_enabled()
+test.describe("status transitions (platform admin)", () => {
+  test("publishing a draft moves it to the active list", async ({ pageBuilder, arrange }) => {
+    await allure.story("Status transitions");
+    await allure.description("A published draft leaves the draft list for the active list.");
+    const draft = await test.step("arrange: a draft page", () => arrange.content.page());
 
-    cart_page.clear_cart_button.click()
-    clear_cart_modal = ClearCartModal(
-        root=page.locator("[data-test-id='clear-cart-modal']")
-    )
-    expect(clear_cart_modal.root).to_be_visible()
-    expect(clear_cart_modal.yes_button).to_be_visible()
+    await test.step(`act: publish ${draft.name}`, async () => {
+      await (await pageBuilder.openPage(draft.name, Route.draft)).publish();
+    });
 
-    clear_cart_modal.yes_button.click()
-    expect(clear_cart_modal.root).not_to_be_visible()
-    expect(cart_page.line_items).not_to_be_visible()
+    await test.step("assert: the page moved to the active list", async () => {
+      expect(await pageBuilder.isListed(Route.draft, draft.name)).toBe(false);
+      expect(await pageBuilder.isListed(Route.active, draft.name)).toBe(true);
+      await expect(pageBuilder.listBlade.pageRow(draft.name).cell(Column.status)).toHaveText("Published");
+    });
+  });
+});
 ```
 
-## Pattern 2: User Authentication with Form Interaction
+Pages the admin UI creates in the test: `arrange.content.deletePagesLater(name)` before the act. State that has no UI
+step (e.g. archiving for a precondition) goes through `arrange.admin.rest.pageBuilder`.
 
-Use when testing login flows or pages that require manual form filling.
+## Assertions
 
-```python
-_USERNAME = "acme_store_employee_1@acme.com"
-
-@pytest.mark.e2e
-@allure.feature("Authentication (E2E)")
-@allure.title("Sign in with valid credentials")
-def test_sign_in_success(global_settings: GlobalSettings, page: Page, ctx: Context) -> None:
-    sign_in_page = SignInPage(global_settings=global_settings, page=page)
-    sign_in_page.navigate()
-
-    expect(sign_in_page.email_input).to_be_visible()
-    expect(sign_in_page.password_input).to_be_visible()
-    expect(sign_in_page.sign_in_button).to_be_visible()
-
-    sign_in_page.email_input.fill(_USERNAME)
-    sign_in_page.password_input.fill(global_settings.users_password.get_secret_value())
-    sign_in_page.sign_in_button.click()
-
-    home_page = HomePage(global_settings=global_settings, page=page)
-    expect(page).to_have_url(home_page.url)
-    expect(home_page.top_header.account_button.root).to_be_visible()
+```ts
+await expect(locator).toBeVisible();
+await expect(locator).toHaveText("…");
+await expect(locator).toHaveValue("3");
+await expect(locator).toHaveCount(2);
+await expect
+  .poll(async () => {
+    const { cart } = await shopper.api.graphql.execute(GetCartDocument, await shopper.api.storeContext());
+    return cart?.items?.map((item) => item?.quantity);
+  })
+  .toEqual([4]);
 ```
 
-## Pattern 3: Authenticated User with Cart (marker-driven)
+## Things to Keep in Mind
 
-Use when a test needs both a signed-in user and a pre-seeded cart.
-
-```python
-_USERNAME = "acme_store_maintainer_1@acme.com"
-_PRODUCT_ID = "product-acme-laptop-asus-zenbook-a14-ux3407"
-
-@pytest.mark.e2e
-@allure.feature("Cart (E2E)")
-@allure.title("Update cart item quantity")
-@pytest.mark.with_user(_USERNAME)
-@pytest.mark.with_cart([(_PRODUCT_ID, 1)])
-def test_cart_item_update(page: Page, global_settings: GlobalSettings) -> None:
-    cart_page = CartPage(global_settings=global_settings, page=page)
-    cart_page.navigate()
-    # ... test actions with authenticated user's cart
-```
-
-## Page Object Instantiation
-
-Always pass keyword arguments:
-
-```python
-cart_page = CartPage(global_settings=global_settings, page=page)
-cart_page.navigate()
-
-# Components instantiated inline from locators
-clear_cart_modal = ClearCartModal(root=page.locator("[data-test-id='clear-cart-modal']"))
-
-# Find child components via page methods
-line_item = cart_page.find_line_item(sku="product-sku")
-```
-
-## Pre-Authenticated Page Context (`with_page_context`)
-
-Use when a test needs a Playwright page context that's already signed in as the given user — no manual sign-in via the UI required. The fixture yields a fresh `Page` bound to a context with auth cookies/localStorage already injected.
-
-```python
-_USERNAME = "acme_store_employee_1@acme.com"
-
-@pytest.mark.e2e
-@allure.feature("Authentication (E2E)")
-@allure.title("Account button visible for signed-in user")
-@pytest.mark.with_page_context(_USERNAME)
-def test_account_visible(page: Page, global_settings: GlobalSettings) -> None:
-    home_page = HomePage(global_settings=global_settings, page=page)
-    home_page.navigate()
-    expect(home_page.top_header.account_button.root).to_be_visible()
-```
-
-**When to use:** test needs a signed-in user from the first navigation (skips UI sign-in flow). For tests that exercise the sign-in flow itself, use `Pattern 2` above.
-
-## BrowserStorage (auth injection)
-
-The `with_user` fixture auto-injects auth to localStorage for E2E tests. For manual auth:
-
-```python
-from page_objects.browser_storage import BrowserStorage
-
-storage = BrowserStorage(page)
-storage.set_user_id(user_id)                # Anonymous cart association
-storage.set_auth(provider.token_info)       # Full auth token injection
-```
-
-## Available Fixtures
-
-| Fixture | Scope | Description |
-|---------|-------|-------------|
-| `page: Page` | function | Playwright page (from pytest-playwright) |
-| `global_settings: GlobalSettings` | session | Environment configuration |
-| `ctx: Context` | function | Test context from dataset + markers |
-| `with_cart: Cart \| None` | function (autouse) | Seeded from `@pytest.mark.with_cart` |
-| `with_user: AuthProvider` | function | Auth + auto localStorage for E2E |
-| `dataset: dict` | session | Raw test data from JSON files |
-
-## Assertion Patterns
-
-```python
-from playwright.sync_api import expect
-
-# URL assertions
-expect(page).to_have_url(expected_url)
-
-# Visibility
-expect(element).to_be_visible()
-expect(element).not_to_be_visible()
-expect(element).to_be_enabled()
-
-# Content
-expect(element).to_have_text("Expected text")
-expect(element).to_have_value(str(quantity))
-expect(locator).to_have_count(3)
-```
-
-## Locator Conventions
-
-```python
-# Primary: data-test-id attributes
-page.locator("[data-test-id='clear-cart-button']")
-
-# Data attributes for element state
-element.get_attribute("data-product-sku")
-
-# Dynamic locators with interpolation
-page.locator(f"[data-product-sku='{sku}']")
-
-# Component root locators
-self._root.locator("[data-test-id='quantity-stepper']")
-```
+- Product links can open a new tab: follow them through the page object (`ProductCard.openConfigurations()`
+  returns the page to build on), never by clicking and asserting on the original `page`.
+- Browser storage is fixed when the page opens: a lock or password change must happen before a UI sign-in.
+- The frontend signs in with an e-mail address.
 
 ## Rules
 
-1. Every test function MUST have `@pytest.mark.e2e`
-2. Every test function MUST have `@allure.feature()` and `@allure.title()`
-3. Module-level constants for product IDs, usernames: `_PRODUCT_ID = "..."`
-4. Return type annotation: `def test_...(fixtures) -> None:`
-5. Use `expect()` for all UI assertions — not bare `assert`
-6. Use `data-test-id` attributes for locators — prefer over CSS/XPath
-7. Navigate via `page_object.navigate()` — not raw `page.goto()`
-8. Prefer marker-driven setup (`with_cart`, `with_user`) over manual BrowserStorage
-9. Use `allure.step()` for logical groupings when tests have multiple phases
-10. No `time.sleep()` — Playwright auto-waits; use `expect()` or `wait_for_selector()`
+1. `test`, `expect`, `knownIssue` from `@fixtures`; page objects from `@pages/...`.
+2. Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`.
+3. No conditionals, `as` casts, helper functions or raw selectors in the spec. A missing locator or action goes
+   into `pages/` (`/create-ui-layer`).
+4. Open pages with `navigate()` / `open(...)` / `start()`; no `page.goto` unless the URL itself is under test.
+5. Web-first assertions; no `waitForTimeout`, no `networkidle`, no `expect(await locator.isVisible())`.
+6. Data from `dataset`, changes through `arrange`; cleanup registered before the change.
+7. Known defects: `await knownIssue(KNOWN_ISSUES.x)` first in the test.
+8. No code comments.
+
+## Verify
+
+```shell
+npm run typecheck && npm run check
+npm run test:e2e:frontend -- tests/e2e/frontend/<area>/<topic>.spec.ts
+npm run test:e2e:backend -- tests/e2e/backend/page-builder/<topic>.spec.ts
+```
+
+`VERIFY_SSL=false` for a self-signed local frontend; `--headed --workers=1` to watch.

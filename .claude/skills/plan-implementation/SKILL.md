@@ -1,82 +1,61 @@
 ---
 name: plan-implementation
-description: "Plan file-by-file implementation for test automation tasks — which files to create/modify, in what order, which patterns and existing code to reuse"
+description: "Plan file-by-file implementation for test automation tasks — which files to create or modify, in what order, which patterns, arrange methods and existing code to reuse"
 argument-hint: "<task-description>"
 ---
 
 ## Implementation Planning
 
-Given a task or test strategy, produce a step-by-step implementation plan with exact file paths, patterns to follow, and dependencies.
+Given a task or test strategy, produce a step-by-step plan with exact file paths, the existing file each one
+follows, and the order to build them in. Read CLAUDE.md first; it holds the layers and conventions.
 
 ## Process
 
-### Step 1: Identify All Artifacts Needed
+### Step 1: Identify the Artifacts
 
-For each test case in the strategy, determine what needs to exist:
-
-| Artifact | Location | Pattern |
-|----------|----------|---------|
-| GraphQL fragment | `gql/fragments/<entity>.graphql` | Fragment definition |
-| Pydantic type | `gql/types/<entity>.py` | `GqlModel` subclass |
-| Pydantic input | `gql/types/<entity>_input.py` | `GqlModel` with `serialization_alias` |
-| GraphQL operations | `gql/operations/<entity>_operations.py` | `BaseOperations` subclass |
-| REST operations | `restapi/operations/<entity>_operations.py` | `RestBaseOperations` subclass |
-| REST template | `restapi/constants.py` | Immutable dict constant |
-| Page object | `page_objects/pages/<page>.py` | `MainLayout` subclass |
-| Component | `page_objects/components/<component>.py` | `Component` subclass |
-| Factory fixture | `tests/restapi/<module>/conftest.py` | Generator yielding callable |
-| Test file | `tests/<type>/test_<feature>.py` | Markers + Allure + assertions |
-| Shared constants | `tests/constants.py` | Pydantic model instances |
+| Artifact | Location | Pattern reference |
+|---|---|---|
+| GraphQL fragment | `api/graphql/fragments/<entity>.graphql` | `api/graphql/fragments/cart.graphql` |
+| GraphQL operation | `api/graphql/operations/<area>/<name>.graphql` | `api/graphql/operations/cart/add-item.graphql` |
+| Generated GraphQL types | `api/graphql/generated/` (`npm run codegen:graphql`) | never edited |
+| REST client / resource / method | `api/rest/clients/<module>-client.ts`, registered in `api/rest/rest-api.ts` | `api/rest/clients/pricing-client.ts` |
+| REST named type | `api/rest/types/<module>.ts` | `api/rest/types/pricing.ts` |
+| Frontend page | `pages/frontend/pages/<group>-pages.ts` + a `Frontend` factory method | `pages/frontend/pages/cart-pages.ts` |
+| Frontend component | `pages/frontend/components/<component>.ts` | `pages/frontend/components/controls.ts` |
+| Page builder object | `pages/backend/page-builder/page-builder.ts`, `pages/backend/shell/controls.ts` | same files |
+| Builder | `dataset/builders/<domain>.ts` | `dataset/builders/pricing.ts` |
+| Arrange method | `dataset/arrange/<domain>.ts` (types exported from `index.ts`) | `dataset/arrange/pricing.ts` |
+| Seed record | `dataset/data/<collection>/*.json` (+ `dataset/manifest.ts` for a new collection) | neighbouring JSON files |
+| Known defect | `dataset/known-issues.ts` | existing entries |
+| Fixture or option | `fixtures/<name>.fixture.ts`, exported from `fixtures/index.ts` | `fixtures/browser.fixture.ts` |
+| REST spec | `tests/restapi/<platform-module>/<topic>.spec.ts` | `tests/restapi/pricing/pricelists.spec.ts` |
+| GraphQL spec | `tests/graphql/<area>/<topic>.spec.ts` | `tests/graphql/cart/cart-items.spec.ts` |
+| Frontend e2e spec | `tests/e2e/frontend/<area>/<topic>.spec.ts` | `tests/e2e/frontend/cart/cart.spec.ts` |
+| Page builder e2e spec | `tests/e2e/backend/page-builder/<topic>.spec.ts` | `tests/e2e/backend/page-builder/page-status.spec.ts` |
+| Destructive spec | `tests/isolated/{restapi,graphql}/<area>/<topic>.spec.ts` | `tests/isolated/graphql/catalog/anonymous-access.spec.ts` |
+| Unit test of framework code | `tests/unit/<layer>/…/*.test.ts` | `tests/unit/api/rest/clients/bulk-delete-guards.test.ts` |
 
 ### Step 2: Check What Already Exists
 
-Before adding new files, search the codebase:
-- Existing operations classes that already have the methods you need
-- Existing Pydantic types that cover the response shape
-- Existing page objects and components
-- Existing factory fixtures in conftest files
-- Existing fragment files
+Before adding a file, search for:
+- documents that already select the needed fields (often only a fragment field is missing);
+- client methods, page objects and components that cover the need;
+- `arrange.<domain>` methods and builders, including ones that need one more option;
+- seeded records in `dataset/data` that already fit.
 
-### Step 3: Determine Implementation Order
-
-Dependencies flow downward — implement in this order:
+### Step 3: Order by Dependency
 
 ```
-1. gql/fragments/*.graphql          (fragments first — operations depend on them)
-2. gql/types/*.py                   (types next — operations return them)
-3. gql/types/__init__.py            (export new types)
-4. gql/operations/*_operations.py   (operations use fragments + types)
-5. gql/operations/__init__.py       (export new operations)
-6. restapi/constants.py             (templates — if REST API tests needed)
-7. restapi/operations/*.py          (REST operations — if needed)
-8. page_objects/components/*.py     (components — if E2E tests needed)
-9. page_objects/components/__init__.py
-10. page_objects/pages/*.py          (pages use components)
-11. page_objects/pages/__init__.py
-12. tests/constants.py               (shared test constants — if needed)
-13. tests/restapi/<module>/conftest.py (factory fixtures — if REST tests)
-14. tests/graphql/test_*.py          (GraphQL tests)
-15. tests/e2e/test_*.py              (E2E tests)
-16. tests/restapi/<module>/test_*.py (REST API tests)
+1. api/graphql documents          then  npm run codegen:graphql
+2. api/rest/types, api/rest/clients   (npm run codegen:rest first after a platform upgrade)
+3. pages/: components, then pages, then the Frontend factory method
+4. dataset/data records (+ manifest), then npm run seed
+5. dataset/builders, then dataset/arrange
+6. dataset/known-issues.ts entries
+7. fixtures (only when no arrange method or option fits)
+8. specs: restapi, graphql, e2e; isolated ones last
+9. TESTS.md rows when tests of the old suite move, merge or drop
 ```
-
-### Step 4: Reference Existing Patterns
-
-For each file, specify which existing file to use as a pattern reference:
-
-| New File | Pattern Reference |
-|----------|-------------------|
-| GraphQL operations | `gql/operations/cart_operations.py` |
-| Pydantic types | `gql/types/cart.py` |
-| Pydantic inputs | `gql/types/cart_item_input.py` |
-| Page object | `page_objects/pages/cart.py` |
-| Component | `page_objects/components/product_card.py` |
-| REST operations | `restapi/operations/product_operations.py` |
-| Factory fixture | `tests/restapi/catalog/conftest.py` |
-| GraphQL test (simple) | `tests/graphql/test_cart.py` |
-| GraphQL test (manual) | `tests/graphql/test_cart_add_bulk_items.py` |
-| E2E test | `tests/e2e/test_cart_clear.py` |
-| REST API test | `tests/restapi/catalog/test_product.py` |
 
 ## Output Format
 
@@ -87,56 +66,54 @@ For each file, specify which existing file to use as a pattern reference:
 <1-2 sentences: what will be built and why>
 
 ## Prerequisites
-- [ ] <anything that must exist or be verified before starting>
+- [ ] <platform modules, seeded data, codegen, anything to verify first>
 
 ## Files to Create/Modify
 
-### Phase 1: Infrastructure (types, operations, pages)
+### Phase 1: Infrastructure
 
-#### 1. `<file_path>` (CREATE/MODIFY)
-- **Pattern reference:** `<existing_file_to_follow>`
-- **What:** <brief description>
-- **Details:**
-  - <specific class/method/field to add>
-  - <specific import to add>
-- **Skill to use:** `/create-graphql-layer` | `/create-ui-layer` | none
+#### 1. `<file path>` (CREATE/MODIFY)
+- **Pattern reference:** `<existing file>`
+- **What:** <operation, method, locator or action to add>
+- **Skill to use:** `/create-graphql-layer` | `/create-rest-client` | `/create-ui-layer` | none
 
-#### 2. `<file_path>` (CREATE/MODIFY)
-...
+### Phase 2: Test Data
 
-### Phase 2: Test Files
+#### N. `<file path>` (CREATE/MODIFY)
+- **Pattern reference:** `<existing file>`
+- **What:** <builder, arrange method with its cleanup, seed record, known issue>
 
-#### N. `<file_path>` (CREATE)
-- **Pattern reference:** `<existing_test_to_follow>`
-- **Test functions:**
-  - `test_<name>` — <what it verifies>
-  - `test_<name>` — <what it verifies>
-- **Markers:** `@pytest.mark.<type>`, `@pytest.mark.with_user(...)`, etc.
-- **Fixtures:** `graphql_client`, `ctx`, `make_product`, etc.
-- **Allure:** `@allure.feature("...")`, `@allure.title("...")`
-- **Skill to use:** `/write-graphql-test` | `/write-e2e-test` | `/write-rest-api-test`
+### Phase 3: Specs
 
-### Phase 3: Exports and Registration
-
-#### M. `<__init__.py path>` (MODIFY)
-- **What:** Add exports for new classes
+#### M. `<file path>` (CREATE/MODIFY)
+- **Pattern reference:** `<existing spec>`
+- **Allure:** epic `"<REST API | GraphQL | E2E>"`, feature `"<Area> / <Topic>"`, stories `<…>`
+- **describe blocks:** `"<topic> (<who>)"` with their `test.use(...)` (`user`, `shopperKind`)
+- **Tests:**
+  - `"<title>"` — <what it verifies>; arrange <arrange methods / dataset ids>; cleanup <arrange / cleanup.push / …Later>
+- **Markers:** <knownIssue(KNOWN_ISSUES.x) / isolated project / none>
+- **Skill to use:** `/write-rest-api-test` | `/write-graphql-test` | `/write-e2e-test`
 
 ## Verification Steps
-1. <how to run the tests>
-2. <what to check in the output>
-3. <any manual verification needed>
+1. `npm run typecheck` and `npm run check`
+2. `npx playwright test --list`
+3. The changed specs through their npm script against a seeded platform (`npm run seed` first if data changed)
+4. `npm run test:unit` when framework code changed
 
 ## Risks and Notes
-- <potential issues, edge cases, or things to watch out for>
+- <parallel-run interference, index lag, frontend settings, known defects>
 ```
 
 ## Planning Rules
 
-1. **Never propose a new file when an existing one can be extended** — check first
-2. **Always specify the pattern reference file** — the implementer should have a concrete example to follow
-3. **Always specify which skill to invoke** for each file creation step
-4. **Include `__init__.py` exports** — they're easy to forget
-5. **Plan verification** — how will we know the implementation is correct?
-6. **Order matters** — dependencies must be built before dependents
-7. **One test file per feature area** — don't scatter related tests across files
-8. **Include cleanup** — every test that creates data must have a cleanup strategy in the plan
+1. Never propose a new file when an existing one can be extended.
+2. Always name the pattern reference file and the skill for each file.
+3. Run codegen right after document changes; specs import the generated `…Document` constants.
+4. One spec file per topic; tests placed by platform module (users and accounts are `security`).
+5. Every change a test makes has its cleanup in the plan, registered before the change. Shared setup is an
+   `arrange` method, never a helper function in a spec.
+6. A test that changes a customer's own state creates its own customer (`arrange.customers.customerAccount()`,
+   or `shopperKind: "customer"` in e2e).
+7. Platform-wide changes (global settings, index, restart, store access) go to `tests/isolated/`.
+8. Respect the layers: no API calls in page objects, no page imports in `dataset`, specs import `test`, `expect`
+   and `knownIssue` from `@fixtures`.

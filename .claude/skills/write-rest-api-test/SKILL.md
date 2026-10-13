@@ -1,226 +1,159 @@
 ---
 name: write-rest-api-test
-description: "Scaffold REST API test files and factory fixture conftest files — admin auth, RestClient, factory fixtures with auto-teardown, Allure steps, CRUD patterns"
-argument-hint: "<module> <entity>"
+description: "Write REST API specs following project patterns — the api fixture signed in as a dataset user, api.rest clients, arrange for test data, cleanup registered before the change, arrange/act/assert steps, Allure epic/feature/story"
+argument-hint: "<platform-module> <test-scenario>"
 ---
 
-## REST API Test Scaffolding
+## REST API Spec Writing
 
-When writing a REST API test, follow these patterns exactly.
+Specs live in `tests/restapi/<platform-module>/<topic>.spec.ts` and run in the `restapi` project. Place them by
+platform module: users, roles and API keys are `security`, not `customer`. A test that changes platform-wide state
+(global settings, index, restart, store access) goes to `tests/isolated/restapi/` instead.
 
-## Required Imports
+Read first: CLAUDE.md "Writing tests", README "A REST test" and "Cleaning up". Copy the shape of
+`tests/restapi/pricing/pricelists.spec.ts`.
 
-```python
-import uuid
+## Step 1: Find the Building Blocks
 
-import allure
-import pytest
-from requests.exceptions import HTTPError
+- Client method: `api.rest.<module>.<resource>.<method>` (`api/rest/rest-api.ts` lists every client). Missing one?
+  Add it with `/create-rest-client`.
+- Test data: `arrange.<domain>.<x>()` (`dataset/arrange/`, domains in README "`arrange` domains"). Missing one?
+  Add a method to the domain file, on top of a builder in `dataset/builders/`.
+- Seeded records: `dataset.<collection>.get(id)`; ids from `dataset/data/<collection>/*.json`.
+- Known defect: an entry in `dataset/known-issues.ts`.
 
-from restapi.operations import ProductOperations  # domain-specific operations
+## Step 2: Write the Spec
+
+```ts
+import * as allure from "allure-js-commons";
+
+import { newPricelist } from "@dataset/builders/pricing";
+import { expect, test } from "@fixtures";
+
+test.beforeEach(async () => {
+  await allure.epic("REST API");
+  await allure.feature("Pricing / Pricelists");
+});
+
+test.describe("pricelists (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
+
+  test("create a pricelist", async ({ api, cleanup, store }) => {
+    await allure.story("Create");
+    await allure.description("A new pricelist has its name and the store's currency.");
+    const draft = newPricelist(store.defaultCurrency);
+    cleanup.push(`delete pricelist ${draft.name}`, () => api.rest.pricing.pricelists.delete([draft.id]));
+
+    const pricelist = await test.step("act: create a pricelist", () => api.rest.pricing.pricelists.create(draft));
+
+    await test.step(`assert: the pricelist is in ${store.defaultCurrency}`, () => {
+      expect(pricelist).toMatchObject({ name: draft.name, currency: store.defaultCurrency });
+    });
+  });
+
+  test("delete a pricelist", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A deleted pricelist cannot be read by its id.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+
+    await test.step("act: delete the pricelist", () => api.rest.pricing.pricelists.delete([pricelist.id]));
+
+    await test.step("assert: the pricelist is not found by id", async () => {
+      expect(await api.rest.pricing.pricelists.find(pricelist.id)).toBeUndefined();
+    });
+  });
+});
 ```
 
-## Allure Conventions
+- `allure.epic("REST API")` and `allure.feature("<Module> / <Topic>")` in `beforeEach`; `allure.story` and
+  `allure.description` first in each test.
+- `test.describe("<topic> (<who>)")`, one per identity: `(store administrator)`, `(anonymous)`,
+  `(customer of their own)`.
+- `test.use({ user: "<dataset user name>" })` signs `api` in; without it `api` is anonymous. Another identity in
+  the same test: `await api.as(userName)`, `api.anonymous()`.
+- `arrange` creates as the store administrator and removes the data after the test. `arrange.admin` reads platform
+  state in assertions when `api` is a less privileged user.
+- When the create is the action under test, build the draft (`newX()` sets a client-side `id`) and push the
+  undo on `cleanup` before the call.
 
-```python
-@allure.feature("<Module> / <Entity> (REST API)")  # e.g., "Catalog / Products (REST API)"
-@allure.title("<Action>")                           # e.g., "Create product"
-with allure.step("<HTTP method> <endpoint>"):        # e.g., "POST /api/catalog/products"
-with allure.step("Verify response"):                 # verification step
+## Step 3: Pick the Pattern
+
+**Expected errors.**
+
+```ts
+await expect(api.rest.content.folders.create("pages", name)).rejects.toBeHttpError(400, reason);
+await expect(api.rest.catalog.categories.get(id)).rejects.toBeHttpError(404);
 ```
 
-## Complete CRUD Test Example
+**Missing records.** `find(id)` returns `undefined`; `get(id)` throws. Prove a deletion with `find(id)`, never
+with a search.
 
-```python
-@pytest.mark.restapi
-@allure.feature("Catalog / Products (REST API)")
-@allure.title("Create product")
-def test_product_create(make_product):
-    with allure.step("POST /api/catalog/products"):
-        product = make_product()
+**Security results.** `expect(result.succeeded).toBe(true)`, or
+`expect(result).toMatchObject({ succeeded: false, errors: [...] })` for a rejection.
 
-    with allure.step("Verify response"):
-        assert product["id"], "Product id missing"
-        assert product["name"].startswith("QAProduct_")
-        assert product["code"].startswith("QA-SKU-")
-        assert product["catalogId"]
-        assert product["categoryId"]
+**Repeated cases.** One table, one loop; rows may hold small lambdas (see
+`tests/restapi/marketing/dynamic-content.spec.ts`):
 
+```ts
+const CONTENT_KINDS = [
+  { kind: "folders", record: "content folder" },
+  { kind: "items", record: "content item" },
+] as const;
 
-@pytest.mark.restapi
-@allure.feature("Catalog / Products (REST API)")
-@allure.title("Update product — rename and change dimensions")
-def test_product_update(make_product, product_ops: ProductOperations):
-    product = make_product()
-    new_name = f"{product['name']}_UPD_{uuid.uuid4().hex[:4]}"
-
-    with allure.step(f"POST /api/catalog/products — rename to {new_name}, weight=2.5"):
-        product_ops.update(product, name=new_name, weight="2.5")
-
-    with allure.step("Verify update via GET"):
-        reloaded = product_ops.get_by_id(product["id"])
-        assert reloaded["name"] == new_name
-
-
-@pytest.mark.restapi
-@allure.feature("Catalog / Products (REST API)")
-@allure.title("Get product by id")
-def test_product_get_by_id(make_product, product_ops: ProductOperations):
-    product = make_product()
-
-    with allure.step(f"GET /api/catalog/products?ids={product['id']}"):
-        reloaded = product_ops.get_by_id(product["id"])
-
-    with allure.step("Verify fields match"):
-        assert reloaded["id"] == product["id"]
-        assert reloaded["name"] == product["name"]
-        assert reloaded["code"] == product["code"]
-
-
-@pytest.mark.restapi
-@allure.feature("Catalog / Products (REST API)")
-@allure.title("Delete product")
-def test_product_delete(make_product, product_ops: ProductOperations):
-    product = make_product()
-
-    with allure.step(f"POST /api/catalog/listentries/delete — objectIds=[{product['id']}]"):
-        product_ops.delete(product["id"])
-
-    with allure.step("Verify product no longer returned by GET"):
-        try:
-            results = product_ops.get_by_ids([product["id"]])
-        except HTTPError as e:
-            assert e.response.status_code in (404, 204)
-        else:
-            ids = [r.get("id") for r in (results or [])]
-            assert product["id"] not in ids
+for (const { kind, record } of CONTENT_KINDS) {
+  test(`get a ${record} by id`, async ({ api, arrange }) => { … });
+}
 ```
 
-## Conftest Layering
+**Index-backed reads.** Wait in `arrange` (e.g. `arrange.customers.searchableMemberships`) or poll:
 
-REST API tests use two levels of conftest:
-
-### Level 1: `tests/restapi/conftest.py` — shared admin auth and client
-
-```python
-from typing import Generator
-import pytest
-from core.auth import AuthProvider
-from core.clients.rest import RestClient
-from core.global_settings import GlobalSettings
-
-@pytest.fixture(scope="session")
-def admin_auth(global_settings: GlobalSettings) -> AuthProvider:
-    provider = AuthProvider(global_settings.backend_base_url)
-    provider.sign_in(global_settings.admin_username, global_settings.admin_password)
-    return provider
-
-@pytest.fixture
-def rest_client(global_settings: GlobalSettings, admin_auth: AuthProvider) -> Generator[RestClient, None, None]:
-    with RestClient(global_settings=global_settings, auth=admin_auth) as client:
-        yield client
-
-@pytest.fixture(scope="session")
-def backend_base_url(global_settings: GlobalSettings) -> str:
-    return global_settings.backend_base_url
+```ts
+await expect
+  .poll(async () => (await api.rest.customers.members.search({ keyword })).map(({ id }) => id), {
+    timeout: INDEX_LAG_TIMEOUT_MS,
+  })
+  .toContain(member.id);
 ```
 
-### Level 2: `tests/restapi/<module>/conftest.py` — factory fixtures
+**Store settings.** `arrange.platform.storeSetting(name, value)` restores the old value after the test. Global
+settings (`arrange.platform.setting`, `allowedValue`, `restoreSettingLater`) are for `tests/isolated/` only.
 
-```python
-import uuid
-from typing import Any, Callable, Generator
-import pytest
-from core.clients.rest import RestClient
-from restapi.operations import CatalogOperations, CategoryOperations, ProductOperations
+**Known defects.** Add the entry to `dataset/known-issues.ts`, then start the test with it:
 
-@pytest.fixture
-def catalog_ops(rest_client: RestClient, backend_base_url: str) -> CatalogOperations:
-    return CatalogOperations(rest_client, backend_base_url)
+```ts
+import { KNOWN_ISSUES } from "@dataset/known-issues";
+import { expect, knownIssue, test } from "@fixtures";
 
-@pytest.fixture
-def product_ops(rest_client: RestClient, backend_base_url: str) -> ProductOperations:
-    return ProductOperations(rest_client, backend_base_url)
-
-@pytest.fixture
-def make_product(
-    product_ops: ProductOperations,
-    make_category: Callable[..., dict],
-) -> Generator[Callable[..., dict], None, None]:
-    """Factory: creates a product per call, auto-cleans at teardown."""
-    created_ids: list[str] = []
-
-    def _make(*, category: dict | None = None, **overrides: Any) -> dict:
-        if category is None:
-            category = make_category()
-        name = overrides.pop("name", f"QAProduct_{uuid.uuid4().hex[:8]}")
-        code = overrides.pop("code", f"QA-SKU-{uuid.uuid4().hex[:8].upper()}")
-        product = product_ops.create(
-            catalog_id=category["catalogId"],
-            category_id=category["id"],
-            name=name, code=code, **overrides,
-        )
-        created_ids.append(product["id"])
-        return product
-
-    yield _make
-
-    for pid in created_ids:
-        try:
-            product_ops.delete(pid)
-        except Exception:
-            pass
+await knownIssue(KNOWN_ISSUES.channelSearchIgnoresFilters);
 ```
 
-## Factory Fixture Pattern
+## Assertions
 
-The factory pattern is the standard for REST API test fixtures:
-
-1. **Operations fixture** — function-scoped, wraps RestClient + backend URL
-2. **Factory fixture** — yields a callable `_make(**overrides)`, tracks created IDs, deletes all at teardown
-3. **Chained factories** — `make_product` depends on `make_category` which depends on `make_catalog`
-4. **Silent cleanup** — `except Exception: pass` in teardown loops
-5. **Default names** — `f"QA{Entity}_{uuid.uuid4().hex[:8]}"` for unique resource names
-
-## Available Fixtures
-
-| Fixture | Scope | Description |
-|---------|-------|-------------|
-| `admin_auth: AuthProvider` | session | Signed in as admin |
-| `rest_client: RestClient` | function | Auto-closed via context manager |
-| `backend_base_url: str` | session | For operations constructors |
-| `<entity>_ops: <Entity>Operations` | function | Operations class instance |
-| `make_<entity>: Callable[..., dict]` | function | Factory with auto-cleanup |
-
-## Assertion Patterns
-
-```python
-# Raw dict assertions
-assert product["id"], "Product id missing"
-assert product["name"].startswith("QAProduct_")
-assert reloaded["name"] == new_name
-
-# Error assertions
-from requests.exceptions import HTTPError
-try:
-    results = ops.get_by_ids([deleted_id])
-except HTTPError as e:
-    assert e.response.status_code in (404, 204)
-
-# Truthiness for required fields
-assert product["catalogId"]
-assert product["categoryId"]
+```ts
+expect(entity).toMatchObject({ name: draft.name });         // fields the test controls
+expect(found.map(({ id }) => id)).toContain(entity.id);     // own record in a search result
+expect(await client.find(id)).toBeUndefined();              // a deletion
 ```
+
+Never `toEqual([...])` on a whole search result: other tests create data in parallel.
 
 ## Rules
 
-1. Every test function MUST have `@pytest.mark.restapi`
-2. Every test function MUST have `@allure.feature()` and `@allure.title()`
-3. Every test body MUST use `with allure.step()` for HTTP calls and verification
-4. Use factory fixtures (`make_product`) — don't manually create and clean up
-5. Factory fixtures auto-create dependencies (catalog/category) if not provided
-6. Return type annotation: `def test_...(fixtures) -> None:`
-7. Use `@pytest.mark.serial` for tests that mutate global platform state
-8. Use `@pytest.mark.destructive` for tests that restart the platform or drop global state (search index, etc.) — these are excluded from default CI runs
-9. Tests work with raw dicts — not Pydantic models
-10. Use `uuid.uuid4().hex[:8]` for unique names in test data
+1. `test`, `expect`, `knownIssue` from `@fixtures`; never from `@playwright/test`.
+2. Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`.
+3. No conditionals, `as` casts or helper functions in the spec; constants at module level in `UPPER_SNAKE_CASE`.
+4. Seeded data from `dataset`; created data from `arrange` or a builder; unique names come from builders.
+5. Cleanup registered before the change; `arrange` does it for you. A `…Later` method registers the removal of
+   what the code under test creates.
+6. Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
+7. No sleeps; index lag is waited for in `arrange` or with `INDEX_LAG_TIMEOUT_MS`.
+8. No code comments.
+
+## Verify
+
+```shell
+npm run typecheck && npm run check
+npm run test:restapi -- tests/restapi/<platform-module>/<topic>.spec.ts
+```
+
+Update TESTS.md when the test replaces, merges or drops a test of the old suite.

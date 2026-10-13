@@ -1,0 +1,27 @@
+{
+  "productId": "product-ssd-adata-legend-960-pcie-40-nvme-m2-4096gb",
+  "product": {
+    "id": "product-ssd-adata-legend-960-pcie-40-nvme-m2-4096gb",
+    "name": "ADATA Legend 960 PCIe 4.0 NVMe M.2 SSD 4096GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-ssd-adata-legend-960-pcie-40-nvme-m2-4096gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 286.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-ssd-adata-legend-960-pcie-40-nvme-m2-4096gb"
+    },
+    {
+      "id": "price-acme-eur-ssd-adata-legend-960-pcie-40-nvme-m2-4096gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 266.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-ssd-adata-legend-960-pcie-40-nvme-m2-4096gb"
+    }
+  ]
+}

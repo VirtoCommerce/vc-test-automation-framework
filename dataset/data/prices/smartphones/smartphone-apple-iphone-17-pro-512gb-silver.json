@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-apple-iphone-17-pro-512gb-silver",
+  "product": {
+    "id": "product-smartphone-apple-iphone-17-pro-512gb-silver",
+    "name": "Apple iPhone 17 Pro 512 Gb Silver"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-apple-iphone-17-pro-512gb-silver",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 1299.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-apple-iphone-17-pro-512gb-silver"
+    },
+    {
+      "id": "price-acme-eur-smartphone-apple-iphone-17-pro-512gb-silver",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 1208.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-apple-iphone-17-pro-512gb-silver"
+    }
+  ]
+}

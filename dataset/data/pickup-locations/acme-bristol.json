@@ -1,0 +1,21 @@
+{
+  "id": "pickup-location-acme-bristol",
+  "name": "Westfield World Trade Center",
+  "description": "World Trade Center",
+  "storeId": "${ENV:STORE_ID}",
+  "geoLocation": "51.41899668167562, -2.5887099717970674",
+  "isActive": true,
+  "fulfillmentCenterId": "fulfillment-center-canada-mapleroute-distribution-hub",
+  "transferFulfillmentCenterIds": [
+    "fulfillment-center-germany-euroflow-distribution-center",
+    "fulfillment-center-sweden-nordicstream-fulfillment"
+  ],
+  "address": {
+    "addressType": "Shipping",
+    "city": "Bristol",
+    "countryCode": "GBR",
+    "countryName": "United Kingdom",
+    "line1": "Roman Farm Road",
+    "postalCode": "BS4 1UN"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "page-acme-legacy-catalog",
+  "name": "legacy-catalog",
+  "permalink": "/legacy-catalog",
+  "storeId": "${ENV:STORE_ID}",
+  "cultureName": "en-US",
+  "status": "Archived",
+  "visibility": true
+}

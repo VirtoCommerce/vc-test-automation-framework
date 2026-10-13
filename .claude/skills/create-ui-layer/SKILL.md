@@ -1,226 +1,159 @@
 ---
 name: create-ui-layer
-description: "Create Page Objects (MainLayout/CheckoutLayout subclasses) and UI Components (Component subclasses) with Playwright locators and data-test-id conventions"
+description: "Create frontend page objects (FrontendPage subclasses, components, the Frontend factory) and page builder shell objects (Blade, DataGrid controls) with readonly Playwright locators, data-test-id selectors and actions that hide frontend settings from specs"
 argument-hint: "<page-or-component>"
 ---
 
-## UI Layer Scaffolding
+## UI Layer
 
-When creating Page Objects or UI Components, follow these patterns exactly.
+Page objects live in `pages/` and import only `core` and Playwright types (`biome/layers.json`): locators and
+user actions, no API calls, no test data. Specs hold no selectors, so every locator a test needs lives here.
 
 ## File Locations
 
-- Layouts: `page_objects/layouts/<layout>.py`
-- Pages: `page_objects/pages/<page>.py`
-- Components: `page_objects/components/<component>.py`
-- Exports: `page_objects/pages/__init__.py`, `page_objects/components/__init__.py`
+- Frontend factory: `pages/frontend/frontend.ts` (`Frontend`, the `frontend` fixture)
+- Frontend pages: `pages/frontend/pages/` — `layout.ts` (`FrontendPage`), `cart-pages.ts` (`CartPage`,
+  `SavedForLaterPage`, `CheckoutFlow`), `catalog-pages.ts`, `account-pages.ts`, `site-pages.ts`
+- Frontend components: `pages/frontend/components/` — `controls.ts` (`QuantityControl`, `ConfirmationModal`,
+  `Chip`, `DropdownFilter`), `product.ts`, `address.ts`, `checkout.ts`, `header.ts`, `wishlist.ts`
+- Admin UI building blocks: `pages/backend/shell/controls.ts` (`Blade`, `DataGrid`, `GridRow`, `Select`,
+  `DatePicker`, `Card`, `AppMenu`, `Notifications`, `ConfirmationPopup`)
+- Page builder: `pages/backend/page-builder/page-builder.ts` (`PageBuilderShell`, the `pageBuilder` fixture;
+  `PagesListBlade`, `PageDetailsBlade`, `Route`, `Column`)
+- Shared helpers: `pages/selectors.ts` (`isGraphqlOperation`, `exactText`, `startsWithText`, `attributeSelector`)
 
-## Layout Base Class
+## Step 1: Check What Exists
 
-Layouts provide shared UI sections (header, footer). Pages extend layouts.
+Search the files above first. Often a component exists and needs one more locator, or a page needs a
+method.
 
-```python
-from playwright.sync_api import Locator, Page
-from core.global_settings import GlobalSettings
-from page_objects.components.top_header import TopHeader
+## Step 2: Page
 
-class MainLayout:
-    def __init__(self, page: Page, global_settings: GlobalSettings) -> None:
-        self._global_settings = global_settings
-        self._page = page
+```ts
+export class CartPage extends FrontendPage {
+  readonly path = "/cart";
+  readonly products: Locator;
+  readonly lineItems: Locator;
+  readonly clearCartButton: Locator;
+  readonly clearCartModal: ConfirmationModal;
+  readonly #quantityControl: QuantityControlKind;
 
-    @property
-    def root(self) -> Locator:
-        return self._page.locator(".main-layout")
+  constructor(page: Page, quantityControl: QuantityControlKind) {
+    super(page);
+    this.#quantityControl = quantityControl;
+    this.products = page.locator("[data-test-id='cart.products-section']");
+    this.lineItems = productItems(this.products);
+    this.clearCartButton = page.locator("[data-test-id='clear-cart-button']");
+    this.clearCartModal = new ConfirmationModal(
+      page.locator("[data-test-id='clear-cart-modal']"),
+      "yes-button",
+      "no-button",
+    );
+  }
 
-    @property
-    def top_header(self) -> TopHeader:
-        return TopHeader(root=self._page.locator("[data-test-id='top-header']"))
-
-    @property
-    def cart_quantity_label(self) -> Locator:
-        return self._page.locator(
-            "[data-test-id='desktop-main-menu-cart-link'] .vc-badge__content"
-        )
-
-    def click_outside(self) -> None:
-        self._page.locator("body").click()
+  /** @param sku - Product SKU. */
+  lineItem(sku: string): LineItem {
+    return new LineItem(productItem(this.products, sku), this.#quantityControl);
+  }
+}
 ```
 
-## Page Object Pattern
+- Frontend pages extend `FrontendPage` and declare a relative `path` (`baseURL` is set by the project);
+  `navigate()` goes there and waits for `load`.
+- A page with a variable path takes it in the constructor (`ContentPage`, `CategoryPage`).
+- Add a factory method to `Frontend` for every new page, passing the settings it needs
+  (`this.settings.quantityControl`, `rangeFilterType`, `checkoutMode`). Shared modals are `Frontend` fields.
 
-Pages extend a layout and add page-specific elements and actions.
+## Step 3: Component
 
-```python
-from playwright.sync_api import Locator
-from page_objects.components.line_item import LineItem
-from page_objects.components.shipping_details_section import ShippingDetailsSection
-from page_objects.layouts.main import MainLayout
+```ts
+export class ConfirmationModal {
+  readonly root: Locator;
+  readonly confirmButton: Locator;
+  readonly cancelButton: Locator;
 
-class CartPage(MainLayout):
-    @property
-    def url(self) -> str:
-        return f"{self._global_settings.frontend_base_url}/cart"
-
-    @property
-    def shipping_details_section(self) -> ShippingDetailsSection:
-        return ShippingDetailsSection(
-            root=self._page.locator("[data-test-id='shipping-details-section']")
-        )
-
-    @property
-    def line_items(self) -> Locator:
-        return self._page.locator("[data-product-sku]")
-
-    @property
-    def clear_cart_button(self) -> Locator:
-        return self._page.locator("[data-test-id='clear-cart-button']")
-
-    @property
-    def checkout_button(self) -> Locator:
-        return self._page.locator("[data-test-id='checkout-button']")
-
-    def find_line_item(self, sku: str) -> LineItem:
-        return LineItem(root=self._page.locator(f"[data-product-sku='{sku}']"))
-
-    def navigate(self) -> None:
-        self._page.goto(url=self.url, wait_until="load")
+  constructor(root: Locator, confirmButtonId: string, cancelButtonId: string) {
+    this.root = root;
+    this.confirmButton = root.locator(`[data-test-id='${confirmButtonId}']`);
+    this.cancelButton = root.locator(`[data-test-id='${cancelButtonId}']`);
+  }
+}
 ```
 
-**Key patterns:**
-- Extend `MainLayout` (or `CheckoutLayout` for checkout pages)
-- `url` property from `self._global_settings.frontend_base_url`
-- `navigate()` uses `wait_until="load"` (not `networkidle`)
-- Element properties return `Locator` or child `Component`
-- `find_*` methods return components for dynamic elements
-- No assertions in page objects — only element access and actions
+- Every component takes its `root: Locator`; child locators are relative to it.
+- Extra constructor data only when the markup or a setting needs it (`ProductCard(root, sku, kind)`).
+- Admin UI blades extend `Blade` and use its helpers (`toolbarButton`, `card`, `textInput`, `select`,
+  `datePicker`, `grid`).
 
-## Component Base Class
+## Step 4: Hide Frontend Settings
 
-```python
-from playwright.sync_api import Locator
+The frontend runs with `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE` and `CHECKOUT_MODE`. The page object takes the
+setting in its constructor, keeps it in a `readonly #private` field and branches inside, so specs never do. See
+`QuantityControl#setQuantity` and `CheckoutFlow#start`:
 
-class Component:
-    def __init__(self, root: Locator) -> None:
-        self._root = root
-
-    @property
-    def root(self) -> Locator:
-        return self._root
+```ts
+/** Opens the cart (and in multi-step mode clicks checkout), then waits for the shipping section. */
+async start(): Promise<void> {
+  await this.cartPage.navigate();
+  if (this.mode === "multi-step") {
+    await this.cartPage.checkoutButton.click();
+  }
+  await this.shippingDetails.root.waitFor();
+}
 ```
 
-Do not add a `wait_for_results()` (or any `wait_for_load_state("networkidle")`) helper. `networkidle` is discouraged by Playwright and hangs on apps with WebSocket/polling traffic. Tests should wait via explicit `expect(locator).to_be_visible()` / `to_have_count(N)` assertions on the specific element they care about — Playwright's auto-wait covers the legitimate cases.
+## Step 5: Actions
 
-## Concrete Component Pattern
+Methods for multi-step interactions. They wait for the state or response they produce, never for time, and the
+JSDoc says what they wait for:
 
-```python
-from playwright.sync_api import Locator
-from page_objects.components.component import Component
-from page_objects.components.add_to_cart_button import AddToCartButton
-from page_objects.components.quantity_stepper import QuantityStepper
-from page_objects.components.line_item import LineItem
-
-class ProductCard(Component):
-    @property
-    def sku(self) -> str | None:
-        return self._root.get_attribute("data-product-sku")
-
-    @property
-    def quantity_stepper(self) -> QuantityStepper:
-        return QuantityStepper(
-            root=self._root.locator("[data-test-id='quantity-stepper']")
-        )
-
-    @property
-    def add_to_cart_button(self) -> AddToCartButton:
-        return AddToCartButton(
-            root=self._root.locator("[data-test-id='add-to-cart-button']")
-        )
-
-    @property
-    def variations_button(self) -> Locator:
-        return self._root.locator(
-            f"[data-test-id='variations-{self.sku}-button']"
-        ).first
-
-    def find_variation_item(self, sku: str) -> LineItem:
-        return LineItem(root=self._root.locator(f"[data-item-sku='{sku}']"))
+```ts
+/** Clicks save and waits for the save response (POST/PUT), whatever its status; assert the outcome after. */
+async save(): Promise<void> {
+  await Promise.all([
+    this.root
+      .page()
+      .waitForResponse(
+        (response) =>
+          ["POST", "PUT"].includes(response.request().method()) &&
+          new URL(response.url()).pathname.startsWith(SAVE_PATH),
+      ),
+    this.saveButton.click(),
+  ]);
+}
 ```
 
-## Simple Component (Modal Example)
-
-```python
-from playwright.sync_api import Locator
-from page_objects.components.component import Component
-
-class ClearCartModal(Component):
-    @property
-    def yes_button(self) -> Locator:
-        return self._root.locator("[data-test-id='yes-button']")
-
-    @property
-    def no_button(self) -> Locator:
-        return self._root.locator("[data-test-id='no-button']")
-```
-
-## BrowserStorage Helper
-
-```python
-from page_objects.browser_storage import BrowserStorage
-
-storage = BrowserStorage(page)
-storage.set_user_id(user_id)                # Anonymous cart association
-storage.set_auth(provider.token_info)       # Inject auth token
-user_id = storage.get_user_id()             # Read from localStorage
-```
+- An action that can open a new tab returns the `Page` the user ends up on (`ProductCard#openConfigurations`).
+- `expect` from `@playwright/test` may be used inside an action to wait for a state (`expect.poll`, `toPass`);
+  page objects never assert test outcomes.
 
 ## Locator Conventions
 
-```python
-# Primary: data-test-id attributes
-self._page.locator("[data-test-id='clear-cart-button']")
-
-# Data attributes for element state
-self._root.get_attribute("data-product-sku")
-
-# Dynamic locators with interpolation
-self._page.locator(f"[data-product-sku='{sku}']")
-
-# Scoped to component root
-self._root.locator("[data-test-id='quantity-stepper']")
-
-# First match for non-unique elements
-self._root.locator(f"[data-test-id='variations-{self.sku}-button']").first
-
-# CSS class fallback (only when data-test-id unavailable)
-self._page.locator(".main-layout")
+```ts
+page.locator("[data-test-id='clear-cart-button']")      // first choice
+root.locator(`[data-item-sku='${sku}']`)                  // data attributes for item identity
+root.locator(".vc-blade-header__title")                   // vc-shell / theme classes when there is no test id
+locator.filter({ hasText: exactText(name) })              // narrowing by text; exactText when names share prefixes
 ```
 
-## __init__.py Exports
-
-```python
-# page_objects/pages/__init__.py
-from page_objects.pages.cart import CartPage
-from page_objects.pages.home import HomePage
-from page_objects.pages.sign_in import SignInPage
-
-# page_objects/components/__init__.py
-from page_objects.components.clear_cart_modal import ClearCartModal
-from page_objects.components.line_item import LineItem
-from page_objects.components.product_card import ProductCard
-```
+- `.first()` / `.nth()` only when the markup repeats an element by design, never to pick a list item by position.
 
 ## Rules
 
-1. Pages extend a layout (`MainLayout` or `CheckoutLayout`) — never standalone
-2. Components extend `Component` base class — constructor: `__init__(self, root: Locator)`
-3. Instantiate with keyword args: `CartPage(global_settings=global_settings, page=page)`
-4. Components instantiated with: `LineItem(root=locator)`
-5. Use `@property` for all element locators and child components
-6. All locators relative to `self._root` in components, `self._page` in pages
-7. Use `data-test-id` attributes — prefer over CSS selectors or XPath
-8. `navigate()` uses `wait_until="load"` (not `networkidle`)
-9. No assertions or test logic in page objects/components
-10. No `time.sleep()` and no `networkidle` waits — wait via explicit `expect()` assertions on specific locators
-11. Add new pages/components to `__init__.py` exports
-12. Type annotations on all properties: `-> Locator`, `-> str | None`, `-> ChildComponent`
+1. Public locators and child components are `readonly` fields assigned in the constructor; other state is
+   `readonly #private`.
+2. `data-test-id` first; ask for a test id in the frontend when a stable one is missing.
+3. No test assertions, API calls or test data; imports only from `core`, Playwright and `pages/`.
+4. No `waitForTimeout`, no `networkidle`; wait for locators, states or responses.
+5. Settings-dependent behavior is hidden in the page object; specs never branch or skip on settings.
+6. Named exports; function declarations for exported helpers; short JSDoc for waits and side effects; no
+   comments.
+
+## Verify
+
+```shell
+npm run typecheck && npm run check
+npm run test:e2e:frontend -- <a spec that uses the page object>
+```
+
+Run the spec with each relevant setting value (e.g. `QUANTITY_CONTROL=button`) when the page object branches on it.

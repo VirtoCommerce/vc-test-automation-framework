@@ -22,24 +22,24 @@ Spawn the `qa-planner` agent and ask it to invoke the `/plan-test-strategy` skil
 
 The agent should:
 - Analyze the requirement
-- Explore existing test coverage in the codebase
-- Produce a structured test strategy (test cases, types, priorities, data needs)
+- Explore existing specs under `tests/`, TESTS.md, and the reusable building blocks (REST clients, `.graphql` documents, page objects, `dataset/arrange`, `dataset/builders`, `dataset/data`, `dataset/known-issues.ts`)
+- Produce a structured test strategy (test cases, projects, identities, priorities, data needs, known issues)
 
 ### 2. Implementation Plan
 
-After the test strategy is complete, ask the `qa-planner` agent to invoke the `/plan-implementation` skill using the strategy it just produced.
+After the strategy is complete, ask the `qa-planner` agent to invoke the `/plan-implementation` skill using the strategy it just produced.
 
 The agent should:
 - Identify all files to create or modify
-- Determine implementation order (dependencies first)
-- Reference existing patterns for each file
-- Specify which skills the implementer should use
+- Order them by dependency (documents and codegen, clients and types, page objects, builders and `arrange` methods, known issues, then specs, then TESTS.md)
+- Name the existing file each new file should follow
+- Specify which skill the implementer should use for each file
 
 ### 3. Output
 
 Present the combined result to the user:
 1. **Test Strategy** — what to test, priorities, coverage matrix
-2. **Implementation Plan** — file-by-file steps with pattern references
+2. **Implementation Plan** — file-by-file steps with pattern references and verification commands
 
 End with:
 ```

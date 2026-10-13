@@ -1,0 +1,24 @@
+{
+  "id": "organization-other-store",
+  "name": "Other Store",
+  "description": "An organization no ACME user belongs to, for checks across organizations",
+  "memberType": "Organization",
+  "status": "Approved",
+  "emails": ["store@other-store.com"],
+  "phones": ["+1-312-555-0142"],
+  "addresses": [
+    {
+      "id": "address-other-store",
+      "addressType": "BillingAndShipping",
+      "city": "Chicago",
+      "countryCode": "USA",
+      "countryName": "United States of America",
+      "email": "store@other-store.com",
+      "line1": "200 W Madison St",
+      "phone": "+1-312-555-0142",
+      "postalCode": "60606",
+      "regionId": "IL",
+      "regionName": "Illinois"
+    }
+  ]
+}

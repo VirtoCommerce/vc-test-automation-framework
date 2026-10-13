@@ -1,137 +1,139 @@
 ---
 name: write-graphql-test
-description: "Scaffold GraphQL API test files following project patterns — markers, fixtures, Allure decorators, Pydantic assertions, try-finally cleanup"
-argument-hint: "<domain> <test-scenario>"
+description: "Write xAPI GraphQL specs following project patterns — typed documents through api.graphql.execute, api.storeContext(), customers and carts from arrange, cleanup registered before the change, arrange/act/assert steps, Allure epic/feature/story"
+argument-hint: "<area> <test-scenario>"
 ---
 
-## GraphQL Test Scaffolding
+## GraphQL Spec Writing
 
-When writing a GraphQL test, follow these patterns exactly.
+Specs live in `tests/graphql/<area>/<topic>.spec.ts` (areas: cart, catalog, customer, orders, pickup, quotes,
+security) and run in the `graphql` project. A test that changes platform-wide state goes to
+`tests/isolated/graphql/`.
 
-## Required Imports
+Read first: CLAUDE.md "Writing tests", README "A GraphQL test". Copy the shape of
+`tests/graphql/cart/cart-items.spec.ts`.
 
-```python
-import allure
-import pytest
+## Step 1: Find the Building Blocks
 
-from core.clients import GraphQLClient
-from gql.operations import CartOperations  # or domain-specific operations
-from gql.types import Cart, CartItemInput   # or domain-specific types
-from tests.context import Context
-from utils.line_item_utils import has_line_item  # cart-specific helper
+- Document: `api/graphql/operations/<area>/*.graphql`; import the generated `…Document` from
+  `@api/graphql/generated/graphql`. Missing one? Add it with `/create-graphql-layer`.
+- Test data: `arrange.carts`, `arrange.customers`, `arrange.orders`, `arrange.pickup`, … (`dataset/arrange/`).
+- Seeded records: `dataset.products.get(id)` and the like; stock helpers in `@dataset/stock`.
+- Line items: `lineItemOf(cart, productId)` from `@api/graphql/line-items`.
+
+## Step 2: Choose Who Calls
+
+| Need | Use |
+|---|---|
+| Anonymous shopper | `api` (fresh user id per test, so carts never collide) |
+| Read-only checks as a dataset user | `test.use({ user: "<dataset user name>" })`, then `api` |
+| Anything that changes a customer's own state (cart, lists, addresses, locks, orders) | `const customer = await arrange.customers.customerAccount()`, then `customer.api` |
+| An organization maintainer | `arrange.customers.customerAccount({ role: "role-org-maintainer" })` |
+| A colleague in the same organization | `arrange.customers.customerAccount({ organizationId: customer.organizationId })` |
+
+## Step 3: Write the Spec
+
+```ts
+import * as allure from "allure-js-commons";
+
+import { AddItemDocument, RemoveCartItemDocument } from "@api/graphql/generated/graphql";
+import { lineItemOf } from "@api/graphql/line-items";
+import { requireFields } from "@core/required-fields";
+import { uniqueId } from "@core/unique-id";
+import { expect, test } from "@fixtures";
+
+const PRODUCT_ID = "product-smartphone-apple-iphone-17-256gb-black";
+
+test.beforeEach(async () => {
+  await allure.epic("GraphQL");
+  await allure.feature("Cart / Items");
+});
+
+test.describe("cart items (anonymous)", () => {
+  test("add a single product to a new cart", async ({ api, arrange }) => {
+    await allure.story("Add items");
+    await allure.description("Adding one product with AddItem creates a cart of the shopper holding it.");
+    const context = await api.storeContext();
+
+    const { addItem } = await test.step("act: add the product ×1", () =>
+      api.graphql.execute(AddItemDocument, {
+        command: { ...context, cartName: uniqueId("test-cart"), productId: PRODUCT_ID, quantity: 1 },
+      }));
+    const cart = requireFields(addItem, ["id"], "Cart with the product");
+    await arrange.carts.removeCartLater(api, cart.id);
+
+    await test.step("assert: a cart of the shopper holds the product ×1", () => {
+      expect(cart).toMatchObject({ customerId: context.userId, itemsQuantity: 1 });
+      expect(lineItemOf(cart, PRODUCT_ID).quantity).toBe(1);
+    });
+  });
+
+  test("remove a line item", async ({ api, arrange }) => {
+    await allure.story("Remove items");
+    await allure.description("Removing the only line item leaves an empty cart.");
+    const cart = await test.step("arrange: cart with a product", () =>
+      arrange.carts.cart(api, [{ productId: PRODUCT_ID, quantity: 1 }]));
+
+    const { removeCartItem } = await test.step("act: remove the line item", async () =>
+      api.graphql.execute(RemoveCartItemDocument, {
+        command: { ...(await api.storeContext()), cartId: cart.id, lineItemId: lineItemOf(cart, PRODUCT_ID).id },
+      }));
+
+    await test.step("assert: the cart is empty", () => {
+      expect(removeCartItem).toMatchObject({ itemsCount: 0, items: [] });
+    });
+  });
+});
 ```
 
-## Allure Conventions
+- `allure.epic("GraphQL")` and `allure.feature("<Area> / <Topic>")` in `beforeEach`; `allure.story` and
+  `allure.description` first in each test.
+- `api.storeContext()` gives store, culture, currency and user id; never hard-code them.
+- Named carts (`arrange.carts.cart`, `cartName: uniqueId("test-cart")`) keep tests apart. The default cart
+  (`arrange.carts.defaultCart`) is for the frontend.
+- The platform assigns GraphQL cart and list ids, so register removal right after the create, before any
+  assertion (`arrange.carts.removeCartLater`, `arrange.orders.deleteQuoteLater`, `arrange.orders.deleteOrdersOfLater`).
 
-```python
-@allure.feature("<Domain> (GraphQL)")   # e.g., "Cart (GraphQL)", "Order (GraphQL)"
-@allure.title("<Action description>")   # e.g., "Add bulk items to cart"
+## Step 4: Pick the Pattern
+
+**Expected errors.** `execute` throws `GraphqlError`:
+
+```ts
+await expect(api.graphql.execute(CategoriesDocument, variables)).rejects.toBeGraphqlError("Unauthorized");
 ```
 
-## Pattern 1: Simple Marker-Driven Test
+Use `executeRaw` only to read partial data or several errors: `{ operationName, status, data, errors }`.
 
-Use when the `with_cart` / `with_user` fixtures handle setup and teardown automatically.
+**Index-backed reads** (search, pickup locations, memberships, addresses). Wait in `arrange`
+(`arrange.pickup.pickupLocations`, `cartPickupLocations`, `productPickupLocations`,
+`arrange.customers.searchableMemberships`, `lockMemberships`) or poll with `INDEX_LAG_TIMEOUT_MS` from `@core/poll`.
 
-```python
-_REGISTERED_USER = "acme_store_maintainer_1@acme.com"
-_PRODUCT_ID = "product-acme-laptop-asus-zenbook-a14-ux3407"
+**Repeated cases.** One table, one loop; rows may hold small lambdas, e.g. a `read: (api: ApiSession) => …` per
+query (see `tests/graphql/pickup/pickup-locations.spec.ts`).
 
-@pytest.mark.graphql
-@allure.feature("Cart (GraphQL)")
-@allure.title("Anonymous cart creation")
-@pytest.mark.with_cart([(_PRODUCT_ID, 1)])
-def test_cart_anonymous(with_cart: Cart) -> None:
-    assert with_cart is not None
-    assert with_cart.is_anonymous is True
+**Seeded values.** Read them, do not copy them: `String(dataset.products.get(PRODUCT_ID).code)`,
+`stockQuantity(dataset, productId, centerId)`.
 
-@pytest.mark.graphql
-@allure.feature("Cart (GraphQL)")
-@allure.title("Registered user cart creation")
-@pytest.mark.with_user(_REGISTERED_USER)
-@pytest.mark.with_cart([(_PRODUCT_ID, 1)])
-def test_cart_registered_user(with_cart: Cart) -> None:
-    assert with_cart is not None
-    assert with_cart.is_anonymous is False
-```
-
-**When to use:** Test only needs a pre-seeded cart and/or authenticated user. No custom setup logic.
-
-## Pattern 2: Manual Operations with Try-Finally Cleanup
-
-Use when you need custom setup, multiple operations, or assertions between operations.
-
-```python
-_PRODUCT_1_ID = "product-acme-laptop-asus-zenbook-a14-ux3407"
-_PRODUCT_2_ID = "product-acme-laptop-asus-vivobook-16-x1607qa"
-_QUANTITY_1 = 3
-_QUANTITY_2 = 4
-
-@pytest.mark.graphql
-@allure.feature("Cart (GraphQL)")
-@allure.title("Add bulk items to cart")
-def test_cart_add_bulk_items(graphql_client: GraphQLClient, ctx: Context) -> None:
-    cart_ops = CartOperations(client=graphql_client)
-    cart: Cart | None = None
-
-    try:
-        cart = cart_ops.add_items_to_cart(
-            store_id=ctx.store_id,
-            user_id=ctx.user_id,
-            culture_name=ctx.culture_name,
-            currency_code=ctx.currency_code,
-            items=[
-                CartItemInput(product_id=_PRODUCT_1_ID, quantity=_QUANTITY_1),
-                CartItemInput(product_id=_PRODUCT_2_ID, quantity=_QUANTITY_2),
-            ],
-        )
-
-        assert has_line_item(cart.items, product_id=_PRODUCT_1_ID, quantity=_QUANTITY_1)
-        assert has_line_item(cart.items, product_id=_PRODUCT_2_ID, quantity=_QUANTITY_2)
-    finally:
-        if cart is not None:
-            cart_ops.delete_cart(cart_id=cart.id, user_id=ctx.user_id)
-```
-
-**When to use:** Custom multi-step operations, assertions on intermediate state, or resources that need manual cleanup.
-
-## Available Fixtures
-
-| Fixture | Scope | Description |
-|---------|-------|-------------|
-| `graphql_client: GraphQLClient` | function | Auto-closed via context manager |
-| `ctx: Context` | function | `store_id`, `user_id`, `currency_code`, `culture_name`, etc. |
-| `with_cart: Cart \| None` | function (autouse) | Seeded from `@pytest.mark.with_cart([(...)])` |
-| `with_user: AuthProvider` | function | Authenticated from `@pytest.mark.with_user("email")` |
-| `dataset: dict` | session | Raw test data from JSON files |
-| `global_settings: GlobalSettings` | session | Environment configuration |
-
-## Assertion Patterns
-
-```python
-# Pydantic model attribute access (typed)
-assert cart.id is not None
-assert cart.is_anonymous is True
-assert cart.items_quantity == 1
-assert cart.total.amount > 0
-
-# Line item helper
-from utils.line_item_utils import has_line_item
-assert has_line_item(cart.items, product_id=_PRODUCT_ID, quantity=3)
-
-# Error testing
-from requests.exceptions import HTTPError
-with pytest.raises(ValueError, match="GraphQL errors"):
-    cart_ops.get_cart(...)
-```
+**Known defects.** `await knownIssue(KNOWN_ISSUES.x)` first in the test, with the entry in
+`dataset/known-issues.ts`.
 
 ## Rules
 
-1. Every test function MUST have `@pytest.mark.graphql`
-2. Every test function MUST have `@allure.feature()` and `@allure.title()`
-3. Module-level constants for product IDs, usernames: `_PRODUCT_ID = "..."`
-4. Return type annotation: `def test_...(fixtures) -> None:`
-5. Use `ctx` fixture for store/user/currency/culture — don't hardcode
-6. Prefer marker-driven setup (`with_cart`, `with_user`) over manual setup
-7. Always clean up created resources in `finally` blocks when using manual setup
-8. Use `allure.step()` for logical groupings when tests have multiple phases
-9. Use `@pytest.mark.optional` for tests that depend on an unstable/optional backend module bundle (e.g. quotes) — these can be excluded with `-m 'not optional'`
+1. `test`, `expect`, `knownIssue` from `@fixtures`; typed `…Document` constants only, no inline query strings.
+2. Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`.
+3. No conditionals, `as` casts or helper functions in the spec; constants at module level in `UPPER_SNAKE_CASE`.
+4. A test that changes a customer's state creates its own customer; dataset users only for read-only checks.
+5. Every created cart, list, quote, order, address or location is removed after the test, registered before any
+   assertion.
+6. Nullable results unwrapped with `requireFields` / `lineItemOf`; never `?? ""` or `?? []`.
+7. No sleeps; `expect.poll` with `INDEX_LAG_TIMEOUT_MS` or an `arrange` wait.
+8. No code comments.
+
+## Verify
+
+```shell
+npm run typecheck && npm run check
+npm run test:graphql -- tests/graphql/<area>/<topic>.spec.ts
+```
+
+Update TESTS.md when the test replaces, merges or drops a test of the old suite.

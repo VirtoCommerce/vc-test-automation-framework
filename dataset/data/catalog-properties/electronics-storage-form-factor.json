@@ -1,0 +1,20 @@
+{
+  "id": "catalog-property-electronics-storage-form-factor",
+  "catalogId": "catalog-acme-electronics",
+  "propertyGroupId": "catalog-property-group-electronics-storage",
+  "categoryId": null,
+  "name": "StorageFormFactor",
+  "required": false,
+  "dictionary": false,
+  "multivalue": false,
+  "valueType": "ShortText",
+  "type": "Product",
+  "displayOrder": 17,
+  "values": [],
+  "displayNames": [
+    {
+      "name": "Storage form factor",
+      "languageCode": "en-US"
+    }
+  ]
+}

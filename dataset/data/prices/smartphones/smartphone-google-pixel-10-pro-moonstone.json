@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-google-pixel-10-pro-moonstone",
+  "product": {
+    "id": "product-smartphone-google-pixel-10-pro-moonstone",
+    "name": "Google Pixel 10 Pro Moonstone"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-google-pixel-10-pro-moonstone",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 999.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-google-pixel-10-pro-moonstone"
+    },
+    {
+      "id": "price-acme-eur-smartphone-google-pixel-10-pro-moonstone",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 929.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-google-pixel-10-pro-moonstone"
+    }
+  ]
+}

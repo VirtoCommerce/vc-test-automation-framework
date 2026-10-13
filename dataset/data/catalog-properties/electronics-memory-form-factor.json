@@ -1,0 +1,20 @@
+{
+  "id": "catalog-property-electronics-memory-form-factor",
+  "catalogId": "catalog-acme-electronics",
+  "propertyGroupId": "catalog-property-group-electronics-memory",
+  "categoryId": null,
+  "name": "MemoryFormFactor",
+  "required": false,
+  "dictionary": false,
+  "multivalue": false,
+  "valueType": "ShortText",
+  "type": "Product",
+  "displayOrder": 14,
+  "values": [],
+  "displayNames": [
+    {
+      "name": "Memory form factor",
+      "languageCode": "en-US"
+    }
+  ]
+}

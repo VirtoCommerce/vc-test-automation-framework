@@ -1,0 +1,23 @@
+{
+  "id": "pickup-location-acme-the-shops-at-columbus-circle",
+  "name": "The Shops at Columbus Circle",
+  "description": "Shopping mall",
+  "storeId": "${ENV:STORE_ID}",
+  "geoLocation": "40.768510,-73.982410",
+  "workingHours": "* **Mon - Sun**: 10 - 20",
+  "contactPhone": "+10000000016",
+  "contactEmail": "pickup16@example.com",
+  "isActive": true,
+  "fulfillmentCenterId": "fulfillment-center-usa-northgate-logistics-hub",
+  "transferFulfillmentCenterIds": ["fulfillment-center-chile-andes-supply-node"],
+  "address": {
+    "addressType": "Shipping",
+    "city": "New York",
+    "countryCode": "USA",
+    "countryName": "United States of America",
+    "line1": "10 Columbus Cir",
+    "postalCode": "10002",
+    "regionId": "NY",
+    "regionName": "New York"
+  }
+}

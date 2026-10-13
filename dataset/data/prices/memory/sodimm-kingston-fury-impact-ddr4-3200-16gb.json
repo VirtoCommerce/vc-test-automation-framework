@@ -1,0 +1,27 @@
+{
+  "productId": "product-sodimm-kingston-fury-impact-ddr4-3200-16gb",
+  "product": {
+    "id": "product-sodimm-kingston-fury-impact-ddr4-3200-16gb",
+    "name": "Kingston FURY Impact DDR4-3200 16GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-kingston-fury-impact-ddr4-3200-16gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 63.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-kingston-fury-impact-ddr4-3200-16gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-kingston-fury-impact-ddr4-3200-16gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 59.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-kingston-fury-impact-ddr4-3200-16gb"
+    }
+  ]
+}

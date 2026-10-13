@@ -4,66 +4,82 @@ You are generating a test coverage report for the VirtoCommerce testing module. 
 
 ## Step 1: Determine Sprint ID and Dates
 
-Ask the user for the following information:
-- **Sprint ID** (e.g., `26-03`) - used for the report folder and header
+Ask the user for:
+- **Sprint ID** (e.g., `26-03`) — used for the report folder and header
 - **Current period start date** (e.g., `February 7, 2026`)
-- **Current period end date** (e.g., `February 20, 2026`) - this is also the report date
-- **Previous period start date** (e.g., `January 26, 2026`)
-- **Previous period end date** (e.g., `February 6, 2026`)
+- **Current period end date** (e.g., `February 20, 2026`) — also the report date
+- **Previous period start date**
+- **Previous period end date**
 
 ## Step 2: Collect Current Test Metrics
 
-Scan the codebase to collect accurate current metrics:
+Collect exact numbers from Playwright itself, per project: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend` and `isolated`. Report `unit` on its own line as framework tests; ignore `seed`, it is setup. `--list` loads the specs and `.env` but needs no platform.
 
-### 2a. Count Test Files
-- Count all `test_*.py` files in `tests_e2e/tests/` (E2E test files)
-- Count all `test_*.py` files in `tests_graphql/tests/` (GraphQL test files)
+### 2a. Count Tests per Project
 
-### 2b. Count Test Functions
-For each test file, count all functions starting with `test_` (these are pytest test functions). Do this for both `tests_e2e/tests/` and `tests_graphql/tests/`.
+```shell
+# bash
+RUN_DESTRUCTIVE_TESTS=true npx playwright test --list --project=restapi
+# PowerShell
+$env:RUN_DESTRUCTIVE_TESTS = 'true'; npx playwright test --list --project=restapi; Remove-Item Env:RUN_DESTRUCTIVE_TESTS
+```
 
-### 2c. Count Ignored Tests
-Search for `@pytest.mark.ignore` markers across all test files. Count how many test functions are marked as ignored in each directory (`tests_e2e` and `tests_graphql`). Active tests = Total test functions - Ignored tests.
+`--list` prints one line per test (table-driven tests are expanded) and a `Total: N tests in M files` line. `RUN_DESTRUCTIVE_TESTS=true` is needed only for `isolated`: without it that project does not exist.
 
-### 2d. Identify Ignored Test Details
-For each ignored test, record:
-- File name
-- Test function name
-- Reason if available (from comments near the marker)
+### 2b. Count Spec Files
+
+Count `*.spec.ts` files under `tests/restapi`, `tests/graphql`, `tests/e2e/frontend`, `tests/e2e/backend` and `tests/isolated`, and `*.test.ts` under `tests/unit`.
+
+### 2c. Count Known-Issue Tests
+
+Known defects are listed in `dataset/known-issues.ts` and marked in tests with `await knownIssue(KNOWN_ISSUES.<name>)` (`fixtures/known-issue.ts`). A table row may carry the issue as a field (`issue: KNOWN_ISSUES.<name>`), so count the rows that carry it, not just the call sites.
+
+- **Expected failure**: the entry has a tracker `key`. The test runs and is expected to fail.
+- **Skipped (no ticket)**: the entry has no `key`. The test is skipped as `fixme`.
+
+Bare `test.fail`, `test.fixme` or `test.skip` in a spec break the project rules; list any you find as a finding.
+
+**Active tests** = total tests − skipped (no ticket) tests.
+
+### 2d. Record Details
+
+For each known-issue test: project, file, test title, the `KNOWN_ISSUES` name, its tracker key (or "none") and summary.
+
+### 2e. Migration Status from TESTS.md
+
+TESTS.md maps every test of the old suite to where it lives now. Count the Status marks per suite table (REST API, GraphQL, End-to-end and setup): ⬜ to migrate, ✅ migrated, 🔶 waiting for a run, 🔀 merged, ❌ dropped, ➡️ moved. Count `## Katalon: …` sections too, if any exist.
 
 ## Step 3: Collect Previous Period Metrics
 
-Read the most recent existing report from `project-progress-report/` directory to get the previous period's metrics. The previous report's "Current State" section contains the baseline numbers for comparison.
+Read the most recent report in `project-progress-report/` (create the folder if this is the first report). Its "Current State" section is the baseline. If there is no previous report, reconstruct the baseline by checking out the last commit before the current period start into a temporary worktree (`git worktree add`), copying `.env` there without printing it, running `npm ci` and repeating Step 2. Remove the worktree afterwards.
 
-## Step 4: Analyze Git History for Changes
+Commits before the layer rebuild used other projects, fixtures and markers (`@destructive` tags, `test.fail`). If the baseline commit predates it, compare totals only and say so in the report.
 
-Use `git log` to find commits in the current period date range. Identify:
-- New test files added
-- Modified test files
-- New test functions added
-- Tests re-enabled or newly ignored
-- New components or page objects created
-- Key feature areas covered
+## Step 4: Analyze Git History
+
+Use `git log --since=<start> --until=<end> --stat -- tests pages dataset api fixtures core TESTS.md` to find:
+- New and modified spec files
+- New tests (titles added), tests removed
+- `knownIssue` marks added and removed, `KNOWN_ISSUES` entries added, removed or given a tracker key
+- New page objects, REST clients, GraphQL documents, builders, `arrange` methods, dataset records
+- TESTS.md status changes
+- Main feature areas covered
 
 ## Step 5: Calculate Derived Metrics
 
-Calculate:
-- **Change** (absolute): Current - Previous for each metric
-- **% Change**: ((Current - Previous) / Previous) * 100
-- **Active Rate**: (Active Tests / Total Test Functions) * 100
-- **Growth velocity**: Tests per day = New tests / Days in period
-- **Test distribution**: E2E % and GraphQL % of total
+- **Change**: current − previous, per metric and project
+- **% change**: (current − previous) / previous × 100
+- **Active rate**: active / total × 100
+- **Growth velocity**: new tests / days in period
+- **Distribution**: share of each project in the total
 
 ## Step 6: Read Historical Data
 
-From existing reports, compile historical trend data (at least 3 data points) for the growth trend section:
-- Date, Total Tests, Active Tests, Growth Rate
+Collect up to 3 data points (date, total tests, active tests, growth rate) from earlier reports for the trend section. With fewer reports, show what exists and say so.
 
 ## Step 7: Generate the Report
 
-Create the report file at: `project-progress-report/Sprint{SPRINT_ID}/test-coverage-report.md`
-
-Use this exact structure and format (matching the established report template):
+Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-report.md`:
 
 ```markdown
 # Test Coverage Report - 2 Week Comparison
@@ -78,245 +94,114 @@ Use this exact structure and format (matching the established report template):
 
 ## Executive Summary
 
-This report compares test coverage between two consecutive 2-week periods, showing the evolution of the test suite.
-
 **Key Achievements in Current Period ({CURR_START} - {CURR_END}):**
-- **+{NEW_FUNCTIONS} new test functions** added ({GROWTH}% growth)
-- **+{NEW_FILES} new test files** created
-- **+{NEW_ACTIVE} active tests** enabled ({ACTIVE_GROWTH}% growth in active tests)
-- **{IGNORED_CHANGE} ignored tests** ({IGNORED_DESCRIPTION})
+- **+{NEW_TESTS} new tests** ({GROWTH}% growth)
+- **+{NEW_FILES} new spec files**
+- **{KNOWN_ISSUES_CHANGE} known-issue tests** ({DESCRIPTION})
+- **Old-suite migration:** {MIGRATED} of {TOTAL} done
 - **Major focus:** {FOCUS_AREAS}
 
 ---
 
-## Test Coverage Comparison Charts
+## Current State ({REPORT_DATE})
 
-### Period Comparison Overview
+| Project | Spec files | Tests | Expected failures | Skipped (no ticket) | Active rate |
+|---|---|---|---|---|---|
+| restapi | … | … | … | … | …% |
+| graphql | … | … | … | … | …% |
+| e2e-frontend | … | … | … | … | …% |
+| e2e-backend | … | … | … | … | …% |
+| isolated | … | … | … | … | …% |
+| **Total** | … | … | … | … | …% |
 
-{ASCII chart comparing Period 1 vs Period 2 metrics}
-
-### Test Functions Growth Trend
-
-{ASCII line chart showing growth over 3+ data points}
-
-### Active vs Ignored Tests
-
-{ASCII bar chart showing active vs ignored per period}
-
----
-
-## Detailed Statistics
-
-### Current State ({REPORT_DATE})
-
-#### tests_e2e (End-to-End Tests)
-
-| Metric | Count |
-|--------|-------|
-| **Test Files** | {E2E_FILES} |
-| **Total Test Functions** | {E2E_FUNCTIONS} |
-| **Active Tests** | {E2E_ACTIVE} |
-| **Ignored Tests** | {E2E_IGNORED} |
-| **Active Rate** | {E2E_ACTIVE_RATE}% |
-
-#### tests_graphql (GraphQL API Tests)
-
-| Metric | Count |
-|--------|-------|
-| **Test Files** | {GQL_FILES} |
-| **Total Test Functions** | {GQL_FUNCTIONS} |
-| **Active Tests** | {GQL_ACTIVE} |
-| **Ignored Tests** | {GQL_IGNORED} |
-| **Active Rate** | {GQL_ACTIVE_RATE}% |
-
-#### Grand Total
-
-| Metric | Count |
-|--------|-------|
-| **Total Test Files** | {TOTAL_FILES} |
-| **Total Test Functions** | {TOTAL_FUNCTIONS} |
-| **Active Tests** | {TOTAL_ACTIVE} |
-| **Ignored Tests** | {TOTAL_IGNORED} |
-| **Active Rate** | {TOTAL_ACTIVE_RATE}% |
+Framework unit tests: {UNIT_TESTS} in {UNIT_FILES} files.
 
 ---
 
-### Two-Week Period Comparison
+## Period Comparison
 
-{Comparison tables for E2E, GraphQL, and Grand Total with columns:
-Metric | Period 1 | Period 2 | Change | % Change}
-
----
-
-## Test Coverage Distribution
-
-### By Test Type (Current State)
-
-{ASCII bar chart showing E2E vs GraphQL distribution}
-
-### Growth by Test Type
-
-{ASCII bars showing growth per type}
+{One table per project and one for the total: Metric | Previous | Current | Change | % Change}
 
 ---
 
-## What Changed in Period 2
+## Distribution
 
-### New Test Files
-{Table of new test files with test counts and status}
-
-### New Components/Pages Created
-{List of new component or page object files if any}
-
-### Tests Re-enabled or Newly Ignored
-{Details of marker changes}
+{Share of each project, with a short assessment of the balance between API and UI tests}
 
 ---
 
-## Major Changes & Improvements
+## Migration Status (TESTS.md)
 
-{Numbered sections for key changes, referencing git commits where possible:
-1. Feature name (N tests) - with commit hash and description
-2. Reliability improvements
-3. Infrastructure changes
-4. Other notable changes}
-
----
-
-## Test Files Modified
-
-### E2E Tests Modified
-{Numbered list of modified E2E test files with description}
-
-### GraphQL Tests Modified
-{Numbered list of modified GraphQL test files with description}
-
----
-
-## Ignored Tests Analysis
-
-### Current Ignored Tests ({TOTAL_IGNORED} total)
-
-#### tests_e2e ({E2E_IGNORED} ignored)
-| File | Test | Reason |
-|------|------|--------|
+| Suite | ⬜ | ✅ | 🔶 | 🔀 | ❌ | ➡️ |
+|---|---|---|---|---|---|---|
 {rows}
 
-#### tests_graphql ({GQL_IGNORED} ignored)
-| File | Test | Reason |
-|------|------|--------|
-{rows}
+---
 
-### Improvement/Change Summary
-{Comparison of ignored test counts between periods}
+## What Changed
+
+### New Spec Files
+{Table: file, project, tests}
+
+### New Infrastructure
+{Page objects, REST clients, GraphQL documents, builders, arrange methods, dataset records}
+
+### Known Issues
+{KNOWN_ISSUES entries added, removed or given a tracker key, with reasons}
 
 ---
 
-## Period-over-Period Growth Analysis
+## Major Changes
 
-### Historical Trend
+{Numbered sections per feature area or reliability change, with commit hashes}
+
+---
+
+## Known-Issue Tests
+
+| Project | File | Test | Issue | Tracker key | Summary |
+|---|---|---|---|---|---|
+{rows}
+
+---
+
+## Historical Trend
 
 | Date | Total Tests | Active Tests | Growth Rate |
-|------|-------------|--------------|-------------|
-{historical data rows - at least 3 data points}
-
-### Growth Velocity
-
-{ASCII chart showing tests/day per period}
-
----
-
-## Quality Metrics
-
-### Test Reliability (Active Test Rate)
-
-{ASCII progress bars comparing previous vs current active rate against 95% target}
-
-### Code Coverage Impact
-
-{Lines of code statistics from git}
-
-### Test Distribution Balance
-
-{ASCII bars showing E2E vs GraphQL % with balance assessment}
-
----
-
-## Key Achievements Summary
-
-| Achievement | Impact |
-|-------------|--------|
-{key achievement rows}
-
----
-
-## Sprint Comparison Summary
-
-{Comparison of current sprint vs previous sprint(s)}
-
-### Combined Impact
-{Cumulative statistics from earliest tracked period to now}
+|---|---|---|---|
+{rows}
 
 ---
 
 ## Recommendations for Next Period
 
-{4 numbered recommendations based on the data:
-1. Test stabilization recommendations
-2. Growth recommendations
-3. Infrastructure recommendations
-4. Other improvement areas}
+{4 numbered recommendations based on the data: stabilization, growth areas, infrastructure, other}
 
 ---
 
 *Report generated on {REPORT_DATE}*
-*Data sources: Git history analysis, test file counting, pytest marker analysis*
+*Data sources: `npx playwright test --list`, `dataset/known-issues.ts`, TESTS.md, git history*
 ```
 
 ## Step 8: Generate HTML Presentation
 
-Create an interactive HTML presentation at: `project-progress-report/Sprint{SPRINT_ID}/test-coverage-presentation.html`
+Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-presentation.html`: a single self-contained page using Chart.js from `https://cdn.jsdelivr.net/npm/chart.js@4.4.7`, dark theme, slide navigation (Previous/Next buttons and arrow keys), with these slides:
 
-Use Chart.js (via CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.7) to create an interactive slide-based presentation with:
-- Dark theme with modern styling
-- Slide navigation (Previous/Next buttons + keyboard arrows)
-- Multiple chart types: bar, line, doughnut, horizontal bar
-- Card-based layouts for summaries
-- All the same data from the markdown report visualized
+1. **Title**: sprint, dates, headline metric
+2. **Executive summary**: 4–6 metric cards
+3. **Growth trend**: line chart of the historical data
+4. **Period comparison**: grouped bar chart per project
+5. **Active vs expected failures vs skipped**: stacked bar chart
+6. **Distribution**: doughnut chart by project
+7. **REST, GraphQL and isolated detail**: bar charts
+8. **e2e detail**: bar charts for e2e-frontend and e2e-backend
+9. **Migration status**: TESTS.md marks per suite
+10. **What changed**: cards
+11. **Recommendations**: list
 
-Include these slides:
-1. **Title Slide** - Sprint ID, dates, key headline metric
-2. **Executive Summary** - 4-6 metric cards with icons
-3. **Test Growth Trend** - Line chart with historical data
-4. **Period Comparison** - Grouped bar chart
-5. **Active vs Ignored** - Stacked bar chart
-6. **Test Distribution** - Doughnut chart (E2E vs GraphQL)
-7. **E2E Detailed** - Bar chart for E2E metrics comparison
-8. **GraphQL Detailed** - Bar chart for GraphQL metrics comparison
-9. **What Changed** - Card layout with key changes
-10. **Key Achievements** - Card layout with metrics
-11. **Quality Metrics** - Progress bars and gauges
-12. **Recommendations** - Styled list
+## Step 9: Summary
 
-## Step 9: Generate Chart Script
-
-Create a Python script at: `project-progress-report/Sprint{SPRINT_ID}/generate_charts.py`
-
-This script uses matplotlib to generate PNG chart images saved to `project-progress-report/Sprint{SPRINT_ID}/charts/`:
-1. `1_test_growth_trend.png` - Line chart
-2. `2_period_comparison_overview.png` - Horizontal bar chart
-3. `3_active_vs_ignored.png` - Stacked bar chart
-4. `4_test_distribution_donut.png` - Donut chart
-5. `5_e2e_tests_comparison.png` - Grouped bar chart
-6. `6_graphql_tests_comparison.png` - Grouped bar chart
-7. `7_key_achievements.png` - Card-based summary
-
-Use a professional color scheme, 180 DPI, clear labels and annotations.
-
-## Step 10: Summary
-
-After generating all files, provide a summary to the user:
-- Report location and file paths
-- Key metrics highlights (total tests, growth, active rate)
-- Any notable findings or concerns
-- Reminder to run `python generate_charts.py` from the sprint folder to generate PNG charts
+Tell the user:
+- The paths of both files
+- Headline metrics (total, growth, active rate)
+- Notable findings or concerns (for example, known issues without a tracker key, bare `test.fail`/`test.fixme`, old-suite tests still ⬜)

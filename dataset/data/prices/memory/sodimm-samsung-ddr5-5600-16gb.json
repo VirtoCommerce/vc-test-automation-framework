@@ -1,0 +1,27 @@
+{
+  "productId": "product-sodimm-samsung-ddr5-5600-16gb",
+  "product": {
+    "id": "product-sodimm-samsung-ddr5-5600-16gb",
+    "name": "Samsung DDR5-5600 16GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-samsung-ddr5-5600-16gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 66.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-samsung-ddr5-5600-16gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-samsung-ddr5-5600-16gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 61.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-samsung-ddr5-5600-16gb"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "user-other-store-employee-1",
+  "userName": "other_store_employee_1@other-store.com",
+  "password": "${ENV:USERS_PASSWORD}",
+  "email": "other_store_employee_1@other-store.com",
+  "status": "Approved",
+  "userType": "Customer",
+  "emailConfirmed": true,
+  "memberId": "contact-other-store-employee-1",
+  "storeId": "${ENV:STORE_ID}",
+  "roles": [
+    {
+      "id": "role-org-employee",
+      "name": "Organization employee",
+      "normalizedName": "ORGANIZATION EMPLOYEE"
+    }
+  ]
+}

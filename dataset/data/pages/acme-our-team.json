@@ -1,0 +1,9 @@
+{
+  "id": "page-acme-our-team",
+  "name": "our-team",
+  "permalink": "/our-team",
+  "storeId": "${ENV:STORE_ID}",
+  "cultureName": "en-US",
+  "status": "Draft",
+  "visibility": true
+}

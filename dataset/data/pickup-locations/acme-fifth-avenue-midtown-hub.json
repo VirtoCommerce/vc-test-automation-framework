@@ -1,0 +1,26 @@
+{
+  "id": "pickup-location-acme-fifth-avenue-midtown-hub",
+  "name": "Fifth Avenue Midtown Hub",
+  "description": "Distribution hub",
+  "storeId": "${ENV:STORE_ID}",
+  "geoLocation": "40.761640,–73.974890",
+  "workingHours": "* **Mon - Sun**: 9 - 18",
+  "contactPhone": "+12125557824",
+  "contactEmail": "contact@fifthave‑nyc.com",
+  "isActive": true,
+  "fulfillmentCenterId": "fulfillment-center-canada-mapleroute-distribution-hub",
+  "transferFulfillmentCenterIds": [
+    "fulfillment-center-usa-northgate-logistics-hub",
+    "fulfillment-center-chile-andes-supply-node"
+  ],
+  "address": {
+    "addressType": "Shipping",
+    "city": "Manhattan",
+    "countryCode": "USA",
+    "countryName": "United States of America",
+    "line1": "689 5th Ave",
+    "postalCode": "10022",
+    "regionId": "NY",
+    "regionName": "New York"
+  }
+}

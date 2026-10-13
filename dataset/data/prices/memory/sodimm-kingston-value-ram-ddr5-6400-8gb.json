@@ -1,0 +1,29 @@
+{
+  "productId": "product-sodimm-kingston-value-ram-ddr5-6400-8gb",
+  "product": {
+    "id": "product-sodimm-kingston-value-ram-ddr5-6400-8gb",
+    "name": "Kingston ValueRAM DDR5-6400 8GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-kingston-value-ram-ddr5-6400-8gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 33.99,
+      "sale": 26.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-kingston-value-ram-ddr5-6400-8gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-kingston-value-ram-ddr5-6400-8gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 30.99,
+      "sale": 24.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-kingston-value-ram-ddr5-6400-8gb"
+    }
+  ]
+}

@@ -1,130 +1,135 @@
 ---
 name: review-test-code
-description: "Review test files for pattern compliance, code quality, correctness, coverage gaps, and best practices — produces actionable feedback"
+description: "Review spec files and test infrastructure (clients, page objects, builders, arrange, fixtures) for convention compliance, isolation, correctness, coverage gaps and best practices — produces actionable feedback"
 argument-hint: "<file-path-or-pattern>"
 ---
 
 ## Test Code Review
 
-When reviewing test code, systematically check every item below and report only actual issues found.
+Check every item below against CLAUDE.md and README "Writing tests". Report only real issues, with line numbers.
 
 ## Review Process
 
-### Step 1: Read the File(s)
+### Step 1: Read the Files
 
-Read the target test file(s) completely. Also read related files:
-- The conftest.py that provides fixtures for this test
-- The operations class(es) used by the test
-- The page objects/components used by the test (for E2E)
+Read each target file completely, plus what it depends on:
+- the fixtures it destructures and the options it sets (`user`, `shopperKind`);
+- the clients, `arrange` methods and builders it calls;
+- the page objects it uses;
+- the GraphQL documents behind its `…Document` imports;
+- the `KNOWN_ISSUES` entries it names.
 
-### Step 2: Check Structure (all test types)
+### Step 2: Structure (every spec)
 
-For every test function, verify:
+- [ ] `test`, `expect`, `knownIssue` from `@fixtures`; nothing from `@playwright/test` (except `tests/unit`).
+- [ ] `allure.epic` and `allure.feature("<Area> / <Topic>")` in `test.beforeEach`; `allure.story` and
+      `allure.description` in each test.
+- [ ] One `test.describe("<topic> (<who>)")` per identity.
+- [ ] Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`; `expect` sits in `assert:` steps, or
+      in an `arrange:` step that checks a precondition.
+- [ ] Titles say what happens in plain words; one behavior per test.
+- [ ] No conditionals, `as` casts or helper functions; repeated cases are one table-driven test (rows may hold
+      small lambdas).
+- [ ] No raw selectors; constants at module level in `UPPER_SNAKE_CASE`; dataset ids as constants, other seeded
+      values read through `dataset`.
+- [ ] Placed by platform module (users and accounts in `security`); platform-wide changes in `tests/isolated/`.
 
-- [ ] **Type marker present:** `@pytest.mark.graphql` / `@pytest.mark.e2e` / `@pytest.mark.restapi`
-- [ ] **Allure feature:** `@allure.feature("<Domain> (<TestType>)")` with correct naming
-- [ ] **Allure title:** `@allure.title("<Action description>")` — descriptive, not generic
-- [ ] **Return annotation:** `-> None` on test function
-- [ ] **Constants at module level:** `_PRODUCT_ID = "..."` (not inline strings)
-- [ ] **Single responsibility:** each test verifies one behavior
-- [ ] **Test name is descriptive:** `test_<feature>_<action>` pattern
+### Step 3: Isolation and Cleanup
 
-### Step 3: Check Type-Specific Patterns
+- [ ] Data the test changes is created with `arrange`; read-only data comes from `dataset`.
+- [ ] A test that changes a customer's own state creates its own customer (`customerAccount()` or
+      `shopperKind: "customer"`), never a dataset user.
+- [ ] Cleanup is registered before the change: `arrange` does it; a manual create pushes the undo on `cleanup`
+      before the call (the builder sets the id), or right after when the platform assigns the id.
+- [ ] Undos are tolerant (the record may already be gone) and restore changed values, not only delete.
+- [ ] Assertions target the test's own records (`toContain(id)`, `toMatchObject`), never a whole shared list.
+- [ ] Deletions are proven by id (`find(id)` is `undefined`), not by a search.
+- [ ] Store settings through `arrange.platform.storeSetting`; global settings only in `tests/isolated/`.
 
-#### For GraphQL Tests
+### Step 4: Waits and Data
 
-- [ ] Uses `graphql_client` fixture (not manual `GraphQLClient()`)
-- [ ] Uses `ctx` fixture for store/user/currency/culture (not hardcoded)
-- [ ] Marker-driven setup preferred: `@pytest.mark.with_cart`, `@pytest.mark.with_user`
-- [ ] Manual setup has try-finally cleanup
-- [ ] Asserts on Pydantic model attributes: `cart.id`, `cart.is_anonymous` (not `cart["id"]`)
-- [ ] Uses `has_line_item()` for cart line-item assertions (`from utils.line_item_utils import has_line_item`)
-- [ ] Operations created as: `CartOperations(client=graphql_client)` (keyword arg)
-- [ ] Cleanup variable initialized before try: `cart: Cart | None = None`
+- [ ] Index-backed reads wait in `arrange` or with `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`.
+- [ ] No `waitForTimeout`, `networkidle`, sleeps or `expect(await locator.isVisible())`.
+- [ ] Missing data fails loudly: `requireFields` / `requireDefined`, no `?? ""`, `?? []`, `?? 0`.
+- [ ] Expected errors use `rejects.toBeHttpError(status, "text")` / `rejects.toBeGraphqlError("CODE")`.
+- [ ] Known defects: `await knownIssue(KNOWN_ISSUES.x)` first in the test, entry in `dataset/known-issues.ts`;
+      no bare `test.fail`, `test.fixme` or `test.skip`.
 
-#### For E2E Tests
+### Step 5: Project-Specific Checks
 
-- [ ] Page objects use keyword args: `CartPage(global_settings=global_settings, page=page)`
-- [ ] Navigation via `page_object.navigate()` (not `page.goto()`)
-- [ ] All UI assertions use `expect()` (not bare `assert`)
-- [ ] Locators use `data-test-id` (not CSS class or XPath)
-- [ ] No `time.sleep()` anywhere
-- [ ] Components created with `root=` keyword: `Component(root=locator)`
-- [ ] Auth via `@pytest.mark.with_user` (not manual BrowserStorage)
+**REST:** calls go through `api.rest.<module>`; `api` signed in with `test.use({ user })`; security results check
+`succeeded`.
 
-#### For REST API Tests
+**GraphQL:** typed documents; variables spread from `api.storeContext()`; `execute` for success, `executeRaw`
+only to read errors or partial data; nullable results unwrapped with `requireFields` / `lineItemOf`; named carts
+outside e2e.
 
-- [ ] Uses factory fixtures: `make_product`, `make_catalog` (not manual create/delete)
-- [ ] Test body uses `with allure.step()` blocks
-- [ ] `@allure.feature("<Module> / <Entity> (REST API)")` naming
-- [ ] Assertions on raw dicts (not Pydantic models)
-- [ ] Error handling: `except HTTPError as e:` with status code check
-- [ ] `@pytest.mark.serial` for tests that mutate global state
+**E2E:** page objects from the `frontend` / `pageBuilder` fixtures; data arranged through `shopper.api`; no branch
+or skip on `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE`, `CHECKOUT_MODE` (the page object hides them); waits on the
+response an action triggers (`isGraphqlOperation`) when the next step depends on it; new tabs followed through the
+page object; UI sign-in only when sign-in is under test.
 
-### Step 4: Check Code Quality
+### Step 6: Infrastructure Files
 
-- [ ] **Type hints** on all function parameters and return values
-- [ ] **No hardcoded credentials** — uses `global_settings` or `ctx`
-- [ ] **No hardcoded URLs** — uses `global_settings.frontend_base_url` etc.
-- [ ] **Cleanup before assertions** — resources cleaned up in `finally`, not after `assert`
-- [ ] **No mutable global state** — no module-level variables modified by tests
-- [ ] **Import order** — stdlib, third-party, local (standard Python convention)
-- [ ] **`SecretStr` access** — uses `.get_secret_value()` for passwords
+- [ ] Clients: paths verified against Swagger; results through `requireFields` / `optionalFields` /
+      `requireFieldsOfEach`; `find()` returns `undefined`, `get()` throws; bulk deletes by filter guard against
+      an empty filter.
+- [ ] Page objects: `readonly` locators built in the constructor, `data-test-id` first, settings hidden behind
+      methods, no test assertions, no API calls.
+- [ ] Builders: pure `newX()` functions with a client-side `id` and a `uniqueId` name.
+- [ ] Arrange methods: on the right domain class, register cleanup before the change, wait for index lag where
+      the data is searched.
+- [ ] Fixtures: right scope (worker vs test); minimal dependencies.
+- [ ] Layers respected (`biome/layers.json`); nothing duplicates an existing method.
 
-### Step 5: Check Coverage
+### Step 7: Code Quality
 
-- [ ] **Happy path covered** — the primary success scenario
-- [ ] **Error scenarios** — invalid input, unauthorized access, not found
-- [ ] **Edge cases** — empty collections, boundary values, special characters
-- [ ] **User roles** — anonymous vs. registered vs. admin (where applicable)
-- [ ] **Cleanup verified** — test doesn't leak resources on failure
+- [ ] `npm run typecheck` and `npm run check` pass.
+- [ ] No `any`, no `!`, no floating promises, no unused imports.
+- [ ] Named and exported functions are `function` declarations; arrows only for inline callbacks.
+- [ ] Class state in `readonly #private` fields.
+- [ ] No code comments; JSDoc short and only for what the signature cannot say.
+- [ ] No credentials or URLs in code.
+- [ ] Wording: frontend (not storefront), platform, platform admin.
+
+### Step 8: Coverage
+
+- [ ] Happy path, and error cases (invalid input, unauthorized identity, missing record).
+- [ ] Identities where behavior differs.
+- [ ] The test fails when the feature is broken (no vacuous assertions).
 
 ## Severity Levels
 
-### Critical (must fix before merge)
-- Missing cleanup / resource leak
-- Hardcoded credentials or secrets
-- Missing required marker
-- Dict access on Pydantic model in GraphQL test
-- Bare `assert` for UI state in E2E test
-- `time.sleep()` in any code
+**Critical (must fix):** leaked data or cleanup registered after the change; vacuous assertions or none;
+shared-state races (a dataset user's cart, global settings outside `isolated`); fixed waits; credentials in code.
 
-### Warning (should fix)
-- Missing Allure decorators
-- Raw `page.goto()` instead of `navigate()`
-- CSS/XPath selectors instead of `data-test-id`
-- Missing type hints
-- Assertions after cleanup (should be before, cleanup in finally)
-- Manual setup when markers would work
+**Warning (should fix):** conditionals, casts or helpers in specs; raw selectors in specs; fallbacks hiding missing
+data; bare `test.fail` / `test.fixme`; deletion proven by search; layer violations; duplicated methods.
 
-### Suggestion (nice to have)
-- Test could be split (does too many things)
-- Missing `allure.step()` for logical grouping
-- Duplicate setup across tests (extract to fixture)
-- Missing edge case coverage
+**Suggestion:** splitting a large test; a table for repeated cases; missing negative or identity coverage.
 
 ## Output Format
 
 ```markdown
-## Review: <file_path>
+## Review: <file path>
 
 ### Summary
-<1-2 sentence assessment: what's good, what needs work>
+<1-2 sentences: what is good, what needs work>
 
 ### Critical Issues
-- **[line N]** <issue description> — **Fix:** <specific fix>
+- **[line N]** <issue> — **Fix:** <specific fix>
 
 ### Warnings
-- **[line N]** <issue description> — **Suggestion:** <specific improvement>
+- **[line N]** <issue> — **Suggestion:** <specific improvement>
 
 ### Suggestions
-- <improvement idea with rationale>
+- <idea with rationale>
 
 ### Coverage Gaps
-- <missing test scenario that should exist>
+- <missing scenario>
 
 ### Verdict
 APPROVE | REQUEST_CHANGES | NEEDS_DISCUSSION
 ```
 
-When reviewing multiple files, produce one section per file, then a final overall summary.
+When reviewing several files, write one section per file, then an overall summary.

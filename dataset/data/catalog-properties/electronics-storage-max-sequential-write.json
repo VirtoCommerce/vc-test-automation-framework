@@ -1,0 +1,21 @@
+{
+  "id": "catalog-property-electronics-storage-max-sequential-write",
+  "catalogId": "catalog-acme-electronics",
+  "propertyGroupId": "catalog-property-group-electronics-storage",
+  "categoryId": null,
+  "name": "StorageMaxSequentialWrite",
+  "required": false,
+  "dictionary": false,
+  "multivalue": false,
+  "valueType": "Measure",
+  "measureId": "measure-data-transfer-rate",
+  "type": "Product",
+  "displayOrder": 21,
+  "values": [],
+  "displayNames": [
+    {
+      "name": "Storage max sequential write",
+      "languageCode": "en-US"
+    }
+  ]
+}

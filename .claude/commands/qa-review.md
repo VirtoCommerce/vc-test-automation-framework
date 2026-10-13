@@ -2,16 +2,16 @@
 
 **Stage 3 of 3** in the QA workflow: Plan → Implement → Review
 
-You are orchestrating the review stage. Spawn the `qa-reviewer` agent to review the code produced in the previous `/qa-implement` stage, or review any specified files/PR.
+You are orchestrating the review stage. Spawn the `qa-reviewer` agent to review the code produced in the previous `/qa-implement` stage, or review any specified files or PR.
 
 ## Input
 
 One of:
-- No arguments — review files changed in the current branch (from `/qa-implement`)
+- No arguments — review the files changed on the current branch
 - A file path or glob pattern — review specific files
-- A PR number — review a pull request
+- A PR number or URL — review a pull request
 
-`$ARGUMENTS` specifies the target. If empty, auto-detect from git status.
+`$ARGUMENTS` specifies the target. If empty, detect it from git.
 
 ## Steps
 
@@ -24,17 +24,17 @@ If `$ARGUMENTS` is a file path or pattern:
 - Spawn the `qa-reviewer` agent with the `/review-test-code` skill
 
 If no arguments:
-- Run `git diff --name-only HEAD~1` (or detect uncommitted changes) to find changed files
-- Filter for test-related files (`tests/`, `gql/`, `page_objects/`, `restapi/`)
-- Spawn the `qa-reviewer` agent with `/review-test-code` on each changed file
+- Collect changed files: `git diff --name-only dev...HEAD` plus uncommitted changes (`git status --short`)
+- Keep TypeScript and GraphQL files under `tests/`, `fixtures/`, `dataset/`, `pages/`, `api/`, `core/` (skip `api/*/generated/`), plus `TESTS.md` and `dataset/data/**` JSON
+- Spawn the `qa-reviewer` agent with `/review-test-code` on those files
 
 ### 2. Review
 
-The agent performs a systematic review using its checklists:
-- Pattern compliance (markers, Allure, fixtures, assertions)
-- Code quality (type hints, no hardcoded values, cleanup)
-- Coverage gaps (missing scenarios)
-- Cross-file consistency
+The agent reviews with its checklists:
+- Convention compliance (Allure epic/feature/story, `arrange:`/`act:`/`assert:` steps, no conditionals/casts/helpers/raw selectors, `dataset` and `arrange`, layer rules)
+- Isolation (cleanup before the change, own customers, parallel safety, platform-wide changes in `tests/isolated/`)
+- Correctness (assertions that can fail, deletions proven by id, index waits, `requireFields`, `knownIssue`)
+- Coverage gaps and cross-file duplication
 
 ### 3. Output
 

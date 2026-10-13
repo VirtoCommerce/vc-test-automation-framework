@@ -1,0 +1,20 @@
+{
+  "id": "catalog-property-electronics-storage-interface",
+  "catalogId": "catalog-acme-electronics",
+  "propertyGroupId": "catalog-property-group-electronics-storage",
+  "categoryId": null,
+  "name": "StorageInterface",
+  "required": false,
+  "dictionary": false,
+  "multivalue": false,
+  "valueType": "ShortText",
+  "type": "Product",
+  "displayOrder": 18,
+  "values": [],
+  "displayNames": [
+    {
+      "name": "Storage interface",
+      "languageCode": "en-US"
+    }
+  ]
+}

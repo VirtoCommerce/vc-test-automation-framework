@@ -1,0 +1,29 @@
+{
+  "productId": "product-smartphone-apple-iphone-17-256gb-sage",
+  "product": {
+    "id": "product-smartphone-apple-iphone-17-256gb-sage",
+    "name": "Apple iPhone 17 256 Gb Sage"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-apple-iphone-17-256gb-sage",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 799.99,
+      "sale": 590.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-apple-iphone-17-256gb-sage"
+    },
+    {
+      "id": "price-acme-eur-smartphone-apple-iphone-17-256gb-sage",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 743.99,
+      "sale": 549.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-apple-iphone-17-256gb-sage"
+    }
+  ]
+}

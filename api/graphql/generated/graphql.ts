@@ -1398,14 +1398,6 @@ export type PageContextFragment = {
     availableCurrencies: Array<{ code: string }>;
     settings: { anonymousUsersAllowed: boolean; taxCalculationEnabled: boolean; seoLinkType: string };
   } | null;
-  whiteLabelingSettings: {
-    logoUrl: string | null;
-    secondaryLogoUrl: string | null;
-    faviconUrl: string | null;
-    themePresetName: string | null;
-    footerLinks: Array<{ title: string; url: string; priority: number } | null> | null;
-    mainMenuLinks: Array<{ title: string; url: string; priority: number } | null> | null;
-  } | null;
   user: {
     id: string;
     userName: string;
@@ -4724,6 +4716,26 @@ export type OrganizationOrdersQuery = {
   } | null;
 };
 
+export type PageContextWhiteLabelingQueryVariables = Exact<{
+  storeId?: string | null | undefined;
+  userId?: string | null | undefined;
+  cultureName?: string | null | undefined;
+  organizationId?: string | null | undefined;
+}>;
+
+export type PageContextWhiteLabelingQuery = {
+  pageContext: {
+    whiteLabelingSettings: {
+      logoUrl: string | null;
+      secondaryLogoUrl: string | null;
+      faviconUrl: string | null;
+      themePresetName: string | null;
+      footerLinks: Array<{ title: string; url: string; priority: number } | null> | null;
+      mainMenuLinks: Array<{ title: string; url: string; priority: number } | null> | null;
+    } | null;
+  } | null;
+};
+
 export type PageContextQueryVariables = Exact<{
   storeId?: string | null | undefined;
   userId?: string | null | undefined;
@@ -4762,14 +4774,6 @@ export type PageContextQuery = {
       defaultCurrency: { code: string };
       availableCurrencies: Array<{ code: string }>;
       settings: { anonymousUsersAllowed: boolean; taxCalculationEnabled: boolean; seoLinkType: string };
-    } | null;
-    whiteLabelingSettings: {
-      logoUrl: string | null;
-      secondaryLogoUrl: string | null;
-      faviconUrl: string | null;
-      themePresetName: string | null;
-      footerLinks: Array<{ title: string; url: string; priority: number } | null> | null;
-      mainMenuLinks: Array<{ title: string; url: string; priority: number } | null> | null;
     } | null;
     user: {
       id: string;
@@ -7264,37 +7268,6 @@ fragment StoreSettings on StoreSettingsType {
 }`,
   { fragmentName: "StoreInfo" },
 ) as unknown as TypedDocumentString<StoreInfoFragment, unknown>;
-export const MenuLinkFragmentDoc = new TypedDocumentString(
-  `
-    fragment MenuLink on MenuLinkType {
-  title
-  url
-  priority
-}
-    `,
-  { fragmentName: "MenuLink" },
-) as unknown as TypedDocumentString<MenuLinkFragment, unknown>;
-export const WhiteLabelingSettingsFragmentDoc = new TypedDocumentString(
-  `
-    fragment WhiteLabelingSettings on WhiteLabelingSettingsType {
-  logoUrl
-  secondaryLogoUrl
-  faviconUrl
-  themePresetName
-  footerLinks {
-    ...MenuLink
-  }
-  mainMenuLinks {
-    ...MenuLink
-  }
-}
-    fragment MenuLink on MenuLinkType {
-  title
-  url
-  priority
-}`,
-  { fragmentName: "WhiteLabelingSettings" },
-) as unknown as TypedDocumentString<WhiteLabelingSettingsFragment, unknown>;
 export const PageContextFragmentDoc = new TypedDocumentString(
   `
     fragment PageContext on PageContextResponseType {
@@ -7303,9 +7276,6 @@ export const PageContextFragmentDoc = new TypedDocumentString(
   }
   store {
     ...StoreInfo
-  }
-  whiteLabelingSettings {
-    ...WhiteLabelingSettings
   }
   user {
     ...User
@@ -7317,11 +7287,6 @@ export const PageContextFragmentDoc = new TypedDocumentString(
 fragment Language on LanguageType {
   cultureName
   nativeName
-}
-fragment MenuLink on MenuLinkType {
-  title
-  url
-  priority
 }
 fragment Role on RoleType {
   id
@@ -7385,18 +7350,6 @@ fragment User on UserType {
   storeId
   roles {
     ...Role
-  }
-}
-fragment WhiteLabelingSettings on WhiteLabelingSettingsType {
-  logoUrl
-  secondaryLogoUrl
-  faviconUrl
-  themePresetName
-  footerLinks {
-    ...MenuLink
-  }
-  mainMenuLinks {
-    ...MenuLink
   }
 }`,
   { fragmentName: "PageContext" },
@@ -7890,6 +7843,37 @@ fragment WishlistLineItem on LineItemType {
 }`,
   { fragmentName: "ShoppingList" },
 ) as unknown as TypedDocumentString<ShoppingListFragment, unknown>;
+export const MenuLinkFragmentDoc = new TypedDocumentString(
+  `
+    fragment MenuLink on MenuLinkType {
+  title
+  url
+  priority
+}
+    `,
+  { fragmentName: "MenuLink" },
+) as unknown as TypedDocumentString<MenuLinkFragment, unknown>;
+export const WhiteLabelingSettingsFragmentDoc = new TypedDocumentString(
+  `
+    fragment WhiteLabelingSettings on WhiteLabelingSettingsType {
+  logoUrl
+  secondaryLogoUrl
+  faviconUrl
+  themePresetName
+  footerLinks {
+    ...MenuLink
+  }
+  mainMenuLinks {
+    ...MenuLink
+  }
+}
+    fragment MenuLink on MenuLinkType {
+  title
+  url
+  priority
+}`,
+  { fragmentName: "WhiteLabelingSettings" },
+) as unknown as TypedDocumentString<WhiteLabelingSettingsFragment, unknown>;
 export const AddBulkItemsCartDocument = new TypedDocumentString(`
     mutation AddBulkItemsCart($command: InputAddBulkItemsType!) {
   addBulkItemsCart(command: $command) {
@@ -11412,6 +11396,36 @@ fragment Order on CustomerOrderType {
     ...OrderShipment
   }
 }`) as unknown as TypedDocumentString<OrganizationOrdersQuery, OrganizationOrdersQueryVariables>;
+export const PageContextWhiteLabelingDocument = new TypedDocumentString(`
+    query PageContextWhiteLabeling($storeId: String, $userId: String, $cultureName: String, $organizationId: String) {
+  pageContext(
+    storeId: $storeId
+    userId: $userId
+    cultureName: $cultureName
+    organizationId: $organizationId
+  ) {
+    whiteLabelingSettings {
+      ...WhiteLabelingSettings
+    }
+  }
+}
+    fragment MenuLink on MenuLinkType {
+  title
+  url
+  priority
+}
+fragment WhiteLabelingSettings on WhiteLabelingSettingsType {
+  logoUrl
+  secondaryLogoUrl
+  faviconUrl
+  themePresetName
+  footerLinks {
+    ...MenuLink
+  }
+  mainMenuLinks {
+    ...MenuLink
+  }
+}`) as unknown as TypedDocumentString<PageContextWhiteLabelingQuery, PageContextWhiteLabelingQueryVariables>;
 export const PageContextDocument = new TypedDocumentString(`
     query PageContext($storeId: String, $userId: String, $cultureName: String, $permalink: String, $organizationId: String) {
   pageContext(
@@ -11431,20 +11445,12 @@ fragment Language on LanguageType {
   cultureName
   nativeName
 }
-fragment MenuLink on MenuLinkType {
-  title
-  url
-  priority
-}
 fragment PageContext on PageContextResponseType {
   slugInfo {
     ...SlugInfo
   }
   store {
     ...StoreInfo
-  }
-  whiteLabelingSettings {
-    ...WhiteLabelingSettings
   }
   user {
     ...User
@@ -11512,18 +11518,6 @@ fragment User on UserType {
   storeId
   roles {
     ...Role
-  }
-}
-fragment WhiteLabelingSettings on WhiteLabelingSettingsType {
-  logoUrl
-  secondaryLogoUrl
-  faviconUrl
-  themePresetName
-  footerLinks {
-    ...MenuLink
-  }
-  mainMenuLinks {
-    ...MenuLink
   }
 }`) as unknown as TypedDocumentString<PageContextQuery, PageContextQueryVariables>;
 export const CartPickupLocationsDocument = new TypedDocumentString(`

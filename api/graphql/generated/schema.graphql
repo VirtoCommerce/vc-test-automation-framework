@@ -10045,6 +10045,11 @@ type StorePluginType {
   contentFiles: [StorePluginFileType!]!
 
   """
+  The contributions object of the plugin's plugin.json as JSON text; null when not declared
+  """
+  contributions: String
+
+  """
   The plugin's entry asset (its remoteEntry.js)
   """
   entry: StorePluginFileType

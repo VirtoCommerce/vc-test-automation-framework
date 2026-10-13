@@ -5,9 +5,6 @@ fragment PageContext on PageContextResponseType {
   store {
     ...StoreInfo
   }
-  whiteLabelingSettings {
-    ...WhiteLabelingSettings
-  }
   user {
     ...User
   }

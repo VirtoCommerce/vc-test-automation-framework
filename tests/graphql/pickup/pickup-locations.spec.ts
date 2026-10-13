@@ -10,6 +10,7 @@ import { requireDefined } from "@core/required-fields";
 import { centersStocking, findFulfillmentCenter, stockQuantity } from "@dataset/stock";
 import { expect, test } from "@fixtures";
 
+const PICKUP_MODULE = "VirtoCommerce.XPickup";
 const STOCKED_ID = "product-sodimm-crucial-ddr4-2400-8gb";
 const OUT_OF_STOCK_ID = "product-sodimm-samsung-ddr5-4800-8gb";
 const IN_STOCK = { stocks: [STOCKED_ID] };
@@ -91,6 +92,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("pickup locations (anonymous)", () => {
+  test.use({ requiresModules: [PICKUP_MODULE] });
+
   for (const { query, read } of [
     {
       query: "pickup locations of the store",
@@ -165,6 +168,8 @@ test.describe("pickup locations (anonymous)", () => {
 });
 
 test.describe("pickup location administration (anonymous)", () => {
+  test.use({ requiresModules: [PICKUP_MODULE] });
+
   test("an updated pickup location shows its new name and address", async ({ api, arrange, dataset }) => {
     await allure.story("Administration");
     await allure.description(
@@ -229,6 +234,8 @@ test.describe("pickup location administration (anonymous)", () => {
 });
 
 test.describe("product pickup locations (anonymous)", () => {
+  test.use({ requiresModules: [PICKUP_MODULE] });
+
   test("product pickup locations include every availability type", async ({ api, arrange, dataset }) => {
     await allure.story("Availability");
     await allure.description(

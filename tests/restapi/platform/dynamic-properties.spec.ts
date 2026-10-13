@@ -7,24 +7,27 @@ import { expect, test } from "@fixtures";
 
 const CONTACT_TYPE = "VirtoCommerce.CustomerModule.Core.Model.Contact";
 const STORE_TYPE = "VirtoCommerce.StoreModule.Core.Model.Store";
+const STORE_ADMINISTRATOR = "acme_store_administrator@acme.com";
 const OBJECT_TYPES = [
-  "VirtoCommerce.CartModule.Core.Model.LineItem",
-  "VirtoCommerce.CartModule.Core.Model.Payment",
-  "VirtoCommerce.CartModule.Core.Model.Shipment",
-  "VirtoCommerce.CartModule.Core.Model.ShoppingCart",
-  "VirtoCommerce.ContentModule.Core.Model.FrontMatterHeaders",
-  CONTACT_TYPE,
-  "VirtoCommerce.CustomerModule.Core.Model.Employee",
-  "VirtoCommerce.CustomerModule.Core.Model.Organization",
-  "VirtoCommerce.CustomerModule.Core.Model.Vendor",
-  "VirtoCommerce.MarketingModule.Core.Model.DynamicContentItem",
-  "VirtoCommerce.OrdersModule.Core.Model.CustomerOrder",
-  "VirtoCommerce.OrdersModule.Core.Model.LineItem",
-  "VirtoCommerce.OrdersModule.Core.Model.PaymentIn",
-  "VirtoCommerce.OrdersModule.Core.Model.Shipment",
-  "VirtoCommerce.QuoteModule.Core.Model.QuoteRequest",
-  STORE_TYPE,
-] as const;
+  ...[
+    "VirtoCommerce.CartModule.Core.Model.LineItem",
+    "VirtoCommerce.CartModule.Core.Model.Payment",
+    "VirtoCommerce.CartModule.Core.Model.Shipment",
+    "VirtoCommerce.CartModule.Core.Model.ShoppingCart",
+    "VirtoCommerce.ContentModule.Core.Model.FrontMatterHeaders",
+    CONTACT_TYPE,
+    "VirtoCommerce.CustomerModule.Core.Model.Employee",
+    "VirtoCommerce.CustomerModule.Core.Model.Organization",
+    "VirtoCommerce.CustomerModule.Core.Model.Vendor",
+    "VirtoCommerce.MarketingModule.Core.Model.DynamicContentItem",
+    "VirtoCommerce.OrdersModule.Core.Model.CustomerOrder",
+    "VirtoCommerce.OrdersModule.Core.Model.LineItem",
+    "VirtoCommerce.OrdersModule.Core.Model.PaymentIn",
+    "VirtoCommerce.OrdersModule.Core.Model.Shipment",
+    STORE_TYPE,
+  ].map((objectType) => ({ objectType, requiresModules: [] })),
+  { objectType: "VirtoCommerce.QuoteModule.Core.Model.QuoteRequest", requiresModules: ["VirtoCommerce.Quote"] },
+];
 const VALUE_TYPES = [
   { title: "ShortText (array)", valueType: "ShortText", isArray: true, isMultilingual: false, isDictionary: false },
   {
@@ -55,7 +58,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("dynamic properties (store administrator)", () => {
-  test.use({ user: "acme_store_administrator@acme.com" });
+  test.use({ user: STORE_ADMINISTRATOR });
 
   test("list the object types that support dynamic properties", async ({ api }) => {
     await allure.story("Object types");
@@ -68,27 +71,6 @@ test.describe("dynamic properties (store administrator)", () => {
       expect(objectTypes).toEqual(expect.arrayContaining([STORE_TYPE, CONTACT_TYPE]));
     });
   });
-
-  for (const objectType of OBJECT_TYPES) {
-    const typeTitle = objectType.replace("VirtoCommerce.", "").replace(".Core.Model.", " ");
-
-    test(`create and find a dynamic property of ${typeTitle}`, async ({ api, cleanup }) => {
-      await allure.story("Object types");
-      await allure.description(`A ShortText property of ${typeTitle} is found by its object type and name.`);
-      const name = uniqueId("test_property");
-      const id = randomUUID();
-      cleanup.push(`delete dynamic property ${name}`, () => api.rest.dynamicProperties.delete([id]));
-
-      const property = await test.step("act: create a property", () =>
-        api.rest.dynamicProperties.create({ id, objectType, name, valueType: "ShortText" }));
-
-      await test.step("assert: the property is found for its object type", async () => {
-        expect(await api.rest.dynamicProperties.search({ objectType, keyword: name })).toEqual([
-          expect.objectContaining({ id: property.id, name, objectType }),
-        ]);
-      });
-    });
-  }
 
   for (const { title, ...flags } of VALUE_TYPES) {
     test(`create a ${title} dynamic property`, async ({ api, cleanup }) => {
@@ -124,3 +106,28 @@ test.describe("dynamic properties (store administrator)", () => {
     });
   });
 });
+
+for (const { objectType, requiresModules } of OBJECT_TYPES) {
+  const typeTitle = objectType.replace("VirtoCommerce.", "").replace(".Core.Model.", " ");
+
+  test.describe(`dynamic properties of ${typeTitle} (store administrator)`, () => {
+    test.use({ user: STORE_ADMINISTRATOR, requiresModules });
+
+    test(`create and find a dynamic property of ${typeTitle}`, async ({ api, cleanup }) => {
+      await allure.story("Object types");
+      await allure.description(`A ShortText property of ${typeTitle} is found by its object type and name.`);
+      const name = uniqueId("test_property");
+      const id = randomUUID();
+      cleanup.push(`delete dynamic property ${name}`, () => api.rest.dynamicProperties.delete([id]));
+
+      const property = await test.step("act: create a property", () =>
+        api.rest.dynamicProperties.create({ id, objectType, name, valueType: "ShortText" }));
+
+      await test.step("assert: the property is found for its object type", async () => {
+        expect(await api.rest.dynamicProperties.search({ objectType, keyword: name })).toEqual([
+          expect.objectContaining({ id: property.id, name, objectType }),
+        ]);
+      });
+    });
+  });
+}

@@ -5,6 +5,7 @@ import * as allure from "allure-js-commons";
 import { findFulfillmentCenter } from "@dataset/stock";
 import { expect, test } from "@fixtures";
 
+const PICKUP_MODULE = "VirtoCommerce.XPickup";
 const PRODUCT_ID = "product-smartphone-google-pixel-10-lemongrass";
 const ITEMS = [{ productId: PRODUCT_ID, quantity: 3 }] as const;
 const SHIPPING_METHODS = ["FixedRate_Ground", "FixedRate_Air"] as const;
@@ -45,25 +46,6 @@ test.describe("checkout delivery (anonymous)", () => {
     await test.step("arrange: a cart", () => arrange.carts.defaultCart(shopper.api, ITEMS));
   });
 
-  test("switch between shipping and pickup", async ({ frontend }) => {
-    await allure.story("Delivery option");
-    await allure.description("The delivery switches show the shipping address or the pickup location section.");
-    const flow = frontend.checkout();
-    const { shippingDetails } = flow;
-    await test.step(`arrange: open the ${flow.mode} checkout`, () => flow.start());
-
-    await test.step("act: choose shipping", () => shippingDetails.shippingSwitcher.click());
-    await test.step("assert: the shipping address section is shown", async () => {
-      await expect(shippingDetails.shippingAddressSection).toBeVisible();
-    });
-
-    await test.step("act: choose pickup", () => shippingDetails.pickupSwitcher.click());
-    await test.step("assert: the pickup location section is shown", async () => {
-      await expect(shippingDetails.pickupLocationSection).toBeVisible();
-      await expect(shippingDetails.shippingAddressSection).toBeHidden();
-    });
-  });
-
   test("switch between shipping methods", async ({ frontend }) => {
     await allure.story("Shipping method");
     await allure.description(`Each of ${SHIPPING_METHODS.join(" and ")} can be selected in turn.`);
@@ -84,7 +66,36 @@ test.describe("checkout delivery (anonymous)", () => {
   });
 });
 
+test.describe("checkout delivery with pickup (anonymous)", () => {
+  test.use({ requiresModules: [PICKUP_MODULE] });
+
+  test.beforeEach(async ({ shopper, arrange }) => {
+    await test.step("arrange: a cart", () => arrange.carts.defaultCart(shopper.api, ITEMS));
+  });
+
+  test("switch between shipping and pickup", async ({ frontend }) => {
+    await allure.story("Delivery option");
+    await allure.description("The delivery switches show the shipping address or the pickup location section.");
+    const flow = frontend.checkout();
+    const { shippingDetails } = flow;
+    await test.step(`arrange: open the ${flow.mode} checkout`, () => flow.start());
+
+    await test.step("act: choose shipping", () => shippingDetails.shippingSwitcher.click());
+    await test.step("assert: the shipping address section is shown", async () => {
+      await expect(shippingDetails.shippingAddressSection).toBeVisible();
+    });
+
+    await test.step("act: choose pickup", () => shippingDetails.pickupSwitcher.click());
+    await test.step("assert: the pickup location section is shown", async () => {
+      await expect(shippingDetails.pickupLocationSection).toBeVisible();
+      await expect(shippingDetails.shippingAddressSection).toBeHidden();
+    });
+  });
+});
+
 pickupTest.describe("checkout pickup locations (anonymous, with a new location)", () => {
+  pickupTest.use({ requiresModules: [PICKUP_MODULE] });
+
   pickupTest.beforeEach(async ({ frontend, location }) => {
     const flow = frontend.checkout();
     await test.step(`arrange: open the pickup locations on the ${flow.mode} checkout`, async () => {

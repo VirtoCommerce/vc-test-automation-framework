@@ -27,7 +27,12 @@
       }
     },
     {
-      "includes": ["dataset/manifest.ts"],
+      "includes": [
+        "dataset/manifest.ts",
+        "tests/unit/core/interpolate.test.ts",
+        "tests/unit/dataset/dataset.test.ts",
+        "tests/unit/dataset/seed/seed-requests.test.ts"
+      ],
       "linter": {
         "rules": {
           "suspicious": {

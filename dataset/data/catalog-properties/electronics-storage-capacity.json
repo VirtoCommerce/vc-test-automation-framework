@@ -1,0 +1,21 @@
+{
+  "id": "catalog-property-electronics-storage-capacity",
+  "catalogId": "catalog-acme-electronics",
+  "propertyGroupId": "catalog-property-group-electronics-storage",
+  "categoryId": null,
+  "name": "StorageCapacity",
+  "required": false,
+  "dictionary": false,
+  "multivalue": false,
+  "valueType": "Measure",
+  "measureId": "measure-memory-size",
+  "type": "Product",
+  "displayOrder": 19,
+  "values": [],
+  "displayNames": [
+    {
+      "name": "Storage capacity",
+      "languageCode": "en-US"
+    }
+  ]
+}

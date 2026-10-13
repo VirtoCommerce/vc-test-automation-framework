@@ -1,49 +1,49 @@
 import * as allure from "allure-js-commons";
 
-import { ASSETS_PATH, AssetsClient } from "@api/rest/clients/assets-client";
 import { uniqueId } from "@core/unique-id";
-import { REMOTE_FILES } from "@dataset/remote-files";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { textFile } from "@dataset/builders/files";
+import { expect, test } from "@fixtures";
+
+const PINNED_REPOSITORY_URL =
+  "https://raw.githubusercontent.com/VirtoCommerce/vc-testing-module/08b9d932b5c988d23b551ba8da1e4e2a0ad0b498";
+const REMOTE_FILES = [
+  { title: "a markdown file", name: "README.md", url: `${PINNED_REPOSITORY_URL}/README.md` },
+  { title: "a dotfile", name: ".gitignore", url: `${PINNED_REPOSITORY_URL}/.gitignore` },
+] as const;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Platform / Assets");
 });
 
-test.describe("platform assets (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("platform assets (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  for (const { title, url, name } of [
-    { title: "a markdown file", ...REMOTE_FILES.markdown },
-    { title: "a dotfile", ...REMOTE_FILES.dotfile },
-  ]) {
-    test(`upload ${title} from a URL`, async ({ httpClient, cleanupStack }) => {
-      const assetsClient = new AssetsClient(httpClient);
-      const folderName = uniqueId("test-folder");
-      cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
+  for (const { title, name, url } of REMOTE_FILES) {
+    test(`upload ${title} from a URL`, async ({ api, arrange }) => {
+      await allure.story("Upload");
+      await allure.description(`${name} uploaded from a URL is stored in the folder under its own name.`);
+      const folderName = await test.step("arrange: an asset folder", () => arrange.content.assetFolder());
 
-      const file = await test.step("act: upload file from URL", () => assetsClient.uploadFromUrl(folderName, url));
+      const file = await test.step(`act: upload ${name} from its URL`, () =>
+        api.rest.assets.uploadFromUrl(folderName, url));
 
-      await test.step("assert: file is in the folder", async () => {
+      await test.step(`assert: ${name} is in the folder`, async () => {
         expect(file.name).toBe(name);
-        expect((await assetsClient.list(folderName)).map((entry) => entry.name)).toContain(name);
+        expect((await api.rest.assets.list(folderName)).map((entry) => entry.name)).toContain(name);
       });
     });
   }
 
-  test("upload a local file", async ({ httpClient, cleanupStack }) => {
-    const assetsClient = new AssetsClient(httpClient);
-    const folderName = uniqueId("test-folder");
-    cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
-    const content = "Test asset content";
+  test("upload a local file", async ({ api, arrange }) => {
+    await allure.story("Upload");
+    await allure.description("A local file uploaded to a folder is stored under its name, at a URL in the folder.");
+    const folderName = await test.step("arrange: an asset folder", () => arrange.content.assetFolder());
 
-    const file = await test.step("act: upload local file", () =>
-      assetsClient.upload(folderName, {
-        name: "test-local.txt",
-        mimeType: "text/plain",
-        buffer: Buffer.from(content),
-      }));
+    const file = await test.step("act: upload a text file", () =>
+      api.rest.assets.upload(folderName, textFile("test-local.txt", "Test asset content")));
 
-    await test.step("assert: file is in the folder", async () => {
+    await test.step("assert: the file is stored in the folder", () => {
       expect(file).toMatchObject({ name: "test-local.txt", url: expect.stringContaining(folderName) });
     });
   });
@@ -52,133 +52,123 @@ test.describe("platform assets (admin)", () => {
     annotation: {
       type: "leaves data",
       description:
-        "The platform has no API to list or delete files in its local upload folder; every run leaves one small, uniquely named file there",
+        "The platform has no API to list or delete files in its local upload folder; " +
+        "every run leaves one small, uniquely named file there.",
     },
-  }, async ({ httpClient }) => {
-    const assetsClient = new AssetsClient(httpClient);
+  }, async ({ api }) => {
+    await allure.story("Upload");
+    await allure.description("A file uploaded to the platform's local storage is stored under its name.");
     const name = `${uniqueId("test-local-storage")}.txt`;
 
-    const file = await test.step("act: upload file to local storage", () =>
-      assetsClient.uploadToLocalStorage({ name, mimeType: "text/plain", buffer: Buffer.from("Test storage content") }));
+    const file = await test.step("act: upload a text file to local storage", () =>
+      api.rest.assets.uploadToLocalStorage(textFile(name, "Test storage content")));
 
-    await test.step("assert: file is stored under its name", async () => {
+    await test.step("assert: the file is stored under its name", () => {
       expect(file.name).toBe(name);
     });
   });
 
-  test("download an uploaded file", async ({ httpClient, cleanupStack }) => {
-    const assetsClient = new AssetsClient(httpClient);
-    const folderName = uniqueId("test-folder");
-    cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
+  test("download an uploaded file", async ({ api, arrange }) => {
+    await allure.story("Download");
+    await allure.description("An uploaded file is served at its URL with its content.");
     const content = "Test downloadable content";
-    const file = await test.step("arrange: uploaded file", () =>
-      assetsClient.upload(folderName, {
-        name: "test-download.txt",
-        mimeType: "text/plain",
-        buffer: Buffer.from(content),
-      }));
+    const { file } = await test.step("arrange: an uploaded file", () =>
+      arrange.content.asset(textFile("test-download.txt", content)));
 
-    const response = await test.step("act: download file", () => httpClient.get(file.url));
+    const downloaded = await test.step("act: download the file", () => api.rest.assets.download(file.url));
 
-    await test.step("assert: file content is served", async () => {
-      expect(response.status).toBe(200);
-      expect(response.text).toBe(content);
+    await test.step("assert: the file's content is served", () => {
+      expect(downloaded).toBe(content);
     });
   });
 
-  test("stop serving a deleted file", async ({ httpClient, cleanupStack }) => {
-    const assetsClient = new AssetsClient(httpClient);
-    const folderName = uniqueId("test-folder");
-    cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
-    const file = await test.step("arrange: uploaded file", () =>
-      assetsClient.upload(folderName, {
-        name: "test-deleted.txt",
-        mimeType: "text/plain",
-        buffer: Buffer.from("gone"),
-      }));
+  test("stop serving a deleted file", async ({ api, arrange }) => {
+    await allure.story("Download");
+    await allure.description("A deleted file is no longer served at its URL.");
+    const { file } = await test.step("arrange: an uploaded file", () =>
+      arrange.content.asset(textFile("test-deleted.txt", "gone")));
 
-    await test.step("act: delete file", () => assetsClient.remove(file.url));
+    await test.step("act: delete the file", () => api.rest.assets.delete([file.url]));
 
-    await test.step("assert: file is not found", async () => {
-      expect((await httpClient.get(file.url)).status).toBe(404);
+    await test.step("assert: downloading the file answers 404", async () => {
+      await expect(api.rest.assets.download(file.url)).rejects.toBeHttpError(404);
     });
   });
 
-  test("create a folder", async ({ httpClient, cleanupStack }) => {
-    const assetsClient = new AssetsClient(httpClient);
+  test("create a folder", async ({ api, cleanup }) => {
+    await allure.story("Folders");
+    await allure.description("A new folder is listed as a folder.");
     const folderName = uniqueId("test-folder");
-    cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
+    cleanup.push(`delete asset folder ${folderName}`, () => api.rest.assets.folders.delete(folderName));
 
-    await test.step("act: create folder", () => assetsClient.createFolder(folderName));
+    await test.step("act: create a folder", () => api.rest.assets.folders.create(folderName));
 
-    await test.step("assert: folder is listed", async () => {
-      expect(await assetsClient.find(folderName)).toMatchObject({ name: folderName, type: "folder" });
+    await test.step("assert: the folder is listed", async () => {
+      expect(await api.rest.assets.find(folderName)).toMatchObject({ name: folderName, type: "folder" });
     });
   });
 
-  test("list assets in a folder", async ({ httpClient, cleanupStack }) => {
-    const assetsClient = new AssetsClient(httpClient);
-    const folderName = uniqueId("test-folder");
-    cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
-    await test.step("arrange: uploaded file", () =>
-      assetsClient.upload(folderName, { name: "test-listed.txt", mimeType: "text/plain", buffer: Buffer.from("x") }));
+  test("reject a folder without a name", async ({ api }) => {
+    await allure.story("Folders");
+    await allure.description("A folder needs a name.");
 
-    const entries = await test.step("act: list folder", () => assetsClient.list(folderName));
+    await test.step("assert: creating a folder with an empty name is rejected", async () => {
+      await expect(api.rest.assets.folders.create("")).rejects.toBeHttpError(400, "Folder name must not be empty");
+    });
+  });
 
-    await test.step("assert: folder lists the file", async () => {
+  test("list the files of a folder", async ({ api, arrange }) => {
+    await allure.story("Folders");
+    await allure.description("A folder lists exactly the file uploaded to it.");
+    const { folderName } = await test.step("arrange: a folder with one file", () =>
+      arrange.content.asset(textFile("test-listed.txt", "listed")));
+
+    const entries = await test.step("act: list the folder", () => api.rest.assets.list(folderName));
+
+    await test.step("assert: the folder lists exactly the file", () => {
       expect(entries.map(({ name }) => name)).toEqual(["test-listed.txt"]);
     });
   });
 
-  test("delete a folder", async ({ httpClient, cleanupStack }) => {
-    const assetsClient = new AssetsClient(httpClient);
-    const folderName = uniqueId("test-folder");
-    cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
-    await test.step("arrange: folder", () => assetsClient.createFolder(folderName));
+  test("delete a folder", async ({ api, arrange }) => {
+    await allure.story("Folders");
+    await allure.description("A deleted folder is no longer listed.");
+    const folderName = await test.step("arrange: an asset folder", () => arrange.content.assetFolder());
 
-    await test.step("act: delete folder", () => assetsClient.removeFolder(folderName));
+    await test.step("act: delete the folder", () => api.rest.assets.folders.delete(folderName));
 
-    await test.step("assert: folder is not listed", async () => {
-      expect(await assetsClient.find(folderName)).toBeUndefined();
+    await test.step("assert: the folder is not listed", async () => {
+      expect(await api.rest.assets.find(folderName)).toBeUndefined();
     });
   });
 
-  test("create and delete folders in bulk", async ({ httpClient, cleanupStack }) => {
-    const assetsClient = new AssetsClient(httpClient);
-    const folderNames = [uniqueId("test-folder"), uniqueId("test-folder"), uniqueId("test-folder")];
-    for (const folderName of folderNames) {
-      cleanupStack.push(`remove folder ${folderName}`, () => assetsClient.removeFolder(folderName));
-    }
-    await test.step("arrange: three folders", () =>
-      Promise.all(folderNames.map((folderName) => assetsClient.createFolder(folderName))));
-    const folders = await assetsClient.list();
-    const urls = folders.filter(({ name }) => folderNames.includes(name)).map(({ url }) => url);
+  test("delete folders in bulk", async ({ api, arrange }) => {
+    await allure.story("Folders");
+    await allure.description("Three folders deleted by their URLs in one request are all gone.");
+    const folderNames = await test.step("arrange: three asset folders", async () => [
+      await arrange.content.assetFolder(),
+      await arrange.content.assetFolder(),
+      await arrange.content.assetFolder(),
+    ]);
+    const urls = await test.step("arrange: the folders' URLs", async () =>
+      (await api.rest.assets.list()).filter(({ name }) => folderNames.includes(name)).map(({ url }) => url));
 
-    await test.step("act: delete the folders in one request", () => assetsClient.removeMany(urls));
+    await test.step("act: delete the folders in one request", () => api.rest.assets.delete(urls));
 
     await test.step("assert: no folder is listed", async () => {
-      const remaining = (await assetsClient.list()).map(({ name }) => name);
+      const remaining = (await api.rest.assets.list()).map(({ name }) => name);
       expect(folderNames.filter((folderName) => remaining.includes(folderName))).toEqual([]);
-    });
-  });
-
-  test("reject a folder without a name", async ({ httpClient }) => {
-    const response = await test.step("act: create folder with an empty name", () =>
-      httpClient.post(`${ASSETS_PATH}/folder`, { json: { name: "", parentUrl: "" } }));
-
-    await test.step("assert: folder name is required", async () => {
-      expect(response.status).toBe(400);
-      expect(response.text).toContain("Folder name must not be empty");
     });
   });
 });
 
 test.describe("platform assets (anonymous)", () => {
-  test("reject listing assets anonymously", async ({ httpClient }) => {
-    const response = await test.step("act: get assets anonymously", () => httpClient.get(ASSETS_PATH));
+  test("reject listing assets anonymously", async ({ api }) => {
+    await allure.story("Access");
+    await allure.description("Assets are not listed to an anonymous visitor.");
 
-    await test.step("assert: access is denied", async () => {
-      expect(response.status).toBe(401);
+    await test.step("assert: listing assets anonymously answers 401", async () => {
+      await expect(api.rest.assets.list()).rejects.toBeHttpError(401);
     });
   });
 });

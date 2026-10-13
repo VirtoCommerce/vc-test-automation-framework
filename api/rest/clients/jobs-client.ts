@@ -16,6 +16,6 @@ export class JobsClient {
 
   async get(id: string): Promise<Job> {
     const response = await this.#httpClient.get(`${JOBS_PATH}/${encodeURIComponent(id)}`);
-    return requireFields(response.expectOk().json<JobData>(), JOB_FIELDS, `Job "${id}"`);
+    return requireFields(response.json<JobData>(), JOB_FIELDS, `Job "${id}"`);
   }
 }

@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-samsung-galaxy-s26-ultra-cobalt-violet",
+  "product": {
+    "id": "product-smartphone-samsung-galaxy-s26-ultra-cobalt-violet",
+    "name": "Samsung Galaxy S26 Ultra Cobalt Violet"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-samsung-galaxy-s26-ultra-cobalt-violet",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 1299.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-samsung-galaxy-s26-ultra-cobalt-violet"
+    },
+    {
+      "id": "price-acme-eur-smartphone-samsung-galaxy-s26-ultra-cobalt-violet",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 1208.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-samsung-galaxy-s26-ultra-cobalt-violet"
+    }
+  ]
+}

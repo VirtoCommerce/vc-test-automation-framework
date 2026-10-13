@@ -1,40 +1,45 @@
 import * as allure from "allure-js-commons";
 
 import { CreateConfiguredLineItemDocument } from "@api/graphql/generated/graphql";
-import { getProductConfiguration } from "@dataset/arrange/catalog";
+import { requireDefined } from "@core/required-fields";
 import { optionOfEachSection } from "@dataset/builders/product-configuration";
-import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const CONFIGURABLE_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
+const CONFIGURABLE_PRODUCT_ID = "product-laptop-acer-predator-helios-neo-16-ai";
 
 test.beforeEach(async () => {
+  await allure.epic("GraphQL");
   await allure.feature("Catalog / Configurable Product");
 });
 
 test.describe("configurable product (anonymous)", () => {
-  test("configure a product into a line item", async ({ graphqlClient, frontendContext }) => {
-    const configuration = await test.step("arrange: product configuration", () =>
-      getProductConfiguration(graphqlClient, frontendContext, CONFIGURABLE_PRODUCT_ID));
-    await test.step("assert: every section offers options", async () => {
-      expect(configuration.configurationSections.length).toBeGreaterThan(0);
-      for (const section of configuration.configurationSections) {
-        expect(section?.options?.length).toBeGreaterThan(0);
+  test("configure a product into a line item", async ({ api, arrange }) => {
+    await allure.story("Configuration");
+    await allure.description(
+      "Every section of a configurable product offers options; one option of each makes a configured item.",
+    );
+    const configuration = await arrange.catalog.productConfiguration(api, CONFIGURABLE_PRODUCT_ID);
+    await test.step("assert: every section offers options", () => {
+      const sections = requireDefined(configuration.configurationSections, "Configuration section");
+      expect(sections.length).toBeGreaterThan(0);
+      for (const section of sections) {
+        expect(section.options?.length, `options of section ${section.name}`).toBeGreaterThan(0);
       }
     });
+    const { storeId, cultureName, currencyCode } = await api.storeContext();
 
     const { createConfiguredLineItem } = await test.step("act: configure the first option of each section", () =>
-      graphqlClient.execute(CreateConfiguredLineItemDocument, {
+      api.graphql.execute(CreateConfiguredLineItemDocument, {
         command: {
           configurableProductId: CONFIGURABLE_PRODUCT_ID,
           configurationSections: optionOfEachSection(configuration),
-          storeId: frontendContext.storeId,
-          cultureName: frontendContext.cultureName,
-          currencyCode: frontendContext.currencyCode,
+          storeId,
+          cultureName,
+          currencyCode,
         },
       }));
 
-    await test.step("assert: one configured item of the product is created", async () => {
+    await test.step("assert: one configured item of the product is created", () => {
       expect(createConfiguredLineItem).toMatchObject({ quantity: 1, product: { id: CONFIGURABLE_PRODUCT_ID } });
     });
   });

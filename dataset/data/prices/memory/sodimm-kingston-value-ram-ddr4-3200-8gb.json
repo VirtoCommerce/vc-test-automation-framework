@@ -1,0 +1,27 @@
+{
+  "productId": "product-sodimm-kingston-value-ram-ddr4-3200-8gb",
+  "product": {
+    "id": "product-sodimm-kingston-value-ram-ddr4-3200-8gb",
+    "name": "Kingston ValueRAM DDR4-3200 8GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-kingston-value-ram-ddr4-3200-8gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 21.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-kingston-value-ram-ddr4-3200-8gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-kingston-value-ram-ddr4-3200-8gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 20.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-kingston-value-ram-ddr4-3200-8gb"
+    }
+  ]
+}

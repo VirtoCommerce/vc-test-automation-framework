@@ -1,83 +1,129 @@
-import type { CustomersClient } from "@api/rest/clients/customers-client";
-import type { RolesClient } from "@api/rest/clients/roles-client";
-import type { UsersClient } from "@api/rest/clients/users-client";
-import type {
-  ApplicationUser,
-  IdentityResult,
-  Role,
-  RoleData,
-  SecurityResult,
-  UserApiKey,
-} from "@api/rest/types/security";
+import type { ApiSession } from "@api/api-session";
+import type { Credentials } from "@api/auth/credentials";
+import type { ApplicationUser, OAuthApp, Role, UserApiKey } from "@api/rest/types/security";
 import type { CleanupStack } from "@core/cleanup-stack";
-import type { UserDraft } from "../builders/security";
+import type { Secret } from "@core/secret";
+import type { StoreUnderTest } from "../store-under-test";
+import type { ArrangeContext } from "./context";
 
-import { USER_API_KEY_FIELDS } from "@api/rest/types/security";
-import { requireFields } from "@core/required-fields";
+import { newApiKey, newOAuthApp, newPlatformUser, newRole } from "../builders/security";
+import { expectSucceeded } from "./context";
 
-export function expectSucceeded(result: SecurityResult | IdentityResult, label: string): void {
-  if (result.succeeded !== true) {
-    throw new Error(`${label} failed: ${JSON.stringify(result.errors)}`);
+/** Back-office (platform) user, not signed in. */
+export interface PlatformAccount {
+  readonly user: ApplicationUser;
+  readonly credentials: Credentials;
+}
+
+/** API key of a user. */
+export interface ArrangedApiKey {
+  readonly key: UserApiKey;
+  /** The raw key value to send with requests. */
+  readonly value: Secret;
+}
+
+/** Arranges back-office users, API keys, roles, OAuth apps and signed-in sessions. */
+export class SecurityArrange {
+  readonly #admin: ApiSession;
+  readonly #cleanup: CleanupStack;
+  readonly #store: StoreUnderTest;
+
+  constructor({ admin, cleanup, store }: ArrangeContext) {
+    this.#admin = admin;
+    this.#cleanup = cleanup;
+    this.#store = store;
   }
-}
 
-export async function arrangeUser(
-  usersClient: UsersClient,
-  cleanupStack: CleanupStack,
-  draft: UserDraft,
-): Promise<ApplicationUser> {
-  cleanupStack.push(`delete user ${draft.userName}`, () => usersClient.delete([draft.userName]));
-  expectSucceeded(await usersClient.create(draft), `Create user ${draft.userName}`);
-  return usersClient.get(draft.userName);
-}
+  /**
+   * Creates a back-office user with no roles and deletes it after the test; it is not signed in (see
+   * {@link SecurityArrange#signIn}). Use {@link CustomerArrange#customerAccount} for a frontend customer.
+   *
+   * @param overrides - Such as `isAdministrator` or `emailConfirmed`.
+   */
+  async platformUser(overrides: Parameters<typeof newPlatformUser>[1] = {}): Promise<PlatformAccount> {
+    const draft = newPlatformUser(this.#store.id, overrides);
+    const { users } = this.#admin.rest;
+    this.#cleanup.push(`delete user ${draft.userName}`, () => users.delete([draft.userName]));
+    expectSucceeded(
+      await users.create({ ...draft, password: draft.password.reveal() }),
+      `Creating user ${draft.userName}`,
+    );
+    return {
+      user: await users.get(draft.userName),
+      credentials: { username: draft.userName, password: draft.password },
+    };
+  }
 
-export async function arrangeRole(
-  rolesClient: RolesClient,
-  cleanupStack: CleanupStack,
-  draft: RoleData & { readonly name: string },
-): Promise<Role> {
-  registerRoleRemoval(rolesClient, cleanupStack, draft.name);
-  expectSucceeded(await rolesClient.save(draft), `Create role ${draft.name}`);
-  return rolesClient.get(draft.name);
-}
-
-export function registerRoleRemoval(rolesClient: RolesClient, cleanupStack: CleanupStack, name: string): void {
-  cleanupStack.push(`delete role ${name}`, async () => {
-    const role = await rolesClient.find(name);
-    if (role !== undefined) {
-      await rolesClient.delete([role.id]);
+  /**
+   * Creates an active API key for a user and deletes all the user's keys after the test.
+   *
+   * @throws Error when the user does not end up with exactly one key.
+   */
+  async apiKey(user: ApplicationUser): Promise<ArrangedApiKey> {
+    const { apiKeys } = this.#admin.rest.users;
+    const value = newApiKey();
+    this.deleteApiKeysLater(user);
+    await apiKeys.create({ userId: user.id, userName: user.userName, apiKey: value.reveal(), isActive: true });
+    const [key, ...others] = await apiKeys.list(user.id);
+    if (key === undefined || others.length > 0) {
+      throw new Error(
+        `User ${user.userName} has ${others.length + (key === undefined ? 0 : 1)} API keys, expected one`,
+      );
     }
-  });
-}
+    return { key, value };
+  }
 
-export async function arrangeApiKey(
-  usersClient: UsersClient,
-  cleanupStack: CleanupStack,
-  user: ApplicationUser,
-  apiKey: string,
-): Promise<UserApiKey & { apiKey: string }> {
-  cleanupStack.push(`delete API key of ${user.userName}`, async () => {
-    const created = (await usersClient.listApiKeys(user.id)).find((key) => key.apiKey === apiKey);
-    if (created !== undefined) {
-      await usersClient.deleteApiKeys([created.id]);
-    }
-  });
-  await usersClient.createApiKey({ userId: user.id, userName: user.userName, apiKey, isActive: true });
-  const created = (await usersClient.listApiKeys(user.id)).find((key) => key.apiKey === apiKey);
-  return requireFields(created, [...USER_API_KEY_FIELDS, "apiKey"], `API key of ${user.userName}`);
-}
+  /** Deletes all API keys of the user after the test, for keys the code under test creates. */
+  deleteApiKeysLater(user: ApplicationUser): void {
+    const { apiKeys } = this.#admin.rest.users;
+    this.#cleanup.push(`delete the API keys of ${user.userName}`, async () => {
+      const keys = await apiKeys.list(user.id);
+      if (keys.length > 0) {
+        await apiKeys.delete(keys.map(({ id }) => id));
+      }
+    });
+  }
 
-export function registerAccountRemoval(
-  usersClient: UsersClient,
-  customersClient: CustomersClient,
-  cleanupStack: CleanupStack,
-  userName: string,
-): void {
-  cleanupStack.push(`delete account ${userName} and its contact`, async () => {
-    const user = await usersClient.find(userName);
-    await usersClient.delete([userName]);
-    if (user?.memberId) {
-      await customersClient.contacts.delete([user.memberId]);
-    }
-  });
+  /**
+   * Creates a platform role and deletes it after the test.
+   *
+   * @param permissionNames - Such as `security:call_api`; none by default.
+   * @returns The role as the platform stores it.
+   */
+  async role(permissionNames: readonly string[] = []): Promise<Role> {
+    const { roles } = this.#admin.rest;
+    const draft = newRole(permissionNames);
+    this.deleteRoleLater(draft.name);
+    expectSucceeded(await roles.save(draft), `Creating role ${draft.name}`);
+    return roles.get(draft.name);
+  }
+
+  /** Deletes the role with this name after the test, if it exists then; for roles the code under test creates. */
+  deleteRoleLater(name: string): void {
+    const { roles } = this.#admin.rest;
+    this.#cleanup.push(`delete role ${name}`, async () => {
+      const role = await roles.find(name);
+      if (role !== undefined) {
+        await roles.delete([role.id]);
+      }
+    });
+  }
+
+  /** Creates a confidential OAuth app and deletes it after the test. */
+  async oauthApp(): Promise<OAuthApp> {
+    const { oauthApps } = this.#admin.rest;
+    const draft = newOAuthApp();
+    this.#cleanup.push(`delete OAuth app ${draft.clientId}`, () => oauthApps.delete([draft.clientId]));
+    return oauthApps.create(draft);
+  }
+
+  /**
+   * Signs a user in and signs them out after the test, e.g. a {@link SecurityArrange#platformUser}.
+   * {@link CustomerArrange#customerAccount} already signs its customer in.
+   */
+  async signIn(credentials: Credentials): Promise<ApiSession> {
+    const session = await this.#admin.as(credentials);
+    this.#cleanup.push(`sign out ${credentials.username}`, () => session.signOut());
+    return session;
+  }
 }

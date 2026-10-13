@@ -1,60 +1,70 @@
 ---
 name: plan-test-strategy
-description: "Analyze a Jira ticket, feature requirement, or bug report and produce a structured test coverage strategy — what to test, which Playwright project, priority, test data needs"
+description: "Analyze a Jira ticket, feature requirement, or bug report and produce a structured test coverage strategy — what to test, which Playwright project, who runs it, arrange and dataset needs, priority"
 argument-hint: "<ticket-or-requirement>"
 ---
 
 ## Test Strategy Planning
 
-When given a requirement, feature description, or Jira ticket, produce a structured test strategy.
+Given a requirement, feature or ticket, produce a structured test strategy. Read CLAUDE.md "Writing tests" first.
 
 ## Process
 
 ### Step 1: Understand the Requirement
 
-- Read the ticket or requirement carefully
-- Identify the area (cart, checkout, catalog, contacts, orders, quotes, shopping lists, pickup, content, page builder, platform security, …)
-- Identify the roles involved (anonymous, seeded user, fresh customer account, organization maintainer, store administrator, platform admin)
-- Identify the surface: xAPI queries and mutations, REST endpoints, frontend pages, page-builder shell blades
+- The platform module or area (cart, checkout, catalog, customers, security, orders, quotes, lists, pickup,
+  content, page builder, platform settings, …).
+- The identities involved: anonymous, dataset user, a customer of the test's own, organization maintainer, store
+  administrator, platform admin.
+- The surface: xAPI queries and mutations, REST endpoints, frontend pages, page builder blades.
 
 ### Step 2: Explore Existing Coverage
 
 Search before planning anything new:
 
 ```
+tests/restapi/<platform-module>/*.spec.ts
 tests/graphql/<area>/*.spec.ts
-tests/restapi/<area>/*.spec.ts
 tests/e2e/frontend/<area>/*.spec.ts
 tests/e2e/backend/page-builder/*.spec.ts
+tests/isolated/**/*.spec.ts
+TESTS.md                                      what the old suite covered and where it went
 ```
 
-And the building blocks to reuse:
+And the building blocks:
 
 ```
-api/graphql/operations/<area>/*.graphql      existing queries and mutations
-api/rest/clients/<area>-client.ts            REST client methods
-pages/frontend/{pages,components,layouts}/   page objects
-dataset/arrange/*.ts, dataset/builders/*.ts  setup helpers and drafts
-dataset/seeded.ts, dataset/data/             seeded users, products and other records
+api/graphql/operations/<area>/*.graphql       queries and mutations
+api/rest/clients/<module>-client.ts           REST client methods (api.rest.<module>)
+pages/frontend/, pages/backend/               page objects
+dataset/arrange/*.ts, dataset/builders/*.ts   arrange methods and drafts
+dataset/data/                                 seeded users, products, orders, pages, …
+dataset/known-issues.ts                       defects already known
 ```
 
 ### Step 3: Design Test Cases
 
-For each behavior, decide:
+For each behavior decide:
 
-1. **What to assert**: the specific expected outcome
-2. **Project**: `graphql` (frontend business logic), `restapi` (admin API), `e2e-frontend` (UI only), `e2e-backend` (page-builder shell)
-3. **Who**: anonymous, `seededUser(...)` for read-only checks, `customerAccount` for anything that changes account state, platform admin
-4. **Setup**: fixtures and options (`withItems`, `withCustomerAccount`, `customerAccountRole`), `arrange…()` helpers, builders
-5. **Cleanup**: which helper or `cleanupStack` entry undoes each created entity
-6. **Priority**: P0 (critical path), P1 (important), P2 (edge case)
-7. **Markers**: known product issue (`test.fail`), `@destructive`, shared global state (`mode: "default"`)
+1. **Assert**: the specific expected outcome.
+2. **Project**: `graphql` (frontend business logic), `restapi` (admin API), `e2e-frontend` (what the shopper
+   sees), `e2e-backend` (page builder), `isolated` (platform-wide changes).
+3. **Who**: anonymous `api`; `test.use({ user: "<dataset user>" })` for read-only checks;
+   `arrange.customers.customerAccount()` or `shopperKind: "customer"` for anything that changes a customer's
+   state; the store administrator for admin REST.
+4. **Arrange**: dataset ids it reads; `arrange.<domain>` methods it needs, existing or new.
+5. **Cleanup**: `arrange` handles what it creates; `…Later` methods or `cleanup.push` for what the code under
+   test creates.
+6. **Priority**: P0 (critical path), P1 (important), P2 (edge case).
+7. **Markers**: a known defect (`knownIssue(KNOWN_ISSUES.x)`, with or without a tracker key).
+
+A behavior is tested once at the lowest layer that shows it. The UI keeps only what only the UI shows.
 
 ### Step 4: Identify Test Data Needs
 
-- Seeded entries the tests read (by `dataset/seeded.ts` constant, or a new constant to add)
-- New records for `dataset/data/` (and whether the seed must be re-run)
-- New builders or `arrange…()` helpers
+- Seeded records the tests read, by dataset id.
+- New records for `dataset/data/` (then `npm run seed` and a reindex).
+- New builders or `arrange` methods.
 
 ## Output Format
 
@@ -62,82 +72,74 @@ For each behavior, decide:
 # Test Strategy: <Feature Name>
 
 ## Requirement Summary
-<1-3 sentences describing what the feature does>
+<1-3 sentences>
 
 ## Existing Coverage
 - **Existing specs:** <files>
-- **Reusable building blocks:** <documents, client methods, page objects, helpers>
-- **Gaps:** <what's missing>
+- **Reusable building blocks:** <documents, client methods, page objects, arrange methods>
+- **Gaps:** <what is missing>
 
 ## Test Cases
 
 ### P0 — Critical Path
-| # | Test title | Project | Verifies | Who | Setup | Cleanup | Markers |
-|---|------------|---------|----------|-----|-------|---------|---------|
-| 1 | <plain-words title> | graphql/restapi/e2e-frontend/e2e-backend | <outcome> | <role> | <fixtures, helpers> | <how> | <none / fail / destructive / serial file> |
+| # | Test title | Project | Verifies | Who | Arrange | Cleanup | Markers |
+|---|---|---|---|---|---|---|---|
+| 1 | <plain-words title> | graphql / restapi / e2e-frontend / e2e-backend / isolated | <outcome> | <identity> | <dataset ids, arrange methods> | <how> | <none / knownIssue> |
 
 ### P1 — Important
-| # | Test title | Project | Verifies | Who | Setup | Cleanup | Markers |
-|---|------------|---------|----------|-----|-------|---------|---------|
+| # | Test title | Project | Verifies | Who | Arrange | Cleanup | Markers |
+|---|---|---|---|---|---|---|---|
 
 ### P2 — Edge Cases
-| # | Test title | Project | Verifies | Who | Setup | Cleanup | Markers |
-|---|------------|---------|----------|-----|-------|---------|---------|
+| # | Test title | Project | Verifies | Who | Arrange | Cleanup | Markers |
+|---|---|---|---|---|---|---|---|
 
 ## Test Data Requirements
-- **Seeded data used:** <constants>
-- **New seeded constants:** <to add to dataset/seeded.ts, or "None">
+- **Dataset records used:** <ids>
 - **New dataset records:** <files under dataset/data, or "None">
 
 ## New Infrastructure Needed
-- **GraphQL documents:** <operations/fragments to add, or "None">
+- **GraphQL documents:** <or "None">
 - **REST client methods / types:** <or "None">
 - **Page objects / components:** <or "None">
-- **Builders / arrange helpers:** <or "None">
+- **Builders / arrange methods:** <or "None">
+- **Known issues:** <entries for dataset/known-issues.ts, or "None">
 
 ## Allure Organization
-- **Features:** <allure.feature values, e.g. "Cart / Coupons", "Checkout (E2E)">
-- **Describe blocks:** <e.g. "coupons (customer account)">
+- **Epic / feature:** <e.g. "GraphQL" / "Cart / Coupons", "E2E" / "Frontend / Checkout">
+- **Describe blocks:** <e.g. "coupons (customer of their own)">
 
 ## Parallelism and Risks
-<shared data or settings, eventual consistency (search index, pickup), theme-dependent behavior, known platform issues>
+<shared data or settings, index lag, frontend settings (QUANTITY_CONTROL, RANGE_FILTER_TYPE, CHECKOUT_MODE),
+known defects>
 ```
 
 ## Project Decision Guide
 
 | Signal | Project |
-|--------|---------|
-| Result of an xAPI query or mutation | **graphql** |
-| Frontend business logic (cart totals, promotions, checkout, registration) | **graphql** |
-| Admin CRUD, platform settings, users and roles, catalog administration | **restapi** |
-| Rendering, navigation, forms, modals, what the shopper sees | **e2e-frontend** |
-| Page-builder shell behavior | **e2e-backend** |
-| Error handling of an API | **graphql** or **restapi**, not e2e |
-| Same logic for anonymous and signed-in shoppers | **graphql**, one `describe` per role |
+|---|---|
+| Result of an xAPI query or mutation | `graphql` |
+| Frontend business logic (cart totals, promotions, checkout, registration) | `graphql` |
+| Admin CRUD, users and roles, catalog administration, store settings | `restapi` |
+| Rendering, navigation, forms, modals, what the shopper sees | `e2e-frontend` |
+| Page builder app behavior | `e2e-backend` |
+| Global settings, index rebuild, restart, store closed to anonymous users | `isolated` |
+| Error handling of an API | `graphql` or `restapi`, not e2e |
+| Same logic for anonymous and signed-in shoppers | `graphql`, one `describe` per identity |
 
 ## Coverage Patterns by Area
 
-### Cart
-- Anonymous and signed-in cart operations (graphql, `arrangeCart`)
-- Account-specific behavior: merge, saved for later (graphql, `customerAccount`)
-- Cart page interactions: quantity, remove, clear (e2e-frontend, `withItems`, `withCustomerAccount`)
-
-### Catalog
-- Search, filters, facets, SEO, variations, configurable products (graphql)
-- Catalog, category and product administration (restapi, builders + `createCategoryWithProduct`)
-- Category page filters, sorting, view switcher (e2e-frontend)
-
-### Customers and Security
-- Registration, invitations, password reset (graphql)
-- Contacts, organizations, members, users, roles, API keys (restapi, `arrangeUser`, `arrangeRole`, `arrangeApiKey`)
-- Organization switcher and account pages (e2e-frontend, `withCustomerAccount`)
-
-### Orders, Quotes and Checkout
-- Order creation from a cart, order queries (graphql, `customerAccount`)
-- Order administration (restapi, `arrangeOrder`)
-- Quotes from carts (graphql, `arrangeQuoteFromCart`)
-- Checkout UI per `CHECKOUT_MODE` (e2e-frontend, `withItems`, `CheckoutFlow`)
-
-### Page Builder
-- Page administration and statuses (restapi via `PageBuilderClient`, e2e-backend through the shell)
-- Published pages on the frontend (e2e-frontend)
+- **Cart:** cart operations (graphql, `arrange.carts.cart`); merge and saved for later (graphql, a customer of
+  the test's own); cart page quantity, remove, clear (e2e-frontend, `arrange.carts.defaultCart(shopper.api, …)`).
+- **Catalog:** search, filters, facets, variations, configurable products (graphql); catalog administration
+  (restapi, `arrange.catalog`); category page filters and sorting (e2e-frontend).
+- **Customers:** contacts, organizations, members, addresses (restapi `customer`, graphql `customer`,
+  `arrange.customers`).
+- **Security:** platform users, roles, API keys, OAuth apps, sign-in, password reset (restapi `security`,
+  graphql `security`, `arrange.security`). Users and accounts are `security`, not `customer`.
+- **Orders, quotes, checkout:** order from cart and order queries (graphql); order administration (restapi,
+  `arrange.orders.order`); quotes (graphql, `arrange.orders.quoteFromCart`); checkout UI in either
+  `CHECKOUT_MODE` (e2e-frontend, `frontend.checkout()`).
+- **Pickup:** availability rules (graphql, `arrange.pickup`); one filter test in the checkout UI.
+- **Page builder:** page administration and validation (restapi `page-builder`); statuses and blades
+  (e2e-backend, `arrange.content.page()`); published pages on the frontend (e2e-frontend).

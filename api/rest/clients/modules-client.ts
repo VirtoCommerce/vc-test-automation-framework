@@ -15,7 +15,7 @@ export class ModulesClient {
   }
 
   async getInstalledIds(): Promise<ReadonlySet<string>> {
-    const modules = (await this.#httpClient.get(MODULES_PATH)).expectOk().json<ModuleDescriptorData[]>();
+    const modules = (await this.#httpClient.get(MODULES_PATH)).json<ModuleDescriptorData[]>();
     return new Set(
       modules
         .filter((module) => module.isInstalled)

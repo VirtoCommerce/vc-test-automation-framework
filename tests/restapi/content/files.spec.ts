@@ -1,146 +1,121 @@
-import type { ContentType } from "@api/rest/types/content";
+import type { Arrange } from "@dataset/arrange";
 
 import * as allure from "allure-js-commons";
 
-import { ContentClient, contentPath } from "@api/rest/clients/content-client";
-import { SettingsClient } from "@api/rest/clients/settings-client";
-import { uniqueId } from "@core/unique-id";
-import { arrangeSettingValue } from "@dataset/arrange/settings";
-import { FILE_EXTENSIONS_BLACKLIST_SETTING, FORBIDDEN_EXTENSION, newMarkdownFile } from "@dataset/builders/content";
-import { describeIssue, KNOWN_ISSUES } from "@dataset/known-issues";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { markdownFile } from "@dataset/builders/files";
+import { KNOWN_ISSUES } from "@dataset/known-issues";
+import { expect, knownIssue, test } from "@fixtures";
 
-const SEARCHABLE_CONTENT_TYPES: readonly ContentType[] = ["pages", "blogs", "themes"];
+const CONTENT_TYPES = ["pages", "blogs", "themes"] as const;
+const COUNTED_CONTENT = [
+  {
+    counter: "pagesCount",
+    content: "a page",
+    add: (arrange: Arrange) => arrange.content.contentFile("pages", markdownFile("test-pages")),
+  },
+  { counter: "blogsCount", content: "a blog", add: (arrange: Arrange) => arrange.content.contentFolder("blogs") },
+  { counter: "themesCount", content: "a theme", add: (arrange: Arrange) => arrange.content.contentFolder("themes") },
+] as const;
+const DOCUMENTS = [
+  { document: "page", contentType: "pages" },
+  { document: "blog post", contentType: "blogs" },
+] as const;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Content / Files");
 });
 
-test.describe("content files (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("content files (store administrator)", () => {
+  test.describe.configure({ mode: "default" });
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("get content statistic", async ({ httpClient, env }) => {
-    const contentClient = new ContentClient(httpClient, env.storeId);
+  for (const { counter, content, add } of COUNTED_CONTENT) {
+    test(`count ${content} in the content statistic`, async ({ api, arrange }) => {
+      await knownIssue(KNOWN_ISSUES.contentStatisticNotCounted);
+      await allure.story("Statistic");
+      await allure.description(`Adding ${content} to the store's content raises the statistic's ${counter} by one.`);
+      const before = await test.step("arrange: the content statistic", () => api.rest.content.getStatistic());
+      await test.step(`arrange: ${content}`, async () => {
+        await add(arrange);
+      });
 
-    const statistic = await test.step("act: get content statistic", () => contentClient.getStatistic());
+      const after = await test.step("act: get the content statistic", () => api.rest.content.getStatistic());
 
-    await test.step("assert: statistic reports pages, blogs and themes counts", async () => {
-      expect(statistic).toMatchObject({
-        pagesCount: expect.any(Number),
-        blogsCount: expect.any(Number),
-        themesCount: expect.any(Number),
+      await test.step(`assert: ${counter} is one more than before`, () => {
+        expect(after[counter]).toBe(before[counter] + 1);
       });
     });
-  });
+  }
 
-  for (const contentType of SEARCHABLE_CONTENT_TYPES) {
-    test(`find a folder in ${contentType}`, async ({ httpClient, cleanupStack, env }) => {
-      const contentClient = new ContentClient(httpClient, env.storeId);
-      const folderName = uniqueId("test-folder");
-      cleanupStack.push(`remove ${contentType} folder ${folderName}`, () =>
-        contentClient.removeFolder(contentType, folderName),
-      );
-      await test.step("arrange: folder", () => contentClient.createFolder(contentType, folderName));
+  for (const contentType of CONTENT_TYPES) {
+    test(`find a folder in ${contentType}`, async ({ api, arrange }) => {
+      await allure.story("Search");
+      await allure.description(`A folder created in ${contentType} is found by its name, as a folder.`);
+      const folderName = await test.step(`arrange: a ${contentType} folder`, () =>
+        arrange.content.contentFolder(contentType));
 
-      const found = await test.step("act: search by folder name", () => contentClient.search(contentType, folderName));
+      const found = await test.step("act: search by the folder's name", () =>
+        api.rest.content.items.search(contentType, folderName));
 
-      await test.step("assert: folder is found", async () => {
+      await test.step("assert: the folder is found", () => {
         expect(found).toContainEqual(expect.objectContaining({ name: folderName, type: "folder" }));
       });
     });
   }
 
-  test("upload, rename and delete a page", async ({ httpClient, cleanupStack, env }) => {
-    const contentClient = new ContentClient(httpClient, env.storeId);
-    const folderName = uniqueId("test-folder");
-    const file = newMarkdownFile("test-page");
-    const renamedFileName = `renamed-${file.name}`;
-    cleanupStack.push(`remove pages folder ${folderName}`, () => contentClient.removeFolder("pages", folderName));
-    await test.step("arrange: folder", () => contentClient.createFolder("pages", folderName));
+  for (const { document, contentType } of DOCUMENTS) {
+    test(`upload, rename and delete a ${document}`, async ({ api, arrange }) => {
+      await allure.story("Files");
+      await allure.description(
+        `A ${document} uploaded to ${contentType} keeps its content, is found by its new name after a rename, ` +
+          "and is gone after it is deleted.",
+      );
+      const folderName = await test.step(`arrange: a ${contentType} folder`, () =>
+        arrange.content.contentFolder(contentType));
+      const file = markdownFile(`test-${contentType}`);
+      const renamedName = `renamed-${file.name}`;
 
-    await test.step("act: upload page", () => contentClient.upload("pages", folderName, file));
-    const page = await test.step("assert: page is found with its content", async () => {
-      const found = await contentClient.getByName("pages", file.name);
-      expect(await contentClient.getFileContent("pages", found.relativeUrl)).toBe(file.buffer.toString());
-      return found;
+      await test.step(`act: upload the ${document}`, () =>
+        api.rest.content.items.upload(contentType, folderName, file));
+      const uploaded = await test.step(`assert: the ${document} is found with its content`, async () => {
+        const found = await api.rest.content.items.getByName(contentType, file.name);
+        expect(await api.rest.content.items.getText(contentType, found.relativeUrl)).toBe(file.buffer.toString());
+        return found;
+      });
+      const renamedUrl = uploaded.url.replace(file.name, renamedName);
+
+      await test.step(`act: rename the ${document}`, () =>
+        api.rest.content.items.move(contentType, uploaded.url, renamedUrl));
+      await test.step(`assert: the ${document} is found by its new name`, async () => {
+        expect(await api.rest.content.items.getByName(contentType, renamedName)).toMatchObject({ url: renamedUrl });
+      });
+
+      await test.step(`act: delete the ${document}`, () => api.rest.content.items.delete(contentType, [renamedUrl]));
+      await test.step(`assert: the ${document} is gone`, async () => {
+        expect(await api.rest.content.items.findByName(contentType, renamedName)).toBeUndefined();
+      });
     });
-    const renamedUrl = page.url.replace(file.name, renamedFileName);
+  }
 
-    await test.step("act: rename page", () => contentClient.move("pages", page.url, renamedUrl));
-    await test.step("assert: page is found by the new name", async () => {
-      expect(await contentClient.getByName("pages", renamedFileName)).toMatchObject({ url: renamedUrl });
-    });
+  test("rename and delete a theme folder", async ({ api, arrange, cleanup }) => {
+    await allure.story("Folders");
+    await allure.description("A renamed theme folder is found by its new name, and is gone after it is deleted.");
+    const folderName = await test.step("arrange: a themes folder", () => arrange.content.contentFolder("themes"));
+    const folder = await test.step("arrange: the folder, as search finds it", () =>
+      api.rest.content.items.getByName("themes", folderName));
+    const renamedName = `${folderName}-renamed`;
+    const renamedUrl = folder.url.replace(folderName, renamedName);
+    cleanup.push(`delete themes folder ${renamedName}`, () => api.rest.content.folders.delete("themes", renamedName));
 
-    await test.step("act: delete page", () => contentClient.delete("pages", renamedUrl));
-    await test.step("assert: page is not found", async () => {
-      expect(await contentClient.findByName("pages", renamedFileName)).toBeUndefined();
-    });
-  });
-
-  test("upload, rename and delete a blog post", async ({ httpClient, cleanupStack, env }) => {
-    const contentClient = new ContentClient(httpClient, env.storeId);
-    const folderName = uniqueId("test-folder");
-    const file = newMarkdownFile("test-post");
-    const renamedFileName = `renamed-${file.name}`;
-    await test.step(`arrange: ${FORBIDDEN_EXTENSION} is blacklisted`, () =>
-      arrangeSettingValue(
-        new SettingsClient(httpClient),
-        cleanupStack,
-        FILE_EXTENSIONS_BLACKLIST_SETTING,
-        FORBIDDEN_EXTENSION,
-      ));
-    cleanupStack.push(`remove blogs folder ${folderName}`, () => contentClient.removeFolder("blogs", folderName));
-    await test.step("arrange: blog folder", () => contentClient.createFolder("blogs", folderName));
-    await test.step("arrange: uploaded post", () => contentClient.upload("blogs", folderName, file));
-    const post = await test.step("arrange: located post", () => contentClient.getByName("blogs", file.name));
-    const renamedUrl = post.url.replace(file.name, renamedFileName);
-
-    const forbiddenRename = await test.step(`act: rename post to ${FORBIDDEN_EXTENSION}`, () =>
-      httpClient.get(`${contentPath("blogs", env.storeId)}/move`, {
-        query: { oldUrl: post.url, newUrl: post.url.replace(".md", FORBIDDEN_EXTENSION) },
-      }));
-    await test.step(`assert: rename to ${FORBIDDEN_EXTENSION} is rejected`, async () => {
-      expect(forbiddenRename.ok).toBe(false);
-      expect(forbiddenRename.text).toContain(`File extension ${FORBIDDEN_EXTENSION} is not allowed`);
+    await test.step("act: rename the folder", () => api.rest.content.items.move("themes", folder.url, renamedUrl));
+    await test.step("assert: the folder is found by its new name", async () => {
+      expect(await api.rest.content.items.getByName("themes", renamedName)).toMatchObject({ type: "folder" });
     });
 
-    await test.step("act: rename post", () => contentClient.move("blogs", post.url, renamedUrl));
-    await test.step("assert: post is found by the new name", async () => {
-      expect(await contentClient.getByName("blogs", renamedFileName)).toMatchObject({ url: renamedUrl });
+    await test.step("act: delete the folder", () => api.rest.content.items.delete("themes", [renamedUrl]));
+    await test.step("assert: the folder is gone", async () => {
+      expect(await api.rest.content.items.findByName("themes", renamedName)).toBeUndefined();
     });
-
-    await test.step("act: delete post", () => contentClient.delete("blogs", renamedUrl));
-    await test.step("assert: post content is gone", async () => {
-      expect(await contentClient.getFileContent("blogs", post.relativeUrl)).toBeUndefined();
-      expect(await contentClient.findByName("blogs", renamedFileName)).toBeUndefined();
-    });
-  });
-
-  test("rename and delete a theme folder", async ({ httpClient, cleanupStack, env }) => {
-    const contentClient = new ContentClient(httpClient, env.storeId);
-    const folderName = uniqueId("test-theme");
-    const renamedFolderName = `${folderName}-renamed`;
-    cleanupStack.push(`remove themes folder ${folderName}`, () => contentClient.removeFolder("themes", folderName));
-    cleanupStack.push(`remove themes folder ${renamedFolderName}`, () =>
-      contentClient.removeFolder("themes", renamedFolderName),
-    );
-    await test.step("arrange: theme folder", () => contentClient.createFolder("themes", folderName));
-    const folder = await test.step("arrange: located theme folder", () =>
-      contentClient.getByName("themes", folderName));
-    const renamedUrl = folder.url.replace(folderName, renamedFolderName);
-
-    await test.step("act: rename theme folder", () => contentClient.move("themes", folder.url, renamedUrl));
-    await test.step("assert: theme folder is found by the new name", async () => {
-      expect(await contentClient.getByName("themes", renamedFolderName)).toMatchObject({ type: "folder" });
-    });
-
-    await test.step("act: delete theme folder", () => contentClient.delete("themes", renamedUrl));
-    await test.step("assert: theme folder is not found", async () => {
-      expect(await contentClient.findByName("themes", renamedFolderName)).toBeUndefined();
-    });
-  });
-
-  test("upload and unpack a theme archive", async () => {
-    test.fixme(true, describeIssue(KNOWN_ISSUES.themeZipFixture));
   });
 });

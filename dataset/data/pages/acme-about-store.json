@@ -1,0 +1,9 @@
+{
+  "id": "page-acme-about-store",
+  "name": "about-store",
+  "permalink": "/about-store",
+  "storeId": "${ENV:STORE_ID}",
+  "cultureName": "en-US",
+  "status": "Published",
+  "visibility": true
+}

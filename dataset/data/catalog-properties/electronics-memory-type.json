@@ -1,0 +1,20 @@
+{
+  "id": "catalog-property-electronics-memory-type",
+  "catalogId": "catalog-acme-electronics",
+  "propertyGroupId": "catalog-property-group-electronics-memory",
+  "categoryId": null,
+  "name": "MemoryType",
+  "required": false,
+  "dictionary": false,
+  "multivalue": false,
+  "valueType": "ShortText",
+  "type": "Product",
+  "displayOrder": 13,
+  "values": [],
+  "displayNames": [
+    {
+      "name": "Memory type",
+      "languageCode": "en-US"
+    }
+  ]
+}

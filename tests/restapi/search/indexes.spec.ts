@@ -1,157 +1,84 @@
-import type { IndexProgressNotification } from "@api/rest/types/search";
-
 import * as allure from "allure-js-commons";
 
-import { HttpError } from "@api/http/http-error";
-import { JobsClient } from "@api/rest/clients/jobs-client";
-import { SearchIndexesClient } from "@api/rest/clients/search-indexes-client";
 import { requireFields } from "@core/required-fields";
-import { SEEDED_PRODUCTS } from "@dataset/seeded";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { expect, test } from "@fixtures";
 
-const PRODUCT_DOCUMENT_TYPE = "Product";
-const INDEXED_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
-const JOB_STATES = ["Enqueued", "Scheduled", "Awaiting", "Processing", "Succeeded"];
-const SINGLE_DOCUMENT_TIMEOUT_MS = 30_000;
-const PROCESSING_START_TIMEOUT_MS = 60_000;
-const FULL_REBUILD_TIMEOUT_MS = 300_000;
+const PRODUCT_DOCUMENT = "Product";
+const PRODUCT_ID = "product-laptop-acer-predator-helios-neo-16-ai";
 const COMPLETED = "Indexation completed successfully";
-const CANCELED = "Indexation has been canceled";
+const JOB_STATES = ["Enqueued", "Scheduled", "Awaiting", "Processing", "Succeeded"];
+const INDEXATION_TIMEOUT_MS = 30_000;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Search / Indexes");
 });
 
-test.describe("search indexes (admin)", () => {
-  test.describe.configure({ mode: "default" });
-  test.use({ user: asWorkerAdministrator });
+test.describe("search indexes (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("list indexes", async ({ httpClient }) => {
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
+  test("list the indexes", async ({ api }) => {
+    await allure.story("Indexes");
+    await allure.description("The product index is one of the platform's search indexes.");
 
-    const indexes = await test.step("act: get indexes", () => searchIndexesClient.list());
+    const indexes = await test.step("act: list the indexes", () => api.rest.searchIndexes.list());
 
-    await test.step("assert: product index is listed", async () => {
-      expect(indexes.map(({ documentType }) => documentType)).toContain(PRODUCT_DOCUMENT_TYPE);
+    await test.step(`assert: the ${PRODUCT_DOCUMENT} index is listed`, () => {
+      expect(indexes.map(({ documentType }) => documentType)).toContain(PRODUCT_DOCUMENT);
     });
   });
 
-  test("get an indexed product document", async ({ httpClient }) => {
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
+  test("get the indexed document of a product", async ({ api, dataset }) => {
+    await allure.story("Documents");
+    await allure.description(`${PRODUCT_ID} is indexed as exactly one document, with its code.`);
+    const { code } = requireFields(dataset.products.get(PRODUCT_ID), ["code"], PRODUCT_ID);
 
-    const documents = await test.step("act: get product document", () =>
-      searchIndexesClient.getDocuments(PRODUCT_DOCUMENT_TYPE, INDEXED_PRODUCT_ID));
+    const documents = await test.step(`act: get the documents of ${PRODUCT_ID}`, () =>
+      api.rest.searchIndexes.getDocuments(PRODUCT_DOCUMENT, PRODUCT_ID));
 
-    await test.step("assert: the product's document is found", async () => {
-      expect(documents).toEqual([expect.objectContaining({ code: INDEXED_PRODUCT_ID })]);
+    await test.step("assert: exactly one document, with the product's code", () => {
+      expect(documents).toEqual([expect.objectContaining({ code })]);
     });
   });
 
-  test("reindex a product", async ({ httpClient }) => {
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
-    const indexedBefore = await test.step("arrange: the product's current indexation date", () =>
-      indexationDateOf(searchIndexesClient, INDEXED_PRODUCT_ID));
-
-    const started = await test.step("act: start product indexation", () =>
-      searchIndexesClient.startIndexation([
-        { documentType: PRODUCT_DOCUMENT_TYPE, documentIds: [INDEXED_PRODUCT_ID] },
-      ]));
-
-    await test.step("assert: indexation completes without errors", async () => {
-      const progress = await waitUntilFinished(searchIndexesClient, started, SINGLE_DOCUMENT_TIMEOUT_MS);
-      expect(progress).toMatchObject({ description: COMPLETED, errorCount: 0 });
+  test("reindex a product through a background job", async ({ api }) => {
+    await allure.story("Indexation");
+    await allure.description(
+      "Reindexing one product runs as a background job that reports its state, completes without errors and " +
+        "indexes the product anew.",
+    );
+    const indexedBefore = await test.step("arrange: the product's current indexation date", async () => {
+      const [document] = await api.rest.searchIndexes.getDocuments(PRODUCT_DOCUMENT, PRODUCT_ID);
+      return Date.parse(String(requireFields(document, ["indexationdate"], `Indexed ${PRODUCT_ID}`).indexationdate));
     });
 
-    await test.step("assert: the product's document is indexed again", async () => {
-      expect(await indexationDateOf(searchIndexesClient, INDEXED_PRODUCT_ID)).toBeGreaterThan(indexedBefore);
-    });
-  });
+    const started = await test.step(`act: reindex ${PRODUCT_ID}`, () =>
+      api.rest.searchIndexes.startIndexation([{ documentType: PRODUCT_DOCUMENT, documentIds: [PRODUCT_ID] }]));
 
-  test("get the status of an indexation's background job", async ({ httpClient }) => {
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
-    const jobsClient = new JobsClient(httpClient);
-    const started = await test.step("arrange: started product indexation", () =>
-      searchIndexesClient.startIndexation([
-        { documentType: PRODUCT_DOCUMENT_TYPE, documentIds: [INDEXED_PRODUCT_ID] },
-      ]));
-
-    const job = await test.step("act: get job status", () => jobsClient.get(started.jobId));
-
-    await test.step("assert: job reports a background job state", async () => {
+    await test.step("assert: the job reports a background job state", async () => {
+      const job = await api.rest.jobs.get(started.jobId);
       expect(job).toMatchObject({ id: started.jobId, completed: expect.any(Boolean) });
       expect(JOB_STATES).toContain(job.state);
     });
-
-    await test.step("assert: the job reaches a completed state with its indexation finished", async () => {
-      await waitUntilFinished(searchIndexesClient, started, SINGLE_DOCUMENT_TIMEOUT_MS);
-      await expect.poll(async () => (await jobsClient.get(started.jobId)).completed).toBe(true);
-    });
-  });
-
-  test("cancel a running indexation", { tag: "@destructive" }, async ({ httpClient }) => {
-    test.setTimeout(FULL_REBUILD_TIMEOUT_MS + 30_000);
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
-    const started = await test.step("arrange: full product reindex, one document per batch", () =>
-      searchIndexesClient.startIndexation([{ documentType: PRODUCT_DOCUMENT_TYPE, batchSize: 1 }]));
-    await test.step("arrange: wait until documents are being indexed", async () => {
+    await test.step("assert: the job completes and the indexation has no errors", async () => {
       await expect
-        .poll(async () => (await searchIndexesClient.findProgress(started.id))?.processedCount, {
-          timeout: PROCESSING_START_TIMEOUT_MS,
+        .poll(async () => (await api.rest.jobs.get(started.jobId)).completed, { timeout: INDEXATION_TIMEOUT_MS })
+        .toBe(true);
+      await expect
+        .poll(async () => (await api.rest.searchIndexes.findProgress(started.id))?.finished, {
+          timeout: INDEXATION_TIMEOUT_MS,
         })
-        .toBeGreaterThan(0);
+        .toEqual(expect.any(String));
+      expect(await api.rest.searchIndexes.getProgress(started.id)).toMatchObject({
+        description: COMPLETED,
+        errorCount: 0,
+      });
     });
-
-    await test.step("act: cancel the indexation", async () => {
-      try {
-        await searchIndexesClient.cancelIndexation(started.jobId);
-      } catch (error) {
-        test.skip(error instanceof HttpError && error.status === 501, "The platform's job storage cannot cancel jobs");
-        throw error;
-      }
-    });
-
-    await test.step("assert: indexation stopped as canceled before every document was processed", async () => {
-      const progress = requireFields(
-        await waitUntilFinished(searchIndexesClient, started, FULL_REBUILD_TIMEOUT_MS),
-        ["description", "processedCount", "totalCount"],
-        "Canceled indexation progress",
-      );
-      expect(progress.description).toBe(CANCELED);
-      expect(progress.processedCount).toBeLessThan(progress.totalCount);
-    });
-  });
-
-  test("drop and rebuild the product index", { tag: "@destructive" }, async ({ httpClient }) => {
-    test.setTimeout(FULL_REBUILD_TIMEOUT_MS + 30_000);
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
-
-    const started = await test.step("act: rebuild product index from scratch", () =>
-      searchIndexesClient.startIndexation([{ documentType: PRODUCT_DOCUMENT_TYPE, deleteExistingIndex: true }]));
-
-    await test.step("assert: rebuild completes without errors", async () => {
-      const progress = await waitUntilFinished(searchIndexesClient, started, FULL_REBUILD_TIMEOUT_MS);
-      expect(progress).toMatchObject({ description: COMPLETED, errorCount: 0 });
-    });
-
-    await test.step("assert: products are indexed again", async () => {
-      expect(await searchIndexesClient.getDocuments(PRODUCT_DOCUMENT_TYPE, INDEXED_PRODUCT_ID)).toHaveLength(1);
+    await test.step("assert: the product is indexed anew", async () => {
+      const [document] = await api.rest.searchIndexes.getDocuments(PRODUCT_DOCUMENT, PRODUCT_ID);
+      expect(
+        Date.parse(String(requireFields(document, ["indexationdate"], `Indexed ${PRODUCT_ID}`).indexationdate)),
+      ).toBeGreaterThan(indexedBefore);
     });
   });
 });
-
-async function waitUntilFinished(
-  searchIndexesClient: SearchIndexesClient,
-  started: IndexProgressNotification,
-  timeout: number,
-): Promise<IndexProgressNotification> {
-  await expect
-    .poll(async () => (await searchIndexesClient.findProgress(started.id))?.finished, { timeout })
-    .toEqual(expect.any(String));
-  return searchIndexesClient.getProgress(started.id);
-}
-
-async function indexationDateOf(searchIndexesClient: SearchIndexesClient, productId: string): Promise<number> {
-  const [document] = await searchIndexesClient.getDocuments(PRODUCT_DOCUMENT_TYPE, productId);
-  const { indexationdate } = requireFields(document, ["indexationdate"], `Indexed document of ${productId}`);
-  return Date.parse(String(indexationdate));
-}

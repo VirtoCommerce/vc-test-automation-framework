@@ -1,26 +1,33 @@
-import type { TestFixture } from "@playwright/test";
-import type { Credentials } from "@api/auth/credentials";
 import type { Dataset } from "@dataset/dataset";
+import type { StoreUnderTest } from "@dataset/store-under-test";
 
-import { test as base } from "@playwright/test";
+import { loadDataset } from "@dataset/dataset";
+import { envPlaceholders } from "@dataset/placeholders";
+import { storeUnderTest } from "@dataset/store-under-test";
 
-import { getCredentials, loadDataset } from "@dataset/dataset";
+import { test as envTest } from "./env.fixture";
 
-export interface DatasetWorkerFixtures {
+/** The seeded data, shared by every test of a worker. */
+export interface DatasetFixtures {
+  /** Every dataset collection with env placeholders resolved; loaded once per worker, records frozen. */
   readonly dataset: Dataset;
+  /** The store under test (`env.storeId`) as seeded: its catalog, default language and currency. */
+  readonly store: StoreUnderTest;
 }
 
-export const test = base.extend<Record<never, never>, DatasetWorkerFixtures>({
+/** Adds the worker-scoped {@link DatasetFixtures} on top of `env`. */
+export const test = envTest.extend<object, DatasetFixtures>({
   dataset: [
-    async ({}, use) => {
-      await use(loadDataset());
+    async ({ env }, use) => {
+      await use(loadDataset(envPlaceholders(env)));
+    },
+    { scope: "worker" },
+  ],
+
+  store: [
+    async ({ dataset, env }, use) => {
+      await use(storeUnderTest(dataset, env.storeId));
     },
     { scope: "worker" },
   ],
 });
-
-export function seededUser(username: string): TestFixture<Credentials | undefined, DatasetWorkerFixtures> {
-  return async ({ dataset }, use) => {
-    await use(getCredentials(dataset, username));
-  };
-}

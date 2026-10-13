@@ -1,89 +1,78 @@
 import * as allure from "allure-js-commons";
 
-import { PricingClient } from "@api/rest/clients/pricing-client";
 import { newPricelist } from "@dataset/builders/pricing";
-import { SEEDED_CURRENCY } from "@dataset/seeded";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Pricing / Pricelists");
 });
 
-test.describe("pricelists (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("pricelists (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("create a pricelist", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const draft = newPricelist();
+  test("create a pricelist", async ({ api, cleanup, store }) => {
+    await allure.story("Create");
+    await allure.description("A new pricelist has its name and the store's currency.");
+    const draft = newPricelist(store.defaultCurrency);
+    cleanup.push(`delete pricelist ${draft.name}`, () => api.rest.pricing.pricelists.delete([draft.id]));
 
-    const pricelist = await test.step("act: create pricelist", () => pricingClient.createPricelist(draft));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
+    const pricelist = await test.step("act: create a pricelist", () => api.rest.pricing.pricelists.create(draft));
 
-    await test.step("assert: pricelist has the currency", async () => {
-      expect(pricelist).toMatchObject({ name: draft.name, currency: SEEDED_CURRENCY });
+    await test.step(`assert: the pricelist is in ${store.defaultCurrency}`, () => {
+      expect(pricelist).toMatchObject({ name: draft.name, currency: store.defaultCurrency });
     });
   });
 
-  test("rename a pricelist", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const newName = `${pricelist.name}-renamed`;
+  test("get a pricelist by id", async ({ api, arrange }) => {
+    await allure.story("Read");
+    await allure.description("A pricelist is read back by its id.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
 
-    await test.step("act: rename pricelist", () => pricingClient.updatePricelist({ ...pricelist, name: newName }));
+    const reloaded = await test.step("act: get the pricelist", () => api.rest.pricing.pricelists.get(pricelist.id));
 
-    await test.step("assert: pricelist has the new name", async () => {
-      expect((await pricingClient.getPricelist(pricelist.id)).name).toBe(newName);
-    });
-  });
-
-  test("search pricelists by keyword", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-
-    const found = await test.step("act: search by pricelist name", () =>
-      pricingClient.searchPricelists({ Keyword: pricelist.name }));
-
-    await test.step("assert: pricelist is in the results", async () => {
-      expect(found.map(({ id }) => id)).toContain(pricelist.id);
-    });
-  });
-
-  test("get a pricelist by id", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-
-    const reloaded = await test.step("act: get pricelist", () => pricingClient.getPricelist(pricelist.id));
-
-    await test.step("assert: fields match the created pricelist", async () => {
+    await test.step("assert: the fields match the created pricelist", () => {
       expect(reloaded).toMatchObject({ id: pricelist.id, name: pricelist.name });
     });
   });
 
-  test("list pricelists", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
+  test("search pricelists by keyword", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("Searching pricelists by a pricelist's name finds it.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
 
-    const pricelists = await test.step("act: list pricelists", () => pricingClient.searchPricelists({ Take: 1000 }));
+    const found = await test.step("act: search pricelists by its name", () =>
+      api.rest.pricing.pricelists.search({ keyword: pricelist.name }));
 
-    await test.step("assert: pricelist is listed", async () => {
-      expect(pricelists.map(({ id }) => id)).toContain(pricelist.id);
+    await test.step("assert: the pricelist is found", () => {
+      expect(found.map(({ id }) => id)).toContain(pricelist.id);
     });
   });
 
-  test("delete a pricelist", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
+  test("rename a pricelist", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description("A renamed pricelist is read back with its new name.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+    const newName = `${pricelist.name}-renamed`;
 
-    await test.step("act: delete pricelist", () => pricingClient.deletePricelist(pricelist.id));
+    await test.step("act: rename the pricelist", () =>
+      api.rest.pricing.pricelists.update({ ...pricelist, name: newName }));
 
-    await test.step("assert: pricelist is not found", async () => {
-      expect(await pricingClient.findPricelist(pricelist.id)).toBeUndefined();
-      expect((await pricingClient.searchPricelists({ Keyword: pricelist.name })).map(({ id }) => id)).not.toContain(
+    await test.step("assert: the pricelist has the new name", async () => {
+      expect((await api.rest.pricing.pricelists.get(pricelist.id)).name).toBe(newName);
+    });
+  });
+
+  test("delete a pricelist", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A deleted pricelist is neither read nor found by search.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+
+    await test.step("act: delete the pricelist", () => api.rest.pricing.pricelists.delete([pricelist.id]));
+
+    await test.step("assert: the pricelist is not found", async () => {
+      expect(await api.rest.pricing.pricelists.find(pricelist.id)).toBeUndefined();
+      expect((await api.rest.pricing.pricelists.search({ keyword: pricelist.name })).map(({ id }) => id)).not.toContain(
         pricelist.id,
       );
     });

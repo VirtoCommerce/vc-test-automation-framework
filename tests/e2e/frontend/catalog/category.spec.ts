@@ -1,244 +1,162 @@
 import * as allure from "allure-js-commons";
 
-import { SEEDED_PRODUCTS } from "@dataset/seeded";
+import { ProductsDocument } from "@api/graphql/generated/graphql";
+import { requireDefined } from "@core/required-fields";
 import { expect, test } from "@fixtures";
-import { CategoryPage } from "@pages/frontend/pages/category-page";
-import { ProductPage } from "@pages/frontend/pages/product-page";
-import { isGraphqlOperation } from "@pages/graphql-traffic";
+import { ProductPage } from "@pages/frontend/pages/catalog-pages";
 
-const SMARTPHONES = "smartphones";
+const SMARTPHONES = { id: "category-acme-electronics-smartphones", path: "smartphones" } as const;
 const LAPTOPS = "laptops";
-const PRODUCT_SKU = SEEDED_PRODUCTS.galaxyA57;
-const CONFIGURABLE_SKU = SEEDED_PRODUCTS.configurableLaptop;
-const CONFIGURABLE_SLUG = "acer-predator-helios-neo-16-ai";
-const VARIATIONS_PARENT_SKU = SEEDED_PRODUCTS.pixel10Frost;
-const VARIATION_SKUS = ["smartphone-google-pixel-10-indigo", "smartphone-google-pixel-10-lemongrass"] as const;
-const PRICE_RANGE = { from: "1000", to: "2000" } as const;
-const PRICE_FACETS = ["filter-price-[1000 TO 1300)", "filter-price-[1300 TO 1500)", "filter-price-[1500 TO 2000)"];
-const PRODUCTS_IN_PRICE_RANGE = "4";
-const NARROW_VIEWPORT = { width: 800, height: 600 };
+const PRODUCT_SKU = "smartphone-samsung-galaxy-a57-5g";
+const CONFIGURABLE = {
+  sku: "laptop-acer-predator-helios-neo-16-ai",
+  slug: "acer-predator-helios-neo-16-ai",
+  path: "laptops/acer-predator-helios-neo-16-ai",
+} as const;
+const FAMILY_SKU = "smartphone-google-pixel-10-frost";
+const [FIRST_VARIATION, SECOND_VARIATION] = [
+  "smartphone-google-pixel-10-indigo",
+  "smartphone-google-pixel-10-lemongrass",
+] as const;
+const PRICE_RANGE = { from: 1000, to: 2000 } as const;
+const NARROW_VIEWPORT = { width: 800, height: 600 } as const;
+const PAGE_SIZE = 100;
+const CARD_QUANTITIES = [
+  { quantity: 1, badge: "1" },
+  { quantity: 2, badge: "2" },
+  { quantity: 1, badge: "1" },
+] as const;
+const VARIATION_QUANTITIES = [
+  { sku: FIRST_VARIATION, quantity: 1, badge: "1" },
+  { sku: FIRST_VARIATION, quantity: 2, badge: "2" },
+  { sku: SECOND_VARIATION, quantity: 1, badge: "3" },
+  { sku: SECOND_VARIATION, quantity: 2, badge: "4" },
+  { sku: FIRST_VARIATION, quantity: 1, badge: "3" },
+  { sku: SECOND_VARIATION, quantity: 1, badge: "2" },
+] as const;
 
 test.beforeEach(async () => {
-  await allure.feature("Catalog / Category (E2E)");
+  await allure.epic("E2E");
+  await allure.feature("Frontend / Catalog");
 });
 
 test.describe("category page (anonymous)", () => {
-  test("switch between grid and list views", async ({ page }) => {
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-    await test.step(`arrange: open ${SMARTPHONES}`, () => categoryPage.navigate());
+  test("switch between grid and list views", async ({ frontend }) => {
+    await allure.story("Category");
+    await allure.description("The view switcher shows a category's products as a grid or as a list.");
+    const category = frontend.category(SMARTPHONES.path);
+    await test.step(`arrange: open ${SMARTPHONES.path}`, () => category.navigate());
 
-    await test.step("act: switch to grid view", () => categoryPage.viewSwitcher.gridViewTab.click());
-    await test.step("assert: products are shown as a grid", async () => {
-      await expect(categoryPage.gridView).toBeVisible();
+    await test.step("act: switch to the grid view", () => category.gridViewTab.click());
+    await test.step("assert: the products are a grid", async () => {
+      await expect(category.gridView).toBeVisible();
     });
 
-    await test.step("act: switch to list view", () => categoryPage.viewSwitcher.listViewTab.click());
-    await test.step("assert: products are shown as a list", async () => {
-      await expect(categoryPage.listView).toBeVisible();
-    });
-  });
-
-  test("filter products by price with the slider", async ({ page, env }) => {
-    test.skip(env.rangeFilterType !== "slider", "The frontend renders price checkboxes, not the slider");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-    const { priceFilter } = categoryPage;
-
-    await test.step(`arrange: open ${SMARTPHONES} and expand the price filter`, async () => {
-      await categoryPage.navigate();
-      await priceFilter.header.click();
-      await expect(priceFilter.content).toBeVisible();
-    });
-
-    await test.step(`act: set the range ${PRICE_RANGE.from}–${PRICE_RANGE.to}`, async () => {
-      await priceFilter.startInput.fill(PRICE_RANGE.from);
-      await priceFilter.endInput.fill(PRICE_RANGE.to);
-      await categoryPage.clickOutside();
-    });
-
-    await test.step(`assert: ${PRODUCTS_IN_PRICE_RANGE} products are in range`, async () => {
-      await expect(categoryPage.productsCountLabel).toHaveText(PRODUCTS_IN_PRICE_RANGE);
+    await test.step("act: switch to the list view", () => category.listViewTab.click());
+    await test.step("assert: the products are a list", async () => {
+      await expect(category.listView).toBeVisible();
+      await expect(category.gridView).toBeHidden();
     });
   });
 
-  test("filter products by price with the checkboxes", async ({ page, env }) => {
-    test.skip(env.rangeFilterType !== "default", "The frontend renders the price slider, not checkboxes");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-    const { priceFilter } = categoryPage;
+  test("filter products by price", async ({ frontend, api, store }) => {
+    await allure.story("Filters");
+    await allure.description(
+      `The price filter, whichever control the frontend renders, narrows ${SMARTPHONES.path} to the products ` +
+        `the catalog prices between ${PRICE_RANGE.from} and ${PRICE_RANGE.to}.`,
+    );
+    const category = frontend.category(SMARTPHONES.path);
+    const context = await api.storeContext();
+    const { products } = await test.step("arrange: the category's products in the price range", () =>
+      api.graphql.execute(ProductsDocument, {
+        ...context,
+        filter: `category.subtree:${store.catalog}/${SMARTPHONES.id} price.${context.currencyCode}:[${PRICE_RANGE.from} TO ${PRICE_RANGE.to}]`,
+        first: PAGE_SIZE,
+      }));
+    const inRange = requireDefined(products?.items, "Product in range").length;
 
-    await test.step(`arrange: open ${SMARTPHONES} and expand the price filter`, async () => {
-      await categoryPage.navigate();
-      await priceFilter.header.click();
-      await expect(priceFilter.content).toBeVisible();
+    await test.step(`arrange: open ${SMARTPHONES.path}`, async () => {
+      await category.navigate();
+      await expect(category.productsCountLabel).not.toHaveText(String(inRange));
     });
 
-    await test.step(`act: tick the facets covering ${PRICE_RANGE.from}–${PRICE_RANGE.to}`, async () => {
-      for (const facet of PRICE_FACETS) {
-        await priceFilter.facet(facet).click();
-      }
-    });
+    await test.step(`act: filter by price ${PRICE_RANGE.from}–${PRICE_RANGE.to}`, () =>
+      category.priceFilter.apply(PRICE_RANGE.from, PRICE_RANGE.to));
 
-    await test.step(`assert: ${PRODUCTS_IN_PRICE_RANGE} products are in range`, async () => {
-      await expect(categoryPage.productsCountLabel).toHaveText(PRODUCTS_IN_PRICE_RANGE);
+    await test.step(`assert: ${inRange} products are shown`, async () => {
+      await expect(category.productsCountLabel).toHaveText(String(inRange));
     });
   });
 
-  test("the stepper stays visible in a narrow viewport", async ({ page, env }) => {
-    test.skip(env.quantityControl !== "stepper", "The frontend renders the add-to-cart button, not the stepper");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-
+  test("the quantity control stays usable in a narrow viewport", async ({ frontend, page }) => {
+    await allure.story("Product card");
+    await allure.description(
+      "In a narrow viewport a product card keeps its stepper, or shrinks its add-to-cart button to an icon.",
+    );
+    const category = frontend.category(SMARTPHONES.path);
     const card = await test.step(`arrange: find ${PRODUCT_SKU}`, async () => {
-      await categoryPage.navigate();
-      const found = await categoryPage.scrollToProduct(PRODUCT_SKU);
-      await expect(found.quantityStepper.root).toBeVisible();
-      return found;
+      await category.navigate();
+      return category.scrollToProduct(PRODUCT_SKU);
     });
 
     await test.step("act: narrow the viewport", () => page.setViewportSize(NARROW_VIEWPORT));
 
-    await test.step("assert: the stepper is still visible", async () => {
-      await expect(card.quantityStepper.root).toBeVisible();
+    await test.step("assert: the compact quantity control is shown", async () => {
+      await expect(card.quantity.compact).toBeVisible();
     });
   });
 
-  test("the add-to-cart button collapses to an icon in a narrow viewport", async ({ page, env }) => {
-    test.skip(env.quantityControl !== "button", "The frontend renders the stepper, not the add-to-cart button");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-
-    const card = await test.step(`arrange: find ${PRODUCT_SKU}`, async () => {
-      await categoryPage.navigate();
-      const found = await categoryPage.scrollToProduct(PRODUCT_SKU);
-      await expect(found.addToCartButton.textButton).toBeVisible();
-      return found;
+  test("change the cart from a product card", async ({ frontend }) => {
+    await allure.story("Product card");
+    await allure.description("Changing a product card's quantity changes the cart badge with it.");
+    const category = frontend.category(SMARTPHONES.path);
+    const { quantity } = await test.step(`arrange: find ${PRODUCT_SKU}`, async () => {
+      await category.navigate();
+      return category.scrollToProduct(PRODUCT_SKU);
     });
 
-    await test.step("act: narrow the viewport", () => page.setViewportSize(NARROW_VIEWPORT));
-
-    await test.step("assert: the icon button is shown", async () => {
-      await expect(card.addToCartButton.iconButton).toBeVisible();
-    });
-  });
-
-  test("change the cart from a product card with the stepper", async ({ page, env }) => {
-    test.skip(env.quantityControl !== "stepper", "The frontend renders the add-to-cart button, not the stepper");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-
-    const { quantityStepper } = await test.step(`arrange: find ${PRODUCT_SKU}`, async () => {
-      await categoryPage.navigate();
-      return categoryPage.scrollToProduct(PRODUCT_SKU);
-    });
-
-    for (const [button, expected] of [
-      [quantityStepper.incrementButton, "1"],
-      [quantityStepper.incrementButton, "2"],
-      [quantityStepper.decrementButton, "1"],
-    ] as const) {
-      await test.step("act: click the stepper", () =>
-        Promise.all([page.waitForResponse(isGraphqlOperation("UpdateShortCartItemQuantity")), button.click()]));
-      await test.step(`assert: the cart badge shows ${expected}`, async () => {
-        await expect(categoryPage.cartQuantityLabel).toHaveText(expected);
+    for (const { quantity: next, badge } of CARD_QUANTITIES) {
+      await test.step(`act: set the quantity to ${next}`, () => quantity.setQuantity(next));
+      await test.step(`assert: the cart badge shows ${badge}`, async () => {
+        await expect(category.cartQuantityLabel).toHaveText(badge);
       });
     }
   });
 
-  test("change the cart from a product card with the add-to-cart button", async ({ page, env }) => {
-    test.skip(env.quantityControl !== "button", "The frontend renders the stepper, not the add-to-cart button");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-
-    const { addToCartButton } = await test.step(`arrange: find ${PRODUCT_SKU}`, async () => {
-      await categoryPage.navigate();
-      return categoryPage.scrollToProduct(PRODUCT_SKU);
+  test("change the cart from product variations", async ({ frontend }) => {
+    await allure.story("Product card");
+    await allure.description("Changing the quantities of a family's variations keeps a running total in the badge.");
+    const category = frontend.category(SMARTPHONES.path);
+    const card = await test.step(`arrange: open the variations of ${FAMILY_SKU} in the list view`, async () => {
+      await category.navigate();
+      await category.listViewTab.click();
+      const family = await category.scrollToProduct(FAMILY_SKU);
+      await family.variationsButton.click();
+      return family;
     });
 
-    for (const quantity of ["1", "2"]) {
-      await test.step(`act: add ${quantity}`, async () => {
-        await addToCartButton.quantityInput.fill(quantity);
-        await addToCartButton.textButton.click();
-      });
-      await test.step(`assert: the cart badge shows ${quantity}`, async () => {
-        await expect(categoryPage.cartQuantityLabel).toHaveText(quantity);
-      });
-    }
-  });
-
-  test("change the cart from product variations with steppers", async ({ page, env }) => {
-    test.skip(env.quantityControl !== "stepper", "The frontend renders the add-to-cart button, not the stepper");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-
-    const card = await test.step(`arrange: open the variations of ${VARIATIONS_PARENT_SKU}`, async () => {
-      await categoryPage.navigate();
-      await categoryPage.viewSwitcher.listViewTab.click();
-      const parent = await categoryPage.scrollToProduct(VARIATIONS_PARENT_SKU);
-      await parent.variationsButton.click();
-      return parent;
-    });
-    const [firstSku, secondSku] = VARIATION_SKUS;
-
-    for (const [sku, button, expected] of [
-      [firstSku, "increment", "1"],
-      [firstSku, "increment", "2"],
-      [secondSku, "increment", "3"],
-      [secondSku, "increment", "4"],
-      [firstSku, "decrement", "3"],
-      [secondSku, "decrement", "2"],
-    ] as const) {
-      await test.step(`act: ${button} ${sku}`, () => {
-        const { quantityStepper } = card.variation(sku);
-        const control = button === "increment" ? quantityStepper.incrementButton : quantityStepper.decrementButton;
-        return Promise.all([page.waitForResponse(isGraphqlOperation("UpdateShortCartItemQuantity")), control.click()]);
-      });
-      await test.step(`assert: the cart badge shows ${expected}`, async () => {
-        await expect(categoryPage.cartQuantityLabel).toHaveText(expected);
+    for (const { sku, quantity, badge } of VARIATION_QUANTITIES) {
+      await test.step(`act: set ${sku} to ${quantity}`, () => card.variation(sku).setQuantity(quantity));
+      await test.step(`assert: the cart badge shows ${badge}`, async () => {
+        await expect(category.cartQuantityLabel).toHaveText(badge);
       });
     }
   });
 
-  test("change the cart from product variations with add-to-cart buttons", async ({ page, env }) => {
-    test.skip(env.quantityControl !== "button", "The frontend renders the stepper, not the add-to-cart button");
-    const categoryPage = new CategoryPage(page, SMARTPHONES);
-
-    const card = await test.step(`arrange: open the variations of ${VARIATIONS_PARENT_SKU}`, async () => {
-      await categoryPage.navigate();
-      await categoryPage.viewSwitcher.listViewTab.click();
-      const parent = await categoryPage.scrollToProduct(VARIATIONS_PARENT_SKU);
-      await parent.variationsButton.click();
-      return parent;
+  test("a configurable product card links to its configuration", async ({ frontend }) => {
+    await allure.story("Product card");
+    await allure.description("A configurable product's card links to the product page with its configuration.");
+    const category = frontend.category(LAPTOPS);
+    const card = await test.step(`arrange: find ${CONFIGURABLE.sku}`, async () => {
+      await category.navigate();
+      return category.scrollToProduct(CONFIGURABLE.sku);
     });
 
-    let expectedTotal = 0;
-    for (const sku of VARIATION_SKUS) {
-      const { addToCartButton } = card.variation(sku);
-      for (const quantity of [1, 2]) {
-        expectedTotal += 1;
-        await test.step(`act: set ${sku} to ${quantity}`, async () => {
-          await addToCartButton.quantityInput.fill(String(quantity));
-          await addToCartButton.iconButton.click();
-        });
-        await test.step(`assert: the cart badge shows ${expectedTotal}`, async () => {
-          await expect(categoryPage.cartQuantityLabel).toHaveText(String(expectedTotal));
-        });
-      }
-    }
-  });
-
-  test("a configurable product card links to its configuration page", async ({ page }) => {
-    const categoryPage = new CategoryPage(page, LAPTOPS);
-
-    const card = await test.step(`arrange: find ${CONFIGURABLE_SKU}`, async () => {
-      await categoryPage.navigate();
-      return categoryPage.scrollToProduct(CONFIGURABLE_SKU);
-    });
-
-    await test.step("assert: the card offers a customize link to the product", async () => {
-      await expect(card.configurationsButton).toBeVisible();
-      await expect(card.configurationsButton).toHaveAttribute("href", new RegExp(CONFIGURABLE_SLUG));
-    });
-
-    const productTab = await test.step("act: follow the customize link", () => card.openConfigurations());
+    const productTab = await test.step("act: follow the configure link", () => card.openConfigurations());
 
     await test.step("assert: the product page opens with its configuration", async () => {
-      const productPage = new ProductPage(productTab, CONFIGURABLE_SLUG);
-      await expect(productTab).toHaveURL(new RegExp(CONFIGURABLE_SLUG));
-      await expect(productPage.configuration.root).toBeVisible();
+      await expect(productTab).toHaveURL(new RegExp(CONFIGURABLE.slug));
+      await expect(new ProductPage(productTab, CONFIGURABLE.path).configuration.root).toBeVisible();
     });
   });
 });

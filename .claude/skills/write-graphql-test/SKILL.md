@@ -1,138 +1,139 @@
 ---
 name: write-graphql-test
-description: "Write xAPI GraphQL specs following project patterns — typed documents, frontendContext/customerAccount, cart and account helpers, cleanupStack, arrange/act/assert steps, Allure features"
+description: "Write xAPI GraphQL specs following project patterns — typed documents through api.graphql.execute, api.storeContext(), customers and carts from arrange, cleanup registered before the change, arrange/act/assert steps, Allure epic/feature/story"
 argument-hint: "<area> <test-scenario>"
 ---
 
 ## GraphQL Spec Writing
 
-Specs live in `tests/graphql/<area>/<feature>.spec.ts` and run in the `graphql` project. Follow these patterns exactly.
+Specs live in `tests/graphql/<area>/<topic>.spec.ts` (areas: cart, catalog, customer, orders, pickup, quotes,
+security) and run in the `graphql` project. A test that changes platform-wide state goes to
+`tests/isolated/graphql/`.
 
-## Imports
+Read first: CLAUDE.md "Writing tests", README "A GraphQL test". Copy the shape of
+`tests/graphql/cart/cart-items.spec.ts`.
+
+## Step 1: Find the Building Blocks
+
+- Document: `api/graphql/operations/<area>/*.graphql`; import the generated `…Document` from
+  `@api/graphql/generated/graphql`. Missing one? Add it with `/create-graphql-layer`.
+- Test data: `arrange.carts`, `arrange.customers`, `arrange.orders`, `arrange.pickup`, … (`dataset/arrange/`).
+- Seeded records: `dataset.products.get(id)` and the like; stock helpers in `@dataset/stock`.
+- Line items: `lineItemOf(cart, productId)` from `@api/graphql/line-items`.
+
+## Step 2: Choose Who Calls
+
+| Need | Use |
+|---|---|
+| Anonymous shopper | `api` (fresh user id per test, so carts never collide) |
+| Read-only checks as a dataset user | `test.use({ user: "<dataset user name>" })`, then `api` |
+| Anything that changes a customer's own state (cart, lists, addresses, locks, orders) | `const customer = await arrange.customers.customerAccount()`, then `customer.api` |
+| An organization maintainer | `arrange.customers.customerAccount({ role: "role-org-maintainer" })` |
+| A colleague in the same organization | `arrange.customers.customerAccount({ organizationId: customer.organizationId })` |
+
+## Step 3: Write the Spec
 
 ```ts
 import * as allure from "allure-js-commons";
 
-import { AddItemDocument, RemoveCartItemDocument } from "@api/graphql/generated/graphql";   // typed documents
+import { AddItemDocument, RemoveCartItemDocument } from "@api/graphql/generated/graphql";
+import { lineItemOf } from "@api/graphql/line-items";
+import { requireFields } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
-import { arrangeCart, cartScope, lineItemFor, registerCartRemoval, requireCart } from "@dataset/arrange/cart";
-import { SEEDED_PRODUCTS } from "@dataset/seeded";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_ID = SEEDED_PRODUCTS.iphone17Black;
-```
+const PRODUCT_ID = "product-smartphone-apple-iphone-17-256gb-black";
 
-A missing document means a new `.graphql` file under `api/graphql/operations/<area>/` plus `npm run codegen:graphql` (see `/create-graphql-layer`).
-
-## File Skeleton
-
-```ts
 test.beforeEach(async () => {
+  await allure.epic("GraphQL");
   await allure.feature("Cart / Items");
 });
 
 test.describe("cart items (anonymous)", () => {
-  test("…", async ({ graphqlClient, cleanupStack, frontendContext }) => { … });
-});
-```
+  test("add a single product to a new cart", async ({ api, arrange }) => {
+    await allure.story("Add items");
+    await allure.description("Adding one product with AddItem creates a cart of the shopper holding it.");
+    const context = await api.storeContext();
 
-## Who Calls xAPI
+    const { addItem } = await test.step("act: add the product ×1", () =>
+      api.graphql.execute(AddItemDocument, {
+        command: { ...context, cartName: uniqueId("test-cart"), productId: PRODUCT_ID, quantity: 1 },
+      }));
+    const cart = requireFields(addItem, ["id"], "Cart with the product");
+    await arrange.carts.removeCartLater(api, cart.id);
 
-| Need | Use |
-|------|-----|
-| Anonymous shopper | `graphqlClient` + `frontendContext` (random user id per test) |
-| Read-only checks as a seeded user | `test.use({ user: seededUser(SEEDED_USERS.storeMaintainer) })`, then `graphqlClient` + `frontendContext` |
-| Anything that changes account state (cart, lists, addresses, orders, organizations) | `customerAccount.graphqlClient` + `customerAccount.context` |
-| Maintainer-only operations | `test.use({ customerAccountRole: "org-maintainer" })` |
-| A second signed-in client | `signInGraphqlClient(tokenManager, anonymousHttpClient, credentials, env.storeId)` |
-| A session the token cache must not reuse (after a lock or password change) | `signInWithoutCache(anonymousHttpClient, credentials, env.storeId)` |
+    await test.step("assert: a cart of the shopper holds the product ×1", () => {
+      expect(cart).toMatchObject({ customerId: context.userId, itemsQuantity: 1 });
+      expect(lineItemOf(cart, PRODUCT_ID).quantity).toBe(1);
+    });
+  });
 
-## Pattern 1: Arrange Helper as the Action
+  test("remove a line item", async ({ api, arrange }) => {
+    await allure.story("Remove items");
+    await allure.description("Removing the only line item leaves an empty cart.");
+    const cart = await test.step("arrange: cart with a product", () =>
+      arrange.carts.cart(api, [{ productId: PRODUCT_ID, quantity: 1 }]));
 
-```ts
-test("add several products in one mutation", async ({ graphqlClient, cleanupStack, frontendContext }) => {
-  const items = [
-    { productId: PRODUCT_ID, quantity: 3 },
-    { productId: VARIATION_ID, quantity: 4 },
-  ];
+    const { removeCartItem } = await test.step("act: remove the line item", async () =>
+      api.graphql.execute(RemoveCartItemDocument, {
+        command: { ...(await api.storeContext()), cartId: cart.id, lineItemId: lineItemOf(cart, PRODUCT_ID).id },
+      }));
 
-  const cart = await test.step("act: add two products", () =>
-    arrangeCart(graphqlClient, cleanupStack, frontendContext, items));
-
-  await test.step("assert: both products are in the cart with their quantities", async () => {
-    expect(cart.items).toEqual(expect.arrayContaining(items.map((item) => expect.objectContaining(item))));
+    await test.step("assert: the cart is empty", () => {
+      expect(removeCartItem).toMatchObject({ itemsCount: 0, items: [] });
+    });
   });
 });
 ```
 
-## Pattern 2: Executing a Document
+- `allure.epic("GraphQL")` and `allure.feature("<Area> / <Topic>")` in `beforeEach`; `allure.story` and
+  `allure.description` first in each test.
+- `api.storeContext()` gives store, culture, currency and user id; never hard-code them.
+- Named carts (`arrange.carts.cart`, `cartName: uniqueId("test-cart")`) keep tests apart. The default cart
+  (`arrange.carts.defaultCart`) is for the frontend.
+- The platform assigns GraphQL cart and list ids, so register removal right after the create, before any
+  assertion (`arrange.carts.removeCartLater`, `arrange.orders.deleteQuoteLater`, `arrange.orders.deleteOrdersOfLater`).
+
+## Step 4: Pick the Pattern
+
+**Expected errors.** `execute` throws `GraphqlError`:
 
 ```ts
-test("add a single product to a new cart", async ({ graphqlClient, cleanupStack, frontendContext }) => {
-  const { addItem } = await test.step("act: add the product ×1", () =>
-    graphqlClient.execute(AddItemDocument, {
-      command: { ...cartScope(frontendContext), cartName: uniqueId("test-cart"), productId: PRODUCT_ID, quantity: 1 },
-    }));
-  const cart = requireCart(addItem, "Cart with the product");
-  registerCartRemoval(graphqlClient, cleanupStack, frontendContext, cart.id);
-
-  await test.step("assert: the cart holds the product ×1", async () => {
-    expect(cart).toMatchObject({ customerId: frontendContext.userId, itemsQuantity: 1 });
-    expect(lineItemFor(cart, PRODUCT_ID).quantity).toBe(1);
-  });
-});
+await expect(api.graphql.execute(CategoriesDocument, variables)).rejects.toBeGraphqlError("Unauthorized");
 ```
 
-- Named carts (`cartName: uniqueId("test-cart")`) keep parallel tests apart; only e2e tests use the default cart
-- Unwrap nullable results with `requireCart`, `requireFields`, `lineItemFor` before asserting
-- Register cleanup right after the entity exists (`registerCartRemoval`, `registerQuoteRemoval`, `arrangeShoppingList`, …)
+Use `executeRaw` only to read partial data or several errors: `{ operationName, status, data, errors }`.
 
-## Pattern 3: Expected Errors
+**Index-backed reads** (search, pickup locations, memberships, addresses). Wait in `arrange`
+(`arrange.pickup.pickupLocations`, `cartPickupLocations`, `productPickupLocations`,
+`arrange.customers.searchableMemberships`, `lockMemberships`) or poll with `INDEX_LAG_TIMEOUT_MS` from `@core/poll`.
 
-```ts
-test("another user's account is forbidden", async ({ customerAccount }) => {
-  const response = await test.step(`act: get user ${OTHER_USERNAME}`, () =>
-    customerAccount.graphqlClient.executeRaw(GetUserDocument, { userName: OTHER_USERNAME }));
+**Repeated cases.** One table, one loop; rows may hold small lambdas, e.g. a `read: (api: ApiSession) => …` per
+query (see `tests/graphql/pickup/pickup-locations.spec.ts`).
 
-  await test.step("assert: access is denied and no user is returned", async () => {
-    expect(response.data?.user).toBeNull();
-    expect(response.errors).toEqual([
-      expect.objectContaining({ extensions: expect.objectContaining({ code: "Forbidden" }) }),
-    ]);
-  });
-});
-```
+**Seeded values.** Read them, do not copy them: `String(dataset.products.get(PRODUCT_ID).code)`,
+`stockQuantity(dataset, productId, centerId)`.
 
-`execute` throws a `GraphqlError` on any error; `executeRaw` returns `{ data, errors, status }` for tests about errors.
-
-## Pattern 4: Eventually Consistent Reads
-
-Index-backed queries (product search, pickup locations, address lists) lag behind writes. Poll for the test's own data:
-
-```ts
-const found = await test.step("act: list pickup locations", () =>
-  waitForArrangedLocations(arranged, () => productPickupLocations(graphqlClient, frontendContext, PRODUCT_ID)));
-```
-
-`waitForArrangedLocations` polls any query you pass; `productPickupLocations` here is the spec's own wrapper around its document.
-
-## Available Helpers
-
-- Cart: `arrangeCart`, `addToDefaultCart`, `findDefaultCart`, `registerCartRemoval`, `registerDefaultCartRemoval`, `lineItemFor`, `requireCart`, `cartScope`
-- Catalog: `searchProducts`, `getProductConfiguration`, `optionOfEachSection`
-- Accounts: `arrangeCustomerAccount`, `arrangeOrganization`, `addOrganizationMembership`, `signInGraphqlClient`, `signInWithoutCache`
-- Quotes, lists, pickup: `arrangeQuoteFromCart`, `arrangeShoppingList`, `addShoppingListItems`, `arrangePickupLocations`, `waitForArrangedLocations`, `availabilityByCity`
-- Addresses: `newMemberAddress`, `saveMemberAddress`, `comparableAddress`, `TEST_ADDRESS`
-- Stock: `getStockQuantity`, `findFulfillmentCenter` (from `dataset/stock.ts`)
+**Known defects.** `await knownIssue(KNOWN_ISSUES.x)` first in the test, with the entry in
+`dataset/known-issues.ts`.
 
 ## Rules
 
-1. `test` and `expect` from `@fixtures`; typed documents only, no inline query strings
-2. `allure.feature("<Area> / <Topic>")` in `beforeEach`; `describe` per role; `arrange:` / `act:` / `assert:` steps
-3. Scope from `cartScope(context)`; ids, currency and culture never hard-coded
-4. Account-changing tests use `customerAccount`; seeded users only for read-only checks
-5. Every created cart, list, quote, address owner or location has its cleanup
-6. Seeded ids from `dataset/seeded.ts`; constants at module level in `UPPER_SNAKE_CASE`
-7. `expect.poll` for index-backed reads; never fixed waits
-8. `test.fail(true, "<reason>")` for known product issues; `{ tag: "@destructive" }` for tests that change platform-wide security settings
-9. No fallbacks hiding missing data; `requireFields` instead
+1. `test`, `expect`, `knownIssue` from `@fixtures`; typed `…Document` constants only, no inline query strings.
+2. Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`.
+3. No conditionals, `as` casts or helper functions in the spec; constants at module level in `UPPER_SNAKE_CASE`.
+4. A test that changes a customer's state creates its own customer; dataset users only for read-only checks.
+5. Every created cart, list, quote, order, address or location is removed after the test, registered before any
+   assertion.
+6. Nullable results unwrapped with `requireFields` / `lineItemOf`; never `?? ""` or `?? []`.
+7. No sleeps; `expect.poll` with `INDEX_LAG_TIMEOUT_MS` or an `arrange` wait.
+8. No code comments.
+
+## Verify
+
+```shell
+npm run typecheck && npm run check
+npm run test:graphql -- tests/graphql/<area>/<topic>.spec.ts
+```
+
+Update TESTS.md when the test replaces, merges or drops a test of the old suite.

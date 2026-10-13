@@ -1,3 +1,4 @@
+import type { WithRequired } from "@core/required-fields";
 import type {
   VirtoCommerceNotificationsModuleCoreModelNotificationMessage as NotificationMessageData,
   VirtoCommerceNotificationsModuleCoreModelSearchNotificationMessageSearchCriteria as NotificationMessageSearchCriteria,
@@ -16,3 +17,7 @@ export interface NotificationJournalPage {
   readonly totalCount?: number;
   readonly results?: EmailNotificationMessage[] | null;
 }
+
+export const NOTIFICATION_MESSAGE_FIELDS = ["id", "notificationType"] as const;
+
+export type NotificationMessage = WithRequired<EmailNotificationMessage, (typeof NOTIFICATION_MESSAGE_FIELDS)[number]>;

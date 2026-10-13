@@ -1,0 +1,27 @@
+{
+  "productId": "product-laptop-apple-macbook-air-15-midnight-8gb-512gb",
+  "product": {
+    "id": "product-laptop-apple-macbook-air-15-midnight-8gb-512gb",
+    "name": "Apple MacBook Air 15 Midnight RAM 8Gb SSD 512Gb"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-laptop-apple-macbook-air-15-midnight-8gb-512gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 1299.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-laptop-apple-macbook-air-15-midnight-8gb-512gb"
+    },
+    {
+      "id": "price-acme-eur-laptop-apple-macbook-air-15-midnight-8gb-512gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 1208.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-laptop-apple-macbook-air-15-midnight-8gb-512gb"
+    }
+  ]
+}

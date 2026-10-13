@@ -1,0 +1,26 @@
+{
+  "id": "pickup-location-acme-transeuro-logistics-node",
+  "name": "TransEuro Logistics Node",
+  "description": "Attraction",
+  "storeId": "${ENV:STORE_ID}",
+  "geoLocation": "38.897676,-77.036530",
+  "workingHours": "* **Mon - Sun**: 9 - 18",
+  "contactPhone": "+1 202 555 4821",
+  "contactEmail": "ops@transeuro-logistics.com",
+  "isActive": false,
+  "fulfillmentCenterId": "fulfillment-center-canada-mapleroute-distribution-hub",
+  "transferFulfillmentCenterIds": [
+    "fulfillment-center-usa-northgate-logistics-hub",
+    "fulfillment-center-chile-andes-supply-node"
+  ],
+  "address": {
+    "addressType": "Shipping",
+    "city": "Washington",
+    "countryCode": "USA",
+    "countryName": "United States of America",
+    "line1": "1600 Pennsylvania Avenue NW",
+    "postalCode": "20500",
+    "regionId": "DC",
+    "regionName": "District of Columbia"
+  }
+}

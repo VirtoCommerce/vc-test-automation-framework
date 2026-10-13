@@ -1,18 +1,23 @@
-import { mergeTests } from "@playwright/test";
+import { mergeExpects } from "@playwright/test";
 
-import { test as cartTest } from "./cart.fixture";
-import { test as pageBuilderTest } from "./page-builder.fixture";
+import { apiExpect } from "@api/api-matchers";
 
-export type { ApiOptions } from "./api.fixture";
-export type { BrowserOptions } from "./browser.fixture";
-export type { SignedInCustomerAccount } from "./customer-account.fixture";
-export type { Shopper } from "./shopper.fixture";
+import { test as browserTest } from "./browser.fixture";
 
-export { expect } from "@playwright/test";
+export type { BrowserOptions, Shopper, ShopperKind } from "./browser.fixture";
 
-export { asWorkerAdministrator } from "./api.fixture";
-export { withCustomerAccount } from "./browser.fixture";
-export { withItems } from "./cart.fixture";
-export { seededUser } from "./dataset.fixture";
+/**
+ * Playwright `test` with every project fixture; tests import it from `@fixtures`.
+ * Fixture chain: `env` → `dataset`, `store` → `user`, `api` → `cleanup` → `arrange` → `shopper`, `frontend`,
+ * `pageBuilder`.
+ *
+ * @example
+ * import { expect, test } from "@fixtures";
+ * test("adds to cart", async ({ arrange, shopper, frontend }) => { ... });
+ */
+export const test = browserTest;
 
-export const test = mergeTests(cartTest, pageBuilderTest);
+/** Playwright `expect` extended with the project's API matchers; import it from `@fixtures`. */
+export const expect = mergeExpects(apiExpect);
+
+export { knownIssue } from "./known-issue";

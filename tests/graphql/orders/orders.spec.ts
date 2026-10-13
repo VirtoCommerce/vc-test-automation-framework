@@ -1,138 +1,158 @@
-import type { GraphqlClient } from "@api/graphql/graphql-client";
-import type { Dataset } from "@dataset/dataset";
-
 import * as allure from "allure-js-commons";
 
 import { OrderDocument, OrganizationOrdersDocument } from "@api/graphql/generated/graphql";
-import { requireFields } from "@core/required-fields";
-import { SEEDED_USERS } from "@dataset/seeded";
-import { expect, seededUser, test } from "@fixtures";
+import { requireDefined, requireFields } from "@core/required-fields";
+import { expect, test } from "@fixtures";
 
-const MAINTAINER_USERNAME = SEEDED_USERS.storeMaintainer;
-const ADMINISTRATOR_USERNAME = SEEDED_USERS.storeAdministrator;
+const ORGANIZATION_ID = "organization-acme-store";
 const ORDER_NUMBER = "CO251029-00038";
 const STATUSES = ["New", "Completed", "Pending", "Payment required", "ReadyForPickup"] as const;
+interface SortedOrder {
+  readonly createdDate: string;
+  readonly total: { readonly amount: number };
+}
+
+const ASCENDING = (a: number, b: number) => a - b;
+const DESCENDING = (a: number, b: number) => b - a;
+const SORTS = [
+  {
+    field: "createdDate",
+    direction: "asc",
+    value: (order: SortedOrder) => Date.parse(order.createdDate),
+    compare: ASCENDING,
+  },
+  {
+    field: "createdDate",
+    direction: "desc",
+    value: (order: SortedOrder) => Date.parse(order.createdDate),
+    compare: DESCENDING,
+  },
+  { field: "total", direction: "asc", value: (order: SortedOrder) => order.total.amount, compare: ASCENDING },
+  { field: "total", direction: "desc", value: (order: SortedOrder) => order.total.amount, compare: DESCENDING },
+] as const;
 const ORDERS_PAGE_SIZE = 100;
 
 test.beforeEach(async () => {
+  await allure.epic("GraphQL");
   await allure.feature("Orders");
 });
 
-test.describe("orders (seeded maintainer)", () => {
-  test.use({ user: seededUser(MAINTAINER_USERNAME) });
+test.describe("orders (organization maintainer)", () => {
+  test.use({ user: "acme_store_maintainer_1@acme.com" });
 
-  test("get an order by number", async ({ graphqlClient, frontendContext }) => {
+  test("get an order by number", async ({ api }) => {
+    await allure.story("Order");
+    await allure.description("A maintainer opens an order of the organization by its number.");
+    const { cultureName } = await api.storeContext();
+
     const { order } = await test.step(`act: get order ${ORDER_NUMBER}`, () =>
-      graphqlClient.execute(OrderDocument, { number: ORDER_NUMBER, cultureName: frontendContext.cultureName }));
+      api.graphql.execute(OrderDocument, { number: ORDER_NUMBER, cultureName }));
 
-    await test.step("assert: the order is returned", async () => {
+    await test.step("assert: the order is returned", () => {
       expect(order?.number).toBe(ORDER_NUMBER);
     });
   });
 
   for (const status of STATUSES) {
-    test(`filter organization orders by status ${status}`, async ({ graphqlClient, frontendContext, dataset }) => {
-      const orders = await test.step(`act: filter by status ${status}`, () =>
-        organizationOrders(graphqlClient, {
-          organizationId: frontendContext.organizationId,
+    test(`filter organization orders by status ${status}`, async ({ api, dataset }) => {
+      await allure.story("Filters");
+      await allure.description(
+        `Filtering the organization's orders by ${status} returns only ${status} orders: ` +
+          `every dataset order of the organization with that status and no dataset order with another.`,
+      );
+      const datasetOrders = dataset.orders.filter(({ organizationId }) => organizationId === ORGANIZATION_ID);
+      const datasetNumbers = new Set(datasetOrders.map(({ number }) => number));
+      const expectedNumbers = datasetOrders
+        .filter((order) => order.status === status)
+        .map(({ number }) => number)
+        .toSorted();
+
+      const { organizationOrders } = await test.step(`act: filter by status ${status}`, () =>
+        api.graphql.execute(OrganizationOrdersDocument, {
+          organizationId: ORGANIZATION_ID,
           filter: `status:"${status}"`,
+          first: ORDERS_PAGE_SIZE,
         }));
 
-      await test.step(`assert: only ${status} orders, including every seeded one`, async () => {
-        expect(orders.filter((order) => order.status !== status).map(({ number }) => number)).toEqual([]);
-        expect(orders.length).toBeGreaterThanOrEqual(seededOrderCount(dataset, frontendContext.organizationId, status));
-        expect(orders.length).toBeGreaterThan(0);
+      await test.step(`assert: only ${status} orders, exactly the dataset's ${status} orders among them`, () => {
+        const found = requireDefined(organizationOrders?.items, "Order");
+        expect(expectedNumbers).not.toEqual([]);
+        expect(found.filter((order) => order.status !== status).map(({ number }) => number)).toEqual([]);
+        expect(
+          found
+            .map(({ number }) => number)
+            .filter((number) => datasetNumbers.has(number))
+            .toSorted(),
+        ).toEqual(expectedNumbers);
       });
     });
   }
 
-  test("filter organization orders by created date", async ({ graphqlClient, frontendContext, dataset }) => {
-    const seeded = await test.step("arrange: seeded organization orders, oldest first", async () => {
-      const seededNumbers = new Set(dataset.orders.map(({ number }) => number));
-      const orders = await organizationOrders(graphqlClient, {
-        organizationId: frontendContext.organizationId,
+  test("filter organization orders by created date", async ({ api, dataset }) => {
+    await allure.story("Filters");
+    await allure.description("A created-date range between dataset orders returns exactly the orders inside it.");
+    const datasetNumbers = new Set(dataset.orders.all().map(({ number }) => number));
+    const datasetOrders = await test.step("arrange: the organization's dataset orders, oldest first", async () => {
+      const { organizationOrders } = await api.graphql.execute(OrganizationOrdersDocument, {
+        organizationId: ORGANIZATION_ID,
         sort: "createdDate:asc",
+        first: ORDERS_PAGE_SIZE,
       });
-      return orders.filter(({ number }) => seededNumbers.has(number));
+      return requireDefined(organizationOrders?.items, "Order").filter(({ number }) => datasetNumbers.has(number));
     });
-    const [first, second, third, fourth] = seeded;
-    if (first === undefined || second === undefined || third === undefined || fourth === undefined) {
-      throw new Error(`Expected at least 4 seeded organization orders, found ${seeded.length}`);
-    }
-    const from = midpoint(first.createdDate, second.createdDate);
-    const to = midpoint(third.createdDate, fourth.createdDate);
+    const { first, second, third, fourth } = requireFields(
+      { first: datasetOrders[0], second: datasetOrders[1], third: datasetOrders[2], fourth: datasetOrders[3] },
+      ["first", "second", "third", "fourth"],
+      "The four oldest dataset orders",
+    );
+    const from = new Date((Date.parse(first.createdDate) + Date.parse(second.createdDate)) / 2).toISOString();
+    const to = new Date((Date.parse(third.createdDate) + Date.parse(fourth.createdDate)) / 2).toISOString();
 
-    const inRange = await test.step(`act: filter by created date ${from} to ${to}`, () =>
-      organizationOrders(graphqlClient, {
-        organizationId: frontendContext.organizationId,
+    const { organizationOrders } = await test.step(`act: filter by created date ${from} to ${to}`, () =>
+      api.graphql.execute(OrganizationOrdersDocument, {
+        organizationId: ORGANIZATION_ID,
         filter: `createddate:["${from}" TO "${to}"]`,
+        first: ORDERS_PAGE_SIZE,
       }));
 
-    await test.step(`assert: exactly ${second.number} and ${third.number} were created in that range`, async () => {
-      expect(inRange.map(({ number }) => number).sort()).toEqual([second.number, third.number].sort());
+    await test.step(`assert: exactly ${second.number} and ${third.number} were created in the range`, () => {
+      expect(
+        requireDefined(organizationOrders?.items, "Order")
+          .map(({ number }) => number)
+          .toSorted(),
+      ).toEqual([second.number, third.number].toSorted());
     });
   });
 });
 
-test.describe("orders (seeded store administrator)", () => {
-  test.use({ user: seededUser(ADMINISTRATOR_USERNAME) });
+test.describe("orders (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("search organization orders by number", async ({ graphqlClient }) => {
-    const orders = await test.step(`act: filter by number ${ORDER_NUMBER}`, () =>
-      organizationOrders(graphqlClient, { filter: `number:${ORDER_NUMBER}` }));
+  test("search organization orders by number", async ({ api }) => {
+    await allure.story("Search");
+    await allure.description("Filtering orders by number finds exactly that order.");
 
-    await test.step("assert: exactly that order is found", async () => {
-      expect(orders.map(({ number }) => number)).toEqual([ORDER_NUMBER]);
+    const { organizationOrders } = await test.step(`act: filter by number ${ORDER_NUMBER}`, () =>
+      api.graphql.execute(OrganizationOrdersDocument, { filter: `number:${ORDER_NUMBER}`, first: ORDERS_PAGE_SIZE }));
+
+    await test.step("assert: exactly that order is found", () => {
+      expect(requireDefined(organizationOrders?.items, "Order").map(({ number }) => number)).toEqual([ORDER_NUMBER]);
     });
   });
 
-  for (const direction of ["asc", "desc"] as const) {
-    test(`sort organization orders by created date ${direction}`, async ({ graphqlClient }) => {
-      const orders = await test.step(`act: sort by createdDate:${direction}`, () =>
-        organizationOrders(graphqlClient, { sort: `createdDate:${direction}` }));
+  for (const { field, direction, value, compare } of SORTS) {
+    test(`sort organization orders by ${field} ${direction}`, async ({ api }) => {
+      await allure.story("Sorting");
+      await allure.description(`Orders sorted by ${field} ${direction} come back in that order.`);
 
-      await test.step(`assert: orders are in ${direction} date order`, async () => {
-        const dates = orders.map(({ createdDate }) => Date.parse(createdDate));
-        expect(dates.length).toBeGreaterThan(1);
-        expect(dates).toEqual(sorted(dates, direction));
-      });
-    });
+      const { organizationOrders } = await test.step(`act: sort by ${field}:${direction}`, () =>
+        api.graphql.execute(OrganizationOrdersDocument, { sort: `${field}:${direction}`, first: ORDERS_PAGE_SIZE }));
 
-    test(`sort organization orders by total ${direction}`, async ({ graphqlClient }) => {
-      const orders = await test.step(`act: sort by total:${direction}`, () =>
-        organizationOrders(graphqlClient, { sort: `total:${direction}` }));
-
-      await test.step(`assert: orders are in ${direction} total order`, async () => {
-        const totals = orders.map(({ total }) => total.amount);
-        expect(totals.length).toBeGreaterThan(1);
-        expect(totals).toEqual(sorted(totals, direction));
+      await test.step(`assert: the orders are in ${direction} ${field} order`, () => {
+        const values = requireDefined(organizationOrders?.items, "Order").map(value);
+        expect(values.length).toBeGreaterThan(1);
+        expect(values).toEqual(values.toSorted(compare));
       });
     });
   }
 });
-
-async function organizationOrders(
-  graphqlClient: GraphqlClient,
-  variables: { organizationId?: string | undefined; filter?: string; sort?: string },
-) {
-  const { organizationOrders: page } = await graphqlClient.execute(OrganizationOrdersDocument, {
-    ...variables,
-    first: ORDERS_PAGE_SIZE,
-  });
-  return requireFields(page, ["items"], "Organization orders page").items.flatMap((order) =>
-    order === null ? [] : [order],
-  );
-}
-
-function midpoint(earlier: string, later: string): string {
-  return new Date((Date.parse(earlier) + Date.parse(later)) / 2).toISOString();
-}
-
-function seededOrderCount(dataset: Dataset, organizationId: string | undefined, status: string): number {
-  return dataset.orders.filter((order) => order["organizationId"] === organizationId && order["status"] === status)
-    .length;
-}
-
-function sorted(values: readonly number[], direction: "asc" | "desc"): number[] {
-  return [...values].sort((left, right) => (direction === "asc" ? left - right : right - left));
-}

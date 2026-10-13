@@ -25,15 +25,15 @@ If `$ARGUMENTS` is a file path or pattern:
 
 If no arguments:
 - Collect changed files: `git diff --name-only dev...HEAD` plus uncommitted changes (`git status --short`)
-- Keep TypeScript and GraphQL files under `tests/`, `fixtures/`, `dataset/`, `pages/`, `api/`, `core/` (skip `api/*/generated/`)
+- Keep TypeScript and GraphQL files under `tests/`, `fixtures/`, `dataset/`, `pages/`, `api/`, `core/` (skip `api/*/generated/`), plus `TESTS.md` and `dataset/data/**` JSON
 - Spawn the `qa-reviewer` agent with `/review-test-code` on those files
 
 ### 2. Review
 
 The agent reviews with its checklists:
-- Convention compliance (steps, Allure feature, fixtures, seeded constants, layer rules)
-- Isolation (cleanup, parallel safety, shared state)
-- Correctness (assertions that can fail, waits, nullable handling)
+- Convention compliance (Allure epic/feature/story, `arrange:`/`act:`/`assert:` steps, no conditionals/casts/helpers/raw selectors, `dataset` and `arrange`, layer rules)
+- Isolation (cleanup before the change, own customers, parallel safety, platform-wide changes in `tests/isolated/`)
+- Correctness (assertions that can fail, deletions proven by id, index waits, `requireFields`, `knownIssue`)
 - Coverage gaps and cross-file duplication
 
 ### 3. Output

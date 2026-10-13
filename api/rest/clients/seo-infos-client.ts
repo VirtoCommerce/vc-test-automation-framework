@@ -12,6 +12,6 @@ export class SeoInfosClient {
 
   async findDuplicates(objectType: string, objectId: string): Promise<SeoInfo[]> {
     const response = await this.#httpClient.get(`${SEO_INFOS_PATH}/duplicates`, { query: { objectType, objectId } });
-    return response.expectOk().json<SeoInfo[]>();
+    return response.json<SeoInfo[]>();
   }
 }

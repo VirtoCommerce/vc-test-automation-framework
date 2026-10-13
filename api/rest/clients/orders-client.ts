@@ -10,13 +10,14 @@ import type {
   PaymentIn,
   PaymentInData,
 } from "../types/orders";
-import type { ChangeLogSearchResult } from "../types/platform";
+import type { ChangeLogSearchResult, OperationLog } from "../types/platform";
 
-import { requireEach, requireFields } from "@core/required-fields";
+import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
 
 import { CUSTOMER_ORDER_FIELDS, ORDER_DOCUMENT_FIELDS } from "../types/orders";
+import { OPERATION_LOG_FIELDS } from "../types/platform";
 
-export const CUSTOMER_ORDERS_PATH = "/api/order/customerOrders";
+const CUSTOMER_ORDERS_PATH = "/api/order/customerOrders";
 
 export class OrdersClient {
   readonly #httpClient: HttpClient;
@@ -29,6 +30,7 @@ export class OrdersClient {
     return requireFields(await this.find(id), CUSTOMER_ORDER_FIELDS, `Order "${id}"`);
   }
 
+  /** Finds an order; `undefined` when missing (the platform answers 404, not 200 with `null`). */
   async find(id: string): Promise<CustomerOrder | undefined> {
     return this.#fetch(`${CUSTOMER_ORDERS_PATH}/${encodeURIComponent(id)}`, `Order "${id}"`);
   }
@@ -40,7 +42,7 @@ export class OrdersClient {
 
   async create(order: CustomerOrderData): Promise<CustomerOrder> {
     const response = await this.#httpClient.post(CUSTOMER_ORDERS_PATH, { json: order });
-    return requireFields(response.expectOk().json<CustomerOrderData>(), CUSTOMER_ORDER_FIELDS, "Created order");
+    return requireFields(response.json<CustomerOrderData>(), CUSTOMER_ORDER_FIELDS, "Created order");
   }
 
   async update(order: CustomerOrderData): Promise<void> {
@@ -49,50 +51,43 @@ export class OrdersClient {
 
   async recalculate(order: CustomerOrderData): Promise<CustomerOrder> {
     const response = await this.#httpClient.put(`${CUSTOMER_ORDERS_PATH}/recalculate`, { json: order });
-    return requireFields(response.expectOk().json<CustomerOrderData>(), CUSTOMER_ORDER_FIELDS, "Recalculated order");
+    return requireFields(response.json<CustomerOrderData>(), CUSTOMER_ORDER_FIELDS, "Recalculated order");
   }
 
   async search(criteria: CustomerOrderSearchCriteria): Promise<CustomerOrder[]> {
     const response = await this.#httpClient.post(`${CUSTOMER_ORDERS_PATH}/search`, { json: criteria });
-    const { results } = response.expectOk().json<CustomerOrderSearchResult>();
-    return requireEach(results, CUSTOMER_ORDER_FIELDS, "Found order");
+    const { results } = response.json<CustomerOrderSearchResult>();
+    return requireFieldsOfEach(results, CUSTOMER_ORDER_FIELDS, "Found order");
   }
 
   async isIndexedSearchEnabled(): Promise<boolean> {
     const response = await this.#httpClient.get(`${CUSTOMER_ORDERS_PATH}/indexed/searchEnabled`);
-    return response.expectOk().json<{ result: boolean }>().result;
+    return response.json<{ result: boolean }>().result;
   }
 
-  async newPayment(orderId: string): Promise<PaymentIn> {
+  async paymentTemplate(orderId: string): Promise<PaymentIn> {
     const response = await this.#httpClient.get(`${CUSTOMER_ORDERS_PATH}/${encodeURIComponent(orderId)}/payments/new`);
-    return requireFields(
-      response.expectOk().json<PaymentInData>(),
-      ORDER_DOCUMENT_FIELDS,
-      `New payment of "${orderId}"`,
-    );
+    return requireFields(response.json<PaymentInData>(), ORDER_DOCUMENT_FIELDS, `New payment of "${orderId}"`);
   }
 
-  async newShipment(orderId: string): Promise<OrderShipment> {
+  async shipmentTemplate(orderId: string): Promise<OrderShipment> {
     const path = `${CUSTOMER_ORDERS_PATH}/${encodeURIComponent(orderId)}/shipments/new`;
     const response = await this.#httpClient.get(path);
-    return requireFields(
-      response.expectOk().json<OrderShipmentData>(),
-      ORDER_DOCUMENT_FIELDS,
-      `New shipment of "${orderId}"`,
-    );
+    return requireFields(response.json<OrderShipmentData>(), ORDER_DOCUMENT_FIELDS, `New shipment of "${orderId}"`);
   }
 
-  async searchChanges(criteria: CustomerOrderChangesSearchCriteria): Promise<ChangeLogSearchResult> {
+  async searchChanges(criteria: CustomerOrderChangesSearchCriteria): Promise<OperationLog[]> {
     const response = await this.#httpClient.post(`${CUSTOMER_ORDERS_PATH}/searchChanges`, { json: criteria });
-    return response.expectOk().json<ChangeLogSearchResult>();
+    const { results } = response.json<ChangeLogSearchResult>();
+    return requireFieldsOfEach(results, OPERATION_LOG_FIELDS, "Order change");
   }
 
-  async delete(id: string): Promise<void> {
-    (await this.#httpClient.delete(CUSTOMER_ORDERS_PATH, { query: { ids: id } })).expectOk();
+  async delete(ids: readonly string[]): Promise<void> {
+    (await this.#httpClient.delete(CUSTOMER_ORDERS_PATH, { query: { ids } })).expectOk();
   }
 
   async #fetch(path: string, label: string): Promise<CustomerOrder | undefined> {
-    const order = (await this.#httpClient.get(path)).jsonOrUndefined<CustomerOrderData>();
-    return order === undefined ? undefined : requireFields(order, CUSTOMER_ORDER_FIELDS, label);
+    const response = await this.#httpClient.get(path);
+    return optionalFields(response.optionalJson<CustomerOrderData>({ allow404: true }), CUSTOMER_ORDER_FIELDS, label);
   }
 }

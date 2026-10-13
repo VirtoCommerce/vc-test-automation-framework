@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-apple-iphone-17-512gb-lavender",
+  "product": {
+    "id": "product-smartphone-apple-iphone-17-512gb-lavender",
+    "name": "Apple iPhone 17 512 Gb Lavender"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-apple-iphone-17-512gb-lavender",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 999.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-apple-iphone-17-512gb-lavender"
+    },
+    {
+      "id": "price-acme-eur-smartphone-apple-iphone-17-512gb-lavender",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 929.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-apple-iphone-17-512gb-lavender"
+    }
+  ]
+}

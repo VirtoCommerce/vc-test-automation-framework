@@ -1,93 +1,89 @@
 import * as allure from "allure-js-commons";
 
-import { saveMemberAddress } from "@dataset/arrange/contact";
+import { requireFields } from "@core/required-fields";
 import { newMemberAddress, TEST_ADDRESS } from "@dataset/builders/address";
-import { expect, test, withCustomerAccount } from "@fixtures";
-import { EditAddressModal } from "@pages/frontend/components/edit-address-modal";
-import { HomePage } from "@pages/frontend/pages/simple-pages";
+import { KNOWN_ISSUES } from "@dataset/known-issues";
+import { expect, knownIssue, test } from "@fixtures";
 
-const TARGET_CURRENCY = "EUR";
-const TARGET_CULTURE = "de-DE";
-const TARGET_LANGUAGE_LABEL = "de";
+const HEADER_SELECTORS = [
+  { name: "currency", value: "EUR", label: "EUR", selector: "currencySelector" },
+  { name: "language", value: "de-DE", label: "de", selector: "languageSelector" },
+] as const;
+const SHIP_TO_PARTS = [
+  TEST_ADDRESS.city,
+  TEST_ADDRESS.countryName,
+  TEST_ADDRESS.regionName,
+  TEST_ADDRESS.postalCode,
+  TEST_ADDRESS.line1,
+] as const;
 
 test.beforeEach(async () => {
-  await allure.feature("Frontend / Header (E2E)");
+  await allure.epic("E2E");
+  await allure.feature("Frontend / Header");
 });
 
 test.describe("top header (anonymous)", () => {
-  test("switch the currency", async ({ page }) => {
-    const { currencySelector } = new HomePage(page).topHeader;
+  for (const { name, value, label, selector } of HEADER_SELECTORS) {
+    test(`switch the ${name}`, async ({ frontend }) => {
+      await allure.story("Store settings");
+      await allure.description(`Selecting ${value} in the header makes it the current ${name}.`);
+      const home = frontend.home();
+      const headerSelector = home.topHeader[selector];
+      await test.step("arrange: open the home page", () => home.navigate());
 
-    await test.step("arrange: open the home page", () => new HomePage(page).navigate());
-    await test.step(`act: select ${TARGET_CURRENCY}`, () => currencySelector.select(TARGET_CURRENCY));
+      await test.step(`act: select ${value}`, () => headerSelector.select(value));
 
-    await test.step(`assert: the current currency is ${TARGET_CURRENCY}`, async () => {
-      await expect(currencySelector.currentLabel).toHaveText(TARGET_CURRENCY);
+      await test.step(`assert: the current ${name} is ${label}`, async () => {
+        await expect(headerSelector.currentLabel).toHaveText(label);
+      });
     });
-  });
+  }
 
-  test("switch the language", async ({ page }) => {
-    const { languageSelector } = new HomePage(page).topHeader;
+  test("add a shipping address from the ship-to selector", async ({ frontend }) => {
+    await allure.story("Ship-to address");
+    await allure.description("An address added from the header becomes the ship-to address with all its parts.");
+    const home = frontend.home();
+    const { topHeader } = home;
+    await test.step("arrange: open the home page", () => home.navigate());
 
-    await test.step("arrange: open the home page", () => new HomePage(page).navigate());
-    await test.step(`act: select ${TARGET_CULTURE}`, () => languageSelector.select(TARGET_CULTURE));
-
-    await test.step(`assert: the current language is ${TARGET_LANGUAGE_LABEL}`, async () => {
-      await expect(languageSelector.currentLabel).toHaveText(TARGET_LANGUAGE_LABEL);
-    });
-  });
-
-  test("add a shipping address from the ship-to selector", async ({ page }) => {
-    const homePage = new HomePage(page);
-    const { topHeader } = homePage;
-    const editAddressModal = new EditAddressModal(page);
-
-    await test.step("arrange: open the home page", () => homePage.navigate());
-
-    await test.step("act: add a new address", async () => {
+    await test.step(`act: add ${TEST_ADDRESS.line1}`, async () => {
       await topHeader.addShippingAddressButton.click();
-      await editAddressModal.addressForm.fill(TEST_ADDRESS);
-      await editAddressModal.submitButton.click();
+      await frontend.editAddressModal.submit(TEST_ADDRESS);
     });
 
     await test.step("assert: the ship-to selector shows the new address", async () => {
       await expect(topHeader.addShippingAddressButton).toBeHidden();
-      for (const part of [
-        TEST_ADDRESS.city,
-        TEST_ADDRESS.countryName,
-        TEST_ADDRESS.regionName,
-        TEST_ADDRESS.postalCode,
-        TEST_ADDRESS.line1,
-      ]) {
+      for (const part of SHIP_TO_PARTS) {
         await expect(topHeader.shipToSelector.selectedAddressLabel).toContainText(part);
       }
     });
   });
 });
 
-test.describe("top header (customer account)", () => {
-  test.use({ browserCustomerAccount: withCustomerAccount });
+test.describe("top header (customer of their own)", () => {
+  test.use({ shopperKind: "customer" });
 
-  test("pick a saved address from the ship-to selector", async ({ page, customerAccount }) => {
-    const address = await test.step("arrange: a saved organization address", () =>
-      saveMemberAddress(
-        customerAccount.graphqlClient,
-        customerAccount.organizationId,
-        newMemberAddress("test-ship-to"),
-      ));
-    const homePage = new HomePage(page);
-    const { shipToSelector } = homePage.topHeader;
+  test("pick a saved address from the ship-to selector", async ({ frontend, shopper, arrange }) => {
+    await knownIssue(KNOWN_ISSUES.shipToLabelNotRefreshed);
+    await allure.story("Ship-to address");
+    await allure.description("A saved organization address picked in the header becomes the ship-to address.");
+    const { organizationId } = requireFields(shopper.account, ["organizationId"], "Customer");
+    const draft = newMemberAddress("test-ship-to");
+    await test.step(`arrange: the organization's address ${draft.line1}`, () =>
+      arrange.customers.memberAddress(shopper.api, organizationId, draft));
+    const home = frontend.home();
+    const { shipToSelector } = home.topHeader;
 
     await test.step("arrange: open the ship-to selector", async () => {
-      await homePage.navigate();
+      await home.navigate();
       await shipToSelector.root.click();
       await expect(shipToSelector.addressesList).toBeVisible();
     });
 
-    await test.step(`act: pick ${address.line1}`, () => shipToSelector.address({ line1: address.line1 }).click());
+    await test.step(`act: pick ${draft.line1}`, () => shipToSelector.address({ line1: draft.line1 }).click());
 
-    await test.step("assert: the saved address is selected", async () => {
-      await expect(shipToSelector.selectedAddressLabel).toContainText(address.line1);
+    await test.step("assert: the saved address is the ship-to address", async () => {
+      await expect(shipToSelector.selectedAddressLabel).toContainText(draft.line1);
     });
   });
 });

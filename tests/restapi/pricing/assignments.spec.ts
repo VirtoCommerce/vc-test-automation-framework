@@ -1,140 +1,121 @@
 import * as allure from "allure-js-commons";
 
-import { PricingClient } from "@api/rest/clients/pricing-client";
-import { newPricelist, newPricelistAssignment } from "@dataset/builders/pricing";
-import { SEEDED_CATALOG_ID } from "@dataset/seeded";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { newPricelistAssignment } from "@dataset/builders/pricing";
+import { expect, test } from "@fixtures";
 
-const PRICE_CONDITION_TREE = "PriceConditionTree";
-const BLOCK_PRICING_CONDITION = "BlockPricingCondition";
+const UPDATED_FIELDS = ["name", "description"] as const;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Pricing / Assignments");
 });
 
-test.describe("pricelist assignments (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("pricelist assignments (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("create an assignment", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const draft = newPricelistAssignment(pricelist.id);
+  test("assign a pricelist to the store's catalog", async ({ api, arrange, cleanup, store }) => {
+    await allure.story("Create");
+    await allure.description("A new assignment links its pricelist to the store's catalog.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+    const draft = newPricelistAssignment(pricelist.id, store.catalog);
+    cleanup.push(`delete pricelist assignment ${draft.name}`, () => api.rest.pricing.assignments.delete([draft.id]));
 
-    const assignment = await test.step("act: create assignment", () => pricingClient.createAssignment(draft));
-    cleanupStack.push(`delete assignment ${assignment.id}`, () => pricingClient.deleteAssignment(assignment.id));
+    const assignment = await test.step("act: create an assignment", () => api.rest.pricing.assignments.create(draft));
 
-    await test.step("assert: assignment links the pricelist to the seeded catalog", async () => {
-      expect(assignment).toMatchObject({ name: draft.name, pricelistId: pricelist.id, catalogId: SEEDED_CATALOG_ID });
+    await test.step("assert: the assignment links the pricelist to the store's catalog", () => {
+      expect(assignment).toMatchObject({ name: draft.name, pricelistId: pricelist.id, catalogId: store.catalog });
     });
   });
 
-  test("rename an assignment", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const assignment = await test.step("arrange: assignment", () =>
-      pricingClient.createAssignment(newPricelistAssignment(pricelist.id)));
-    cleanupStack.push(`delete assignment ${assignment.id}`, () => pricingClient.deleteAssignment(assignment.id));
-    const newName = `${assignment.name}-renamed`;
+  test("get a new assignment template", async ({ api }) => {
+    await allure.story("Create");
+    await allure.description("The template of a new assignment is unsaved, with a block pricing condition to add.");
 
-    await test.step("act: rename assignment", () => pricingClient.updateAssignment({ ...assignment, name: newName }));
+    const template = await test.step("act: get a new assignment template", () =>
+      api.rest.pricing.assignments.template());
 
-    await test.step("assert: assignment has the new name", async () => {
-      expect((await pricingClient.getAssignment(assignment.id)).name).toBe(newName);
-    });
-  });
-
-  test("describe an assignment", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const assignment = await test.step("arrange: assignment", () =>
-      pricingClient.createAssignment(newPricelistAssignment(pricelist.id)));
-    cleanupStack.push(`delete assignment ${assignment.id}`, () => pricingClient.deleteAssignment(assignment.id));
-    const description = `Description of ${assignment.name}`;
-
-    await test.step("act: set assignment description", () =>
-      pricingClient.updateAssignment({ ...assignment, description }));
-
-    await test.step("assert: assignment has the description", async () => {
-      expect((await pricingClient.getAssignment(assignment.id)).description).toBe(description);
-    });
-  });
-
-  test("get a new assignment template", async ({ httpClient }) => {
-    const pricingClient = new PricingClient(httpClient);
-
-    const template = await test.step("act: get new assignment", () => pricingClient.getNewAssignment());
-
-    await test.step("assert: template is unsaved and has a condition tree", async () => {
-      expect(template.id == null, "the template has no id").toBe(true);
+    await test.step("assert: the template has no id and a PriceConditionTree", () => {
+      expect(template.id ?? undefined).toBeUndefined();
       expect(template.dynamicExpression).toMatchObject({
-        id: PRICE_CONDITION_TREE,
-        availableChildren: [expect.objectContaining({ id: BLOCK_PRICING_CONDITION })],
+        id: "PriceConditionTree",
+        availableChildren: [expect.objectContaining({ id: "BlockPricingCondition" })],
       });
     });
   });
 
-  test("get an assignment by id", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const assignment = await test.step("arrange: assignment", () =>
-      pricingClient.createAssignment(newPricelistAssignment(pricelist.id)));
-    cleanupStack.push(`delete assignment ${assignment.id}`, () => pricingClient.deleteAssignment(assignment.id));
+  test("get an assignment by id", async ({ api, arrange }) => {
+    await allure.story("Read");
+    await allure.description("An assignment is read back by its id.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+    const assignment = await test.step("arrange: its assignment", () =>
+      arrange.pricing.pricelistAssignment(pricelist.id));
 
-    const reloaded = await test.step("act: get assignment", () => pricingClient.getAssignment(assignment.id));
+    const reloaded = await test.step("act: get the assignment", () => api.rest.pricing.assignments.get(assignment.id));
 
-    await test.step("assert: fields match the created assignment", async () => {
+    await test.step("assert: the fields match the created assignment", () => {
       expect(reloaded).toMatchObject({ id: assignment.id, name: assignment.name });
     });
   });
 
-  test("search assignments by pricelist", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const assignment = await test.step("arrange: assignment", () =>
-      pricingClient.createAssignment(newPricelistAssignment(pricelist.id)));
-    cleanupStack.push(`delete assignment ${assignment.id}`, () => pricingClient.deleteAssignment(assignment.id));
+  test("search assignments by pricelist", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("Searching assignments by a new pricelist finds exactly its assignment.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+    const assignment = await test.step("arrange: its assignment", () =>
+      arrange.pricing.pricelistAssignment(pricelist.id));
 
-    const found = await test.step("act: search by pricelist", () =>
-      pricingClient.searchAssignments({ PriceListId: pricelist.id }));
+    const found = await test.step("act: search assignments by the pricelist", () =>
+      api.rest.pricing.assignments.search({ priceListId: pricelist.id }));
 
-    await test.step("assert: only the pricelist assignment is found", async () => {
+    await test.step("assert: exactly the assignment is found", () => {
       expect(found.map(({ id }) => id)).toEqual([assignment.id]);
     });
   });
 
-  test("delete an assignment", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const assignment = await test.step("arrange: assignment", () =>
-      pricingClient.createAssignment(newPricelistAssignment(pricelist.id)));
-    cleanupStack.push(`delete assignment ${assignment.id}`, () => pricingClient.deleteAssignment(assignment.id));
+  for (const field of UPDATED_FIELDS) {
+    test(`change the ${field} of an assignment`, async ({ api, arrange }) => {
+      await allure.story("Update");
+      await allure.description(`An assignment's new ${field} is stored.`);
+      const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+      const assignment = await test.step("arrange: its assignment", () =>
+        arrange.pricing.pricelistAssignment(pricelist.id));
+      const value = `${assignment.name} ${field} changed`;
 
-    await test.step("act: delete assignment", () => pricingClient.deleteAssignment(assignment.id));
+      await test.step(`act: change the assignment's ${field}`, () =>
+        api.rest.pricing.assignments.update({ ...assignment, [field]: value }));
 
-    await test.step("assert: assignment is not found", async () => {
-      expect(await pricingClient.findAssignment(assignment.id)).toBeUndefined();
+      await test.step(`assert: the assignment has the new ${field}`, async () => {
+        expect((await api.rest.pricing.assignments.get(assignment.id))[field]).toBe(value);
+      });
+    });
+  }
+
+  test("delete an assignment", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A deleted assignment is no longer found.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+    const assignment = await test.step("arrange: its assignment", () =>
+      arrange.pricing.pricelistAssignment(pricelist.id));
+
+    await test.step("act: delete the assignment", () => api.rest.pricing.assignments.delete([assignment.id]));
+
+    await test.step("assert: the assignment is not found", async () => {
+      expect(await api.rest.pricing.assignments.find(assignment.id)).toBeUndefined();
     });
   });
 
-  test("delete assignments matching a search phrase", async ({ httpClient, cleanupStack }) => {
-    const pricingClient = new PricingClient(httpClient);
-    const pricelist = await test.step("arrange: pricelist", () => pricingClient.createPricelist(newPricelist()));
-    cleanupStack.push(`delete pricelist ${pricelist.id}`, () => pricingClient.deletePricelist(pricelist.id));
-    const assignment = await test.step("arrange: assignment", () =>
-      pricingClient.createAssignment(newPricelistAssignment(pricelist.id)));
-    cleanupStack.push(`delete assignment ${assignment.id}`, () => pricingClient.deleteAssignment(assignment.id));
+  test("delete the assignments matching a search", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("Deleting the assignments that match a name and a pricelist removes the assignment.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+    const assignment = await test.step("arrange: its assignment", () =>
+      arrange.pricing.pricelistAssignment(pricelist.id));
 
-    await test.step("act: delete assignments matching the name", () =>
-      pricingClient.deleteFilteredAssignments({ SearchPhrase: assignment.name, PriceListId: pricelist.id }));
+    await test.step("act: delete the assignments matching its name and pricelist", () =>
+      api.rest.pricing.assignments.deleteMatching({ keyword: assignment.name, priceListId: pricelist.id }));
 
-    await test.step("assert: assignment is not found", async () => {
-      expect(await pricingClient.findAssignment(assignment.id)).toBeUndefined();
+    await test.step("assert: the assignment is not found", async () => {
+      expect(await api.rest.pricing.assignments.find(assignment.id)).toBeUndefined();
     });
   });
 });

@@ -1,265 +1,237 @@
+import type { RestApi } from "@api/rest/rest-api";
 import type { CustomerOrder } from "@api/rest/types/orders";
-import type { CustomerOrderDraft } from "@dataset/builders/order";
-import type { Dataset } from "@dataset/dataset";
+
+import { randomUUID } from "node:crypto";
 
 import * as allure from "allure-js-commons";
 
-import { CUSTOMER_ORDERS_PATH, OrdersClient } from "@api/rest/clients/orders-client";
-import { SearchIndexesClient } from "@api/rest/clients/search-indexes-client";
-import { requireFields } from "@core/required-fields";
-import { arrangeOrder } from "@dataset/arrange/order";
-import { MAX_ORDER_NUMBER_LENGTH, newLineItem, newOrder } from "@dataset/builders/order";
-import { getProduct, getUser } from "@dataset/dataset";
-import { SEEDED_PRODUCTS, SEEDED_USERS } from "@dataset/seeded";
-import { expect, seededUser, test } from "@fixtures";
+import { MAX_ORDER_NUMBER_LENGTH, newOrder, withQuantity } from "@dataset/builders/order";
+import { expect, test } from "@fixtures";
 
-const USERNAME = SEEDED_USERS.storeAdministrator;
-const SEEDED_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
-const LINE_ITEM_PRICE = 100;
+const ADMINISTRATOR = "acme_store_administrator@acme.com";
+const PRODUCT_ID = "product-laptop-acer-predator-helios-neo-16-ai";
+const PRICE = 100;
+const ORDER_INDEX = "CustomerOrder";
 const CHANGE_LOG_TIMEOUT_MS = 30_000;
-const ORDER_DOCUMENT_TYPE = "CustomerOrder";
-const NEWEST_ORDERS_TAKE = 20;
-const PAYMENT_NUMBER = /^PI\d{6}-\d{5}$/;
-const SHIPMENT_NUMBER = /^SH\d{6}-\d{5}$/;
+const DOCUMENT_TEMPLATES = [
+  {
+    document: "payment",
+    template: (rest: RestApi, order: CustomerOrder) => rest.orders.paymentTemplate(order.id),
+    expected: (order: CustomerOrder) => ({ operationType: "PaymentIn", customerId: order.customerId }),
+    number: /^PI\d{6}-\d{5}$/,
+  },
+  {
+    document: "shipment",
+    template: (rest: RestApi, order: CustomerOrder) => rest.orders.shipmentTemplate(order.id),
+    expected: () => ({ operationType: "Shipment" }),
+    number: /^SH\d{6}-\d{5}$/,
+  },
+] as const;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Orders");
 });
 
-test.describe("customer orders (admin)", () => {
-  test.use({ user: seededUser(USERNAME) });
+test.describe("customer orders (store administrator)", () => {
+  test.use({ user: ADMINISTRATOR });
 
-  test("create an order", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const draft = newOrder(env.storeId, getUser(dataset, USERNAME));
-    cleanupStack.push(`delete order ${draft.number}`, () => ordersClient.delete(draft.id));
+  test("create an order", async ({ api, cleanup, store }) => {
+    await allure.story("Create");
+    await allure.description("A new order is in the store with status New.");
+    const { userId } = await api.storeContext();
+    const draft = newOrder({ id: store.id, currency: store.defaultCurrency }, { id: userId, userName: ADMINISTRATOR });
+    cleanup.push(`delete order ${draft.number}`, () => api.rest.orders.delete([draft.id]));
 
-    const order = await test.step("act: create order", () => ordersClient.create(draft));
+    const order = await test.step("act: create an order", () => api.rest.orders.create(draft));
 
-    await test.step("assert: order is new in the seeded store", async () => {
-      expect(order).toMatchObject({ id: draft.id, number: draft.number, status: "New", storeId: env.storeId });
+    await test.step("assert: the order is new, in the store", () => {
+      expect(order).toMatchObject({ id: draft.id, number: draft.number, status: "New", storeId: store.id });
     });
   });
 
-  test("get an order by id", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order", () =>
-      arrangeOrder(ordersClient, cleanupStack, newOrder(env.storeId, getUser(dataset, USERNAME))));
+  test(`reject an order number longer than ${MAX_ORDER_NUMBER_LENGTH} characters`, async ({ api, cleanup, store }) => {
+    await allure.story("Create");
+    await allure.description(`An order number may have at most ${MAX_ORDER_NUMBER_LENGTH} characters.`);
+    const { userId } = await api.storeContext();
+    const draft = {
+      ...newOrder({ id: store.id, currency: store.defaultCurrency }, { id: userId, userName: ADMINISTRATOR }),
+      number: "X".repeat(MAX_ORDER_NUMBER_LENGTH + 1),
+    };
+    cleanup.push("delete the order, should it have been created", () => api.rest.orders.delete([draft.id]));
 
-    const reloaded = await test.step("act: get order", () => ordersClient.get(order.id));
+    await test.step("assert: creating the order is rejected", async () => {
+      await expect(api.rest.orders.create(draft)).rejects.toBeHttpError(
+        400,
+        `must be ${MAX_ORDER_NUMBER_LENGTH} characters or fewer`,
+      );
+    });
+  });
 
-    await test.step("assert: fields match the created order", async () => {
+  test("get an order by id", async ({ api, arrange }) => {
+    await allure.story("Read");
+    await allure.description("An order is read back by its id.");
+    const order = await test.step("arrange: an order", () => arrange.orders.order());
+
+    const reloaded = await test.step("act: get the order", () => api.rest.orders.get(order.id));
+
+    await test.step("assert: the fields match the created order", () => {
       expect(reloaded).toMatchObject({ id: order.id, number: order.number, storeId: order.storeId });
     });
   });
 
-  test("get an order by number", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order", () =>
-      arrangeOrder(ordersClient, cleanupStack, newOrder(env.storeId, getUser(dataset, USERNAME))));
+  test("get an order by number", async ({ api, arrange }) => {
+    await allure.story("Read");
+    await allure.description("An order is read back by its number.");
+    const order = await test.step("arrange: an order", () => arrange.orders.order());
 
-    const reloaded = await test.step("act: get order by number", () => ordersClient.getByNumber(order.number));
+    const reloaded = await test.step(`act: get order ${order.number}`, () => api.rest.orders.getByNumber(order.number));
 
-    await test.step("assert: the same order is returned", async () => {
+    await test.step("assert: the same order is returned", () => {
       expect(reloaded).toMatchObject({ id: order.id, number: order.number });
     });
   });
 
-  test("get a missing order", async ({ httpClient }) => {
-    const ordersClient = new OrdersClient(httpClient);
+  test("get a missing order", async ({ api }) => {
+    await allure.story("Read");
+    await allure.description("Looking an order up by an id that does not exist finds nothing.");
 
-    const order = await test.step("act: get order by a missing id", () => ordersClient.find(crypto.randomUUID()));
+    const order = await test.step("act: look an order up by an unknown id", () => api.rest.orders.find(randomUUID()));
 
-    await test.step("assert: order is not found", async () => {
+    await test.step("assert: no order is found", () => {
       expect(order).toBeUndefined();
     });
   });
 
-  test("list orders", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order", () =>
-      arrangeOrder(ordersClient, cleanupStack, newOrder(env.storeId, getUser(dataset, USERNAME))));
+  test("search orders by number", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("Searching orders by an order's number finds it.");
+    const order = await test.step("arrange: an order", () => arrange.orders.order());
 
-    const orders = await test.step("act: list the newest orders", () =>
-      ordersClient.search({ sort: "createdDate:desc", take: NEWEST_ORDERS_TAKE }));
+    const found = await test.step(`act: search orders by ${order.number}`, () =>
+      api.rest.orders.search({ keyword: order.number }));
 
-    await test.step("assert: the new order is listed and the list is newest first", async () => {
-      expect(orders.map(({ id }) => id)).toContain(order.id);
-      const createdTimes = orders.map((listed) =>
-        Date.parse(requireFields(listed, ["createdDate"], `Order ${listed.number}`).createdDate),
-      );
-      expect(createdTimes).toEqual([...createdTimes].sort((left, right) => right - left));
-    });
-  });
-
-  test("search orders by number", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order", () =>
-      arrangeOrder(ordersClient, cleanupStack, newOrder(env.storeId, getUser(dataset, USERNAME))));
-
-    const found = await test.step("act: search by order number", () =>
-      ordersClient.search({ keyword: order.number, take: 5 }));
-
-    await test.step("assert: order is in the results", async () => {
+    await test.step("assert: the order is found", () => {
       expect(found.map(({ id }) => id)).toContain(order.id);
     });
   });
 
-  test("the indexed order search flag matches the registered order index", async ({ httpClient }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const searchIndexesClient = new SearchIndexesClient(httpClient);
+  test("sort orders by created date, newest first", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("Two orders sorted by created date, newest first, come back in reverse creation order.");
+    const older = await test.step("arrange: an order", () => arrange.orders.order());
+    const newer = await test.step("arrange: a newer order", () => arrange.orders.order());
 
-    const enabled = await test.step("act: check indexed search", () => ordersClient.isIndexedSearchEnabled());
+    const found = await test.step("act: search both orders, newest first", () =>
+      api.rest.orders.search({ ids: [older.id, newer.id], sort: "createdDate:desc" }));
 
-    await test.step(`assert: the ${ORDER_DOCUMENT_TYPE} index is registered exactly when the flag is ${enabled}`, async () => {
-      const documentTypes = (await searchIndexesClient.list()).map(({ documentType }) => documentType);
-      expect(documentTypes.includes(ORDER_DOCUMENT_TYPE)).toBe(enabled);
+    await test.step("assert: the newer order comes first", () => {
+      expect(found.map(({ id }) => id)).toEqual([newer.id, older.id]);
     });
   });
 
-  test("generate a new payment for an order", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order with a line item", () =>
-      arrangeOrder(ordersClient, cleanupStack, orderWithLineItem(dataset, env.storeId)));
+  test("indexed order search is enabled with the order index registered", async ({ api }) => {
+    await allure.story("Search");
+    await allure.description(
+      `Orders are searched through the search index: the platform reports indexed search on, and the ${ORDER_INDEX} ` +
+        "index is registered.",
+    );
 
-    const payment = await test.step("act: generate payment", () => ordersClient.newPayment(order.id));
+    const enabled = await test.step("act: ask whether indexed order search is enabled", () =>
+      api.rest.orders.isIndexedSearchEnabled());
 
-    await test.step("assert: a new incoming payment of the order customer, numbered and in the order currency", async () => {
-      expect(payment).toMatchObject({
-        operationType: "PaymentIn",
-        status: "New",
-        customerId: order.customerId,
-        currency: order.currency,
+    await test.step(`assert: it is, and the ${ORDER_INDEX} index is registered`, async () => {
+      expect(enabled).toBe(true);
+      expect((await api.rest.searchIndexes.list()).map(({ documentType }) => documentType)).toContain(ORDER_INDEX);
+    });
+  });
+
+  for (const { document, template, expected, number } of DOCUMENT_TEMPLATES) {
+    test(`get a new ${document} for an order`, async ({ api, arrange }) => {
+      await allure.story("Documents");
+      await allure.description(`A new ${document} of an order is numbered, New and in the order's currency.`);
+      const order = await test.step("arrange: an order with a line item", () =>
+        arrange.orders.order([{ productId: PRODUCT_ID, price: PRICE }]));
+
+      const created = await test.step(`act: get a new ${document}`, () => template(api.rest, order));
+
+      await test.step(`assert: the ${document} is new, numbered and in the order's currency`, () => {
+        expect(created).toMatchObject({ ...expected(order), status: "New", currency: order.currency });
+        expect(created.number).toMatch(number);
       });
-      expect(payment.number).toMatch(PAYMENT_NUMBER);
+    });
+  }
+
+  test("change the status of an order", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description("An order's new status is stored.");
+    const order = await test.step("arrange: an order", () => arrange.orders.order());
+
+    await test.step("act: set the status to Processing", () =>
+      api.rest.orders.update({ ...order, status: "Processing" }));
+
+    await test.step("assert: the order is processing", async () => {
+      expect((await api.rest.orders.get(order.id)).status).toBe("Processing");
     });
   });
 
-  test("generate a new shipment for an order", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order with a line item", () =>
-      arrangeOrder(ordersClient, cleanupStack, orderWithLineItem(dataset, env.storeId)));
+  test("recalculate the totals of an order after a quantity change", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description("After its quantity changes, an order's total is the price times the quantity.");
+    const order = await test.step(`arrange: an order of one item at ${PRICE}`, () =>
+      arrange.orders.order([{ productId: PRODUCT_ID, price: PRICE }]));
 
-    const shipment = await test.step("act: generate shipment", () => ordersClient.newShipment(order.id));
+    const recalculated = await test.step("act: recalculate the order with quantity 2", () =>
+      api.rest.orders.recalculate(withQuantity(order, 2)));
 
-    await test.step("assert: a new shipment, numbered and in the order currency", async () => {
-      expect(shipment).toMatchObject({ operationType: "Shipment", status: "New", currency: order.currency });
-      expect(shipment.number).toMatch(SHIPMENT_NUMBER);
+    await test.step(`assert: the total is ${PRICE * 2}`, () => {
+      expect(recalculated.items).toEqual([expect.objectContaining({ quantity: 2, price: PRICE })]);
+      expect(recalculated.total).toBe(PRICE * 2);
     });
   });
 
-  test("change the status of an order", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order", () =>
-      arrangeOrder(ordersClient, cleanupStack, newOrder(env.storeId, getUser(dataset, USERNAME))));
+  test("save an order with a payment, a shipment and a new quantity", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description(
+      "A recalculated order saved with a new payment, a new shipment and a new quantity keeps all three, " +
+        "and its change log records the save.",
+    );
+    const order = await test.step("arrange: an order with a line item", () =>
+      arrange.orders.order([{ productId: PRODUCT_ID, price: PRICE }]));
+    const changesBefore = await test.step("arrange: the order's change log", () =>
+      api.rest.orders.searchChanges({ orderId: order.id }));
+    const payment = await test.step("arrange: a new payment", () => api.rest.orders.paymentTemplate(order.id));
+    const shipment = await test.step("arrange: a new shipment", () => api.rest.orders.shipmentTemplate(order.id));
+    const recalculated = await test.step("arrange: the order recalculated with them and quantity 2", () =>
+      api.rest.orders.recalculate({ ...withQuantity(order, 2), inPayments: [payment], shipments: [shipment] }));
 
-    await test.step("act: set status to Processing", () => ordersClient.update({ ...order, status: "Processing" }));
+    await test.step("act: save the order", () => api.rest.orders.update(recalculated));
 
-    await test.step("assert: order is processing", async () => {
-      expect((await ordersClient.get(order.id)).status).toBe("Processing");
-    });
-  });
-
-  test("recalculate order totals after a quantity change", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order with a line item", () =>
-      arrangeOrder(ordersClient, cleanupStack, orderWithLineItem(dataset, env.storeId)));
-
-    const recalculated = await test.step("act: recalculate with quantity 2", () =>
-      ordersClient.recalculate(withFirstItemQuantity(order, 2)));
-
-    await test.step("assert: total is price times quantity", async () => {
-      expect(recalculated.items[0]).toMatchObject({ quantity: 2, price: LINE_ITEM_PRICE });
-      expect(recalculated.total).toBe(LINE_ITEM_PRICE * 2);
-    });
-  });
-
-  test("attach a payment and a shipment to an order", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order with a line item", () =>
-      arrangeOrder(ordersClient, cleanupStack, orderWithLineItem(dataset, env.storeId)));
-    const payment = await test.step("arrange: new payment", () => ordersClient.newPayment(order.id));
-    const shipment = await test.step("arrange: new shipment", () => ordersClient.newShipment(order.id));
-    const recalculated = await test.step("arrange: recalculated order", () =>
-      ordersClient.recalculate({ ...withFirstItemQuantity(order, 2), inPayments: [payment], shipments: [shipment] }));
-
-    await test.step("act: save order", () => ordersClient.update(recalculated));
-
-    await test.step("assert: order keeps the payment, shipment and quantity", async () => {
-      const saved = await ordersClient.getByNumber(order.number);
-      expect(saved.items[0]?.quantity).toBe(2);
+    await test.step("assert: the order keeps the quantity, the payment and the shipment", async () => {
+      const saved = await api.rest.orders.get(order.id);
+      expect(saved.items.map(({ quantity }) => quantity)).toEqual([2]);
       expect(saved.inPayments?.map(({ number }) => number)).toEqual([payment.number]);
       expect(saved.shipments?.map(({ number }) => number)).toEqual([shipment.number]);
     });
-  });
-
-  test("record order changes after an update", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order with a line item", () =>
-      arrangeOrder(ordersClient, cleanupStack, orderWithLineItem(dataset, env.storeId)));
-    const initial = await test.step("arrange: initial change count", async () =>
-      requireFields(
-        await ordersClient.searchChanges({ orderId: order.id, take: 10 }),
-        ["totalCount"],
-        "Initial change log",
-      ));
-    const payment = await test.step("arrange: new payment", () => ordersClient.newPayment(order.id));
-    const shipment = await test.step("arrange: new shipment", () => ordersClient.newShipment(order.id));
-
-    await test.step("act: save order with a payment, a shipment and a new quantity", async () =>
-      ordersClient.update(
-        await ordersClient.recalculate({
-          ...withFirstItemQuantity(order, 2),
-          inPayments: [payment],
-          shipments: [shipment],
-        }),
-      ));
-
-    await test.step("assert: change count grows", async () => {
+    await test.step("assert: the change log records the save", async () => {
       await expect
-        .poll(async () => (await ordersClient.searchChanges({ orderId: order.id, take: 10 })).totalCount, {
+        .poll(async () => (await api.rest.orders.searchChanges({ orderId: order.id })).length, {
           timeout: CHANGE_LOG_TIMEOUT_MS,
         })
-        .toBeGreaterThan(initial.totalCount);
+        .toBeGreaterThan(changesBefore.length);
     });
   });
 
-  test("delete an order", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const order = await test.step("arrange: order", () =>
-      arrangeOrder(ordersClient, cleanupStack, newOrder(env.storeId, getUser(dataset, USERNAME))));
+  test("delete an order", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A deleted order is neither read nor found by search.");
+    const order = await test.step("arrange: an order", () => arrange.orders.order());
 
-    await test.step("act: delete order", () => ordersClient.delete(order.id));
+    await test.step("act: delete the order", () => api.rest.orders.delete([order.id]));
 
-    await test.step("assert: order is not found", async () => {
-      expect(await ordersClient.find(order.id)).toBeUndefined();
-      expect((await ordersClient.search({ keyword: order.number })).map(({ id }) => id)).not.toContain(order.id);
-    });
-  });
-
-  test("reject an order number that is too long", async ({ httpClient, cleanupStack, dataset, env }) => {
-    const ordersClient = new OrdersClient(httpClient);
-    const draft = {
-      ...newOrder(env.storeId, getUser(dataset, USERNAME)),
-      number: "X".repeat(MAX_ORDER_NUMBER_LENGTH + 1),
-    };
-    cleanupStack.push(`delete order ${draft.id}`, () => ordersClient.delete(draft.id));
-
-    const response = await test.step(`act: create order with a ${MAX_ORDER_NUMBER_LENGTH + 1}-character number`, () =>
-      httpClient.post(CUSTOMER_ORDERS_PATH, { json: draft }));
-
-    await test.step("assert: order number length is rejected", async () => {
-      expect(response.status).toBe(400);
-      expect(response.text).toContain(`must be ${MAX_ORDER_NUMBER_LENGTH} characters or fewer`);
+    await test.step("assert: the order is not found", async () => {
+      expect(await api.rest.orders.find(order.id)).toBeUndefined();
+      expect((await api.rest.orders.search({ keyword: order.number })).map(({ id }) => id)).not.toContain(order.id);
     });
   });
 });
-
-function orderWithLineItem(dataset: Dataset, storeId: string): CustomerOrderDraft {
-  const product = getProduct(dataset, SEEDED_PRODUCT_ID);
-  return newOrder(storeId, getUser(dataset, USERNAME), [newLineItem(product, LINE_ITEM_PRICE)]);
-}
-
-function withFirstItemQuantity(order: CustomerOrder, quantity: number): CustomerOrder {
-  return { ...order, items: order.items.map((item, index) => (index === 0 ? { ...item, quantity } : item)) };
-}

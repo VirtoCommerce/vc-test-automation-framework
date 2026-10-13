@@ -13,47 +13,56 @@ Ask the user for:
 
 ## Step 2: Collect Current Test Metrics
 
-Collect exact numbers from Playwright itself, per project (`restapi`, `graphql`, `e2e-frontend`, `e2e-backend`; ignore `seed`, it is setup).
+Collect exact numbers from Playwright itself, per project: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend` and `isolated`. Report `unit` on its own line as framework tests; ignore `seed`, it is setup. `--list` loads the specs and `.env` but needs no platform.
 
 ### 2a. Count Tests per Project
 
 ```shell
-# PowerShell
-$env:RUN_DESTRUCTIVE_TESTS = 'true'; npx playwright test --list --project=restapi; Remove-Item Env:RUN_DESTRUCTIVE_TESTS
 # bash
 RUN_DESTRUCTIVE_TESTS=true npx playwright test --list --project=restapi
+# PowerShell
+$env:RUN_DESTRUCTIVE_TESTS = 'true'; npx playwright test --list --project=restapi; Remove-Item Env:RUN_DESTRUCTIVE_TESTS
 ```
 
-`--list` prints one line per test (parameterized loops are expanded) and a `Total: N tests in M files` line. `RUN_DESTRUCTIVE_TESTS=true` includes the `@destructive` tests, which are excluded by default; count them separately with `--grep @destructive`.
+`--list` prints one line per test (table-driven tests are expanded) and a `Total: N tests in M files` line. `RUN_DESTRUCTIVE_TESTS=true` is needed only for `isolated`: without it that project does not exist.
 
 ### 2b. Count Spec Files
 
-Count `*.spec.ts` files under `tests/restapi`, `tests/graphql`, `tests/e2e/frontend` and `tests/e2e/backend`.
+Count `*.spec.ts` files under `tests/restapi`, `tests/graphql`, `tests/e2e/frontend`, `tests/e2e/backend` and `tests/isolated`, and `*.test.ts` under `tests/unit`.
 
-### 2c. Count Disabled and Known-Issue Tests
+### 2c. Count Known-Issue Tests
 
-Search the specs:
-- `test.fixme(` — disabled tests (not run)
-- `test.fail(true, …)` — known product issues: they run and pass while the issue exists
-- `test.skip(` with a condition — skipped only for some environments (theme settings, missing module); report as conditional, not disabled
+Known defects are listed in `dataset/known-issues.ts` and marked in tests with `await knownIssue(KNOWN_ISSUES.<name>)` (`fixtures/known-issue.ts`). A table row may carry the issue as a field (`issue: KNOWN_ISSUES.<name>`), so count the rows that carry it, not just the call sites.
 
-**Active tests** = total tests − `test.fixme` tests.
+- **Expected failure**: the entry has a tracker `key`. The test runs and is expected to fail.
+- **Skipped (no ticket)**: the entry has no `key`. The test is skipped as `fixme`.
+
+Bare `test.fail`, `test.fixme` or `test.skip` in a spec break the project rules; list any you find as a finding.
+
+**Active tests** = total tests − skipped (no ticket) tests.
 
 ### 2d. Record Details
 
-For each `test.fixme` and `test.fail`: file, test title, and the issue from `dataset/known-issues.ts` (tracker key and summary).
+For each known-issue test: project, file, test title, the `KNOWN_ISSUES` name, its tracker key (or "none") and summary.
+
+### 2e. Migration Status from TESTS.md
+
+TESTS.md maps every test of the old suite to where it lives now. Count the Status marks per suite table (REST API, GraphQL, End-to-end and setup): ⬜ to migrate, ✅ migrated, 🔶 waiting for a run, 🔀 merged, ❌ dropped, ➡️ moved. Count `## Katalon: …` sections too, if any exist.
 
 ## Step 3: Collect Previous Period Metrics
 
-Read the most recent report in `project-progress-report/` (create the folder if this is the first report). Its "Current State" section is the baseline. If there is no previous report, reconstruct the baseline by checking out the last commit before the current period start into a temporary worktree and repeating Step 2 there.
+Read the most recent report in `project-progress-report/` (create the folder if this is the first report). Its "Current State" section is the baseline. If there is no previous report, reconstruct the baseline by checking out the last commit before the current period start into a temporary worktree (`git worktree add`), copying `.env` there without printing it, running `npm ci` and repeating Step 2. Remove the worktree afterwards.
+
+Commits before the layer rebuild used other projects, fixtures and markers (`@destructive` tags, `test.fail`). If the baseline commit predates it, compare totals only and say so in the report.
 
 ## Step 4: Analyze Git History
 
-Use `git log --since=<start> --until=<end> --stat -- tests pages dataset api fixtures` to find:
+Use `git log --since=<start> --until=<end> --stat -- tests pages dataset api fixtures core TESTS.md` to find:
 - New and modified spec files
 - New tests (titles added), tests removed
-- New `test.fixme` / `test.fail` markers, and ones removed (tests re-enabled or issues fixed)
-- New page objects, components, REST clients, GraphQL documents, `arrange…()` helpers
+- `knownIssue` marks added and removed, `KNOWN_ISSUES` entries added, removed or given a tracker key
+- New page objects, REST clients, GraphQL documents, builders, `arrange` methods, dataset records
+- TESTS.md status changes
 - Main feature areas covered
 
 ## Step 5: Calculate Derived Metrics
@@ -66,7 +75,7 @@ Use `git log --since=<start> --until=<end> --stat -- tests pages dataset api fix
 
 ## Step 6: Read Historical Data
 
-Collect at least 3 data points (date, total tests, active tests, growth rate) from earlier reports for the trend section.
+Collect up to 3 data points (date, total tests, active tests, growth rate) from earlier reports for the trend section. With fewer reports, show what exists and say so.
 
 ## Step 7: Generate the Report
 
@@ -89,19 +98,23 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-report.md`:
 - **+{NEW_TESTS} new tests** ({GROWTH}% growth)
 - **+{NEW_FILES} new spec files**
 - **{KNOWN_ISSUES_CHANGE} known-issue tests** ({DESCRIPTION})
+- **Old-suite migration:** {MIGRATED} of {TOTAL} done
 - **Major focus:** {FOCUS_AREAS}
 
 ---
 
 ## Current State ({REPORT_DATE})
 
-| Project | Spec files | Tests | Destructive | Disabled (`fixme`) | Known issues (`fail`) | Active rate |
-|---|---|---|---|---|---|---|
-| restapi | … | … | … | … | … | …% |
-| graphql | … | … | … | … | … | …% |
-| e2e-frontend | … | … | … | … | … | …% |
-| e2e-backend | … | … | … | … | … | …% |
-| **Total** | … | … | … | … | … | …% |
+| Project | Spec files | Tests | Expected failures | Skipped (no ticket) | Active rate |
+|---|---|---|---|---|---|
+| restapi | … | … | … | … | …% |
+| graphql | … | … | … | … | …% |
+| e2e-frontend | … | … | … | … | …% |
+| e2e-backend | … | … | … | … | …% |
+| isolated | … | … | … | … | …% |
+| **Total** | … | … | … | … | …% |
+
+Framework unit tests: {UNIT_TESTS} in {UNIT_FILES} files.
 
 ---
 
@@ -117,16 +130,24 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-report.md`:
 
 ---
 
+## Migration Status (TESTS.md)
+
+| Suite | ⬜ | ✅ | 🔶 | 🔀 | ❌ | ➡️ |
+|---|---|---|---|---|---|---|
+{rows}
+
+---
+
 ## What Changed
 
 ### New Spec Files
 {Table: file, project, tests}
 
 ### New Infrastructure
-{Page objects, components, REST clients, GraphQL documents, dataset helpers}
+{Page objects, REST clients, GraphQL documents, builders, arrange methods, dataset records}
 
-### Disabled, Re-enabled and Known Issues
-{fixme/fail markers added or removed, with reasons}
+### Known Issues
+{KNOWN_ISSUES entries added, removed or given a tracker key, with reasons}
 
 ---
 
@@ -136,10 +157,10 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-report.md`:
 
 ---
 
-## Disabled and Known-Issue Tests
+## Known-Issue Tests
 
-| Project | File | Test | Marker | Reason |
-|---|---|---|---|---|
+| Project | File | Test | Issue | Tracker key | Summary |
+|---|---|---|---|---|---|
 {rows}
 
 ---
@@ -148,7 +169,7 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-report.md`:
 
 | Date | Total Tests | Active Tests | Growth Rate |
 |---|---|---|---|
-{at least 3 rows}
+{rows}
 
 ---
 
@@ -159,7 +180,7 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-report.md`:
 ---
 
 *Report generated on {REPORT_DATE}*
-*Data sources: `npx playwright test --list`, spec file search, git history*
+*Data sources: `npx playwright test --list`, `dataset/known-issues.ts`, TESTS.md, git history*
 ```
 
 ## Step 8: Generate HTML Presentation
@@ -170,16 +191,17 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-presentation.htm
 2. **Executive summary**: 4–6 metric cards
 3. **Growth trend**: line chart of the historical data
 4. **Period comparison**: grouped bar chart per project
-5. **Active vs disabled vs known issues**: stacked bar chart
+5. **Active vs expected failures vs skipped**: stacked bar chart
 6. **Distribution**: doughnut chart by project
-7. **REST and GraphQL detail**: bar charts
+7. **REST, GraphQL and isolated detail**: bar charts
 8. **e2e detail**: bar charts for e2e-frontend and e2e-backend
-9. **What changed**: cards
-10. **Recommendations**: list
+9. **Migration status**: TESTS.md marks per suite
+10. **What changed**: cards
+11. **Recommendations**: list
 
 ## Step 9: Summary
 
 Tell the user:
 - The paths of both files
 - Headline metrics (total, growth, active rate)
-- Notable findings or concerns (for example, known-issue tests whose reasons have no tracker key)
+- Notable findings or concerns (for example, known issues without a tracker key, bare `test.fail`/`test.fixme`, old-suite tests still ⬜)

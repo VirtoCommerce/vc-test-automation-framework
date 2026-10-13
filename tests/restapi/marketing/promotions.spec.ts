@@ -1,170 +1,127 @@
+import { randomUUID } from "node:crypto";
+
 import * as allure from "allure-js-commons";
 
-import { PromotionsClient } from "@api/rest/clients/promotions-client";
-import { registerPromotionCouponsRemoval } from "@dataset/arrange/promotion";
 import { newCoupon, newPromotion } from "@dataset/builders/marketing";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { expect, test } from "@fixtures";
+
+const UPDATED_FIELDS = ["name", "description"] as const;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Marketing / Promotions");
 });
 
-test.describe("promotions (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("promotions (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("create a promotion", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
+  test("create a promotion", async ({ api, cleanup }) => {
+    await allure.story("Create");
+    await allure.description("A new promotion keeps its name and stays inactive.");
     const draft = newPromotion();
+    cleanup.push(`delete promotion ${draft.name}`, () => api.rest.promotions.delete([draft.id]));
 
-    const promotion = await test.step("act: create promotion", () => promotionsClient.create(draft));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
+    const promotion = await test.step("act: create an inactive promotion", () => api.rest.promotions.create(draft));
 
-    await test.step("assert: promotion is inactive", async () => {
+    await test.step("assert: the promotion is inactive", () => {
       expect(promotion).toMatchObject({ name: draft.name, isActive: false });
     });
   });
 
-  test("get a new promotion template", async ({ httpClient }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
+  test("get a new promotion template", async ({ api }) => {
+    await allure.story("Create");
+    await allure.description("The template of a new promotion is unsaved and has a condition and reward tree.");
 
-    const template = await test.step("act: get new promotion", () => promotionsClient.getNew());
+    const template = await test.step("act: get a new promotion template", () => api.rest.promotions.template());
 
-    await test.step("assert: template is unsaved and has a condition and reward tree", async () => {
-      expect(template.id == null, "the template has no id").toBe(true);
+    await test.step("assert: the template has no id and a PromotionConditionAndRewardTree", () => {
+      expect(template.id ?? undefined).toBeUndefined();
       expect(template.dynamicExpression).toMatchObject({ id: "PromotionConditionAndRewardTree" });
     });
   });
 
-  test("get a promotion by id", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
+  test("get a promotion by id", async ({ api, arrange }) => {
+    await allure.story("Read");
+    await allure.description("A promotion is read back by its id with the name it was created with.");
+    const promotion = await test.step("arrange: a promotion", () => arrange.marketing.promotion());
 
-    const reloaded = await test.step("act: get promotion", () => promotionsClient.get(promotion.id));
+    const reloaded = await test.step("act: get the promotion", () => api.rest.promotions.get(promotion.id));
 
-    await test.step("assert: fields match the created promotion", async () => {
+    await test.step("assert: the fields match the created promotion", () => {
       expect(reloaded).toMatchObject({ id: promotion.id, name: promotion.name });
     });
   });
 
-  test("search promotions by keyword", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
+  test("search promotions by keyword", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("Searching promotions by a promotion's name finds it.");
+    const promotion = await test.step("arrange: a promotion", () => arrange.marketing.promotion());
 
-    const found = await test.step("act: search by promotion name", () =>
-      promotionsClient.search({ keyword: promotion.name }));
+    const found = await test.step("act: search promotions by its name", () =>
+      api.rest.promotions.search({ keyword: promotion.name }));
 
-    await test.step("assert: promotion is in the results", async () => {
+    await test.step("assert: the promotion is found", () => {
       expect(found.map(({ id }) => id)).toContain(promotion.id);
     });
   });
 
-  test("rename a promotion", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
-    const newName = `${promotion.name}-renamed`;
+  for (const field of UPDATED_FIELDS) {
+    test(`change the ${field} of a promotion`, async ({ api, arrange }) => {
+      await allure.story("Update");
+      await allure.description(`A promotion's new ${field} is stored.`);
+      const promotion = await test.step("arrange: a promotion", () => arrange.marketing.promotion());
+      const value = `${promotion.name} ${field} changed`;
 
-    await test.step("act: rename promotion", () => promotionsClient.update({ ...promotion, name: newName }));
+      await test.step(`act: change the promotion's ${field}`, () =>
+        api.rest.promotions.update({ ...promotion, [field]: value }));
 
-    await test.step("assert: promotion has the new name", async () => {
-      expect((await promotionsClient.get(promotion.id)).name).toBe(newName);
-    });
-  });
-
-  test("describe a promotion", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
-    const description = `Description of ${promotion.name}`;
-
-    await test.step("act: set promotion description", () => promotionsClient.update({ ...promotion, description }));
-
-    await test.step("assert: promotion has the description", async () => {
-      expect((await promotionsClient.get(promotion.id)).description).toBe(description);
-    });
-  });
-
-  test("delete a promotion", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
-
-    await test.step("act: delete promotion", () => promotionsClient.delete(promotion.id));
-
-    await test.step("assert: promotion is not found", async () => {
-      expect(await promotionsClient.find(promotion.id)).toBeUndefined();
-    });
-  });
-
-  test("create, update and delete a coupon", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
-    registerPromotionCouponsRemoval(promotionsClient, cleanupStack, promotion.id);
-    const draft = newCoupon(promotion.id, 15, 10);
-
-    await test.step("act: create coupon", () => promotionsClient.saveCoupons([draft]));
-    const coupon = await test.step("assert: coupon is found with its limits", async () => {
-      const found = await promotionsClient.getCouponByCode(promotion.id, draft.code);
-      expect(found).toMatchObject({ maxUsesNumber: 15, maxUsesPerUser: 10 });
-      return found;
-    });
-    const couponId = coupon.id;
-    const updatedCode = `${draft.code}-UPDATED`;
-
-    await test.step("act: update coupon code and limits", () =>
-      promotionsClient.saveCoupons([
-        { id: couponId, promotionId: promotion.id, code: updatedCode, maxUsesNumber: 17, maxUsesPerUser: 12 },
-      ]));
-    await test.step("assert: coupon has the new code and limits", async () => {
-      expect(await promotionsClient.getCoupon(couponId)).toMatchObject({
-        code: updatedCode,
-        maxUsesNumber: 17,
-        maxUsesPerUser: 12,
+      await test.step(`assert: the promotion has the new ${field}`, async () => {
+        expect((await api.rest.promotions.get(promotion.id))[field]).toBe(value);
       });
     });
+  }
 
-    await test.step("act: delete coupon", () => promotionsClient.deleteCoupons([couponId]));
-    await test.step("assert: coupon is not found", async () => {
-      expect(await promotionsClient.findCoupon(couponId)).toBeUndefined();
-      expect((await promotionsClient.searchCoupons({ promotionId: promotion.id })).map(({ id }) => id)).not.toContain(
-        couponId,
-      );
+  test("delete a promotion", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A deleted promotion is no longer found.");
+    const promotion = await test.step("arrange: a promotion", () => arrange.marketing.promotion());
+
+    await test.step("act: delete the promotion", () => api.rest.promotions.delete([promotion.id]));
+
+    await test.step("assert: the promotion is not found", async () => {
+      expect(await api.rest.promotions.find(promotion.id)).toBeUndefined();
     });
   });
 
-  test("search and delete a coupon", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
-    registerPromotionCouponsRemoval(promotionsClient, cleanupStack, promotion.id);
-    const draft = newCoupon(promotion.id, 10, 1);
-    await test.step("arrange: coupon", () => promotionsClient.saveCoupons([draft]));
+  test("add, change and delete a coupon of a promotion", async ({ api, arrange, cleanup }) => {
+    await allure.story("Coupons");
+    await allure.description(
+      "A coupon added to a promotion is its only coupon, with its limits; a changed code and limits are stored; " +
+        "a deleted coupon is gone.",
+    );
+    const { coupons } = api.rest.promotions;
+    const promotion = await test.step("arrange: a promotion", () => arrange.marketing.promotion());
+    const draft = { ...newCoupon(promotion.id, { maxUsesNumber: 15, maxUsesPerUser: 10 }), id: randomUUID() };
+    cleanup.push(`delete coupon ${draft.code}`, () => coupons.delete([draft.id]));
 
-    const coupon = await test.step("act: find coupon by code", () =>
-      promotionsClient.getCouponByCode(promotion.id, draft.code));
-
-    await test.step("act: delete coupon", () => promotionsClient.deleteCoupons([coupon.id]));
-
-    await test.step("assert: coupon is not found", async () => {
-      expect(await promotionsClient.findCoupon(coupon.id)).toBeUndefined();
+    await test.step("act: add a coupon with 15 uses, 10 per user", () => coupons.saveMany([draft]));
+    const coupon = await test.step("assert: the coupon is the promotion's only coupon, with its limits", async () => {
+      expect((await coupons.search({ promotionId: promotion.id })).map(({ code }) => code)).toEqual([draft.code]);
+      const found = await coupons.getByCode(promotion.id, draft.code);
+      expect(found).toMatchObject({ id: draft.id, maxUsesNumber: 15, maxUsesPerUser: 10 });
+      return found;
     });
-  });
+    const changed = { ...coupon, code: `${coupon.code}-CHANGED`, maxUsesNumber: 17, maxUsesPerUser: 12 };
 
-  test("add a coupon to a promotion", async ({ httpClient, cleanupStack }) => {
-    const promotionsClient = new PromotionsClient(httpClient);
-    const promotion = await test.step("arrange: promotion", () => promotionsClient.create(newPromotion()));
-    cleanupStack.push(`delete promotion ${promotion.id}`, () => promotionsClient.delete(promotion.id));
-    registerPromotionCouponsRemoval(promotionsClient, cleanupStack, promotion.id);
-    const draft = newCoupon(promotion.id, 5, 1);
+    await test.step("act: change the code and the limits to 17 uses, 12 per user", () => coupons.saveMany([changed]));
+    await test.step("assert: the coupon has the new code and limits", async () => {
+      expect(await coupons.get(coupon.id)).toMatchObject({ code: changed.code, maxUsesNumber: 17, maxUsesPerUser: 12 });
+    });
 
-    await test.step("act: add coupon", () => promotionsClient.saveCoupons([draft]));
-
-    await test.step("assert: promotion has the coupon", async () => {
-      const coupons = await promotionsClient.searchCoupons({ promotionId: promotion.id });
-      expect(coupons.map(({ code }) => code)).toEqual([draft.code]);
+    await test.step("act: delete the coupon", () => coupons.delete([coupon.id]));
+    await test.step("assert: the coupon is gone", async () => {
+      expect(await coupons.find(coupon.id)).toBeUndefined();
+      expect((await coupons.search({ promotionId: promotion.id })).map(({ id }) => id)).not.toContain(coupon.id);
     });
   });
 });

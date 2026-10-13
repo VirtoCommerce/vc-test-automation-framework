@@ -1,92 +1,84 @@
-import type { Page } from "@playwright/test";
-import type { SignedInCustomerAccount } from "@fixtures";
-
 import * as allure from "allure-js-commons";
 
-import { addToDefaultCart, registerDefaultCartRemoval } from "@dataset/arrange/cart";
-import { SEEDED_PRODUCTS } from "@dataset/seeded";
-import { expect, test, withItems } from "@fixtures";
-import { CartPage, CONFIGURED_SKU_PREFIX } from "@pages/frontend/pages/cart-page";
-import { ProductPage } from "@pages/frontend/pages/product-page";
-import { SignInPage } from "@pages/frontend/pages/simple-pages";
+import { configuredSku } from "@dataset/builders/product-configuration";
+import { expect, test } from "@fixtures";
 
-const PRODUCT_ID = SEEDED_PRODUCTS.galaxyA57;
+const PRODUCT = { id: "product-smartphone-samsung-galaxy-a57-5g", sku: "smartphone-samsung-galaxy-a57-5g" } as const;
 const QUANTITY = 3;
-const REGULAR_QUANTITY = 2;
-const CONFIGURABLE_PRODUCT_ID = SEEDED_PRODUCTS.configurableLaptop;
-const CONFIGURABLE_PRODUCT_PATH = "laptops/acer-predator-helios-neo-16-ai";
+const CONFIGURABLE = {
+  code: "laptop-acer-predator-helios-neo-16-ai",
+  path: "laptops/acer-predator-helios-neo-16-ai",
+} as const;
 const MEMORY = "Memory";
 const MEMORY_OPTION = "Samsung DDR5-4800 8GB";
 
 test.beforeEach(async () => {
-  await allure.feature("Cart / Merge (E2E)");
+  await allure.epic("E2E");
+  await allure.feature("Frontend / Cart");
 });
 
-test.describe("cart merge (anonymous cart, then sign-in)", () => {
-  test.describe("with a prefilled anonymous cart", () => {
-    test.use({ cart: withItems([{ productId: PRODUCT_ID, quantity: QUANTITY }]) });
+test.describe("cart merge (anonymous, then signing in)", () => {
+  test("the anonymous cart merges into the signed-in cart", async ({ frontend, page, shopper, arrange }) => {
+    await allure.story("Merge");
+    await allure.description("A visitor's cart is the customer's cart once the visitor signs in on the frontend.");
+    const customer = await test.step("arrange: a customer of their own", () => arrange.customers.customerAccount());
+    arrange.carts.removeDefaultCartLater(customer.api);
+    await test.step(`arrange: the visitor's cart holds ${PRODUCT.sku} ×${QUANTITY}`, () =>
+      arrange.carts.defaultCart(shopper.api, [{ productId: PRODUCT.id, quantity: QUANTITY }]));
+    const signIn = frontend.signIn();
+    const cart = frontend.cart();
 
-    test("the anonymous cart merges into the signed-in cart", async ({ page, env, customerAccount, cleanupStack }) => {
-      registerDefaultCartRemoval(customerAccount.graphqlClient, cleanupStack, customerAccount.context);
-      const cartPage = new CartPage(page);
-      const lineItem = cartPage.lineItem(PRODUCT_ID);
+    await test.step("arrange: open the sign-in page with the visitor's cart", async () => {
+      await signIn.navigate();
+      await expect(signIn.cartQuantityLabel).toHaveText(String(QUANTITY));
+    });
 
-      await test.step("arrange: the anonymous cart shows the product", async () => {
-        await cartPage.navigate();
-        await expect(lineItem.root).toBeVisible();
-      });
+    await test.step(`act: sign in as ${customer.credentials.username}`, async () => {
+      await signIn.signIn(customer.credentials.username, customer.credentials.password);
+      await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"));
+    });
 
-      await test.step(`act: sign in as ${customerAccount.credentials.username}`, () =>
-        signIn(page, customerAccount, QUANTITY));
-
-      await test.step(`assert: the signed-in cart holds the product ×${QUANTITY}`, async () => {
-        await cartPage.navigate();
-        const quantityInput =
-          env.quantityControl === "stepper"
-            ? lineItem.quantityStepper.quantityInput
-            : lineItem.addToCartButton.quantityInput;
-        await expect(quantityInput).toHaveValue(String(QUANTITY));
-      });
+    await test.step(`assert: the signed-in cart holds ${PRODUCT.sku} ×${QUANTITY}`, async () => {
+      await cart.navigate();
+      await expect(cart.lineItem(PRODUCT.sku).quantity.input).toHaveValue(String(QUANTITY));
     });
   });
 
-  test("an anonymous configured product merges into a signed-in cart with a regular product", async ({
+  test("an anonymous configured product merges into a cart with a regular product", async ({
+    frontend,
     page,
-    customerAccount,
-    cleanupStack,
+    arrange,
   }) => {
-    registerDefaultCartRemoval(customerAccount.graphqlClient, cleanupStack, customerAccount.context);
-    await test.step(`arrange: the customer's cart holds ${PRODUCT_ID} ×${REGULAR_QUANTITY}`, () =>
-      addToDefaultCart(customerAccount.graphqlClient, customerAccount.context, [
-        { productId: PRODUCT_ID, quantity: REGULAR_QUANTITY },
-      ]));
-    const productPage = new ProductPage(page, CONFIGURABLE_PRODUCT_PATH);
+    await allure.story("Merge");
+    await allure.description(
+      "A product the visitor configured joins the customer's regular product in the cart once the visitor signs in.",
+    );
+    const customer = await test.step("arrange: a customer of their own", () => arrange.customers.customerAccount());
+    await test.step(`arrange: the customer's cart holds ${PRODUCT.sku} ×2`, () =>
+      arrange.carts.defaultCart(customer.api, [{ productId: PRODUCT.id, quantity: 2 }]));
+    const product = frontend.product(CONFIGURABLE.path);
+    const signIn = frontend.signIn();
+    const cart = frontend.cart();
 
-    await test.step("arrange: add a configured product as the anonymous shopper", async () => {
-      await productPage.navigate();
-      await productPage.configuration.selectOption(MEMORY, MEMORY_OPTION);
-      await productPage.addToCartButton.click();
-      await expect(productPage.cartQuantityLabel).toHaveText("1");
+    await test.step("arrange: the visitor adds a configured product to the cart", async () => {
+      await product.navigate();
+      await product.configuration.section(MEMORY).select(MEMORY_OPTION);
+      await product.addToCartButton.click();
+      await expect(product.cartQuantityLabel).toHaveText("1");
     });
 
-    await test.step(`act: sign in as ${customerAccount.credentials.username}`, () => signIn(page, customerAccount, 1));
+    await test.step(`act: sign in as ${customer.credentials.username}`, async () => {
+      await signIn.navigate();
+      await expect(signIn.cartQuantityLabel).toHaveText("1");
+      await signIn.signIn(customer.credentials.username, customer.credentials.password);
+      await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"));
+    });
 
     await test.step("assert: the cart holds the regular and the configured product", async () => {
-      const cartPage = new CartPage(page);
-      await cartPage.navigate();
-      await expect(cartPage.lineItems).toHaveCount(2);
-      await expect(cartPage.lineItem(PRODUCT_ID).root).toBeVisible();
-      await expect(cartPage.lineItem(`${CONFIGURED_SKU_PREFIX}${CONFIGURABLE_PRODUCT_ID}`).root).toBeVisible();
+      await cart.navigate();
+      await expect(cart.lineItems).toHaveCount(2);
+      await expect(cart.lineItem(PRODUCT.sku).root).toBeVisible();
+      await expect(cart.lineItem(configuredSku(CONFIGURABLE.code)).root).toBeVisible();
     });
   });
 });
-
-async function signIn(page: Page, account: SignedInCustomerAccount, anonymousCartQuantity: number): Promise<void> {
-  const signInPage = new SignInPage(page);
-  await signInPage.navigate();
-  await expect(signInPage.cartQuantityLabel).toHaveText(String(anonymousCartQuantity));
-  await signInPage.emailInput.fill(account.credentials.username);
-  await signInPage.passwordInput.fill(account.credentials.password);
-  await signInPage.signInButton.click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"));
-}

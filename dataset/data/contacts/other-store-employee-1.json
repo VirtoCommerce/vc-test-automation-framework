@@ -1,0 +1,10 @@
+{
+  "id": "contact-other-store-employee-1",
+  "firstName": "Other",
+  "lastName": "Employee A",
+  "memberType": "Contact",
+  "status": "Approved",
+  "defaultOrganizationId": "organization-other-store",
+  "organizations": ["organization-other-store"],
+  "emails": ["other_store_employee_1@other-store.com"]
+}

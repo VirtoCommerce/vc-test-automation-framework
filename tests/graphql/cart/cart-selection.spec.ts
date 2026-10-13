@@ -5,37 +5,40 @@ import {
   UnSelectAllCartItemsDocument,
   UnSelectCartItemsDocument,
 } from "@api/graphql/generated/graphql";
-import { arrangeCart, cartScope, lineItemFor } from "@dataset/arrange/cart";
-import { SEEDED_PRODUCTS } from "@dataset/seeded";
+import { lineItemOf } from "@api/graphql/line-items";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_IDS = [SEEDED_PRODUCTS.iphone17Black, SEEDED_PRODUCTS.iphone17MistBlue] as const;
+const PRODUCT_IDS = [
+  "product-smartphone-apple-iphone-17-256gb-black",
+  "product-smartphone-apple-iphone-17-256gb-mist-blue",
+] as const;
 
 test.beforeEach(async () => {
+  await allure.epic("GraphQL");
   await allure.feature("Cart / Item Selection");
 });
 
 test.describe("cart item selection (anonymous)", () => {
-  test("unselect one line item for checkout", async ({ graphqlClient, cleanupStack, frontendContext }) => {
+  test("unselect one line item for checkout", async ({ api, arrange }) => {
+    await allure.story("Select items");
+    await allure.description("Every line item starts selected; unselecting one leaves the others selected.");
     const cart = await test.step("arrange: cart with two products", () =>
-      arrangeCart(
-        graphqlClient,
-        cleanupStack,
-        frontendContext,
+      arrange.carts.cart(
+        api,
         PRODUCT_IDS.map((productId) => ({ productId, quantity: 1 })),
       ));
-    await test.step("assert: every line item is selected by default", async () => {
-      expect(cart.items?.map(({ selectedForCheckout }) => selectedForCheckout)).toEqual([true, true]);
+    await test.step("assert: every line item is selected by default", () => {
+      expect(cart.items?.map((item) => item?.selectedForCheckout)).toEqual([true, true]);
     });
-    const unselected = lineItemFor(cart, PRODUCT_IDS[0]);
-    const remaining = lineItemFor(cart, PRODUCT_IDS[1]);
+    const unselected = lineItemOf(cart, PRODUCT_IDS[0]);
+    const remaining = lineItemOf(cart, PRODUCT_IDS[1]);
 
-    const { unSelectCartItems } = await test.step("act: unselect the first line item", () =>
-      graphqlClient.execute(UnSelectCartItemsDocument, {
-        command: { ...cartScope(frontendContext), cartId: cart.id, lineItemIds: [unselected.id] },
+    const { unSelectCartItems } = await test.step("act: unselect the first line item", async () =>
+      api.graphql.execute(UnSelectCartItemsDocument, {
+        command: { ...(await api.storeContext()), cartId: cart.id, lineItemIds: [unselected.id] },
       }));
 
-    await test.step("assert: only the first line item is unselected", async () => {
+    await test.step("assert: only the first line item is unselected", () => {
       expect(unSelectCartItems?.items).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: unselected.id, selectedForCheckout: false }),
@@ -45,33 +48,29 @@ test.describe("cart item selection (anonymous)", () => {
     });
   });
 
-  test("select one line item after unselecting all", async ({ graphqlClient, cleanupStack, frontendContext }) => {
+  test("select one line item after unselecting all", async ({ api, arrange }) => {
+    await allure.story("Select items");
+    await allure.description("After unselecting every line item, selecting one selects only that one.");
     const cart = await test.step("arrange: cart with two products", () =>
-      arrangeCart(
-        graphqlClient,
-        cleanupStack,
-        frontendContext,
+      arrange.carts.cart(
+        api,
         PRODUCT_IDS.map((productId) => ({ productId, quantity: 1 })),
       ));
+    const context = await api.storeContext();
     const { unSelectAllCartItems } = await test.step("arrange: unselect every line item", () =>
-      graphqlClient.execute(UnSelectAllCartItemsDocument, {
-        command: { ...cartScope(frontendContext), cartId: cart.id },
-      }));
-    await test.step("assert: no line item is selected", async () => {
-      expect(unSelectAllCartItems?.items?.map(({ selectedForCheckout }) => selectedForCheckout)).toEqual([
-        false,
-        false,
-      ]);
+      api.graphql.execute(UnSelectAllCartItemsDocument, { command: { ...context, cartId: cart.id } }));
+    await test.step("assert: no line item is selected", () => {
+      expect(unSelectAllCartItems?.items?.map((item) => item?.selectedForCheckout)).toEqual([false, false]);
     });
-    const selected = lineItemFor(cart, PRODUCT_IDS[0]);
-    const remaining = lineItemFor(cart, PRODUCT_IDS[1]);
+    const selected = lineItemOf(cart, PRODUCT_IDS[0]);
+    const remaining = lineItemOf(cart, PRODUCT_IDS[1]);
 
     const { selectCartItems } = await test.step("act: select the first line item", () =>
-      graphqlClient.execute(SelectCartItemsDocument, {
-        command: { ...cartScope(frontendContext), cartId: cart.id, lineItemIds: [selected.id] },
+      api.graphql.execute(SelectCartItemsDocument, {
+        command: { ...context, cartId: cart.id, lineItemIds: [selected.id] },
       }));
 
-    await test.step("assert: only the first line item is selected", async () => {
+    await test.step("assert: only the first line item is selected", () => {
       expect(selectCartItems?.items).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: selected.id, selectedForCheckout: true }),

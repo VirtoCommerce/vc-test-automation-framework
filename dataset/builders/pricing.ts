@@ -1,20 +1,46 @@
-import type { PriceData, PricelistAssignmentData, PricelistData } from "@api/rest/types/pricing";
+import type { PriceData, PricelistAssignmentData, PricelistData, ProductPriceData } from "@api/rest/types/pricing";
+import type { WithRequired } from "@core/required-fields";
+
+import { randomUUID } from "node:crypto";
 
 import { uniqueId } from "@core/unique-id";
 
-import { SEEDED_CATALOG_ID, SEEDED_CURRENCY } from "../seeded";
+/** A pricelist to create, with a unique name. */
+export type PricelistDraft = WithRequired<PricelistData, "id" | "name" | "currency">;
 
-export function newPricelist(name = uniqueId("test-pricelist")): PricelistData {
-  return { name, currency: SEEDED_CURRENCY };
+/** A pricelist assignment to create, with a unique name. */
+export type PricelistAssignmentDraft = WithRequired<
+  PricelistAssignmentData,
+  "id" | "name" | "pricelistId" | "catalogId"
+>;
+
+/**
+ * Builds a pricelist named `test-pricelist-…`.
+ *
+ * @param currency - Such as `USD`.
+ */
+export function newPricelist(currency: string): PricelistDraft {
+  return { id: randomUUID(), name: uniqueId("test-pricelist"), currency };
 }
 
-export function newPrice(pricelistId: string, productId: string, list: number): PriceData {
-  return { pricelistId, productId, list, minQuantity: 1, currency: SEEDED_CURRENCY };
+/**
+ * Builds a product's prices as the price endpoints take them: one list price from quantity 1,
+ * in the pricelist's currency.
+ */
+export function newProductPrice(
+  pricelist: { readonly id: string; readonly currency: string },
+  productId: string,
+  list: number,
+): ProductPriceData & { productId: string } {
+  const price: PriceData = { pricelistId: pricelist.id, productId, list, minQuantity: 1, currency: pricelist.currency };
+  return { productId, prices: [price] };
 }
 
-export function newPricelistAssignment(
-  pricelistId: string,
-  name = uniqueId("test-assignment"),
-): PricelistAssignmentData {
-  return { pricelistId, catalogId: SEEDED_CATALOG_ID, name };
+/**
+ * Builds an assignment named `test-assignment-…` of a pricelist to a catalog.
+ *
+ * @param catalogId - The catalog whose products get the prices, such as the store's catalog.
+ */
+export function newPricelistAssignment(pricelistId: string, catalogId: string): PricelistAssignmentDraft {
+  return { id: randomUUID(), name: uniqueId("test-assignment"), pricelistId, catalogId };
 }

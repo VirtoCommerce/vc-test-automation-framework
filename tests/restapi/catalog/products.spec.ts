@@ -2,40 +2,37 @@ import type { ProductImage } from "@api/rest/types/catalog";
 
 import * as allure from "allure-js-commons";
 
-import { CatalogClient } from "@api/rest/clients/catalog-client";
-import { SettingsClient } from "@api/rest/clients/settings-client";
 import { uniqueId } from "@core/unique-id";
-import { createCategoryWithProduct } from "@dataset/arrange/catalog";
-import { addSettingValue, registerSettingValuesRemoval, replaceSettingValue } from "@dataset/arrange/settings";
-import { newCatalog, newCategory, newProduct } from "@dataset/builders/catalog";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { newProduct } from "@dataset/builders/catalog";
+import { textFile } from "@dataset/builders/files";
+import { expect, test } from "@fixtures";
 
-const REVIEW_TYPES_SETTING = "Catalog.EditorialReviewTypes";
 const IMAGE = {
-  name: "qa-image.svg",
-  url: "/qa-images/qa-image.svg",
-  relativeUrl: "/qa-images/qa-image.svg",
+  name: "test-image.svg",
+  url: "/test-images/test-image.svg",
+  relativeUrl: "/test-images/test-image.svg",
   group: "images",
   sortOrder: 1,
 } satisfies ProductImage;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Catalog / Products");
 });
 
-test.describe("products (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("products (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("create a product", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const category = await test.step("arrange: category", () => catalogClient.saveCategory(newCategory(catalog.id)));
+  test("create a product", async ({ api, arrange }) => {
+    await allure.story("Create");
+    await allure.description("A new product belongs to its catalog and category, with its name and code.");
+    const catalog = await test.step("arrange: a catalog", () => arrange.catalog.catalog());
+    const category = await test.step("arrange: a category", () => arrange.catalog.category(catalog.id));
     const draft = newProduct(catalog.id, category.id);
 
-    const product = await test.step("act: create product", () => catalogClient.saveProduct(draft));
+    const product = await test.step("act: create a product", () => api.rest.catalog.products.save(draft));
 
-    await test.step("assert: product is in the category", async () => {
+    await test.step("assert: the product is in the category", () => {
       expect(product).toMatchObject({
         name: draft.name,
         code: draft.code,
@@ -45,106 +42,98 @@ test.describe("products (admin)", () => {
     });
   });
 
-  test("rename a product and change its weight", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", async () =>
-      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
-    const newName = `${product.name}-renamed`;
+  test("save a product clone as a new product", async ({ api, arrange }) => {
+    await allure.story("Create");
+    await allure.description("A product's clone saved with a new code becomes a separate product.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+    const clone = await test.step("arrange: a clone of the product", () =>
+      api.rest.catalog.products.cloneTemplate(product.id));
+    const code = uniqueId("test-product-clone");
 
-    await test.step("act: update product", () => catalogClient.saveProduct({ ...product, name: newName, weight: 2.5 }));
+    const created = await test.step("act: save the clone with a new code", () =>
+      api.rest.catalog.products.save({ ...clone, id: null, code }));
 
-    await test.step("assert: product has the new name and weight", async () => {
-      expect(await catalogClient.getProduct(product.id)).toMatchObject({ name: newName, weight: 2.5 });
+    await test.step("assert: the clone is a separate product of the same catalog", () => {
+      expect(created.id).not.toBe(product.id);
+      expect(created).toMatchObject({ code, name: product.name, catalogId: product.catalogId });
     });
   });
 
-  test("get a product by id", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", async () =>
-      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
+  test("get a product by id", async ({ api, arrange }) => {
+    await allure.story("Read");
+    await allure.description("A product is read back by its id with the fields it was created with.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
 
-    const reloaded = await test.step("act: get product", () => catalogClient.getProduct(product.id));
+    const reloaded = await test.step("act: get the product", () => api.rest.catalog.products.get(product.id));
 
-    await test.step("assert: fields match the created product", async () => {
+    await test.step("assert: the fields match the created product", () => {
       expect(reloaded).toMatchObject({ id: product.id, name: product.name, code: product.code });
     });
   });
 
-  test("delete a product", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", async () =>
-      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
+  test("get a missing product", async ({ api }) => {
+    await allure.story("Read");
+    await allure.description("Looking a product up by an id that does not exist finds nothing.");
 
-    await test.step("act: delete product", () => catalogClient.deleteListEntries([product.id]));
+    const product = await test.step("act: look a product up by an unknown id", () =>
+      api.rest.catalog.products.find(uniqueId("test-missing-product")));
 
-    await test.step("assert: product is not found", async () => {
-      expect(await catalogClient.findProduct(product.id)).toBeUndefined();
+    await test.step("assert: no product is found", () => {
+      expect(product).toBeUndefined();
     });
   });
 
-  test("add an image to a product", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", async () =>
-      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
+  test("rename a product and change its weight", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description("A product's new name and weight are stored.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+    const newName = `${product.name}-renamed`;
 
-    await test.step("act: attach image", () => catalogClient.saveProduct({ ...product, images: [IMAGE] }));
+    await test.step("act: rename the product and set its weight to 2.5", () =>
+      api.rest.catalog.products.save({ ...product, name: newName, weight: 2.5 }));
 
-    await test.step("assert: product has the image", async () => {
-      const { images } = await catalogClient.getProduct(product.id);
+    await test.step("assert: the product has the new name and weight", async () => {
+      expect(await api.rest.catalog.products.get(product.id)).toMatchObject({ name: newName, weight: 2.5 });
+    });
+  });
+
+  test("add an image to a product", async ({ api, arrange }) => {
+    await allure.story("Media");
+    await allure.description("An image attached to a product is stored with the product.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+
+    await test.step("act: attach an image", () => api.rest.catalog.products.save({ ...product, images: [IMAGE] }));
+
+    await test.step("assert: the product has the image", async () => {
+      const { images } = await api.rest.catalog.products.get(product.id);
       expect(images?.map(({ url }) => url)).toContainEqual(expect.stringContaining(IMAGE.url));
     });
   });
 
-  test("get a product clone", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", async () =>
-      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
+  test("add an asset to a product", async ({ api, arrange }) => {
+    await allure.story("Media");
+    await allure.description("A file uploaded to the platform's assets and attached to a product is stored with it.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+    const { file } = await test.step("arrange: an uploaded file", () =>
+      arrange.content.asset(textFile("test-asset.txt", "Test product asset")));
 
-    const clone = await test.step("act: get clone", () => catalogClient.getProductClone(product.id));
+    await test.step("act: attach the file to the product", () =>
+      api.rest.catalog.products.save({ ...product, assets: [{ name: file.name, url: file.url, group: "default" }] }));
 
-    await test.step("assert: clone copies the product", async () => {
-      expect(clone).toMatchObject({ name: product.name, catalogId: product.catalogId });
+    await test.step("assert: the product has the asset", async () => {
+      const { assets } = await api.rest.catalog.products.get(product.id);
+      expect(assets).toEqual([expect.objectContaining({ name: file.name, url: file.url })]);
     });
   });
 
-  test("save a product clone as a new product", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const product = await test.step("arrange: product", async () =>
-      (await createCategoryWithProduct(catalogClient, catalog.id)).product);
-    const clone = await test.step("arrange: clone", () => catalogClient.getProductClone(product.id));
-    const code = uniqueId("test-product-clone");
+  test("move a product to another catalog", async ({ api, arrange }) => {
+    await allure.story("Move");
+    await allure.description("A product moved as a list entry belongs to the target catalog.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+    const target = await test.step("arrange: a target catalog", () => arrange.catalog.catalog());
 
-    const created = await test.step("act: save clone", () => catalogClient.saveProduct({ ...clone, id: null, code }));
-
-    await test.step("assert: clone is a separate product", async () => {
-      expect(created.id).not.toBe(product.id);
-      expect(created.code).toBe(code);
-    });
-  });
-
-  test("move a product to another catalog", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const source = await test.step("arrange: source catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${source.id}`, () => catalogClient.deleteCatalog(source.id));
-    const target = await test.step("arrange: target catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${target.id}`, () => catalogClient.deleteCatalog(target.id));
-    const product = await test.step("arrange: product", async () =>
-      (await createCategoryWithProduct(catalogClient, source.id)).product);
-
-    await test.step("act: move product", () =>
-      catalogClient.moveListEntries({
+    await test.step("act: move the product to the target catalog", () =>
+      api.rest.catalog.listEntries.move({
         catalog: target.id,
         listEntries: [
           {
@@ -158,41 +147,20 @@ test.describe("products (admin)", () => {
         ],
       }));
 
-    await test.step("assert: product is in the target catalog", async () => {
-      expect((await catalogClient.getProduct(product.id)).catalogId).toBe(target.id);
+    await test.step("assert: the product is in the target catalog", async () => {
+      expect((await api.rest.catalog.products.get(product.id)).catalogId).toBe(target.id);
     });
   });
 
-  test("add and rename an editorial review type", async ({ httpClient, cleanupStack }) => {
-    const settingsClient = new SettingsClient(httpClient);
-    const reviewType = uniqueId("test-review-type");
-    const renamedType = `${reviewType}-renamed`;
-    registerSettingValuesRemoval(settingsClient, cleanupStack, REVIEW_TYPES_SETTING, [reviewType, renamedType]);
+  test("delete a product", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A product deleted as a list entry is no longer found.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
 
-    await test.step("act: add review type", () => addSettingValue(settingsClient, REVIEW_TYPES_SETTING, reviewType));
+    await test.step("act: delete the product", () => api.rest.catalog.listEntries.delete([product.id]));
 
-    await test.step("assert: review type is added", async () => {
-      expect((await settingsClient.get(REVIEW_TYPES_SETTING)).allowedValues).toContain(reviewType);
-    });
-
-    await test.step("act: rename review type", () =>
-      replaceSettingValue(settingsClient, REVIEW_TYPES_SETTING, reviewType, renamedType));
-
-    await test.step("assert: review type is renamed", async () => {
-      const { allowedValues } = await settingsClient.get(REVIEW_TYPES_SETTING);
-      expect(allowedValues).toContain(renamedType);
-      expect(allowedValues).not.toContain(reviewType);
-    });
-  });
-
-  test("get a missing product", async ({ httpClient }) => {
-    const catalogClient = new CatalogClient(httpClient);
-
-    const product = await test.step("act: get product by a missing id", () =>
-      catalogClient.findProduct(uniqueId("test-missing-product")));
-
-    await test.step("assert: product is not found", async () => {
-      expect(product).toBeUndefined();
+    await test.step("assert: the product is not found", async () => {
+      expect(await api.rest.catalog.products.find(product.id)).toBeUndefined();
     });
   });
 });

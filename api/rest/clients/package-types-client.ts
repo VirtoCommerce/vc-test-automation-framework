@@ -1,7 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { PackageType, PackageTypeData } from "../types/core";
 
-import { requireEach } from "@core/required-fields";
+import { requireFieldsOfEach } from "@core/required-fields";
 
 import { PACKAGE_TYPE_FIELDS } from "../types/core";
 
@@ -16,7 +16,7 @@ export class PackageTypesClient {
 
   async list(): Promise<PackageType[]> {
     const response = await this.#httpClient.get(PACKAGE_TYPES_PATH);
-    return requireEach(response.expectOk().json<PackageTypeData[]>(), PACKAGE_TYPE_FIELDS, "Package type");
+    return requireFieldsOfEach(response.json<PackageTypeData[]>(), PACKAGE_TYPE_FIELDS, "Package type");
   }
 
   async find(id: string): Promise<PackageType | undefined> {
@@ -31,7 +31,7 @@ export class PackageTypesClient {
     (await this.#httpClient.put(PACKAGE_TYPES_PATH, { json: packageType })).expectOk();
   }
 
-  async delete(id: string): Promise<void> {
-    (await this.#httpClient.delete(PACKAGE_TYPES_PATH, { query: { ids: id } })).expectOk();
+  async delete(ids: readonly string[]): Promise<void> {
+    (await this.#httpClient.delete(PACKAGE_TYPES_PATH, { query: { ids } })).expectOk();
   }
 }

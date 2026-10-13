@@ -1,0 +1,27 @@
+{
+  "productId": "product-ssd-kingston-fury-renegade-pcie-40-nvme-m2-4096gb",
+  "product": {
+    "id": "product-ssd-kingston-fury-renegade-pcie-40-nvme-m2-4096gb",
+    "name": "Kingston FURY Renegade PCIe 4.0 NVMe M.2 SSD 4096GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-ssd-kingston-fury-renegade-pcie-40-nvme-m2-4096gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 409.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-ssd-kingston-fury-renegade-pcie-40-nvme-m2-4096gb"
+    },
+    {
+      "id": "price-acme-eur-ssd-kingston-fury-renegade-pcie-40-nvme-m2-4096gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 380.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-ssd-kingston-fury-renegade-pcie-40-nvme-m2-4096gb"
+    }
+  ]
+}

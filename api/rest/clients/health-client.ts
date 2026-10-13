@@ -13,6 +13,6 @@ export class HealthClient {
   }
 
   async getReport(): Promise<HealthReport> {
-    return (await this.#httpClient.get(HEALTH_PATH)).expectOk().parse(HealthReportSchema);
+    return (await this.#httpClient.get(HEALTH_PATH)).parse(HealthReportSchema);
   }
 }

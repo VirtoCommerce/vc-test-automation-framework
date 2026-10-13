@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-apple-iphone-17-pro-512gb-deep-blue",
+  "product": {
+    "id": "product-smartphone-apple-iphone-17-pro-512gb-deep-blue",
+    "name": "Apple iPhone 17 Pro 512 Gb Deep Blue"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-apple-iphone-17-pro-512gb-deep-blue",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 1299.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-apple-iphone-17-pro-512gb-deep-blue"
+    },
+    {
+      "id": "price-acme-eur-smartphone-apple-iphone-17-pro-512gb-deep-blue",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 1208.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-apple-iphone-17-pro-512gb-deep-blue"
+    }
+  ]
+}

@@ -16,11 +16,7 @@ export class PickupLocationsClient {
 
   async create(pickupLocation: PickupLocationData): Promise<PickupLocation> {
     const response = await this.#httpClient.post(PICKUP_LOCATIONS_PATH, { json: pickupLocation });
-    return requireFields(
-      response.expectOk().json<PickupLocationData>(),
-      PICKUP_LOCATION_FIELDS,
-      "Created pickup location",
-    );
+    return requireFields(response.json<PickupLocationData>(), PICKUP_LOCATION_FIELDS, "Created pickup location");
   }
 
   async update(pickupLocation: PickupLocationData): Promise<void> {

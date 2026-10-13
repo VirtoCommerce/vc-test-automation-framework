@@ -6,7 +6,8 @@ argument-hint: "<pr-number-or-url>"
 
 ## Pull Request Review
 
-Analyze the full scope of the PR and give structured, actionable feedback.
+Analyze the full scope of the PR and give structured, actionable feedback. CLAUDE.md is the source of the
+conventions.
 
 ## Review Process
 
@@ -15,67 +16,69 @@ Analyze the full scope of the PR and give structured, actionable feedback.
 ```bash
 gh pr view <number> --json title,body,baseRefName,headRefName,files,additions,deletions,commits
 gh pr diff <number>
-gh pr view <number> --json commits --jq '.commits[].messageHeadline'
 gh pr checks <number>
 ```
 
 ### Step 2: Understand the Scope
 
-- What is the PR trying to do (title, description, linked ticket)?
-- Which layers changed: `core`, `api`, `pages`, `dataset`, `fixtures`, `tests`, config, CI?
-- New coverage, bug fix, refactor, or infrastructure change?
-- Which projects are affected: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `seed`?
+- What the PR does (title, description, linked ticket).
+- Which layers changed: `core`, `api`, `pages`, `dataset`, `fixtures`, `tests`, config, CI.
+- Which projects are affected: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`, `seed`.
 
 ### Step 3: Review Each Changed File
 
-#### Specs (`tests/**/*.spec.ts`)
-Apply the `/review-test-code` checklist: structure, steps, isolation, project-specific patterns, quality, coverage.
+**Specs (`tests/**/*.spec.ts`):** apply the `/review-test-code` checklist.
 
-#### REST clients and types (`api/rest/clients`, `api/rest/types`)
-- Paths and methods match the platform swagger
-- `expectOk()`, `jsonOrUndefined()` for "not found", `requireFields`/`requireEach` on results
-- Named types follow `XXX_FIELDS` + `WithRequired`
+**REST clients and types (`api/rest/clients`, `api/rest/types`):**
+- Paths and methods match the Swagger; new clients registered in `api/rest/rest-api.ts`.
+- `json` / `optionalJson` / `expectOk`; results through `requireFields`, `optionalFields`, `requireFieldsOfEach`.
+- Named types follow `X_FIELDS` + `WithRequired`.
 
-#### GraphQL documents (`api/graphql/**/*.graphql`) and generated code
-- Generated files changed in the same PR as the documents (`npm run codegen:graphql`)
-- Fragments reused instead of repeating field lists
-- No hand edits in `api/*/generated/`
+**GraphQL documents (`api/graphql/**/*.graphql`):**
+- Generated files regenerated in the same PR (`npm run codegen:graphql`); no hand edits in `api/*/generated/`.
+- Fragments reused instead of repeated field lists.
 
-#### Page objects (`pages/**`)
-- `readonly` locators in the constructor, `data-test-id` selectors, actions as methods
-- No assertions, no API calls, imports only from `core`
+**Page objects (`pages/**`):**
+- `readonly` locators built in the constructor, `data-test-id` first, actions that wait for what they trigger.
+- Frontend settings handled inside the page object; no test assertions, no API calls, imports only from `core`.
 
-#### Dataset (`dataset/**`)
-- Builders pure, `arrange…()` helpers with cleanup
-- Changes to `dataset/data` or `manifest.json`: which specs rely on the changed records? Does the seed still run idempotently?
-- New seeded constants in `dataset/seeded.ts` instead of literals in specs
+**Dataset (`dataset/**`):**
+- Builders are pure `newX()` functions with a client-side `id`.
+- Arrange methods sit on the right domain class and register cleanup before the change.
+- `dataset/data` or `dataset/manifest.ts` changes: which specs read the changed records? Is the seed still safe
+  to repeat?
+- `dataset/known-issues.ts`: new entries are used by a `knownIssue` call; fixed defects are removed with their
+  calls.
 
-#### Fixtures (`fixtures/**`)
-- Scope is right (worker vs test); worker fixtures have no per-test side effects
-- Every destructured dependency is created for each test that uses the fixture: keep dependency lists minimal
-- Renamed or removed options are updated in every spec and in the README
+**Fixtures (`fixtures/**`):**
+- Right scope (worker vs test); worker fixtures have no per-test side effects.
+- Minimal dependencies: every destructured fixture is built for each test that uses it.
+- Renamed or removed options updated in every spec, README and CLAUDE.md.
 
-#### Config and CI (`playwright.config.ts`, `core/env.ts`, `.env.example`, `.github/workflows`, `backend-packages.json`)
-- New env keys added to `.env.example` and the README configuration table
-- Module version bumps match tests that need them
+**Config and CI (`playwright.config.ts`, `core/env.ts`, `.env.example`, `.github/workflows`,
+`backend-packages.json`):**
+- New variables in `core/env.ts`, `.env.example` and the README configuration table.
+- Worker counts and projects match README "Parallel workers".
 
 ### Step 4: Cross-File Analysis
 
-- **Consistency**: new specs follow the same conventions as their neighbours
-- **Callers**: changed signatures in `core`, `api`, `dataset`, `pages` or `fixtures` are updated everywhere (search the callers)
-- **Duplication**: new helpers do not duplicate existing ones
-- **Coverage**: the PR tests what it introduces; a bug fix has a test that would have failed before
-- **Docs**: README, CLAUDE.md and REFINEMENTS.md updated when conventions, options or open items change
+- **Consistency:** new specs follow their neighbours.
+- **Callers:** changed signatures in `core`, `api`, `dataset`, `pages` or `fixtures` are updated everywhere.
+- **Duplication:** new methods do not duplicate existing ones.
+- **Coverage:** the PR tests what it adds; a bug fix has a test that fails without it; framework changes have
+  unit tests in `tests/unit/`.
+- **Docs:** README and CLAUDE.md updated when conventions, options or scripts change; TESTS.md updated when tests
+  of the old suite moved, merged or were dropped.
 
 ### Step 5: Review Commit Quality
 
-- Messages explain why, not only what
-- Each commit is one logical change; refactors separate from new tests where practical
+- Messages explain why, not only what.
+- Each commit is one logical change.
 
 ### Step 6: Check CI
 
-- Did the `auto-tests.yml` run pass on every database?
-- Failures related to the PR, or known flakiness and platform issues (see README "Known platform issues")?
+- Did `auto-tests.yml` pass for every database and search engine in its matrix?
+- Are failures caused by the PR, or by a defect already in `dataset/known-issues.ts`?
 
 ## Output Format
 
@@ -88,7 +91,7 @@ Apply the `/review-test-code` checklist: structure, steps, isolation, project-sp
 ### Scope
 - **Files changed:** <count>
 - **Layers:** <core / api / pages / dataset / fixtures / tests / config>
-- **Projects affected:** <restapi / graphql / e2e-frontend / e2e-backend / seed>
+- **Projects affected:** <restapi / graphql / e2e-frontend / e2e-backend / isolated / unit / seed>
 
 ### Critical Issues
 - **[file:line]** <issue> — **Fix:** <specific fix>
@@ -97,7 +100,7 @@ Apply the `/review-test-code` checklist: structure, steps, isolation, project-sp
 - **[file:line]** <issue> — **Suggestion:** <improvement>
 
 ### Suggestions
-- <improvement idea>
+- <idea>
 
 ### Coverage Assessment
 - **New code tested:** Yes / No / Partially
@@ -117,18 +120,14 @@ Apply the `/review-test-code` checklist: structure, steps, isolation, project-sp
 
 ## Common PR Patterns
 
-### New Coverage PR
-- Expect: happy path, error cases, role differences, cleanup for every created entity
-- Watch for: assertions on shared lists, literal seeded ids, missing `customerAccount` for account-changing tests
+**New coverage:** expect the happy path, error cases, identity differences and cleanup for every change. Watch for
+assertions on shared lists, dataset users whose state changes, and setup written in the spec instead of `arrange`.
 
-### Bug Fix PR
-- Expect: a test that fails without the fix; a removed `test.fail` once the product issue is fixed
-- Watch for: tests that only exercise the workaround
+**Bug fix:** expect a test that fails without the fix. When a platform defect is fixed, its `KNOWN_ISSUES` entry
+and `knownIssue` calls go.
 
-### Refactoring PR
-- Expect: no behavior change; `npx playwright test --list` count unchanged unless intended
-- Watch for: removed tests without replacement, callers left behind
+**Refactoring:** expect no behavior change; `npx playwright test --list` count unchanged unless intended. Watch for
+removed tests without replacement and callers left behind.
 
-### Infrastructure PR
-- Expect: fixture, client or helper changes with all callers updated
-- Watch for: fixtures that now resolve more dependencies for every test, changed cleanup order
+**Infrastructure:** expect fixture, client or arrange changes with all callers updated. Watch for fixtures that
+now build more for every test, and changed cleanup order.

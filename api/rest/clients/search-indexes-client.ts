@@ -8,7 +8,7 @@ import type {
   IndexStateData,
 } from "../types/search";
 
-import { requireEach, requireFields } from "@core/required-fields";
+import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
 
 import { INDEX_PROGRESS_NOTIFICATION_FIELDS, INDEX_STATE_FIELDS } from "../types/search";
 import { findPushNotification } from "./push-notifications";
@@ -24,18 +24,18 @@ export class SearchIndexesClient {
 
   async list(): Promise<IndexState[]> {
     const response = await this.#httpClient.get(INDEXES_PATH);
-    return requireEach(response.expectOk().json<IndexStateData[]>(), INDEX_STATE_FIELDS, "Index state");
+    return requireFieldsOfEach(response.json<IndexStateData[]>(), INDEX_STATE_FIELDS, "Index state");
   }
 
   async getDocuments(documentType: string, documentId: string): Promise<IndexedDocument[]> {
     const path = `${INDEXES_PATH}/index/${encodeURIComponent(documentType)}/${encodeURIComponent(documentId)}`;
-    return (await this.#httpClient.get(path)).expectOk().json<IndexedDocument[]>();
+    return (await this.#httpClient.get(path)).json<IndexedDocument[]>();
   }
 
-  async startIndexation(options: IndexingOptions[]): Promise<IndexProgressNotification> {
+  async startIndexation(options: readonly IndexingOptions[]): Promise<IndexProgressNotification> {
     const response = await this.#httpClient.post(`${INDEXES_PATH}/index`, { json: options });
     return requireFields(
-      response.expectOk().json<IndexProgressNotificationData>(),
+      response.json<IndexProgressNotificationData>(),
       INDEX_PROGRESS_NOTIFICATION_FIELDS,
       "Indexation notification",
     );
@@ -55,8 +55,6 @@ export class SearchIndexesClient {
 
   async findProgress(notificationId: string): Promise<IndexProgressNotification | undefined> {
     const progress = await findPushNotification<IndexProgressNotificationData>(this.#httpClient, notificationId);
-    return progress === undefined
-      ? undefined
-      : requireFields(progress, INDEX_PROGRESS_NOTIFICATION_FIELDS, `Indexation progress "${notificationId}"`);
+    return optionalFields(progress, INDEX_PROGRESS_NOTIFICATION_FIELDS, `Indexation progress "${notificationId}"`);
   }
 }

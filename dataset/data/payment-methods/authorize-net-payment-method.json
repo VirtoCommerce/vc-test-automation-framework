@@ -1,0 +1,10 @@
+{
+  "storeId": "${ENV:STORE_ID}",
+  "code": "AuthorizeNetPaymentMethod",
+  "name": "AuthorizeNetPaymentMethod",
+  "displayName": "Authorize.Net",
+  "typeName": "AuthorizeNetPaymentMethod",
+  "paymentMethodGroupType": "Alternative",
+  "paymentMethodType": "PreparedForm",
+  "isActive": true
+}

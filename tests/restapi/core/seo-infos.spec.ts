@@ -1,23 +1,23 @@
 import * as allure from "allure-js-commons";
 
-import { SeoInfosClient } from "@api/rest/clients/seo-infos-client";
-import { SEEDED_CATALOG_ID } from "@dataset/seeded";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Core / SEO");
 });
 
-test.describe("seo infos (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("SEO infos (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("find no SEO duplicates in the seeded catalog", async ({ httpClient }) => {
-    const seoInfosClient = new SeoInfosClient(httpClient);
+  test("the store's catalog has no SEO duplicates", async ({ api, store }) => {
+    await allure.story("Duplicates");
+    await allure.description("No two objects of the store's catalog share an SEO slug.");
 
-    const duplicates = await test.step("act: find SEO duplicates", () =>
-      seoInfosClient.findDuplicates("Catalog", SEEDED_CATALOG_ID));
+    const duplicates = await test.step(`act: find the SEO duplicates of ${store.catalog}`, () =>
+      api.rest.seoInfos.findDuplicates("Catalog", store.catalog));
 
-    await test.step("assert: there are no duplicates", async () => {
+    await test.step("assert: there are none", () => {
       expect(duplicates).toEqual([]);
     });
   });

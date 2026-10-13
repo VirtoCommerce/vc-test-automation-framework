@@ -1,20 +1,39 @@
-import type { Credentials } from "@api/auth/credentials";
-import type { ApplicationUserData, RoleData } from "@api/rest/types/security";
+import type { ApplicationUserData, OAuthAppData, RoleData } from "@api/rest/types/security";
 import type { WithRequired } from "@core/required-fields";
 
+import { randomUUID } from "node:crypto";
+
+import { Secret } from "@core/secret";
 import { uniqueId } from "@core/unique-id";
 
-export type UserDraft = WithRequired<ApplicationUserData, "userName" | "email" | "password">;
-
-export function newPassword(): string {
-  return `Test-${crypto.randomUUID().slice(0, 8)}!aA1`;
+/** A user to create, with the password kept as a {@link Secret} until it is sent. */
+export interface UserDraft extends WithRequired<Omit<ApplicationUserData, "password">, "userName" | "email"> {
+  readonly password: Secret;
 }
 
-export function newApiKey(): string {
-  return crypto.randomUUID().replaceAll("-", "");
+/** A role to create, with a unique name. */
+export type RoleDraft = WithRequired<RoleData, "name">;
+
+/** An OAuth app to create, with its client id chosen up front. */
+export type OAuthAppDraft = WithRequired<OAuthAppData, "clientId" | "clientSecret" | "displayName">;
+
+/** Builds a random password that meets the platform's password policy, as a {@link Secret}. */
+export function newPassword(): Secret {
+  return new Secret(`Test-${randomUUID()}!aA1`);
 }
 
-export function newUser(
+/** Builds an API key value of 32 random hex characters, as a {@link Secret}. */
+export function newApiKey(): Secret {
+  return new Secret(randomUUID().replaceAll("-", ""));
+}
+
+/**
+ * Builds an approved admin (`Manager`) user with no roles, a confirmed unique `test-user-…@example.com`
+ * user name and email and a random password. For frontend customers use `newCustomerUser`.
+ *
+ * @param overrides - Fields that differ, such as `isAdministrator` or `roles`.
+ */
+export function newPlatformUser(
   storeId: string,
   overrides: Omit<Partial<ApplicationUserData>, "userName" | "email" | "password"> = {},
 ): UserDraft {
@@ -32,14 +51,17 @@ export function newUser(
   };
 }
 
-export function credentialsOf(user: UserDraft): Credentials {
-  return { username: user.userName, password: user.password };
+/**
+ * Builds a role named `test-role-…`.
+ *
+ * @param permissionNames - Such as `security:call_api`; none by default.
+ */
+export function newRole(permissionNames: readonly string[] = []): RoleDraft {
+  return { name: uniqueId("test-role"), description: "", permissions: permissionNames.map((name) => ({ name })) };
 }
 
-export function newRole(permissionNames: readonly string[] = []): WithRequired<RoleData, "name"> {
-  return {
-    name: uniqueId("test-role"),
-    description: "",
-    permissions: permissionNames.map((name) => ({ name })),
-  };
+/** Builds an OAuth app with a unique `test-client-…` client id (also its display name) and a random secret. */
+export function newOAuthApp(): OAuthAppDraft {
+  const clientId = uniqueId("test-client");
+  return { clientId, displayName: clientId, clientSecret: newPassword().reveal() };
 }

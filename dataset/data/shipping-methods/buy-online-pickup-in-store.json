@@ -1,0 +1,8 @@
+{
+  "storeId": "${ENV:STORE_ID}",
+  "code": "BuyOnlinePickupInStore",
+  "name": "Buy Online Pickup In Store",
+  "displayName": "Buy Online Pickup In Store",
+  "typeName": "BuyOnlinePickupInStoreShippingMethod",
+  "isActive": true
+}

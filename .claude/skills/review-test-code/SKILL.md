@@ -1,103 +1,112 @@
 ---
 name: review-test-code
-description: "Review spec files and test infrastructure for convention compliance, isolation, correctness, coverage gaps and best practices — produces actionable feedback"
+description: "Review spec files and test infrastructure (clients, page objects, builders, arrange, fixtures) for convention compliance, isolation, correctness, coverage gaps and best practices — produces actionable feedback"
 argument-hint: "<file-path-or-pattern>"
 ---
 
 ## Test Code Review
 
-Check every item below and report only real issues, with line numbers.
+Check every item below against CLAUDE.md and README "Writing tests". Report only real issues, with line numbers.
 
 ## Review Process
 
-### Step 1: Read the File(s)
+### Step 1: Read the Files
 
 Read each target file completely, plus what it depends on:
-- The fixtures it destructures (`fixtures/*.fixture.ts`) and options it sets
-- The clients, `arrange…()` helpers and builders it calls
-- The page objects it uses (for e2e)
-- The GraphQL documents behind the `…Document` constants it imports
+- the fixtures it destructures and the options it sets (`user`, `shopperKind`);
+- the clients, `arrange` methods and builders it calls;
+- the page objects it uses;
+- the GraphQL documents behind its `…Document` imports;
+- the `KNOWN_ISSUES` entries it names.
 
-### Step 2: Check Structure (every spec)
+### Step 2: Structure (every spec)
 
-- [ ] `test`, `expect` and test options come from `@fixtures`
-- [ ] `allure.feature("<Area> / <Topic>")` in `test.beforeEach` (e2e areas end with `(E2E)`)
-- [ ] `test.describe("<topic> (<who>)")` per role
-- [ ] Each test has `arrange:` / `act:` / `assert:` steps and all `expect`s sit in `assert:` steps (or in arrange steps that check a precondition)
-- [ ] Titles say what happens in plain words
-- [ ] One behavior per test; cases that differ only in data use a loop over cases
-- [ ] Seeded ids and usernames from `dataset/seeded.ts`; other constants at module level in `UPPER_SNAKE_CASE`
+- [ ] `test`, `expect`, `knownIssue` from `@fixtures`; nothing from `@playwright/test` (except `tests/unit`).
+- [ ] `allure.epic` and `allure.feature("<Area> / <Topic>")` in `test.beforeEach`; `allure.story` and
+      `allure.description` in each test.
+- [ ] One `test.describe("<topic> (<who>)")` per identity.
+- [ ] Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`; `expect` sits in `assert:` steps, or
+      in an `arrange:` step that checks a precondition.
+- [ ] Titles say what happens in plain words; one behavior per test.
+- [ ] No conditionals, `as` casts or helper functions; repeated cases are one table-driven test (rows may hold
+      small lambdas).
+- [ ] No raw selectors; constants at module level in `UPPER_SNAKE_CASE`; dataset ids as constants, other seeded
+      values read through `dataset`.
+- [ ] Placed by platform module (users and accounts in `security`); platform-wide changes in `tests/isolated/`.
 
-### Step 3: Check Isolation
+### Step 3: Isolation and Cleanup
 
-- [ ] Every created entity has a `cleanupStack.push` next to its creation, registered before the create when the id is known (builders set ids)
-- [ ] Tests that change account state use `customerAccount`, not a seeded user
-- [ ] Assertions focus on the test's own data (`toContainEqual`, `toMatchObject`, ids it created), so parallel tests cannot break them
-- [ ] Global settings: own list values through `arrangeSettingValue` / `registerSettingValuesRemoval`; single values through `registerSettingRestore` in a `mode: "default"` describe; nothing other tests depend on is toggled
-- [ ] Platform restarts or reloads tagged `@destructive`
+- [ ] Data the test changes is created with `arrange`; read-only data comes from `dataset`.
+- [ ] A test that changes a customer's own state creates its own customer (`customerAccount()` or
+      `shopperKind: "customer"`), never a dataset user.
+- [ ] Cleanup is registered before the change: `arrange` does it; a manual create pushes the undo on `cleanup`
+      before the call (the builder sets the id), or right after when the platform assigns the id.
+- [ ] Undos are tolerant (the record may already be gone) and restore changed values, not only delete.
+- [ ] Assertions target the test's own records (`toContain(id)`, `toMatchObject`), never a whole shared list.
+- [ ] Deletions are proven by id (`find(id)` is `undefined`), not by a search.
+- [ ] Store settings through `arrange.platform.storeSetting`; global settings only in `tests/isolated/`.
 
-### Step 4: Check Project-Specific Patterns
+### Step 4: Waits and Data
 
-#### REST Specs
-- [ ] Calls go through `api/rest/clients/*`; raw `httpClient` only to assert a status the client would hide
-- [ ] Negative cases assert the status or that `find…()` returns `undefined`
-- [ ] Security results: `expect(result.succeeded).toBe(true)` (or `toMatchObject({ succeeded: false, errors: [...] })` for negative cases)
+- [ ] Index-backed reads wait in `arrange` or with `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`.
+- [ ] No `waitForTimeout`, `networkidle`, sleeps or `expect(await locator.isVisible())`.
+- [ ] Missing data fails loudly: `requireFields` / `requireDefined`, no `?? ""`, `?? []`, `?? 0`.
+- [ ] Expected errors use `rejects.toBeHttpError(status, "text")` / `rejects.toBeGraphqlError("CODE")`.
+- [ ] Known defects: `await knownIssue(KNOWN_ISSUES.x)` first in the test, entry in `dataset/known-issues.ts`;
+      no bare `test.fail`, `test.fixme` or `test.skip`.
 
-#### GraphQL Specs
-- [ ] Typed `…Document` constants; variables built from `cartScope(...)` or the account `context`
-- [ ] `execute` for success paths, `executeRaw` only when asserting on `errors`
-- [ ] Nullable results unwrapped with `requireFields`, `requireCart`, `lineItemFor` before asserting
-- [ ] Eventually consistent reads (search index, pickup locations, addresses) wait with `expect.poll`
+### Step 5: Project-Specific Checks
 
-#### E2E Specs
-- [ ] Page objects from `@pages/...`; `navigate()` instead of `page.goto`
-- [ ] Only web-first assertions (`await expect(locator)…`); no `waitForTimeout`, `networkidle` or `expect(await locator.isVisible())`
-- [ ] Waits for the GraphQL call an action triggers before depending on its result (`page.waitForResponse(isGraphqlMutation(...))`)
-- [ ] Browser state from `user`, `withCustomerAccount`, `withItems`; UI sign-in only when sign-in is what the test checks
-- [ ] Theme-dependent tests skip on `env.quantityControl`, `env.rangeFilterType`, `env.checkoutMode`
-- [ ] Product links that may open a new tab are followed through the page object
+**REST:** calls go through `api.rest.<module>`; `api` signed in with `test.use({ user })`; security results check
+`succeeded`.
 
-#### Page Objects, Clients, Dataset Helpers
-- [ ] Page objects: `readonly` locators in the constructor, `data-test-id` first, no assertions, no API calls
-- [ ] Clients: `expectOk()` on every call, `jsonOrUndefined()` in `find…()`, `requireFields`/`requireEach` on results
-- [ ] Builders are pure `new…()` functions; `arrange…()` helpers register their cleanup
-- [ ] Nothing duplicates an existing helper, client method or page object
+**GraphQL:** typed documents; variables spread from `api.storeContext()`; `execute` for success, `executeRaw`
+only to read errors or partial data; nullable results unwrapped with `requireFields` / `lineItemOf`; named carts
+outside e2e.
 
-### Step 5: Check Code Quality
+**E2E:** page objects from the `frontend` / `pageBuilder` fixtures; data arranged through `shopper.api`; no branch
+or skip on `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE`, `CHECKOUT_MODE` (the page object hides them); waits on the
+response an action triggers (`isGraphqlOperation`) when the next step depends on it; new tabs followed through the
+page object; UI sign-in only when sign-in is under test.
 
-- [ ] `npm run typecheck` and `npm run check` pass on the file
-- [ ] No `any`, no `!`, no floating promises, no unused imports
-- [ ] Named functions are `function` declarations; arrows only inline
-- [ ] No fallbacks hiding missing data (`?? ""`, `?? []`, `?? 0`, `?.` inside assertions)
-- [ ] No credentials or URLs in code; `env` and seeded credentials instead
-- [ ] No comments restating the code; terminology frontend / platform / platform admin
+### Step 6: Infrastructure Files
 
-### Step 6: Check Coverage
+- [ ] Clients: paths verified against Swagger; results through `requireFields` / `optionalFields` /
+      `requireFieldsOfEach`; `find()` returns `undefined`, `get()` throws; bulk deletes by filter guard against
+      an empty filter.
+- [ ] Page objects: `readonly` locators built in the constructor, `data-test-id` first, settings hidden behind
+      methods, no test assertions, no API calls.
+- [ ] Builders: pure `newX()` functions with a client-side `id` and a `uniqueId` name.
+- [ ] Arrange methods: on the right domain class, register cleanup before the change, wait for index lag where
+      the data is searched.
+- [ ] Fixtures: right scope (worker vs test); minimal dependencies.
+- [ ] Layers respected (`biome/layers.json`); nothing duplicates an existing method.
 
-- [ ] Happy path
-- [ ] Error cases: invalid input, unauthorized role, missing entity
-- [ ] Edge cases that matter: empty results, limits, special characters
-- [ ] Roles: anonymous vs signed in vs admin where behavior differs
-- [ ] The test fails when the feature is broken (no vacuous assertions)
+### Step 7: Code Quality
+
+- [ ] `npm run typecheck` and `npm run check` pass.
+- [ ] No `any`, no `!`, no floating promises, no unused imports.
+- [ ] Named and exported functions are `function` declarations; arrows only for inline callbacks.
+- [ ] Class state in `readonly #private` fields.
+- [ ] No code comments; JSDoc short and only for what the signature cannot say.
+- [ ] No credentials or URLs in code.
+- [ ] Wording: frontend (not storefront), platform, platform admin.
+
+### Step 8: Coverage
+
+- [ ] Happy path, and error cases (invalid input, unauthorized identity, missing record).
+- [ ] Identities where behavior differs.
+- [ ] The test fails when the feature is broken (no vacuous assertions).
 
 ## Severity Levels
 
-### Critical (must fix before merge)
-- Leaked entities or cleanup that runs only on success
-- Vacuous assertions or tests without assertions
-- Shared-state races (seeded user's cart, global settings without restore)
-- Credentials in code
-- Fixed waits or `networkidle`
+**Critical (must fix):** leaked data or cleanup registered after the change; vacuous assertions or none;
+shared-state races (a dataset user's cart, global settings outside `isolated`); fixed waits; credentials in code.
 
-### Warning (should fix)
-- Literal seeded ids; duplicated helpers; layer violations
-- Missing steps or assertions outside `assert:` steps
-- Fallbacks hiding missing data
-- UI setup where an option or helper exists
+**Warning (should fix):** conditionals, casts or helpers in specs; raw selectors in specs; fallbacks hiding missing
+data; bare `test.fail` / `test.fixme`; deletion proven by search; layer violations; duplicated methods.
 
-### Suggestion (nice to have)
-- Splitting a large test; parameterizing repeated cases
-- Missing negative or role coverage
+**Suggestion:** splitting a large test; a table for repeated cases; missing negative or identity coverage.
 
 ## Output Format
 
@@ -105,7 +114,7 @@ Read each target file completely, plus what it depends on:
 ## Review: <file path>
 
 ### Summary
-<1-2 sentence assessment: what's good, what needs work>
+<1-2 sentences: what is good, what needs work>
 
 ### Critical Issues
 - **[line N]** <issue> — **Fix:** <specific fix>
@@ -114,7 +123,7 @@ Read each target file completely, plus what it depends on:
 - **[line N]** <issue> — **Suggestion:** <specific improvement>
 
 ### Suggestions
-- <improvement idea with rationale>
+- <idea with rationale>
 
 ### Coverage Gaps
 - <missing scenario>

@@ -1,0 +1,27 @@
+{
+  "productId": "product-sodimm-kingston-value-ram-ddr5-5600-48gb",
+  "product": {
+    "id": "product-sodimm-kingston-value-ram-ddr5-5600-48gb",
+    "name": "Kingston ValueRAM DDR5-5600 48GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-kingston-value-ram-ddr5-5600-48gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 201.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-kingston-value-ram-ddr5-5600-48gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-kingston-value-ram-ddr5-5600-48gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 186.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-kingston-value-ram-ddr5-5600-48gb"
+    }
+  ]
+}

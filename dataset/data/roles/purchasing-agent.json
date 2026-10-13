@@ -1,0 +1,13 @@
+{
+  "id": "role-purchasing-agent",
+  "name": "Purchasing agent",
+  "description": "Purchasing Agent",
+  "permissions": [
+    {
+      "name": "storefront:organization:view"
+    },
+    {
+      "name": "storefront:user:view"
+    }
+  ]
+}

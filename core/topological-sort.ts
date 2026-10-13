@@ -1,3 +1,12 @@
+/**
+ * Returns a new array with every item after its parent; otherwise keeps the input order (deterministic).
+ * An item whose parent is `undefined`, `null` or not among the items is treated as a root.
+ *
+ * @example
+ * topologicalSort(categories, (category) => category.id, (category) => category.parentId);
+ *
+ * @throws Error listing the ids of the items whose parents form a cycle.
+ */
 export function topologicalSort<T>(
   items: readonly T[],
   idOf: (item: T) => unknown,

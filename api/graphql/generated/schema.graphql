@@ -3283,6 +3283,11 @@ input InputChangePurchaseOrderNumber {
 
 input InputChangeWishlistType {
   """
+  Ids to share the list with (id space defined by scope); ids already shared with are ignored; requires scope in the same write; ignored by scopes without targets
+  """
+  addSharedWithIds: [String!]
+
+  """
   Culture name
   """
   cultureName: String
@@ -3303,12 +3308,22 @@ input InputChangeWishlistType {
   listName: String
 
   """
+  Message saved with the share (one for all targets), max 1024 characters; null leaves it unchanged, an empty or whitespace-only string clears it; requires scope in the same write; ignored by scopes without targets
+  """
+  message: String
+
+  """
+  Ids to stop sharing the list with; ids not shared with are ignored; requires scope in the same write; ignored by scopes without targets
+  """
+  removeSharedWithIds: [String!]
+
+  """
   List scope (private or organization)
   """
   scope: String
 
   """
-  Id of the principal the list is shared with (id space defined by scope)
+  The single recipient the list is shared with (id space defined by scope): replaces the one it currently has, and is refused when the list has several; requires scope in the same write; ignored by scopes without targets
   """
   sharedWithId: String
 
@@ -3350,6 +3365,11 @@ input InputClearShipmentsType {
 
 input InputCloneWishlistType {
   """
+  Ids to share the list with (id space defined by scope); ids already shared with are ignored; requires scope in the same write; ignored by scopes without targets
+  """
+  addSharedWithIds: [String!]
+
+  """
   Culture name
   """
   cultureName: String
@@ -3373,6 +3393,16 @@ input InputCloneWishlistType {
   List name
   """
   listName: String
+
+  """
+  Message saved with the share (one for all targets), max 1024 characters; null leaves it unchanged, an empty or whitespace-only string clears it; requires scope in the same write; ignored by scopes without targets
+  """
+  message: String
+
+  """
+  Ids to stop sharing the list with; ids not shared with are ignored; requires scope in the same write; ignored by scopes without targets
+  """
+  removeSharedWithIds: [String!]
 
   """
   List scope (private or organization)
@@ -3559,6 +3589,11 @@ input InputCreateUserType {
 
 input InputCreateWishlistType {
   """
+  Ids to share the list with (id space defined by scope); ids already shared with are ignored; requires scope in the same write; ignored by scopes without targets
+  """
+  addSharedWithIds: [String!]
+
+  """
   Culture name
   """
   cultureName: String
@@ -3579,12 +3614,22 @@ input InputCreateWishlistType {
   listName: String
 
   """
+  Message saved with the share (one for all targets), max 1024 characters; null leaves it unchanged, an empty or whitespace-only string clears it; requires scope in the same write; ignored by scopes without targets
+  """
+  message: String
+
+  """
+  Ids to stop sharing the list with; ids not shared with are ignored; requires scope in the same write; ignored by scopes without targets
+  """
+  removeSharedWithIds: [String!]
+
+  """
   List scope (private or organization)
   """
   scope: String
 
   """
-  Id of the principal the list is shared with (id space defined by scope)
+  The single recipient the list is shared with (id space defined by scope): replaces the one it currently has, and is refused when the list has several; requires scope in the same write; ignored by scopes without targets
   """
   sharedWithId: String
 
@@ -9682,14 +9727,46 @@ type SharingSettingType {
   isOwner: Boolean!
 
   """
+  Message saved with the share (one for all targets)
+  """
+  message: String
+
+  """
   Scope (private, organization, etc.)
   """
   scope: WishlistScopeType
 
   """
-  Id of the principal the list is shared with (id space defined by scope); null for non-targeted scopes
+  Id of the first target the list is shared with; owner only, null for non-targeted scopes
   """
-  sharedWithId: String
+  sharedWithId: String @deprecated(reason: "Use targets")
+
+  """
+  Targets the list is shared with (id space defined by scope); owner only, empty for other viewers and for non-targeted scopes
+  """
+  targets: [SharingTargetType!]!
+}
+
+type SharingTargetType {
+  """
+  Id the list is shared with (id space defined by scope)
+  """
+  id: String!
+
+  """
+  Image URL of the target, when resolved
+  """
+  imageUrl: String
+
+  """
+  Display name of the target, when the module owning the scope resolves it
+  """
+  name: String
+
+  """
+  Secondary display line of the target (e.g. city and region), when resolved
+  """
+  subtitle: String
 }
 
 type ShipmentType {

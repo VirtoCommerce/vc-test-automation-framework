@@ -1,19 +1,22 @@
 ---
 name: migrate-katalon-module
-description: "Migrate a Katalon REST API test module from vc-quality-gate-katalon into this TypeScript Playwright project — end-to-end flow from inventory to CI-verified PR"
+description: "Migrate a Katalon REST API test module from vc-quality-gate-katalon into this Playwright project — inventory, verified endpoints, api.rest clients, builders and arrange methods, specs, TESTS.md rows and a CI-verified PR"
 argument-hint: "<KatalonModule> [jira-ticket]"
 user-invocable: true
 ---
 
 ## Katalon → Playwright Migration Flow
 
-Migrate one Katalon module (e.g., `ModuleCatalog`, `Contacts`, `ModulePricing`) from `VirtoCommerce/vc-quality-gate-katalon` into `tests/restapi/<area>/`.
+Migrate one Katalon module (e.g. `ModuleCatalog`, `Contacts`, `ModulePricing`) from
+`VirtoCommerce/vc-quality-gate-katalon` into `tests/restapi/<platform-module>/`, or `tests/isolated/restapi/`
+for scripts that change platform-wide state.
 
-**CRITICAL LESSON:** Always read the Katalon Object Repository `.rs` files FIRST to get the real endpoint URLs and HTTP methods. Never guess endpoints from test names — they are often wrong (e.g., `/apiaccounts` vs `/users/apikeys`, POST vs PUT for role creation). Confirm each against the generated swagger types in `api/rest/generated/rest-api.ts`.
+**Read the Katalon Object Repository `.rs` files first** to get the real endpoint URLs and HTTP methods. Never
+guess endpoints from test names. Confirm each against `api/rest/generated/rest-api.ts`.
 
 ---
 
-## Step 1: INVENTORY — List all Katalon scripts
+## Step 1: Inventory the Katalon Scripts
 
 ```bash
 gh api "repos/VirtoCommerce/vc-quality-gate-katalon/contents/Scripts/API%20Coverage/<KatalonModule>" --jq '.[].name' | sort
@@ -21,19 +24,18 @@ gh api "repos/VirtoCommerce/vc-quality-gate-katalon/contents/Scripts/API%20Cover
 ```
 
 Mark each script:
-- `REAL` — a test to migrate
-- `DRAFT` — skip (folder name starts with DRAFT or contains draft)
-- `DEPRECATED` — skip
-- `TEMPLATE` — skip (`_suiteTemplate`, `z_snippet_*`)
-- `UTILITY` — skip (helper called by other scripts)
+- `REAL`: a test to migrate.
+- `DRAFT`, `DEPRECATED`: skip.
+- `TEMPLATE` (`_suiteTemplate`, `z_snippet_*`), `UTILITY` (called by other scripts): skip.
 
-Count the REAL scripts; that is the target.
+Count the REAL scripts; that is the target. Then check TESTS.md and the existing specs: the old suite may
+already cover a script, so its row becomes a merge, not a new test.
 
 ---
 
-## Step 2: ENDPOINTS — Read Object Repository `.rs` files
+## Step 2: Verify Endpoints From `.rs` Files
 
-**DO THIS BEFORE WRITING ANY CODE.**
+**Do this before writing any code.**
 
 ```bash
 gh api "repos/VirtoCommerce/vc-quality-gate-katalon/contents/Object%20Repository/API/backWebServices" --jq '.[].name' | sort
@@ -41,116 +43,113 @@ gh api "repos/VirtoCommerce/vc-quality-gate-katalon/contents/Object%20Repository
 gh api "repos/VirtoCommerce/vc-quality-gate-katalon/contents/Object%20Repository/API/backWebServices/<VirtoCommerce.Module>/<Name>.rs" --jq '.content' | base64 -d | grep -E 'restRequestMethod|restUrl'
 ```
 
-**Output:** for every API action, the verified HTTP method, URL path (with placeholders) and body kind (JSON, form, multipart, none).
+Output: for every API action, the verified method, path (with placeholders) and body kind (JSON, form,
+multipart, none).
 
-**Gotchas found in earlier migrations:**
-- Roles are created with PUT, not POST
-- Password reset uses `{userName}` in the path, not `{userId}`
-- API key POST returns an empty body: find the created key by its value afterwards
-- Dynamic properties: `objectType` goes in the body, not the path
-- Asset upload from a URL is a POST with query parameters, not JSON
-- Asset delete: DELETE with `?urls=`, not POST to `/delete`
-- OAuth apps: `/api/platform/oauthapps`
-- Notification journal search is POST; `markAllAsRead` is camelCase
-- Module restart: `/api/platform/modules/restart`
-- "Not found" differs per module: 404, `200 null`, `200 ""` — `HttpResponse.jsonOrUndefined()` handles all of them
-
----
-
-## Step 3: CLIENT AND TYPES
-
-Extend the client for the area in `api/rest/clients/<area>-client.ts` or create one (see `/create-rest-client`):
-
-```ts
-const PROMOTIONS_PATH = "/api/marketing/promotions";
-
-export class PromotionsClient {
-  readonly #httpClient: HttpClient;
-
-  constructor(httpClient: HttpClient) {
-    this.#httpClient = httpClient;
-  }
-
-  async create(promotion: PromotionData): Promise<Promotion> {
-    const response = await this.#httpClient.post(PROMOTIONS_PATH, { json: promotion });
-    return requireFields(response.expectOk().json<PromotionData>(), PROMOTION_FIELDS, "Created promotion");
-  }
-}
-```
-
-**Rules:**
-- Path constants and HTTP methods match the `.rs` file and swagger
-- Every call ends in `expectOk()`; `find…()` uses `jsonOrUndefined()`
-- Named types in `api/rest/types/<area>.ts`: re-export the generated model as `XxxData`, add `XXX_FIELDS` and `type Xxx = WithRequired<XxxData, (typeof XXX_FIELDS)[number]>`
-- If a create returns an empty body, read the entity back (by id when the draft sets one, otherwise by a unique value)
+Gotchas from earlier migrations:
+- Roles are created with PUT, not POST.
+- Password reset takes `{userName}` in the path, not `{userId}`.
+- API key POST returns an empty body: find the key by its value afterwards.
+- Dynamic properties: `objectType` goes in the body, not the path.
+- Asset upload from a URL is a POST with query parameters; asset delete is DELETE with `?urls=`.
+- OAuth apps: `/api/platform/oauthapps`. Module restart: `/api/platform/modules/restart`.
+- Notification journal search is POST; `markAllAsRead` is camelCase.
+- "Not found" differs per module (404, `200 null`, `200 ""`): `optionalJson()` covers empty and `null`;
+  pass `{ allow404: true }` only where the module answers 404.
 
 ---
 
-## Step 4: DATA HELPERS
+## Step 3: Client and Types
 
-- `dataset/builders/<area>.ts`: `newXxx()` returns a valid draft with a unique name (`uniqueId("test-xxx")`) and a client-side `id` (`crypto.randomUUID()`) when the API accepts one, so cleanup can be registered before the create
-- `dataset/arrange/<area>.ts`: `arrangeXxx(client, cleanupStack, draft)` creates and registers its own cleanup, when several specs need the same setup
-- Seeded ids used by more than one spec: `dataset/seeded.ts`
+Extend `api/rest/clients/<module>-client.ts` or add a client registered in `api/rest/rest-api.ts` (see
+`/create-rest-client`). Specs reach it as `api.rest.<module>`.
 
----
-
-## Step 5: SPECS
-
-Create `tests/restapi/<area>/<feature>.spec.ts` (see `/write-rest-api-test`):
-
-- `test.beforeEach(async () => { await allure.feature("<Area> / <Feature>") })`
-- `test.describe("<feature> (admin)", ...)` with `test.use({ user: asWorkerAdministrator })`
-- `arrange:` / `act:` / `assert:` steps; cleanup pushed next to each creation
-- Global-state tests (settings, dynamic properties, module reload): `test.describe.configure({ mode: "default" })`, `arrangeSettingValue` or `registerSettingRestore`
-- Restart or reload of the platform: `{ tag: "@destructive" }`
-- Katalon scripts that repeat one pattern with different data (e.g. dynamic properties across object types) become one loop over cases
+- Path constants and methods match the `.rs` file and Swagger.
+- `json()` / `optionalJson()` / `expectOk()`; results through `requireFields`, `optionalFields`,
+  `requireFieldsOfEach`.
+- Named types in `api/rest/types/<module>.ts`: `XData`, `X_FIELDS`, `X = WithRequired<XData, …>`.
+- A create that returns an empty body: read the record back (by the draft's id, or a unique value).
 
 ---
 
-## Step 6: LOCAL VERIFICATION
+## Step 4: Test Data
+
+- `dataset/builders/<domain>.ts`: `newX()` returns a valid draft with a unique name (`uniqueId("test-x")`) and a
+  client-side `id` (`randomUUID()`) when the platform keeps it, so cleanup can be registered first.
+- `dataset/arrange/<domain>.ts`: an `arrange.<domain>.x()` method that creates and registers its own cleanup,
+  when tests need the record as setup.
+- Records the tests only read: the seed dataset (`dataset/data/<collection>/`), read through `dataset.x.get(id)`.
+- Katalon's hard-coded ids and names become dataset ids or builder output, never literals copied over.
+
+---
+
+## Step 5: Specs
+
+Create `tests/restapi/<platform-module>/<topic>.spec.ts` (see `/write-rest-api-test`):
+
+- `allure.epic("REST API")` and `allure.feature("<Module> / <Topic>")` in `beforeEach`; `allure.story` and
+  `allure.description` per test.
+- `test.describe("<topic> (store administrator)")` with `test.use({ user: "acme_store_administrator@acme.com" })`.
+- `arrange:` / `act:` / `assert:` steps; data from `arrange`; cleanup registered before each change.
+- Place by platform module: Katalon's users, roles and API keys go to `security`, not `customer`.
+- Scripts that change global settings, reload modules, restart the platform or rebuild the index go to
+  `tests/isolated/restapi/<platform-module>/`.
+- Scripts that repeat one pattern with different data become one table-driven test.
+- A script that exposes a platform defect: add it to `dataset/known-issues.ts` and start the test with
+  `await knownIssue(KNOWN_ISSUES.x)`.
+- Katalon checks that assert nothing, or only a status code, get a real assertion on the record.
+
+---
+
+## Step 6: Local Verification
 
 ```bash
 npm run typecheck && npm run check
-npx playwright test tests/restapi/<area>/
+npx playwright test --list
+npm run test:restapi -- tests/restapi/<platform-module>/
+RUN_DESTRUCTIVE_TESTS=true npm run test:isolated -- tests/isolated/restapi/<platform-module>/
 ```
 
-**Common failures:**
-- `404 Not Found` → wrong path, re-check the `.rs` file and swagger
-- `405 Method Not Allowed` → wrong HTTP method
-- `response body is not valid JSON` → the endpoint answers with an empty body; read the entity back
-- `has no <field>` from `requireFields` → the response lacks a field the named type requires; check the swagger model
-- `succeeded: false` → check whether the endpoint takes a user name or an id
+Common failures:
+- `404 Not Found`: wrong path; re-check the `.rs` file and Swagger.
+- `405 Method Not Allowed`: wrong HTTP method.
+- `response body is not valid JSON`: the endpoint answers with an empty body; read the record back.
+- `has no <field>` from `requireFields`: the response lacks a field the named type requires; check the model.
+- `succeeded: false`: check whether the endpoint takes a user name or an id.
 
 ---
 
-## Step 7: 1-TO-1 MAPPING CHECK
+## Step 7: 1-to-1 Mapping
 
-Build the table `Katalon script → test title → status` and verify:
-- Every REAL script maps to exactly one test or one case of a loop
-- 0 MISSING
-- SKIP count equals DRAFT + DEPRECATED + TEMPLATE + UTILITY
+Build the table `Katalon script → test title → status` and check:
+- every REAL script maps to one test, one table row, or a named merge;
+- 0 missing;
+- skipped = DRAFT + DEPRECATED + TEMPLATE + UTILITY.
+
+Add the mapping to TESTS.md as a section for the module, in the same columns as the other suites (ID, file, test,
+what it checks, kind, runs as / data, decision, status), and update its Summary table.
 
 ---
 
-## Step 8: CI + PR
+## Step 8: CI and PR
 
-1. Commit and push the branch
-2. `gh pr create --base dev` with the mapping table in the description
-3. `gh workflow run auto-tests.yml --ref <branch> -f testSuites=restapi`
-4. Wait for a green run on every database; destructive tests only run when the env-file secret sets `RUN_DESTRUCTIVE_TESTS=true`
-5. Merge after review
+1. Commit and push the branch.
+2. `gh pr create --base dev` with the mapping table in the description.
+3. `gh workflow run auto-tests.yml --ref <branch> -f testSuites=restapi` (and `-f testSuites=isolated` when the
+   module has isolated tests; that needs `RUN_DESTRUCTIVE_TESTS=true` in the env secret).
+4. Wait for a green run on every database; merge after review.
 
 ---
 
 ## Checklist
 
-- [ ] All Katalon scripts inventoried
-- [ ] All endpoints verified from `.rs` files and swagger (not guessed)
-- [ ] Client methods and named types added
-- [ ] Builders (and arrange helpers where shared) with cleanup
-- [ ] Specs follow the steps, Allure and cleanup conventions
-- [ ] `mode: "default"` on global-state files; `@destructive` on restarts
-- [ ] Loops where Katalon repeats one pattern
-- [ ] `npm run typecheck`, `npm run check` and the local run are green
-- [ ] 1-to-1 mapping: 0 missing
+- [ ] All Katalon scripts inventoried; overlaps with TESTS.md found
+- [ ] All endpoints verified from `.rs` files and Swagger
+- [ ] Client methods registered on `api.rest`, named types added
+- [ ] Builders and arrange methods register cleanup before the change
+- [ ] Specs follow steps, Allure, placement and no-conditionals rules
+- [ ] Platform-wide changes in `tests/isolated/`; defects through `knownIssue`
+- [ ] Tables where Katalon repeats one pattern
+- [ ] `npm run typecheck`, `npm run check`, `--list` and the local run are green
+- [ ] Mapping: 0 missing; TESTS.md updated
 - [ ] CI run green

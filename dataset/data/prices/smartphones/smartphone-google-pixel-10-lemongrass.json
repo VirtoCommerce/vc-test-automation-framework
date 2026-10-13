@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-google-pixel-10-lemongrass",
+  "product": {
+    "id": "product-smartphone-google-pixel-10-lemongrass",
+    "name": "Google Pixel 10 Lemongrass"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-google-pixel-10-lemongrass",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 799.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-google-pixel-10-lemongrass"
+    },
+    {
+      "id": "price-acme-eur-smartphone-google-pixel-10-lemongrass",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 743.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-google-pixel-10-lemongrass"
+    }
+  ]
+}

@@ -1,12 +1,6 @@
 import type { CodegenConfig } from "@graphql-codegen/cli";
 
-import { existsSync } from "node:fs";
-
 import { getEnv } from "./core/env";
-
-if (existsSync(".env")) {
-  process.loadEnvFile();
-}
 
 const schema = new URL("/graphql", getEnv().backendBaseUrl).href;
 

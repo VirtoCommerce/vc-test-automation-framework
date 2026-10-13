@@ -1,0 +1,27 @@
+{
+  "productId": "product-sodimm-crucial-ddr5-4800-32gb",
+  "product": {
+    "id": "product-sodimm-crucial-ddr5-4800-32gb",
+    "name": "Crucial DDR5-4800 32GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-crucial-ddr5-4800-32gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 133.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-crucial-ddr5-4800-32gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-crucial-ddr5-4800-32gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 124.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-crucial-ddr5-4800-32gb"
+    }
+  ]
+}

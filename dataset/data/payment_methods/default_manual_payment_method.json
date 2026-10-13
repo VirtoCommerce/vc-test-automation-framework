@@ -1,9 +1,0 @@
-{
-  "storeId": "store-acme",
-  "code": "DefaultManualPaymentMethod",
-  "name": "Test payment method",
-  "displayName": "Manual test payment method",
-  "typeName": "DefaultManualPaymentMethod",
-  "paymentMethodGroupType": "Manual",
-  "isActive": true
-}

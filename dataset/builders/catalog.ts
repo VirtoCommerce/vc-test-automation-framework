@@ -1,21 +1,42 @@
-import type { CatalogData, CatalogLanguage, CatalogProductData, CategoryData } from "@api/rest/types/catalog";
+import type { CatalogData, CatalogProductData, CategoryData } from "@api/rest/types/catalog";
+import type { WithRequired } from "@core/required-fields";
+
+import { randomUUID } from "node:crypto";
 
 import { uniqueId } from "@core/unique-id";
 
-import { SEEDED_LANGUAGE } from "../seeded";
-
-export const DEFAULT_LANGUAGE = { languageCode: SEEDED_LANGUAGE, isDefault: true } satisfies CatalogLanguage;
-
-export function newCatalog(name = uniqueId("test-catalog")): CatalogData {
-  return { name, isVirtual: false, defaultLanguage: DEFAULT_LANGUAGE, languages: [DEFAULT_LANGUAGE] };
+/**
+ * Builds a physical catalog named `test-catalog-…` with one language.
+ *
+ * @param languageCode - The default and only language, such as `en-US`.
+ */
+export function newCatalog(languageCode: string): WithRequired<CatalogData, "id" | "name"> {
+  const language = { languageCode, isDefault: true };
+  return {
+    id: randomUUID(),
+    name: uniqueId("test-catalog"),
+    isVirtual: false,
+    defaultLanguage: language,
+    languages: [language],
+  };
 }
 
+/** Builds an active category whose code and name are one unique `test-category-…` value. */
 export function newCategory(catalogId: string): CategoryData {
   const code = uniqueId("test-category");
   return { catalogId, name: code, code, isActive: true };
 }
 
-export function newProduct(catalogId: string, categoryId: string): CatalogProductData {
+/**
+ * Builds a physical product whose code and name are one unique `test-product-…` value.
+ *
+ * @param overrides - Fields that differ, such as `trackInventory`.
+ */
+export function newProduct(
+  catalogId: string,
+  categoryId: string,
+  overrides: Partial<CatalogProductData> = {},
+): CatalogProductData {
   const code = uniqueId("test-product");
-  return { catalogId, categoryId, name: code, code, productType: "Physical" };
+  return { catalogId, categoryId, name: code, code, productType: "Physical", ...overrides };
 }

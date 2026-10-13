@@ -162,7 +162,7 @@
       }
     },
     {
-      "includes": ["tests/**"],
+      "includes": ["tests/**", "!tests/unit/**"],
       "linter": {
         "rules": {
           "style": {

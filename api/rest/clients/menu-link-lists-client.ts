@@ -1,7 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { MenuLinkList, MenuLinkListData } from "../types/content";
 
-import { requireEach, requireFields } from "@core/required-fields";
+import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
 
 import { MENU_LINK_LIST_FIELDS } from "../types/content";
 
@@ -14,9 +14,11 @@ export class MenuLinkListsClient {
     this.#path = `/api/cms/${encodeURIComponent(storeId)}/menu`;
   }
 
+  /** Lists the store's menu link lists; `[]` when none (the platform answers with an empty body). */
   async list(): Promise<MenuLinkList[]> {
     const response = await this.#httpClient.get(this.#path);
-    return requireEach(response.jsonOrUndefined<MenuLinkListData[]>(), MENU_LINK_LIST_FIELDS, "Menu link list");
+    const lists = response.optionalJson<MenuLinkListData[]>() ?? [];
+    return requireFieldsOfEach(lists, MENU_LINK_LIST_FIELDS, "Menu link list");
   }
 
   async get(id: string): Promise<MenuLinkList> {
@@ -25,22 +27,21 @@ export class MenuLinkListsClient {
 
   async find(id: string): Promise<MenuLinkList | undefined> {
     const response = await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`);
-    const list = response.jsonOrUndefined<MenuLinkListData>();
-    return list === undefined ? undefined : requireFields(list, MENU_LINK_LIST_FIELDS, `Menu link list "${id}"`);
+    return optionalFields(response.optionalJson<MenuLinkListData>(), MENU_LINK_LIST_FIELDS, `Menu link list "${id}"`);
   }
 
   async save(list: MenuLinkListData): Promise<void> {
     (await this.#httpClient.post(this.#path, { json: list })).expectOk();
   }
 
-  async delete(id: string): Promise<void> {
-    (await this.#httpClient.delete(this.#path, { query: { listIds: id } })).expectOk();
+  async delete(ids: readonly string[]): Promise<void> {
+    (await this.#httpClient.delete(this.#path, { query: { listIds: ids } })).expectOk();
   }
 
   async isNameAvailable(name: string, language: string, listId?: string): Promise<boolean> {
     const response = await this.#httpClient.get(`${this.#path}/checkname`, {
       query: { name, language, id: listId },
     });
-    return response.expectOk().json<{ result: boolean }>().result;
+    return response.json<{ result: boolean }>().result;
   }
 }

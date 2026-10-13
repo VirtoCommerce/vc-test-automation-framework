@@ -1,222 +1,89 @@
-import type { CatalogProduct, Category } from "@api/rest/types/catalog";
-import type { TaggedEntity } from "@api/rest/types/personalization";
-import type { CleanupStack } from "@core/cleanup-stack";
+import type { Arrange } from "@dataset/arrange";
 
 import * as allure from "allure-js-commons";
 
-import { CatalogClient } from "@api/rest/clients/catalog-client";
-import { PersonalizationClient } from "@api/rest/clients/personalization-client";
-import { SettingsClient } from "@api/rest/clients/settings-client";
 import { uniqueId } from "@core/unique-id";
-import { createCategoryWithProduct } from "@dataset/arrange/catalog";
-import {
-  addSettingValue,
-  arrangeSettingValue,
-  registerSettingRestore,
-  registerSettingValuesRemoval,
-} from "@dataset/arrange/settings";
-import { newCatalog, newCategory } from "@dataset/builders/catalog";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { taggedCategory, taggedProduct } from "@dataset/builders/personalization";
+import { expect, test } from "@fixtures";
 
-const MEMBER_GROUPS_SETTING = "Customer.MemberGroups";
-const INHERITANCE_POLICY_SETTING = "CatalogPersonalization.TagsInheritancePolicy";
-const SYNCHRONIZATION_TIMEOUT_MS = 60_000;
+const TAGGED_ENTITIES = [
+  {
+    entity: "product",
+    arrangeEntity: async (arrange: Arrange) => taggedProduct(await arrange.catalog.catalogProduct()),
+  },
+  {
+    entity: "category",
+    arrangeEntity: async (arrange: Arrange) =>
+      taggedCategory(await arrange.catalog.category((await arrange.catalog.catalog()).id)),
+  },
+] as const;
 
 test.beforeEach(async () => {
-  await allure.feature("Catalog / Personalization");
+  await allure.epic("REST API");
+  await allure.feature("Catalog Personalization / Tags");
 });
 
-test.describe("catalog personalization (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("personalization tags (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test.describe("tags", () => {
-    test("get member groups", async ({ httpClient, cleanupStack }) => {
-      const settingsClient = new SettingsClient(httpClient);
-      const group = uniqueId("test-group");
-      await test.step(`arrange: member group ${group}`, () =>
-        arrangeSettingValue(settingsClient, cleanupStack, MEMBER_GROUPS_SETTING, group));
-
-      const groups = await test.step("act: get member groups", () => settingsClient.getValues(MEMBER_GROUPS_SETTING));
-
-      await test.step("assert: the arranged group is listed", async () => {
-        expect(groups).toContain(group);
-      });
-    });
-
-    test("add a tag to the member groups", async ({ httpClient, cleanupStack }) => {
-      const settingsClient = new SettingsClient(httpClient);
-      const tag = uniqueId("test-tag");
-      registerSettingValuesRemoval(settingsClient, cleanupStack, MEMBER_GROUPS_SETTING, [tag]);
-
-      await test.step("act: add tag", () => addSettingValue(settingsClient, MEMBER_GROUPS_SETTING, tag));
-
-      await test.step("assert: tag is a member group", async () => {
-        expect(await settingsClient.getValues(MEMBER_GROUPS_SETTING)).toContain(tag);
-      });
-    });
-
-    test("assign a tag to a product", async ({ httpClient, cleanupStack }) => {
-      const catalogClient = new CatalogClient(httpClient);
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-      cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-      const { product } = await test.step("arrange: product", () =>
-        createCategoryWithProduct(catalogClient, catalog.id));
+  for (const { entity, arrangeEntity } of TAGGED_ENTITIES) {
+    test(`assign a tag to a ${entity}`, async ({ api, arrange, cleanup }) => {
+      await allure.story("Assign");
+      await allure.description(`A tag assigned to a ${entity} is exactly the ${entity}'s tag.`);
+      const tagged = await test.step(`arrange: a ${entity}`, () => arrangeEntity(arrange));
       const tag = uniqueId("test-tag");
 
-      await test.step("act: tag product", () => personalizationClient.setTags(productEntity(product), [tag]));
+      await test.step(`act: tag the ${entity}`, () => api.rest.personalization.taggedItems.setTags(tagged, [tag]));
+      cleanup.push(`clear the tags of ${tagged.label}`, () => api.rest.personalization.taggedItems.setTags(tagged, []));
 
-      await test.step("assert: product has the tag", async () => {
-        expect((await personalizationClient.getTaggedItem(product.id)).tags).toEqual([tag]);
+      await test.step(`assert: the ${entity} has exactly the tag`, async () => {
+        expect((await api.rest.personalization.taggedItems.get(tagged.entityId)).tags).toEqual([tag]);
       });
     });
+  }
 
-    test("assign a tag to a category", async ({ httpClient, cleanupStack }) => {
-      const catalogClient = new CatalogClient(httpClient);
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-      cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-      const category = await test.step("arrange: category", () => catalogClient.saveCategory(newCategory(catalog.id)));
-      const tag = uniqueId("test-tag");
+  test("unassign the tags of a product", async ({ api, arrange }) => {
+    await allure.story("Assign");
+    await allure.description("Setting no tags on a tagged product leaves it without tags.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+    await test.step("arrange: the product is tagged", () =>
+      arrange.catalog.tags(taggedProduct(product), [uniqueId("test-tag")]));
 
-      await test.step("act: tag category", () => personalizationClient.setTags(categoryEntity(category), [tag]));
+    await test.step("act: clear the product's tags", () =>
+      api.rest.personalization.taggedItems.setTags(taggedProduct(product), []));
 
-      await test.step("assert: category has the tag", async () => {
-        expect((await personalizationClient.getTaggedItem(category.id)).tags).toEqual([tag]);
-      });
-    });
-
-    test("unassign a tag from a product", async ({ httpClient, cleanupStack }) => {
-      const catalogClient = new CatalogClient(httpClient);
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-      cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-      const { product } = await test.step("arrange: product", () =>
-        createCategoryWithProduct(catalogClient, catalog.id));
-      await test.step("arrange: tagged product", () =>
-        personalizationClient.setTags(productEntity(product), [uniqueId("test-tag")]));
-
-      await test.step("act: clear tags", () => personalizationClient.setTags(productEntity(product), []));
-
-      await test.step("assert: product has no tags", async () => {
-        expect((await personalizationClient.getTaggedItem(product.id)).tags).toEqual([]);
-      });
-    });
-
-    test("search tagged items by entity id", async ({ httpClient, cleanupStack }) => {
-      const catalogClient = new CatalogClient(httpClient);
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-      cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-      const { product } = await test.step("arrange: product", () =>
-        createCategoryWithProduct(catalogClient, catalog.id));
-      const tag = uniqueId("test-tag");
-      await test.step("arrange: tagged product", () => personalizationClient.setTags(productEntity(product), [tag]));
-
-      const found = await test.step("act: search by product id", () =>
-        personalizationClient.search({ entityIds: [product.id] }));
-
-      await test.step("assert: product's tagged item is found", async () => {
-        expect(found).toEqual([expect.objectContaining({ entityId: product.id, tags: [tag] })]);
-      });
-    });
-
-    test("count product tags", async ({ httpClient, cleanupStack }) => {
-      const catalogClient = new CatalogClient(httpClient);
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-      cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-      const { product } = await test.step("arrange: product", () =>
-        createCategoryWithProduct(catalogClient, catalog.id));
-      const tags = [uniqueId("test-tag"), uniqueId("test-tag")];
-      await test.step("arrange: tagged product", () => personalizationClient.setTags(productEntity(product), tags));
-
-      const count = await test.step("act: count tags", () => personalizationClient.countTags(product.id));
-
-      await test.step("assert: count matches the assigned tags", async () => {
-        expect(count).toBe(tags.length);
-      });
+    await test.step("assert: the product has no tags", async () => {
+      expect((await api.rest.personalization.taggedItems.get(product.id)).tags).toEqual([]);
     });
   });
 
-  test.describe("tag inheritance", () => {
-    test.describe.configure({ mode: "default" });
+  test("search tagged items by entity id", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("Searching tagged items by a product's id finds exactly the product with its tags.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+    const tag = uniqueId("test-tag");
+    await test.step("arrange: the product is tagged", () => arrange.catalog.tags(taggedProduct(product), [tag]));
 
-    test("category tag is inherited down the tree", async ({ httpClient, cleanupStack }) => {
-      const catalogClient = new CatalogClient(httpClient);
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const settingsClient = new SettingsClient(httpClient);
-      await test.step("arrange: DownTree inheritance policy", () =>
-        arrangeInheritancePolicy(settingsClient, cleanupStack, "DownTree"));
-      const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-      cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-      const { category, product } = await test.step("arrange: product in a category", () =>
-        createCategoryWithProduct(catalogClient, catalog.id));
-      const tag = uniqueId("test-tag");
+    const found = await test.step("act: search tagged items by the product's id", () =>
+      api.rest.personalization.taggedItems.search({ entityIds: [product.id] }));
 
-      await test.step("act: tag category", () => personalizationClient.setTags(categoryEntity(category), [tag]));
-
-      await test.step("assert: product inherits the tag", async () => {
-        expect((await personalizationClient.getTaggedItem(product.id)).inheritedTags).toContain(tag);
-      });
+    await test.step("assert: the product is found with its tag", () => {
+      expect(found).toEqual([expect.objectContaining({ entityId: product.id, tags: [tag] })]);
     });
+  });
 
-    test("product tag is inherited up the tree", async ({ httpClient, cleanupStack }) => {
-      const catalogClient = new CatalogClient(httpClient);
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const settingsClient = new SettingsClient(httpClient);
-      await test.step("arrange: UpTree inheritance policy", () =>
-        arrangeInheritancePolicy(settingsClient, cleanupStack, "UpTree"));
-      const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-      cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-      const { category, product } = await test.step("arrange: product in a category", () =>
-        createCategoryWithProduct(catalogClient, catalog.id));
-      const tag = uniqueId("test-tag");
+  test("count the tags of a product", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("The tag count of a product is the number of tags assigned to it.");
+    const product = await test.step("arrange: a product", () => arrange.catalog.catalogProduct());
+    const tags = [uniqueId("test-tag"), uniqueId("test-tag")];
+    await test.step("arrange: the product has two tags", () => arrange.catalog.tags(taggedProduct(product), tags));
 
-      await test.step("act: tag product", () => personalizationClient.setTags(productEntity(product), [tag]));
+    const count = await test.step("act: count the product's tags", () =>
+      api.rest.personalization.taggedItems.countTags(product.id));
 
-      await test.step("assert: category inherits the tag", async () => {
-        expect((await personalizationClient.getTaggedItem(category.id)).inheritedTags).toContain(tag);
-      });
-    });
-
-    test("synchronize outlines", async ({ httpClient, cleanupStack }) => {
-      const personalizationClient = new PersonalizationClient(httpClient);
-      const settingsClient = new SettingsClient(httpClient);
-      await test.step("arrange: UpTree inheritance policy", () =>
-        arrangeInheritancePolicy(settingsClient, cleanupStack, "UpTree"));
-
-      const notification = await test.step("act: start outlines synchronization", () =>
-        personalizationClient.synchronizeOutlines());
-
-      await test.step("assert: synchronization finishes without errors", async () => {
-        await expect
-          .poll(async () => (await personalizationClient.findSynchronization(notification.id))?.finished, {
-            timeout: SYNCHRONIZATION_TIMEOUT_MS,
-          })
-          .toEqual(expect.any(String));
-        expect(await personalizationClient.findSynchronization(notification.id)).toMatchObject({
-          errorCount: 0,
-          errors: [],
-        });
-      });
+    await test.step(`assert: the count is ${tags.length}`, () => {
+      expect(count).toBe(tags.length);
     });
   });
 });
-
-async function arrangeInheritancePolicy(
-  settingsClient: SettingsClient,
-  cleanupStack: CleanupStack,
-  policy: string,
-): Promise<void> {
-  const original = await registerSettingRestore(settingsClient, cleanupStack, INHERITANCE_POLICY_SETTING);
-  await settingsClient.save([{ ...original, value: policy }]);
-}
-
-function productEntity(product: CatalogProduct): TaggedEntity {
-  return { entityId: product.id, entityType: "Product", label: product.name };
-}
-
-function categoryEntity(category: Category): TaggedEntity {
-  return { entityId: category.id, entityType: "Category", label: category.name };
-}

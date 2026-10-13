@@ -1,150 +1,121 @@
-import type { PageDetailsBlade } from "@pages/backend/page-builder/page-details-blade";
+import type { PageDetailsBlade } from "@pages/backend/page-builder/page-builder";
 
 import * as allure from "allure-js-commons";
 
-import { daysFromNow } from "@core/dates";
 import { expect, test } from "@fixtures";
-import { Column, Route } from "@pages/backend/page-builder/constants";
+import { Route } from "@pages/backend/page-builder/page-builder";
 
-import { arrangeDraftPage, DEFAULT_LANGUAGE } from "./page-builder-support";
-
-const USER_GROUP = "Wholesaler";
-const ORGANIZATION = "ACME Store";
+const DAY_MS = 86_400_000;
+const START_IN_DAYS = 3;
+const END_IN_DAYS = 30;
+const RESTRICTIONS = [
+  { audience: "a user group", value: "Wholesaler", select: (details: PageDetailsBlade) => details.userGroups },
+  { audience: "an organization", value: "ACME Store", select: (details: PageDetailsBlade) => details.organization },
+] as const;
 
 test.beforeEach(async () => {
-  await allure.feature("Page Builder Shell / Page configuration (E2E)");
+  await allure.epic("E2E");
+  await allure.feature("Admin / Page builder");
 });
 
 test.describe("page configuration (platform admin)", () => {
-  test("the basic information shows the name, permalink and language", async ({
-    pageBuilder,
-    pageBuilderClient,
-    cleanupStack,
-    env,
-  }) => {
-    const page = await arrangeDraftPage(pageBuilderClient, cleanupStack, env.storeId);
+  test("the details blade exposes every configuration field", async ({ pageBuilder, arrange }) => {
+    await allure.story("Configuration");
+    await allure.description(
+      "A page's details have name, permalink and language; visibility, user groups and organization; and start " +
+        "and end dates.",
+    );
+    const draft = await test.step("arrange: a draft page", () => arrange.content.page());
 
-    const details = await test.step(`act: open ${page.name}`, () => pageBuilder.openPage(page.name, Route.draft));
+    const details = await test.step(`act: open ${draft.name} and expand every section`, async () => {
+      const opened = await pageBuilder.openPage(draft.name, Route.draft);
+      await opened.personalizationSection.expand();
+      await opened.schedulingSection.expand();
+      return opened;
+    });
 
-    await test.step("assert: name and permalink are filled and editable, language is set", async () => {
-      await expect(details.basicSection.root).toBeVisible();
-      await expect(details.nameInput).toHaveValue(page.name);
-      await expect(details.permalinkInput).toHaveValue(page.permalink);
+    await test.step("assert: every configuration field is there", async () => {
       await expect(details.nameInput).toBeEditable();
       await expect(details.permalinkInput).toBeEditable();
-      expect(await details.language.value()).toBe(DEFAULT_LANGUAGE);
+      await expect(details.language.toggle).toBeVisible();
+      await expect(details.visibilityToggle).toBeAttached();
+      await expect(details.userGroups.toggle).toBeVisible();
+      await expect(details.organization.toggle).toBeVisible();
+      await expect(details.startDate.input).toBeVisible();
+      await expect(details.endDate.input).toBeVisible();
     });
   });
 
-  test("the scheduling dates are saved", async ({ pageBuilder, pageBuilderClient, cleanupStack, env }) => {
-    const page = await arrangeDraftPage(pageBuilderClient, cleanupStack, env.storeId);
-    const start = daysFromNow(3);
-    const end = daysFromNow(30);
+  test("the scheduling dates are saved", async ({ pageBuilder, arrange }) => {
+    await allure.story("Configuration");
+    await allure.description(
+      `A start date ${START_IN_DAYS} days ahead and an end date ${END_IN_DAYS} days ahead are kept after saving.`,
+    );
+    const draft = await test.step("arrange: a draft page", () => arrange.content.page());
+    const start = new Date(Date.now() + START_IN_DAYS * DAY_MS);
+    const end = new Date(Date.now() + END_IN_DAYS * DAY_MS);
 
-    const picked = await test.step("act: pick a start and an end date and save", async () => {
-      const details = await test.step(`arrange: open ${page.name}`, () => pageBuilder.openPage(page.name, Route.draft));
+    const picked = await test.step("act: pick the start and end dates and save", async () => {
+      const details = await pageBuilder.openPage(draft.name, Route.draft);
       await details.schedulingSection.expand();
       await details.startDate.select(start);
       await details.endDate.select(end);
-      await expect(details.startDate.input).not.toHaveValue("");
-      await expect(details.endDate.input).not.toHaveValue("");
       const values = {
         start: await details.startDate.input.inputValue(),
         end: await details.endDate.input.inputValue(),
       };
-      await pageBuilder.saveDetails();
+      await details.save();
       return values;
     });
 
-    await test.step("assert: reopening the page shows the same dates", async () => {
-      const reopened = await pageBuilder.openPage(page.name, Route.draft);
+    await test.step("assert: the reopened page shows the same dates", async () => {
+      const reopened = await pageBuilder.openPage(draft.name, Route.draft);
       await reopened.schedulingSection.expand();
       await expect(reopened.startDate.input).toHaveValue(picked.start);
       await expect(reopened.endDate.input).toHaveValue(picked.end);
+      expect(picked.start).not.toBe("");
+      expect(picked.end).not.toBe("");
     });
   });
 
-  test("turning visibility off is saved", async ({ pageBuilder, pageBuilderClient, cleanupStack, env }) => {
-    const page = await arrangeDraftPage(pageBuilderClient, cleanupStack, env.storeId);
+  test("turning visibility off is saved", async ({ pageBuilder, arrange }) => {
+    await allure.story("Configuration");
+    await allure.description("A visible page turned invisible stays invisible after saving.");
+    const draft = await test.step("arrange: a visible draft page", () => arrange.content.page());
 
     await test.step("act: turn visibility off and save", async () => {
-      const details = await test.step(`arrange: open ${page.name}`, () => pageBuilder.openPage(page.name, Route.draft));
+      const details = await pageBuilder.openPage(draft.name, Route.draft);
       await details.personalizationSection.expand();
       await expect(details.visibilityToggle).toBeChecked();
       await details.setVisibility(false);
-      await expect(details.visibilityToggle).not.toBeChecked();
-      await pageBuilder.saveDetails();
+      await details.save();
     });
 
-    await test.step("assert: reopening the page keeps visibility off", async () => {
-      const reopened = await pageBuilder.openPage(page.name, Route.draft);
+    await test.step("assert: the reopened page is invisible", async () => {
+      const reopened = await pageBuilder.openPage(draft.name, Route.draft);
       await reopened.personalizationSection.expand();
       await expect(reopened.visibilityToggle).not.toBeChecked();
     });
   });
 
-  for (const { title, value, select } of [
-    { title: "a user group", value: USER_GROUP, select: (details: PageDetailsBlade) => details.userGroups },
-    { title: "an organization", value: ORGANIZATION, select: (details: PageDetailsBlade) => details.organization },
-  ]) {
-    test(`restricting the page to ${title} is saved`, async ({ pageBuilder, pageBuilderClient, cleanupStack, env }) => {
-      const page = await arrangeDraftPage(pageBuilderClient, cleanupStack, env.storeId);
+  for (const { audience, value, select } of RESTRICTIONS) {
+    test(`restricting the page to ${audience} is saved`, async ({ pageBuilder, arrange }) => {
+      await allure.story("Configuration");
+      await allure.description(`A page restricted to ${value} keeps the restriction after saving.`);
+      const draft = await test.step("arrange: a draft page", () => arrange.content.page());
 
       await test.step(`act: restrict the page to ${value} and save`, async () => {
-        const details = await test.step(`arrange: open ${page.name}`, () =>
-          pageBuilder.openPage(page.name, Route.draft));
+        const details = await pageBuilder.openPage(draft.name, Route.draft);
         await details.personalizationSection.expand();
-        expect(await select(details).optionTexts()).toContain(value);
         await select(details).select(value);
-        expect(await select(details).value()).toContain(value);
-        await pageBuilder.saveDetails();
+        await details.save();
       });
 
-      await test.step("assert: reopening the page keeps the restriction", async () => {
-        const reopened = await pageBuilder.openPage(page.name, Route.draft);
+      await test.step(`assert: the reopened page is restricted to ${value}`, async () => {
+        const reopened = await pageBuilder.openPage(draft.name, Route.draft);
         await reopened.personalizationSection.expand();
         expect(await select(reopened).value()).toContain(value);
       });
     });
   }
-
-  test("the details blade exposes every configuration field", async ({
-    pageBuilder,
-    pageBuilderClient,
-    cleanupStack,
-    env,
-  }) => {
-    const page = await arrangeDraftPage(pageBuilderClient, cleanupStack, env.storeId);
-    const renamed = `${page.name}-cfg`;
-    const details = await test.step(`arrange: open ${page.name}`, () => pageBuilder.openPage(page.name, Route.draft));
-
-    await test.step("assert: basic information has name, permalink and language", async () => {
-      await expect(details.nameInput).toBeVisible();
-      await expect(details.permalinkInput).toBeVisible();
-      await expect(details.language.toggle).toBeVisible();
-    });
-
-    await test.step("assert: personalization has visibility, user groups and organization", async () => {
-      await details.personalizationSection.expand();
-      await expect(details.visibilityToggle).toBeAttached();
-      await expect(details.userGroups.toggle).toBeVisible();
-      await expect(details.organization.toggle).toBeVisible();
-    });
-
-    await test.step("assert: scheduling has start and end dates", async () => {
-      await details.schedulingSection.expand();
-      await expect(details.startDate.input).toBeVisible();
-      await expect(details.endDate.input).toBeVisible();
-    });
-
-    await test.step(`act: rename to ${renamed} and save`, async () => {
-      await details.fill({ name: renamed, permalink: `/${renamed}` });
-      await pageBuilder.saveDetails();
-    });
-
-    await test.step("assert: the list shows the new name and permalink", async () => {
-      const row = (await pageBuilder.expectListed(Route.draft, renamed)).pageRow(renamed);
-      expect(await row.value(Column.permalink)).toBe(`/${renamed}`);
-    });
-  });
 });

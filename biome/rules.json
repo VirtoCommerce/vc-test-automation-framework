@@ -7,7 +7,7 @@
       "suspicious": {
         "noExplicitAny": "error",
         "noImportCycles": "error",
-        "noFocusedTests": "warn",
+        "noFocusedTests": "error",
         "noConsole": "warn"
       },
       "complexity": {

@@ -1,0 +1,27 @@
+{
+  "productId": "product-smartphone-apple-iphone-17-pro-512gb-cosmic-orange",
+  "product": {
+    "id": "product-smartphone-apple-iphone-17-pro-512gb-cosmic-orange",
+    "name": "Apple iPhone 17 Pro 512 Gb Cosmic Orange"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-smartphone-apple-iphone-17-pro-512gb-cosmic-orange",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 1299.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-smartphone-apple-iphone-17-pro-512gb-cosmic-orange"
+    },
+    {
+      "id": "price-acme-eur-smartphone-apple-iphone-17-pro-512gb-cosmic-orange",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 1208.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-smartphone-apple-iphone-17-pro-512gb-cosmic-orange"
+    }
+  ]
+}

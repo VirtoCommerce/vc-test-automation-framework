@@ -9,7 +9,7 @@ on:
         type: string
         default: 'latest'
       testSuites:
-        description: 'Test suites to run'
+        description: 'Test suites to run. isolated also needs RUN_DESTRUCTIVE_TESTS=true in the env secret.'
         required: true
         type: choice
         default: 'all'
@@ -20,16 +20,21 @@ on:
           - e2e
           - e2e-frontend
           - e2e-backend
+          - isolated
       grep:
-        description: 'Optional Playwright --grep pattern (e.g. a tag like @smoke). Leave empty to run everything.'
+        description: 'Optional Playwright --grep pattern. Leave empty to run everything.'
+        required: false
+        type: string
+        default: ''
+      workers:
+        description: 'Optional Playwright --workers value (e.g. 4 or 50%). Leave empty for the config default.'
         required: false
         type: string
         default: ''
 
 jobs:
   e2e-tests:
-    # TODO: switch to the VirtoCommerce/.github release tag once VCST-6033 is released.
-    uses: VirtoCommerce/.github/.github/workflows/playwright-tests.yml@vcst-6033-playwright-workflow
+    uses: VirtoCommerce/.github/.github/workflows/playwright-tests.yml@v3.1000.3
     with:
       installModules: 'false'
       installCustomModule: 'false'
@@ -38,9 +43,9 @@ jobs:
       customPackagesJsonUrl: 'https://github.com/${{ github.repository }}/raw/${{ github.ref_name }}/backend-packages.json'
       testSuites: ${{ inputs.testSuites == 'all' && 'graphql,restapi,e2e' || inputs.testSuites }}
       grep: ${{ inputs.grep }}
+      workers: ${{ inputs.workers }}
     secrets:
       envPAT: ${{ secrets.REPO_TOKEN }}
-      # TODO: a secret with the .env content for the TS tests (see .env.example; STORE_ID and USERS_PASSWORD are required).
       testSecretEnvFile: ${{ secrets.VC_TESTING_MODULE_ENV_FILE_NEW }}
       sendgridApiKey: ${{ secrets.SENDGRID_APIKEY_4E2E_AUTOTESTS }}
       appInsightsInstrumentationKey: ${{ secrets.E2E_APPINSIGHTSINSTRUMENTATIONKEY }}

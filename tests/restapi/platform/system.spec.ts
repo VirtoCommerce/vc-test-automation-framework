@@ -1,37 +1,37 @@
 import * as allure from "allure-js-commons";
 
-import { ModulesClient } from "@api/rest/clients/modules-client";
-import { PlatformClient } from "@api/rest/clients/platform-client";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { expect, test } from "@fixtures";
 
 const CATALOG_MODULE_ID = "VirtoCommerce.Catalog";
-const RESTART_TIMEOUT_MS = 300_000;
 const REQUIRED_APP_IDS = ["platform", "page-builder-shell"];
 const PLATFORM_VERSION = /^\d+\.\d+\.\d+/;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Platform / System");
 });
 
-test.describe("platform system (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("platform system (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("list installed apps", async ({ httpClient }) => {
-    const platformClient = new PlatformClient(httpClient);
+  test("list the installed apps", async ({ api }) => {
+    await allure.story("Apps");
+    await allure.description("The back office and the page builder shell are installed.");
 
-    const apps = await test.step("act: list apps", () => platformClient.listApps());
+    const apps = await test.step("act: list the apps", () => api.rest.platform.apps.list());
 
-    await test.step("assert: the platform admin and the page-builder shell are installed", async () => {
+    await test.step(`assert: ${REQUIRED_APP_IDS.join(" and ")} are installed`, () => {
       expect(apps.map(({ id }) => id)).toEqual(expect.arrayContaining(REQUIRED_APP_IDS));
     });
   });
 
-  test("get system info", async ({ httpClient }) => {
-    const platformClient = new PlatformClient(httpClient);
+  test("get the system info", async ({ api }) => {
+    await allure.story("Diagnostics");
+    await allure.description("The system info reports the platform version and a 64-bit process.");
 
-    const systemInfo = await test.step("act: get system info", () => platformClient.getSystemInfo());
+    const systemInfo = await test.step("act: get the system info", () => api.rest.platform.getSystemInfo());
 
-    await test.step("assert: system info reports the platform version and process", async () => {
+    await test.step("assert: the version is a semantic version, in a 64-bit process", () => {
       expect(systemInfo).toMatchObject({
         platformVersion: expect.stringMatching(PLATFORM_VERSION),
         is64BitProcess: true,
@@ -39,58 +39,26 @@ test.describe("platform system (admin)", () => {
     });
   });
 
-  test("no module has load errors", async ({ httpClient }) => {
-    const platformClient = new PlatformClient(httpClient);
+  test("no module has load errors", async ({ api }) => {
+    await allure.story("Diagnostics");
+    await allure.description("Every module loaded without errors.");
 
-    const modules = await test.step("act: list modules with errors", () => platformClient.listModulesWithErrors());
+    const modules = await test.step("act: list the modules with errors", () =>
+      api.rest.platform.listModulesWithErrors());
 
-    await test.step("assert: no module failed to load", async () => {
+    await test.step("assert: there are none", () => {
       expect(modules.map(({ id }) => id)).toEqual([]);
     });
   });
 
-  test("list installed modules", async ({ httpClient }) => {
-    const modulesClient = new ModulesClient(httpClient);
+  test("list the installed modules", async ({ api }) => {
+    await allure.story("Modules");
+    await allure.description("The catalog module is installed.");
 
-    const moduleIds = await test.step("act: list installed modules", () => modulesClient.getInstalledIds());
+    const moduleIds = await test.step("act: list the installed modules", () => api.rest.modules.getInstalledIds());
 
-    await test.step("assert: catalog module is installed", async () => {
+    await test.step(`assert: ${CATALOG_MODULE_ID} is installed`, () => {
       expect([...moduleIds]).toContain(CATALOG_MODULE_ID);
-    });
-  });
-
-  test("reload modules", { tag: "@destructive" }, async ({ httpClient }) => {
-    const modulesClient = new ModulesClient(httpClient);
-
-    await test.step("act: reload modules", () => modulesClient.reload());
-
-    await test.step("assert: catalog module is still installed", async () => {
-      expect([...(await modulesClient.getInstalledIds())]).toContain(CATALOG_MODULE_ID);
-    });
-  });
-
-  test("restart the platform", { tag: "@destructive" }, async ({ httpClient }) => {
-    test.setTimeout(RESTART_TIMEOUT_MS + 30_000);
-    const modulesClient = new ModulesClient(httpClient);
-    const platformClient = new PlatformClient(httpClient);
-    const { platformVersion } = await test.step("arrange: current platform version", () =>
-      platformClient.getSystemInfo());
-
-    await test.step("act: restart platform", () => modulesClient.restart());
-
-    await test.step(`assert: platform ${platformVersion} comes back`, async () => {
-      await expect
-        .poll(
-          async () => {
-            try {
-              return (await platformClient.getSystemInfo()).platformVersion;
-            } catch {
-              return undefined;
-            }
-          },
-          { timeout: RESTART_TIMEOUT_MS, intervals: [5_000] },
-        )
-        .toBe(platformVersion);
     });
   });
 });

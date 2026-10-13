@@ -1,146 +1,183 @@
-import type { HttpClient, QueryParams } from "../../http/http-client";
+import type { HttpClient } from "../../http/http-client";
 import type {
   Price,
   PriceData,
   Pricelist,
   PricelistAssignment,
   PricelistAssignmentData,
+  PricelistAssignmentQuery,
   PricelistAssignmentSearchResult,
   PricelistData,
+  PricelistQuery,
   PricelistSearchResult,
   PricesSearchCriteria,
   ProductPriceData,
   ProductPriceSearchResult,
 } from "../types/pricing";
 
-import { requireEach, requireFields } from "@core/required-fields";
+import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
 
-import { PRICE_FIELDS, PRICELIST_ASSIGNMENT_FIELDS, PRICELIST_FIELDS } from "../types/pricing";
+import { PRICE_FIELDS, PRICELIST_ASSIGNMENT_FIELDS, PRICELIST_FIELDS, PRODUCT_PRICE_FIELDS } from "../types/pricing";
 
-const PRICELISTS_PATH = "/api/pricing/pricelists";
-const ASSIGNMENTS_PATH = "/api/pricing/assignments";
+const PRICING_PATH = "/api/pricing";
+const PRICELISTS_PATH = `${PRICING_PATH}/pricelists`;
+const ASSIGNMENTS_PATH = `${PRICING_PATH}/assignments`;
+const FILTERED_ASSIGNMENTS_PATH = `${PRICING_PATH}/filteredAssignments`;
+const PRICES_PATH = `${PRICING_PATH}/products/prices`;
+const PRODUCT_PRICING_PATH = "/api/products";
+const PRODUCT_PRICES_PATH = `${PRODUCT_PRICING_PATH}/prices`;
 const PRICES_SEARCH_PATH = "/api/catalog/products/prices/search";
 
-export class PricingClient {
+class PricelistsResource {
   readonly #httpClient: HttpClient;
 
   constructor(httpClient: HttpClient) {
     this.#httpClient = httpClient;
   }
 
-  async getPricelist(id: string): Promise<Pricelist> {
-    return requireFields(await this.findPricelist(id), PRICELIST_FIELDS, `Pricelist "${id}"`);
+  async get(id: string): Promise<Pricelist> {
+    return requireFields(await this.find(id), PRICELIST_FIELDS, `Pricelist "${id}"`);
   }
 
-  async findPricelist(id: string): Promise<Pricelist | undefined> {
+  async find(id: string): Promise<Pricelist | undefined> {
     const response = await this.#httpClient.get(`${PRICELISTS_PATH}/${encodeURIComponent(id)}`);
-    const pricelist = response.jsonOrUndefined<PricelistData>();
-    return pricelist === undefined ? undefined : requireFields(pricelist, PRICELIST_FIELDS, `Pricelist "${id}"`);
+    return optionalFields(response.optionalJson<PricelistData>(), PRICELIST_FIELDS, `Pricelist "${id}"`);
   }
 
-  async createPricelist(pricelist: PricelistData): Promise<Pricelist> {
+  async create(pricelist: PricelistData): Promise<Pricelist> {
     const response = await this.#httpClient.post(PRICELISTS_PATH, { json: pricelist });
-    return requireFields(response.expectOk().json<PricelistData>(), PRICELIST_FIELDS, "Created pricelist");
+    return requireFields(response.json<PricelistData>(), PRICELIST_FIELDS, "Created pricelist");
   }
 
-  async updatePricelist(pricelist: PricelistData): Promise<void> {
+  async update(pricelist: PricelistData): Promise<void> {
     (await this.#httpClient.put(PRICELISTS_PATH, { json: pricelist })).expectOk();
   }
 
-  async searchPricelists(query: QueryParams): Promise<Pricelist[]> {
-    const { results } = (await this.#httpClient.get(PRICELISTS_PATH, { query }))
-      .expectOk()
-      .json<PricelistSearchResult>();
-    return requireEach(results, PRICELIST_FIELDS, "Found pricelist");
+  async search(query: PricelistQuery): Promise<Pricelist[]> {
+    const { results } = (await this.#httpClient.get(PRICELISTS_PATH, { query })).json<PricelistSearchResult>();
+    return requireFieldsOfEach(results, PRICELIST_FIELDS, "Found pricelist");
   }
 
-  async deletePricelist(id: string): Promise<void> {
-    (await this.#httpClient.delete(PRICELISTS_PATH, { query: { ids: id } })).expectOk();
+  async delete(ids: readonly string[]): Promise<void> {
+    (await this.#httpClient.delete(PRICELISTS_PATH, { query: { ids } })).expectOk();
+  }
+}
+
+class PricesResource {
+  readonly #httpClient: HttpClient;
+
+  constructor(httpClient: HttpClient) {
+    this.#httpClient = httpClient;
   }
 
-  async savePrices(productPrices: ProductPriceData[]): Promise<void> {
-    (await this.#httpClient.put("/api/products/prices", { json: productPrices })).expectOk();
+  async saveMany(productPrices: readonly ProductPriceData[]): Promise<void> {
+    (await this.#httpClient.put(PRODUCT_PRICES_PATH, { json: productPrices })).expectOk();
   }
 
-  async saveProductPrices(productPrice: ProductPriceData & { productId: string }): Promise<void> {
-    const path = `/api/products/${encodeURIComponent(productPrice.productId)}/prices`;
+  async saveForProduct(productPrice: ProductPriceData & { productId: string }): Promise<void> {
+    const path = `${PRODUCT_PRICING_PATH}/${encodeURIComponent(productPrice.productId)}/prices`;
     (await this.#httpClient.put(path, { json: productPrice })).expectOk();
   }
 
-  async searchPrices(criteria: PricesSearchCriteria): Promise<Price[]> {
+  async search(criteria: PricesSearchCriteria): Promise<Price[]> {
     const response = await this.#httpClient.post(PRICES_SEARCH_PATH, { json: criteria });
-    return pricesOf(response.expectOk().json<ProductPriceSearchResult>());
+    return pricesOf(response.json<ProductPriceSearchResult>());
   }
 
-  async searchPricesByPricelist(pricelistId: string): Promise<Price[]> {
+  async listOfPricelist(pricelistId: string): Promise<Price[]> {
     const response = await this.#httpClient.get(PRICES_SEARCH_PATH, { query: { PriceListId: pricelistId } });
-    return pricesOf(response.expectOk().json<ProductPriceSearchResult>());
+    return pricesOf(response.json<ProductPriceSearchResult>());
   }
 
-  async getPricesWidget(productId: string, catalogId: string): Promise<Price[]> {
-    const path = `/api/products/${encodeURIComponent(productId)}/${encodeURIComponent(catalogId)}/pricesWidget`;
+  async listOfProduct(productId: string, catalogId: string): Promise<Price[]> {
+    const path = `${PRODUCT_PRICING_PATH}/${encodeURIComponent(productId)}/${encodeURIComponent(catalogId)}/pricesWidget`;
     const response = await this.#httpClient.get(path);
-    return requireEach(response.expectOk().json<PriceData[]>(), PRICE_FIELDS, `Widget price of product "${productId}"`);
+    return requireFieldsOfEach(response.json<PriceData[]>(), PRICE_FIELDS, `Price of product "${productId}"`);
   }
 
-  async deletePrices(priceIds: readonly string[]): Promise<void> {
-    (await this.#httpClient.delete("/api/pricing/products/prices", { query: { priceIds } })).expectOk();
+  async delete(ids: readonly string[]): Promise<void> {
+    (await this.#httpClient.delete(PRICES_PATH, { query: { priceIds: ids } })).expectOk();
   }
 
-  async deleteProductPrices(pricelistId: string, productIds: readonly string[]): Promise<void> {
+  async deleteOfProducts(pricelistId: string, productIds: readonly string[]): Promise<void> {
     const path = `${PRICELISTS_PATH}/${encodeURIComponent(pricelistId)}/products/prices`;
     (await this.#httpClient.delete(path, { query: { productIds } })).expectOk();
   }
+}
 
-  async getAssignment(id: string): Promise<PricelistAssignment> {
-    return requireFields(await this.findAssignment(id), PRICELIST_ASSIGNMENT_FIELDS, `Assignment "${id}"`);
+class AssignmentsResource {
+  readonly #httpClient: HttpClient;
+
+  constructor(httpClient: HttpClient) {
+    this.#httpClient = httpClient;
   }
 
-  async findAssignment(id: string): Promise<PricelistAssignment | undefined> {
+  async get(id: string): Promise<PricelistAssignment> {
+    return requireFields(await this.find(id), PRICELIST_ASSIGNMENT_FIELDS, `Assignment "${id}"`);
+  }
+
+  async find(id: string): Promise<PricelistAssignment | undefined> {
     const response = await this.#httpClient.get(`${ASSIGNMENTS_PATH}/${encodeURIComponent(id)}`);
-    const assignment = response.jsonOrUndefined<PricelistAssignmentData>();
-    return assignment === undefined
-      ? undefined
-      : requireFields(assignment, PRICELIST_ASSIGNMENT_FIELDS, `Assignment "${id}"`);
-  }
-
-  async getNewAssignment(): Promise<PricelistAssignmentData> {
-    return (await this.#httpClient.get(`${ASSIGNMENTS_PATH}/new`)).expectOk().json<PricelistAssignmentData>();
-  }
-
-  async createAssignment(assignment: PricelistAssignmentData): Promise<PricelistAssignment> {
-    const response = await this.#httpClient.post(ASSIGNMENTS_PATH, { json: assignment });
-    return requireFields(
-      response.expectOk().json<PricelistAssignmentData>(),
+    return optionalFields(
+      response.optionalJson<PricelistAssignmentData>(),
       PRICELIST_ASSIGNMENT_FIELDS,
-      "Created assignment",
+      `Assignment "${id}"`,
     );
   }
 
-  async updateAssignment(assignment: PricelistAssignmentData): Promise<void> {
+  async template(): Promise<PricelistAssignmentData> {
+    return (await this.#httpClient.get(`${ASSIGNMENTS_PATH}/new`)).json<PricelistAssignmentData>();
+  }
+
+  async create(assignment: PricelistAssignmentData): Promise<PricelistAssignment> {
+    const response = await this.#httpClient.post(ASSIGNMENTS_PATH, { json: assignment });
+    return requireFields(response.json<PricelistAssignmentData>(), PRICELIST_ASSIGNMENT_FIELDS, "Created assignment");
+  }
+
+  async update(assignment: PricelistAssignmentData): Promise<void> {
     (await this.#httpClient.put(ASSIGNMENTS_PATH, { json: assignment })).expectOk();
   }
 
-  async searchAssignments(query: QueryParams): Promise<PricelistAssignment[]> {
-    const { results } = (await this.#httpClient.get(ASSIGNMENTS_PATH, { query }))
-      .expectOk()
-      .json<PricelistAssignmentSearchResult>();
-    return requireEach(results, PRICELIST_ASSIGNMENT_FIELDS, "Found assignment");
+  async search(query: PricelistAssignmentQuery): Promise<PricelistAssignment[]> {
+    const { results } = (
+      await this.#httpClient.get(ASSIGNMENTS_PATH, { query })
+    ).json<PricelistAssignmentSearchResult>();
+    return requireFieldsOfEach(results, PRICELIST_ASSIGNMENT_FIELDS, "Found assignment");
   }
 
-  async deleteAssignment(id: string): Promise<void> {
-    (await this.#httpClient.delete(ASSIGNMENTS_PATH, { query: { ids: id } })).expectOk();
+  async delete(ids: readonly string[]): Promise<void> {
+    (await this.#httpClient.delete(ASSIGNMENTS_PATH, { query: { ids } })).expectOk();
   }
 
-  async deleteFilteredAssignments(query: QueryParams): Promise<void> {
-    (await this.#httpClient.delete("/api/pricing/filteredAssignments", { query })).expectOk();
+  /**
+   * Deletes every assignment matching the filter. The keyword is required, because an unfiltered call deletes all
+   * assignments on the platform.
+   *
+   * @throws Error when the keyword is empty.
+   */
+  async deleteMatching(query: PricelistAssignmentQuery & { readonly keyword: string }): Promise<void> {
+    if (query.keyword.trim() === "") {
+      throw new Error("Deleting assignments by filter needs a non-empty keyword");
+    }
+    (await this.#httpClient.delete(FILTERED_ASSIGNMENTS_PATH, { query })).expectOk();
+  }
+}
+
+export class PricingClient {
+  readonly pricelists: PricelistsResource;
+  readonly prices: PricesResource;
+  readonly assignments: AssignmentsResource;
+
+  constructor(httpClient: HttpClient) {
+    this.pricelists = new PricelistsResource(httpClient);
+    this.prices = new PricesResource(httpClient);
+    this.assignments = new AssignmentsResource(httpClient);
   }
 }
 
 function pricesOf({ results }: ProductPriceSearchResult): Price[] {
-  return requireEach(
-    results?.flatMap((productPrice) => productPrice.prices ?? []),
-    PRICE_FIELDS,
-    "Found price",
+  const prices = requireFieldsOfEach(results, PRODUCT_PRICE_FIELDS, "Found product price").flatMap(
+    ({ prices }) => prices,
   );
+  return requireFieldsOfEach(prices, PRICE_FIELDS, "Found price");
 }

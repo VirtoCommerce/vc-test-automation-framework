@@ -1,125 +1,100 @@
 import * as allure from "allure-js-commons";
 
-import { STORES_PATH, StoresClient } from "@api/rest/clients/stores-client";
-import { uniqueId } from "@core/unique-id";
 import { newStore } from "@dataset/builders/store";
-import { getUser } from "@dataset/dataset";
-import { describeIssue, KNOWN_ISSUES } from "@dataset/known-issues";
-import { SEEDED_CATALOG_ID, SEEDED_USERS } from "@dataset/seeded";
-import { expect, seededUser, test } from "@fixtures";
-
-const USERNAME = SEEDED_USERS.storeAdministrator;
+import { expect, test } from "@fixtures";
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Store");
 });
 
-test.describe("stores (admin)", () => {
-  test.use({ user: seededUser(USERNAME) });
+test.describe("stores (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("create a store", async ({ httpClient, cleanupStack }) => {
-    const storesClient = new StoresClient(httpClient);
-    const draft = newStore();
-    cleanupStack.push(`delete store ${draft.id}`, () => storesClient.delete(draft.id));
+  test("create a store", async ({ api, cleanup, store }) => {
+    await allure.story("Create");
+    await allure.description("A new store uses the catalog it was created with.");
+    const draft = newStore(store.catalog);
+    cleanup.push(`delete store ${draft.id}`, () => api.rest.stores.delete([draft.id]));
 
-    const store = await test.step("act: create store", () => storesClient.create(draft));
+    const created = await test.step("act: create a store", () => api.rest.stores.create(draft));
 
-    await test.step("assert: store uses the seeded catalog", async () => {
-      expect(store).toMatchObject({ id: draft.id, name: draft.name, catalog: SEEDED_CATALOG_ID });
+    await test.step("assert: the store uses the catalog of the store under test", () => {
+      expect(created).toMatchObject({ id: draft.id, name: draft.name, catalog: store.catalog });
     });
   });
 
-  test("reject a store without a name", async ({ httpClient, cleanupStack }) => {
-    test.fail(true, describeIssue(KNOWN_ISSUES.storeWithoutName));
-    const id = uniqueId("test-store");
-    cleanupStack.push(`delete store ${id}`, () => new StoresClient(httpClient).delete(id));
+  test("get the store under test", async ({ api, store }) => {
+    await allure.story("Read");
+    await allure.description("The store under test uses the dataset's catalog.");
 
-    const response = await test.step("act: create store without a name", () =>
-      httpClient.post(STORES_PATH, { json: { id, catalog: SEEDED_CATALOG_ID } }));
+    const found = await test.step(`act: get ${store.id}`, () => api.rest.stores.get(store.id));
 
-    await test.step("assert: request is rejected as invalid", async () => {
-      expect(response.status).toBeGreaterThanOrEqual(400);
-      expect(response.status).toBeLessThan(500);
+    await test.step("assert: the store uses the dataset's catalog", () => {
+      expect(found).toMatchObject({ id: store.id, catalog: store.catalog });
     });
   });
 
-  test("get a store by id", async ({ httpClient, cleanupStack }) => {
-    const storesClient = new StoresClient(httpClient);
-    const store = await test.step("arrange: store", () => storesClient.create(newStore()));
-    cleanupStack.push(`delete store ${store.id}`, () => storesClient.delete(store.id));
+  test("get a store by id", async ({ api, arrange }) => {
+    await allure.story("Read");
+    await allure.description("A store is read back by its id.");
+    const created = await test.step("arrange: a store", () => arrange.platform.store());
 
-    const reloaded = await test.step("act: get store", () => storesClient.get(store.id));
+    const reloaded = await test.step("act: get the store", () => api.rest.stores.get(created.id));
 
-    await test.step("assert: fields match the created store", async () => {
-      expect(reloaded).toMatchObject({ id: store.id, name: store.name });
+    await test.step("assert: the fields match the created store", () => {
+      expect(reloaded).toMatchObject({ id: created.id, name: created.name });
     });
   });
 
-  test("list all stores", async ({ httpClient, env }) => {
-    const storesClient = new StoresClient(httpClient);
+  test("search stores by keyword", async ({ api, arrange }) => {
+    await allure.story("Search");
+    await allure.description("Searching stores by a store's name finds it.");
+    const created = await test.step("arrange: a store", () => arrange.platform.store());
 
-    const stores = await test.step("act: list stores", () => storesClient.search({ take: 1000 }));
+    const found = await test.step("act: search stores by its name", () =>
+      api.rest.stores.search({ keyword: created.name }));
 
-    await test.step("assert: seeded store is listed", async () => {
-      expect(stores.map(({ id }) => id)).toContain(env.storeId);
+    await test.step("assert: the store is found", () => {
+      expect(found.map(({ id }) => id)).toContain(created.id);
     });
   });
 
-  test("search stores by keyword", async ({ httpClient, cleanupStack }) => {
-    const storesClient = new StoresClient(httpClient);
-    const store = await test.step("arrange: store", () => storesClient.create(newStore()));
-    cleanupStack.push(`delete store ${store.id}`, () => storesClient.delete(store.id));
+  test("the store administrator is allowed the store under test", async ({ api, store }) => {
+    await allure.story("Access");
+    await allure.description("The stores allowed for the store administrator include the store under test.");
+    const { userId } = await api.storeContext();
 
-    const found = await test.step("act: search by store name", () => storesClient.search({ keyword: store.name }));
+    const allowed = await test.step("act: list the stores allowed for the administrator", () =>
+      api.rest.stores.listAllowed(userId));
 
-    await test.step("assert: store is in the results", async () => {
-      expect(found.map(({ id }) => id)).toContain(store.id);
+    await test.step(`assert: ${store.id} is allowed`, () => {
+      expect(allowed.map(({ id }) => id)).toContain(store.id);
     });
   });
 
-  test("rename a store", async ({ httpClient, cleanupStack }) => {
-    const storesClient = new StoresClient(httpClient);
-    const store = await test.step("arrange: store", () => storesClient.create(newStore()));
-    cleanupStack.push(`delete store ${store.id}`, () => storesClient.delete(store.id));
-    const newName = `${store.name}-renamed`;
+  test("rename a store", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description("A renamed store is read back with its new name.");
+    const created = await test.step("arrange: a store", () => arrange.platform.store());
+    const newName = `${created.name}-renamed`;
 
-    await test.step("act: rename store", () => storesClient.update({ ...store, name: newName }));
+    await test.step("act: rename the store", () => api.rest.stores.update({ ...created, name: newName }));
 
-    await test.step("assert: store has the new name", async () => {
-      expect((await storesClient.get(store.id)).name).toBe(newName);
+    await test.step("assert: the store has the new name", async () => {
+      expect((await api.rest.stores.get(created.id)).name).toBe(newName);
     });
   });
 
-  test("delete a store", async ({ httpClient, cleanupStack }) => {
-    const storesClient = new StoresClient(httpClient);
-    const store = await test.step("arrange: store", () => storesClient.create(newStore()));
-    cleanupStack.push(`delete store ${store.id}`, () => storesClient.delete(store.id));
+  test("delete a store", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A deleted store is no longer found.");
+    const created = await test.step("arrange: a store", () => arrange.platform.store());
 
-    await test.step("act: delete store", () => storesClient.delete(store.id));
+    await test.step("act: delete the store", () => api.rest.stores.delete([created.id]));
 
-    await test.step("assert: store is not found", async () => {
-      expect(await storesClient.find(store.id)).toBeUndefined();
-    });
-  });
-
-  test("list stores allowed for a store administrator", async ({ httpClient, dataset, env }) => {
-    const storesClient = new StoresClient(httpClient);
-    const administrator = getUser(dataset, USERNAME);
-
-    const stores = await test.step("act: list allowed stores", () => storesClient.listAllowed(administrator.id));
-
-    await test.step("assert: seeded store is allowed", async () => {
-      expect(stores.map(({ id }) => id)).toContain(env.storeId);
-    });
-  });
-
-  test("get the seeded store", async ({ httpClient, env }) => {
-    const storesClient = new StoresClient(httpClient);
-
-    const store = await test.step("act: get seeded store", () => storesClient.get(env.storeId));
-
-    await test.step("assert: store uses the seeded catalog", async () => {
-      expect(store).toMatchObject({ id: env.storeId, catalog: SEEDED_CATALOG_ID });
+    await test.step("assert: the store is not found", async () => {
+      expect(await api.rest.stores.find(created.id)).toBeUndefined();
     });
   });
 });

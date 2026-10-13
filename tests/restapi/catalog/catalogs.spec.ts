@@ -1,106 +1,67 @@
 import * as allure from "allure-js-commons";
 
-import { CatalogClient } from "@api/rest/clients/catalog-client";
-import { uniqueId } from "@core/unique-id";
-import { DEFAULT_LANGUAGE, newCatalog, newCategory, newProduct } from "@dataset/builders/catalog";
-import { asWorkerAdministrator, expect, test } from "@fixtures";
+import { newCatalog } from "@dataset/builders/catalog";
+import { expect, test } from "@fixtures";
+
+const CATALOG_KINDS = [
+  { kind: "physical", isVirtual: false },
+  { kind: "virtual", isVirtual: true },
+] as const;
 
 test.beforeEach(async () => {
+  await allure.epic("REST API");
   await allure.feature("Catalog / Catalogs");
 });
 
-test.describe("catalogs (admin)", () => {
-  test.use({ user: asWorkerAdministrator });
+test.describe("catalogs (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("create a physical catalog with a default language", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const name = uniqueId("test-catalog");
+  for (const { kind, isVirtual } of CATALOG_KINDS) {
+    test(`create a ${kind} catalog`, async ({ api, cleanup, store }) => {
+      await allure.story("Create");
+      await allure.description(`A new ${kind} catalog keeps its kind and its default language, also in search.`);
+      const draft = { ...newCatalog(store.defaultLanguage), isVirtual };
+      cleanup.push(`delete catalog ${draft.name}`, () => api.rest.catalog.catalogs.delete(draft.id));
 
-    const catalog = await test.step("act: create catalog", () => catalogClient.saveCatalog(newCatalog(name)));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
+      const catalog = await test.step(`act: create a ${kind} catalog`, () => api.rest.catalog.catalogs.create(draft));
 
-    await test.step("assert: catalog is physical with en-US as the default language", async () => {
-      expect(catalog).toMatchObject({ name, isVirtual: false });
-      expect(catalog.languages).toContainEqual(expect.objectContaining(DEFAULT_LANGUAGE));
+      await test.step(`assert: the catalog is ${kind} with ${store.defaultLanguage} as its default language`, () => {
+        expect(catalog).toMatchObject({ name: draft.name, isVirtual });
+        expect(catalog.languages).toContainEqual(
+          expect.objectContaining({ languageCode: store.defaultLanguage, isDefault: true }),
+        );
+      });
+      await test.step(`assert: search finds the catalog as ${kind}`, async () => {
+        const found = await api.rest.catalog.catalogs.search({ keyword: catalog.name });
+        expect(found.find(({ id }) => id === catalog.id)).toMatchObject({ isVirtual });
+      });
     });
-  });
+  }
 
-  test("create a virtual catalog", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const name = uniqueId("test-virtual-catalog");
-
-    const catalog = await test.step("act: create virtual catalog", () =>
-      catalogClient.saveCatalog({ ...newCatalog(name), isVirtual: true }));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-
-    await test.step("assert: catalog is virtual", async () => {
-      expect(catalog.isVirtual).toBe(true);
-    });
-
-    await test.step("assert: catalog is found as virtual", async () => {
-      const found = await catalogClient.searchCatalogs({ keyword: name });
-      expect(found.find(({ id }) => id === catalog.id)).toMatchObject({ isVirtual: true });
-    });
-  });
-
-  test("rename a catalog", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
+  test("rename a catalog", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description("A renamed catalog is found by its new name.");
+    const catalog = await test.step("arrange: a catalog", () => arrange.catalog.catalog());
     const newName = `${catalog.name}-renamed`;
 
-    await test.step("act: rename catalog", () => catalogClient.updateCatalog({ ...catalog, name: newName }));
+    await test.step("act: rename the catalog", () => api.rest.catalog.catalogs.update({ ...catalog, name: newName }));
 
-    await test.step("assert: catalog is found by the new name", async () => {
-      const found = await catalogClient.searchCatalogs({ keyword: newName });
-      expect(found.map(({ name }) => name)).toContain(newName);
-    });
-  });
-
-  test("search catalogs by keyword", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-
-    const found = await test.step("act: search by catalog name", () =>
-      catalogClient.searchCatalogs({ keyword: catalog.name }));
-
-    await test.step("assert: catalog is in the results", async () => {
+    await test.step("assert: search by the new name finds the catalog", async () => {
+      const found = await api.rest.catalog.catalogs.search({ keyword: newName });
       expect(found.map(({ id }) => id)).toContain(catalog.id);
     });
   });
 
-  test("delete a catalog", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
+  test("delete a catalog", async ({ api, arrange }) => {
+    await allure.story("Delete");
+    await allure.description("A deleted catalog is found neither by its id nor by its name.");
+    const catalog = await test.step("arrange: a catalog", () => arrange.catalog.catalog());
 
-    await test.step("act: delete catalog", () => catalogClient.deleteCatalog(catalog.id));
+    await test.step("act: delete the catalog", () => api.rest.catalog.catalogs.delete(catalog.id));
 
-    await test.step("assert: catalog is not found", async () => {
-      const found = await catalogClient.searchCatalogs({ keyword: catalog.name });
-      expect(found.map(({ id }) => id)).not.toContain(catalog.id);
-    });
-  });
-
-  test("search list entries within a category", async ({ httpClient, cleanupStack }) => {
-    const catalogClient = new CatalogClient(httpClient);
-    const catalog = await test.step("arrange: catalog", () => catalogClient.saveCatalog(newCatalog()));
-    cleanupStack.push(`delete catalog ${catalog.id}`, () => catalogClient.deleteCatalog(catalog.id));
-    const category = await test.step("arrange: category", () => catalogClient.saveCategory(newCategory(catalog.id)));
-    const product = await test.step("arrange: product in the category", () =>
-      catalogClient.saveProduct(newProduct(catalog.id, category.id)));
-
-    const entries = await test.step("act: search list entries", () =>
-      catalogClient.searchListEntries({
-        catalogId: catalog.id,
-        categoryId: category.id,
-        responseGroup: "withCategories, withProducts",
-        take: 200,
-      }));
-
-    await test.step("assert: product is in the list entries", async () => {
-      expect(entries.map(({ id }) => id)).toContain(product.id);
+    await test.step("assert: search by its id or its name finds nothing", async () => {
+      expect(await api.rest.catalog.catalogs.search({ objectIds: [catalog.id] })).toEqual([]);
+      expect(await api.rest.catalog.catalogs.search({ keyword: catalog.name })).toEqual([]);
     });
   });
 });

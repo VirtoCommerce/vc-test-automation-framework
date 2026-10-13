@@ -1227,6 +1227,7 @@ export interface VirtoCommerceCartModuleCoreModelCartSharingSetting {
   /** @format date-time */
   createdDate?: string;
   id?: string | null;
+  message?: string | null;
   /**
    * @minLength 0
    * @maxLength 64
@@ -1235,8 +1236,28 @@ export interface VirtoCommerceCartModuleCoreModelCartSharingSetting {
   /** @format date-time */
   modifiedDate?: string | null;
   scope?: string | null;
-  sharedWithId?: string | null;
   shoppingCartId?: string | null;
+  targets?: VirtoCommerceCartModuleCoreModelCartSharingSettingTarget[] | null;
+}
+
+export interface VirtoCommerceCartModuleCoreModelCartSharingSettingTarget {
+  cartSharingSettingId?: string | null;
+  /**
+   * @minLength 0
+   * @maxLength 64
+   */
+  createdBy?: string | null;
+  /** @format date-time */
+  createdDate?: string;
+  id?: string | null;
+  /**
+   * @minLength 0
+   * @maxLength 64
+   */
+  modifiedBy?: string | null;
+  /** @format date-time */
+  modifiedDate?: string | null;
+  sharedWithId?: string | null;
 }
 
 export interface VirtoCommerceCartModuleCoreModelCartTotal {
@@ -3076,6 +3097,18 @@ export interface VirtoCommerceCatalogModuleCoreOutlinesOutlineItem {
   seoInfos?: VirtoCommerceSeoCoreModelsSeoInfo[] | null;
   /** Object type */
   seoObjectType?: string | null;
+}
+
+export interface VirtoCommerceCatalogModuleCoreSearchBarcodesBarcodeSearchField {
+  dataType?: string | null;
+  isCollection?: boolean;
+  isProductField?: boolean;
+  name?: string | null;
+}
+
+export interface VirtoCommerceCatalogModuleCoreSearchBarcodesBarcodeSearchSettings {
+  fields?: string[] | null;
+  scannerEnabled?: boolean;
 }
 
 /**
@@ -9582,6 +9615,7 @@ export interface VirtoCommerceUCPCoreModelsUcpCart {
   coupons?: VirtoCommerceUCPCoreModelsUcpCartCoupon[] | null;
   currency?: string | null;
   id?: string | null;
+  inventory_errors?: VirtoCommerceUCPCoreModelsUcpError[] | null;
   line_items?: VirtoCommerceUCPCoreModelsUcpCartLineItem[] | null;
   messages?: VirtoCommerceUCPCoreModelsUcpMessage[] | null;
   organization_id?: string | null;
@@ -9630,9 +9664,12 @@ export interface VirtoCommerceUCPCoreModelsUcpCartCoupon {
 }
 
 export interface VirtoCommerceUCPCoreModelsUcpCartLineItem {
+  /** @format int64 */
+  available_quantity?: number | null;
   discount_total?: VirtoCommerceUCPCoreModelsUcpMoney | null;
   id?: string | null;
   image_url?: string | null;
+  inventory_status?: string | null;
   line_total?: VirtoCommerceUCPCoreModelsUcpMoney | null;
   list_price?: VirtoCommerceUCPCoreModelsUcpMoney | null;
   messages?: VirtoCommerceUCPCoreModelsUcpMessage[] | null;
@@ -9640,6 +9677,8 @@ export interface VirtoCommerceUCPCoreModelsUcpCartLineItem {
   product_id?: string | null;
   /** @format int32 */
   quantity?: number;
+  /** @format int64 */
+  requested_quantity?: number | null;
   sku?: string | null;
   tax_total?: VirtoCommerceUCPCoreModelsUcpMoney | null;
   unit_price?: VirtoCommerceUCPCoreModelsUcpMoney | null;

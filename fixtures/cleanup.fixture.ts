@@ -1,18 +1,18 @@
 import { CleanupStack } from "@core/cleanup-stack";
 
-import { test as base } from "./api.fixture";
+import { test as apiTest } from "./api.fixture";
 
+/** Undo actions of a test. */
 export interface CleanupFixtures {
-  readonly cleanupStack: CleanupStack;
+  /** Runs registered undo actions after the test, last first, each as a `cleanup: <description>` report step. */
+  readonly cleanup: CleanupStack;
 }
 
-export const test = base.extend<CleanupFixtures>({
-  cleanupStack: async (
-    { httpClient: _httpClientOutlivesCleanup, anonymousHttpClient: _anonymousOutlivesCleanup },
-    use,
-  ) => {
-    const cleanupStack = new CleanupStack();
-    await use(cleanupStack);
-    await cleanupStack.unwind((description, action) => base.step(`cleanup: ${description}`, action));
+/** Adds {@link CleanupFixtures}; depends on `api` so the session is still signed in while cleanup runs. */
+export const test = apiTest.extend<CleanupFixtures>({
+  cleanup: async ({ api: _signedInBeforeCleanup }, use) => {
+    const cleanup = new CleanupStack();
+    await use(cleanup);
+    await cleanup.unwind((description, action) => apiTest.step(`cleanup: ${description}`, action));
   },
 });

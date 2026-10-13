@@ -1,23 +1,27 @@
 import type { Locator, Page } from "@playwright/test";
+import type { QuantityControlKind } from "../components/controls";
 
-import { exactText } from "../../text-match";
-import { ConfirmationModal } from "../components/confirmation-modal";
-import { LineItem, productItem, productItems } from "../components/line-item";
-import { WishlistCard, WishlistSettingsModal } from "../components/wishlist";
-import { MainLayout } from "../layouts/main-layout";
+import { exactText } from "../../selectors";
+import { ConfirmationModal } from "../components/controls";
+import { LineItem, productItem, productItems } from "../components/product";
+import { ListCard, ListSettingsModal, ListSharingModal } from "../components/wishlist";
+import { FrontendPage } from "./layout";
 
-export class AccountListsPage extends MainLayout {
+/** Account lists page, with the modals that create, share and delete lists. */
+export class ListsPage extends FrontendPage {
   readonly path = "/account/lists";
   readonly createListButton: Locator;
   readonly cards: Locator;
-  readonly settingsModal: WishlistSettingsModal;
+  readonly settingsModal: ListSettingsModal;
+  readonly sharingModal: ListSharingModal;
   readonly deleteModal: ConfirmationModal;
 
   constructor(page: Page) {
     super(page);
     this.createListButton = this.root.locator("[data-test-id='create-wishlist-button']");
     this.cards = page.locator("[data-test-id='wishlist-card']");
-    this.settingsModal = new WishlistSettingsModal(page);
+    this.settingsModal = new ListSettingsModal(page);
+    this.sharingModal = new ListSharingModal(page);
     this.deleteModal = new ConfirmationModal(
       page.locator("[data-test-id='delete-wishlist-modal']"),
       "delete-button",
@@ -25,57 +29,44 @@ export class AccountListsPage extends MainLayout {
     );
   }
 
-  card(name: string): WishlistCard {
-    return new WishlistCard(
+  /** @param name - List name, matched exactly. */
+  card(name: string): ListCard {
+    return new ListCard(
       this.cards.filter({ has: this.page.locator(".wishlist-card__title", { hasText: exactText(name) }) }),
     );
   }
 }
 
-export class AccountListDetailsPage extends MainLayout {
+/** Details page of one of the account's lists. */
+export class ListDetailsPage extends FrontendPage {
   readonly path: string;
   readonly lineItems: Locator;
   readonly addAllToCartButton: Locator;
+  readonly #quantityControl: QuantityControlKind;
 
-  constructor(page: Page, listId: string) {
+  constructor(page: Page, listId: string, quantityControl: QuantityControlKind) {
     super(page);
+    this.#quantityControl = quantityControl;
     this.path = `/account/lists/${listId}`;
     this.lineItems = productItems(this.root);
     this.addAllToCartButton = page.locator("[data-test-id='add-all-to-cart-button']");
   }
 
   lineItem(sku: string): LineItem {
-    return new LineItem(productItem(this.root, sku));
+    return new LineItem(productItem(this.root, sku), this.#quantityControl);
   }
 }
 
-export class AccountSavedForLaterPage extends MainLayout {
-  readonly path = "/account/saved-for-later";
-  readonly lineItems: Locator;
-  readonly removeItemModal: ConfirmationModal;
-
-  constructor(page: Page) {
-    super(page);
-    this.lineItems = productItems(this.root);
-    this.removeItemModal = new ConfirmationModal(
-      page.locator("[data-test-id='delete-wishlist-product-modal']"),
-      "delete-button",
-      "cancel-button",
-    );
-  }
-
-  lineItem(sku: string): LineItem {
-    return new LineItem(productItem(this.root, sku));
-  }
-}
-
-export class SharedListPage extends MainLayout {
+/** List opened by its share link, possibly by another user or anonymously. */
+export class SharedListPage extends FrontendPage {
   readonly path: string;
   readonly listTitle: Locator;
   readonly lineItems: Locator;
   readonly addToCartControls: Locator;
+  /** "404" heading shown when the link is invalid or the list is no longer shared. */
   readonly notFound: Locator;
 
+  /** @param sharingKey - Key from the share link (the list's sharing setting id). */
   constructor(page: Page, sharingKey: string) {
     super(page);
     this.path = `/shared-list/${sharingKey}`;

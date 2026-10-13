@@ -9,8 +9,5 @@ export async function findPushNotification<T extends { readonly id?: string | nu
 ): Promise<T | undefined> {
   const criteria: PushNotificationSearchCriteria = { ids: [id], take: 1 };
   const response = await httpClient.post(PUSH_NOTIFICATIONS_PATH, { json: criteria });
-  return response
-    .expectOk()
-    .json<{ notifyEvents?: T[] | null }>()
-    .notifyEvents?.find((notification) => notification.id === id);
+  return response.json<{ notifyEvents?: T[] | null }>().notifyEvents?.find((notification) => notification.id === id);
 }

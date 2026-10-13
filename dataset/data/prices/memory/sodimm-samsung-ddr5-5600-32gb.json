@@ -1,0 +1,27 @@
+{
+  "productId": "product-sodimm-samsung-ddr5-5600-32gb",
+  "product": {
+    "id": "product-sodimm-samsung-ddr5-5600-32gb",
+    "name": "Samsung DDR5-5600 32GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-sodimm-samsung-ddr5-5600-32gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 133.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-sodimm-samsung-ddr5-5600-32gb"
+    },
+    {
+      "id": "price-acme-eur-sodimm-samsung-ddr5-5600-32gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 124.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-sodimm-samsung-ddr5-5600-32gb"
+    }
+  ]
+}

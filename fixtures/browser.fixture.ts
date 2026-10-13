@@ -1,137 +1,118 @@
+import type { ApiSession } from "@api/api-session";
 import type { App } from "@api/auth/browser-sessions";
-import type { Credentials } from "@api/auth/credentials";
-import type { Env } from "@core/env";
-import type { Dataset } from "@dataset/dataset";
-import type { FrontendContext } from "@dataset/frontend-context";
-import type { CleanupFixtures } from "./cleanup.fixture";
-import type { CustomerAccountFixtures, SignedInCustomerAccount } from "./customer-account.fixture";
+import type { CustomerAccount } from "@dataset/arrange";
 
 import { BrowserSessions } from "@api/auth/browser-sessions";
-import { TokenAuthClient } from "@api/auth/token-auth-client";
+import { TokenClient } from "@api/auth/token-client";
 import { TokenManager } from "@api/auth/token-manager";
-import { GraphqlClient } from "@api/graphql/graphql-client";
 import { HttpClient } from "@api/http/http-client";
-import { registerDefaultCartRemoval } from "@dataset/arrange/cart";
-import { signInGraphqlClient } from "@dataset/arrange/customer-account";
-import { getFrontendContext } from "@dataset/frontend-context";
+import { PageBuilderShell } from "@pages/backend/page-builder/page-builder";
+import { Frontend } from "@pages/frontend/frontend";
 
-import { openRequestContext, withSignInHint } from "./api.fixture";
-import { test as base } from "./customer-account.fixture";
+import { test as arrangeTest } from "./arrange.fixture";
 
-export interface Shopper {
-  readonly credentials: Credentials | undefined;
-  readonly graphqlClient: GraphqlClient;
-  readonly context: FrontendContext;
-}
+/** Frontend browser identity: an anonymous visitor, or a new customer account created for the test. */
+export type ShopperKind = "anonymous" | "customer";
 
-export interface ShopperSources {
-  readonly browserCustomerAccount: SignedInCustomerAccount | undefined;
-  readonly user: Credentials | undefined;
-  readonly anonymousUserId: string;
-  readonly anonymousHttpClient: HttpClient;
-  readonly tokenManager: TokenManager;
-  readonly dataset: Dataset;
-  readonly env: Env;
-}
-
+/** Options of browser projects and tests. */
 export interface BrowserOptions {
+  /** Set by the Playwright project; decides who the browser is signed in as. `undefined` for API projects. */
   readonly app: App | undefined;
+  /**
+   * Who the frontend browser is; `"anonymous"` by default.
+   *
+   * @example
+   * test.use({ shopperKind: "customer" });
+   */
+  readonly shopperKind: ShopperKind;
 }
 
-export interface BrowserWorkerFixtures {
+/** The frontend browser's identity on the API, for arranging carts and other data the browser then shows. */
+export interface Shopper {
+  /** Same identity as the browser: the anonymous visitor (same user id) or the signed-in customer. */
+  readonly api: ApiSession;
+  /** The customer account; `undefined` for an anonymous shopper. */
+  readonly account: CustomerAccount | undefined;
+}
+
+/** Fixtures of browser tests. */
+export interface BrowserFixtures {
+  /** The browser's shopper; their default cart is removed after the test. */
+  readonly shopper: Shopper;
+  /** Frontend page objects on the test's `page`, built for the frontend's configured controls. */
+  readonly frontend: Frontend;
+  /** The admin UI's page builder shell on the test's `page`, for the store under test. */
+  readonly pageBuilder: PageBuilderShell;
+}
+
+interface BrowserWorkerFixtures {
   readonly browserSessions: BrowserSessions;
 }
 
-export const test = base.extend<BrowserOptions, BrowserWorkerFixtures>({
+/**
+ * Adds {@link BrowserFixtures} on top of `arrange`. The browser starts signed in through `storageState`:
+ * on the frontend as the shopper (token or anonymous user id in local storage), on the admin UI as `env.admin`
+ * (sign-in cookie).
+ */
+export const test = arrangeTest.extend<BrowserOptions & BrowserFixtures, BrowserWorkerFixtures>({
   app: [undefined, { option: true }],
+  shopperKind: ["anonymous", { option: true }],
 
   browserSessions: [
-    async ({ playwright, env }, use) => {
-      const frontendRequestContext = await openRequestContext(playwright, env, env.frontendBaseUrl);
-      const frontendTokenManager = new TokenManager(new TokenAuthClient(new HttpClient(frontendRequestContext)));
+    async ({ env, playwright }, use) => {
+      const requestOptions = { timeout: env.requestTimeoutMs, ignoreHTTPSErrors: !env.verifySsl };
+      const frontendContext = await playwright.request.newContext({ ...requestOptions, baseURL: env.frontendBaseUrl });
+      const frontendTokens = new TokenManager(new TokenClient(new HttpClient(frontendContext), env.storeId));
       try {
         await use(
-          new BrowserSessions(frontendTokenManager, {
-            storeId: env.storeId,
+          new BrowserSessions(frontendTokens, {
             frontendBaseUrl: env.frontendBaseUrl,
-            newBackendContext() {
-              return openRequestContext(playwright, env, env.backendBaseUrl);
-            },
+            newBackendContext: () => playwright.request.newContext({ ...requestOptions, baseURL: env.backendBaseUrl }),
           }),
         );
-        await frontendTokenManager.signOutAll();
+        await frontendTokens.signOutAll();
       } finally {
-        await frontendRequestContext.dispose();
+        await frontendContext.dispose();
       }
     },
     { scope: "worker" },
   ],
 
-  storageState: async (
-    {
-      app,
-      user,
-      browserCustomerAccount,
-      anonymousUserId,
-      browserSessions,
-      anonymousHttpClient,
-      tokenManager,
-      dataset,
-      env,
-      cleanupStack,
-    },
-    use,
-  ) => {
-    if (app === undefined) {
-      await use(undefined);
+  shopper: async ({ api, arrange, cleanup, browserSessions, shopperKind }, use) => {
+    if (shopperKind === "anonymous") {
+      arrange.carts.removeDefaultCartLater(api);
+      await use({ api, account: undefined });
+      return;
+    }
+    const account = await arrange.customers.customerAccount();
+    cleanup.push(`sign ${account.credentials.username} out of the frontend`, () =>
+      browserSessions.signOut(account.credentials.username),
+    );
+    arrange.carts.removeDefaultCartLater(account.api);
+    await use({ api: account.api, account });
+  },
+
+  storageState: async ({ app, shopper, browserSessions, env }, use) => {
+    if (app === "backend") {
+      await use(await browserSessions.signedIn("backend", env.admin));
       return;
     }
     if (app === "frontend") {
-      const shopper = await browserShopper({
-        browserCustomerAccount,
-        user,
-        anonymousUserId,
-        anonymousHttpClient,
-        tokenManager,
-        dataset,
-        env,
-      });
-      registerDefaultCartRemoval(shopper.graphqlClient, cleanupStack, shopper.context);
+      await use(
+        shopper.account === undefined
+          ? browserSessions.anonymous("frontend", (await shopper.api.storeContext()).userId)
+          : await browserSessions.signedIn("frontend", shopper.account.credentials),
+      );
+      return;
     }
-    const credentials = browserCustomerAccount?.credentials ?? user;
-    await use(
-      credentials === undefined
-        ? browserSessions.anonymous(app, anonymousUserId)
-        : await withSignInHint(credentials, () => browserSessions.get(app, credentials)),
-    );
+    await use(undefined);
+  },
+
+  frontend: async ({ page, env }, use) => {
+    await use(new Frontend(page, env));
+  },
+
+  pageBuilder: async ({ page, env }, use) => {
+    await use(new PageBuilderShell(page, { path: env.pageBuilderPath, storeId: env.storeId }));
   },
 });
-
-export async function browserShopper(sources: ShopperSources): Promise<Shopper> {
-  const { browserCustomerAccount, user, env } = sources;
-  if (browserCustomerAccount !== undefined) {
-    const { credentials, graphqlClient, context } = browserCustomerAccount;
-    return { credentials, graphqlClient, context };
-  }
-  const context = getFrontendContext(sources.dataset, env.storeId, user?.username, sources.anonymousUserId);
-  const graphqlClient =
-    user === undefined
-      ? new GraphqlClient(sources.anonymousHttpClient)
-      : await signInGraphqlClient(sources.tokenManager, sources.anonymousHttpClient, user, env.storeId);
-  return { credentials: user, graphqlClient, context };
-}
-
-export async function withCustomerAccount(
-  {
-    newCustomerAccount,
-    browserSessions,
-    cleanupStack,
-  }: CustomerAccountFixtures & BrowserWorkerFixtures & CleanupFixtures,
-  use: (account: SignedInCustomerAccount) => Promise<void>,
-): Promise<void> {
-  const account = await newCustomerAccount();
-  cleanupStack.push(`sign out ${account.credentials.username} from the browser sessions`, () =>
-    browserSessions.signOut(account.credentials),
-  );
-  await use(account);
-}

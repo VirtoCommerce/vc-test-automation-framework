@@ -17,51 +17,55 @@ Determine what code to review using this priority:
 3. **On dev with staged changes** - Review staged files (`git diff --staged`)
 4. **On dev, nothing staged** - Review the latest commit (`git show HEAD`)
 
-Skip generated code (`api/rest/generated/`, `api/graphql/generated/`) in every agent.
+Skip generated code (`api/rest/generated/`, `api/graphql/generated/`) in every agent. Never read or print `.env`.
 
 Examples:
 
 - "review my branch" → branch diff
 - "review pr 123" or "review https://github.com/org/repo/pull/123" → fetch PR via gh
 - "review commit abc123" → that specific commit
-- "review src/auth.ts" → just that file's recent changes
+- "review tests/restapi/pricing/pricelists.spec.ts" → just that file's recent changes
 - (no scope given, on feature branch) → automatic branch diff
+
+Every agent that judges conventions reads [CLAUDE.md](../../CLAUDE.md) first, and README.md "Writing tests" and "Cleaning up" for the details.
 
 ## Instructions
 
-Launch all 9 agents in parallel using a single message with multiple Task tool calls:
+Launch all 9 agents in parallel using a single message with multiple Agent tool calls:
 
 ### Agent 1: Test Runner
 
 ```
-Run the Playwright specs affected by the changed files against the platform in .env:
-- Changed specs: `npx playwright test <spec files>`
-- Changed fixtures, api, dataset or pages code: the specs that import it (find them with grep), or the whole project when the change is broad (`npm run test:restapi`, `test:graphql`, `test:e2e:frontend`, `test:e2e:backend`)
-- Always run `npx playwright test --list` first: it fails fast on fixture wiring errors
-If the platform is not reachable, report that the tests were not run instead of guessing.
+Run the tests affected by the changed files. Use the npm scripts; a bare `npx playwright test <file>` also runs the seed and unit projects.
+1. `npx playwright test --list` first: it fails fast on spec or fixture wiring errors and needs no platform.
+2. `npm run test:unit` when core, api, dataset, pages or fixtures changed (no platform needed).
+3. Changed specs: `npm run test:restapi -- <files>`, `test:graphql`, `test:e2e:frontend`, `test:e2e:backend`.
+4. Changed fixtures, api, dataset or pages code: the specs that import it (find them with grep), or the whole project when the change is broad.
+5. Changed specs under tests/isolated: run them only if the user confirms (`RUN_DESTRUCTIVE_TESTS=true npm run test:isolated -- <files>`); they change platform-wide state.
+If the platform is not reachable, report that the platform tests were not run instead of guessing. New dataset records need `npm run seed` and a reindex first.
 
 Report:
-- Which tests were run
+- Which tests were run, and which were not and why
 - Pass/fail status
-- Any test failures with details (error message, failing step, trace path)
+- Any test failures with details (error message, failing step, trace or screenshot path)
 ```
 
 ### Agent 2: Linter & Static Analysis
 
 ```
-Run `npm run typecheck` (tsc --noEmit) and `npx biome check <changed files>` (lint, format, import order, layer rules from biome/layers.json), AND collect IDE diagnostics (using getDiagnostics) for the changed files.
+Run `npm run typecheck` (tsc --noEmit) and `npx biome check <changed files>` (the rules of `npm run check`: lint, format, import order, layer rules from biome/layers.json; without --write, so nothing is changed), AND collect IDE diagnostics (getDiagnostics, if available) for the changed files.
 
 Report:
-- Linting tool(s) used
+- Tool(s) used
 - Any warnings or errors found
-- Auto-fixable vs manual fixes needed
+- Auto-fixable (`npm run check` fixes them) vs manual fixes needed
 - Type errors or unresolved references from IDE diagnostics
 ```
 
 ### Agent 3: Code Reviewer
 
 ```
-First, check if CLAUDE.md or a similar project style guide exists. If so, read it to understand project conventions.
+Read CLAUDE.md first.
 
 Review the code changes and provide up to 5 concrete improvements, ranked by:
 - Impact (how much this improves the code)
@@ -82,16 +86,15 @@ Focus on non-obvious improvements - skip formatting, naming nitpicks, and things
 
 ```
 Review the code changes for security concerns:
-- Input validation and sanitization
-- Injection risks (SQL, command, XSS)
-- Authentication/authorization issues
-- Secrets or credentials in code
+- Secrets or credentials in code, dataset JSON or fixtures (passwords belong in `.env` and `${ENV:NAME}` placeholders)
+- Secrets that can reach logs, errors or Allure reports without `Secret` masking (core/secret.ts)
+- Changes to `.env.example` or CI that expose values
+- Authentication/authorization assumptions in tests (wrong identity, anonymous where a role is needed)
 - Error handling that leaks sensitive info
 
 Also check error handling:
-- Missing try/catch where needed
-- Swallowed errors hiding problems
-- Unhelpful error messages
+- Swallowed errors hiding problems (catch without rethrow, cleanup failures ignored)
+- Unhelpful error messages (missing labels in `requireFields`, undescribed `cleanup.push`)
 
 Report issues with severity (Critical/High/Medium/Low) and specific file:line references.
 If no issues found, report "No security concerns identified."
@@ -100,21 +103,21 @@ If no issues found, report "No security concerns identified."
 ### Agent 5: Quality & Style Reviewer
 
 ```
-First, check if CLAUDE.md or a similar project style guide exists. If so, read it to understand project conventions.
+Read CLAUDE.md first.
 
 Review the code changes for quality and style issues:
 
 Quality:
-1. Complexity - functions too long, deeply nested, high cyclomatic complexity
-2. Dead code - unused imports, unreachable code, unused variables
-3. Duplication - copy-pasted logic that should be abstracted
+1. Complexity - functions too long, deeply nested
+2. Dead code - unused imports, exports, variables, dataset records or KNOWN_ISSUES entries
+3. Duplication - logic that already exists in `arrange`, builders, clients or page objects
 
-Style Guidelines:
-4. Naming conventions - does naming match project patterns and style guide?
-5. File/folder organization - are files in the right place?
-6. Architectural patterns - does code follow established patterns in the codebase?
-7. Consistency - does new code match the style of surrounding code?
-8. Project conventions - does code follow rules in the project style guide (if present)?
+Project conventions:
+4. Layers - `core` → `api` → `dataset` → `fixtures` → `tests`, `pages` on `core` only; specs import Playwright only through `@fixtures`
+5. Placement - specs by platform module (users and accounts in `security`); page objects in `pages/`; data in `dataset/`
+6. Code style - `function` declarations for named and exported functions, arrows only inline; `readonly #private` state; no `any`, `!` or casts; no code comments
+7. Terminology - frontend (not storefront), platform, platform admin
+8. Consistency - naming, step wording and import order match the surrounding files
 
 For each issue found, provide:
 - File and location
@@ -127,36 +130,29 @@ If code is clean, report "No quality or style issues identified."
 ### Agent 6: Test Quality Reviewer
 
 ```
-Review test coverage and quality for the changed code:
+Read CLAUDE.md "Writing tests" first. Review the changed specs and the coverage of the changed code:
+
+Spec rules:
+- Allure epic + feature in beforeEach; story + description per test; `test.describe("<topic> (<who>)")`
+- Every phase in `arrange:` / `act:` / `assert:` steps
+- No conditionals, casts or helper functions; repeated cases are one table (rows may hold small lambdas); no raw selectors
+- Seeded data from `dataset`; changes created with `arrange`; a test that changes a customer's state creates its own customer
+- Cleanup registered before the change; deletions proven by reading the record by id
+- Index waits in `arrange` or `expect.poll` with `INDEX_LAG_TIMEOUT_MS`; no `waitForTimeout` or `networkidle`
+- `requireFields` instead of `??` defaults
+- Known defects through `await knownIssue(KNOWN_ISSUES.x)`; no bare `test.fail` / `test.fixme`
+- Platform-wide changes only in tests/isolated
+- A UI test checks the UI; data rules are checked once through the API
 
 Coverage (with ROI lens):
-- Are critical paths tested? (auth, payments, data integrity)
-- Are edge cases that matter tested?
-- Is the coverage proportionate to the risk? (not all code needs equal coverage)
-- Would adding more tests here provide diminishing returns?
+- Are critical paths tested? Negative cases and other identities (anonymous, other organization, wrong role)?
+- Is the coverage proportionate to the risk?
 
-Quality:
-- Do tests verify behavior, not implementation details?
-- Will these tests break for the wrong reasons? (testing internals, brittle selectors)
-- Are assertions focused on outcomes users care about?
-- Would these tests catch real bugs without false positives?
-
-Test Code Quality:
-- Are there many similar tests that could be parameterized/data-driven?
-- Is there copy-pasted setup that should be extracted to helpers/fixtures?
-- Could table-driven tests reduce boilerplate while improving clarity?
-- Is test code held to the same quality standards as production code?
-
-Flakiness Risk:
-- Are there timing dependencies, race conditions, or order-sensitive assertions?
-- Do tests rely on external state that could change?
-- Are async operations properly awaited/mocked?
-
-Anti-patterns:
-- Testing implementation details (private methods, internal state)
-- Mocking so heavily that tests don't verify real behavior
-- Tests that pass but don't actually assert meaningful outcomes
-- Coverage for coverage's sake on low-risk code
+Quality and flakiness:
+- Do assertions verify outcomes and fail when the behavior breaks (no vacuous checks)?
+- Do assertions target the test's own data, so parallel tests cannot break them?
+- Are async operations awaited?
+- Is TESTS.md updated when an old-suite test moved, merged or was dropped?
 
 Report issues with specific suggestions. If tests are well-balanced, report "Test coverage is appropriate and behavior-focused."
 ```
@@ -165,13 +161,13 @@ Report issues with specific suggestions. If tests are well-balanced, report "Tes
 
 ```
 Review the code changes for what makes the suite slow or loads the platform:
-- UI setup where an API call or fixture would do (signing in through the sign-in page, adding products one by one)
-- Repeated sign-ins instead of the token cache (`tokenManager`, `signInGraphqlClient`) or `signInWithoutCache` used without a reason
-- Sequential awaits that could run in parallel without creating shared-state races
+- UI setup where `arrange` or `shopper.api` would do (signing in through the sign-in page, adding products one by one in the UI)
+- Repeated sign-ins that bypass the token cache (`api/auth/token-manager.ts`) or fresh customers where a dataset user would do for a read-only check
+- Sequential awaits that could run in parallel without shared-state races
 - Polling with long timeouts or tight intervals; fixed waits
-- Fixtures resolved by tests that do not need them (every destructured fixture is created)
+- Fixtures resolved by tests that do not need them (every destructured fixture is created, e.g. `shopper` with `shopperKind: "customer"` creates a customer)
+- Files forced to `test.describe.configure({ mode: "default" })` or tests moved to tests/isolated without a shared-state reason
 - Unclosed request contexts or growing worker-scoped caches
-- Files forced to `mode: "default"` or tests on one worker without a shared-state reason
 
 For each concern, explain the impact and suggest a fix.
 If no concerns, report "No runtime concerns identified."
@@ -184,11 +180,12 @@ Review changes for dependency, compatibility, and CI concerns:
 
 Dependencies (if package.json or the lock file changed):
 - Are new dependencies justified? Could existing ones do the job?
-- Are they maintained and free of known vulnerabilities?
+- Are versions pinned like the others, maintained and free of known vulnerabilities?
 
 Shared code (if core, api, dataset, pages or fixtures changed):
 - Do signature or behavior changes break specs that are not part of the diff? (find the callers)
-- Do renamed fixtures or options leave specs or README examples behind?
+- Do renamed fixtures, options or `arrange` methods leave specs, README.md or CLAUDE.md examples behind?
+- Are unit tests in tests/unit updated for the changed framework code?
 
 Platform contract:
 - Do `.graphql` documents and the generated code match? (`npm run codegen:graphql` after document changes)
@@ -196,12 +193,13 @@ Platform contract:
 - Does `backend-packages.json` need a bump for tests that depend on newer module versions?
 
 Shared platform state:
-- Do dataset or manifest changes alter seeded data other specs rely on?
-- Can the change leave the shared platform in a different state (settings, global configuration) after a failed run?
+- Do changes in dataset/data or dataset/manifest.ts alter seeded data other specs rely on?
+- Can the change leave the platform in a different state after a failed run (settings, global configuration)?
 
-CI:
-- Does the change need new env-file secret keys or workflow inputs?
-- Will failures be visible in the list/Allure reports (meaningful step names, errors with context), not silent?
+CI (.github/workflows/auto-tests.yml, playwright.config.ts):
+- Does the change need new keys in the env-file secret, new workflow inputs or new env variables in core/env.ts and .env.example?
+- Do project names, folders and worker settings (API_WORKERS, FRONTEND_WORKERS) still match the npm scripts and README.md?
+- Will failures be visible in the list/Allure reports (meaningful step names, errors with context)?
 
 Report issues with specific file references.
 If no concerns, report "No dependency, compatibility, or CI concerns."
@@ -214,30 +212,23 @@ Review the code changes with fresh eyes, asking "could this be simpler?"
 
 Simplification:
 - Are there abstractions that don't pull their weight?
-- Could we achieve the same result with less code?
+- Could we achieve the same result with less code, or with an existing `arrange` method, builder, client or page object?
 - Are we solving problems we don't actually have?
-- Is there a more straightforward approach using existing patterns/libraries?
 
 Maintainability ROI:
 - Will future developers understand this easily?
 - Does the complexity match the problem complexity?
-- Are we adding cognitive load for marginal benefit?
 - Would a "dumber" solution be easier to maintain long-term?
 
 Look for:
 - Premature abstractions (helpers used once, unnecessary indirection)
 - Over-configured solutions when simple would suffice
-- Framework-level solutions for one-off problems
 - Clever code that sacrifices clarity
 
 Change Atomicity & Reviewability:
-- Does this change represent one logical unit of work? (atomic commit)
+- Does this change represent one logical unit of work?
 - Are there unrelated changes mixed in that should be separate commits?
-- Could any cleanup/refactoring be split out as a preceding commit?
-- Is there feature work bundled with unrelated fixes?
-- Is this sized appropriately for PR review? (not so large it's overwhelming)
-- Does it include enough context to review without jumping everywhere?
-- Would splitting this up lose important context a reviewer needs?
+- Is this sized appropriately for PR review?
 
 For each finding, explain:
 - What could be simplified
@@ -284,6 +275,6 @@ Tests (N passed), Linter (no issues), [other clean agents...]
 
 ### Verdict Guidelines
 
-- **Ready to Merge** - All tests pass, no critical/high issues, suggestions are optional
-- **Needs Attention** - Has medium issues or important suggestions worth addressing
+- **Ready to Merge** - Typecheck, Biome and `--list` are clean, the run tests pass, no critical/high issues, suggestions are optional
+- **Needs Attention** - Has medium issues or important suggestions worth addressing, or platform tests could not be run
 - **Needs Work** - Has critical/high issues or failing tests that must be fixed

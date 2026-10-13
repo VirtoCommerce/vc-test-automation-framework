@@ -1,0 +1,27 @@
+{
+  "productId": "product-ssd-adata-legend-900-pcie-40-nvme-m2-2048gb",
+  "product": {
+    "id": "product-ssd-adata-legend-900-pcie-40-nvme-m2-2048gb",
+    "name": "ADATA Legend 900 PCIe 4.0 NVMe M.2 SSD 2048GB"
+  },
+  "prices": [
+    {
+      "id": "price-acme-usd-ssd-adata-legend-900-pcie-40-nvme-m2-2048gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "USD",
+      "list": 142.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-usd",
+      "productId": "product-ssd-adata-legend-900-pcie-40-nvme-m2-2048gb"
+    },
+    {
+      "id": "price-acme-eur-ssd-adata-legend-900-pcie-40-nvme-m2-2048gb",
+      "catalog": "catalog-acme-electronics",
+      "currency": "EUR",
+      "list": 132.99,
+      "minQuantity": 1,
+      "pricelistId": "pricelist-acme-eur",
+      "productId": "product-ssd-adata-legend-900-pcie-40-nvme-m2-2048gb"
+    }
+  ]
+}

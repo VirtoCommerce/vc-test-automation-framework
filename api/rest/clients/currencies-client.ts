@@ -1,7 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { Currency, CurrencyData } from "../types/core";
 
-import { requireEach } from "@core/required-fields";
+import { requireFieldsOfEach } from "@core/required-fields";
 
 import { CURRENCY_FIELDS } from "../types/core";
 
@@ -16,7 +16,7 @@ export class CurrenciesClient {
 
   async list(): Promise<Currency[]> {
     const response = await this.#httpClient.get(CURRENCIES_PATH);
-    return requireEach(response.expectOk().json<CurrencyData[]>(), CURRENCY_FIELDS, "Currency");
+    return requireFieldsOfEach(response.json<CurrencyData[]>(), CURRENCY_FIELDS, "Currency");
   }
 
   async find(code: string): Promise<Currency | undefined> {
@@ -31,7 +31,7 @@ export class CurrenciesClient {
     (await this.#httpClient.put(CURRENCIES_PATH, { json: currency })).expectOk();
   }
 
-  async delete(code: string): Promise<void> {
-    (await this.#httpClient.delete(CURRENCIES_PATH, { query: { codes: code } })).expectOk();
+  async delete(codes: readonly string[]): Promise<void> {
+    (await this.#httpClient.delete(CURRENCIES_PATH, { query: { codes } })).expectOk();
   }
 }

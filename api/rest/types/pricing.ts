@@ -21,6 +21,7 @@ export type {
   ProductPriceSearchResult,
 };
 
+export const PRODUCT_PRICE_FIELDS = ["productId", "prices"] as const;
 export const PRICELIST_FIELDS = ["id", "name", "currency"] as const;
 export const PRICE_FIELDS = ["id", "pricelistId", "productId", "list", "currency"] as const;
 export const PRICELIST_ASSIGNMENT_FIELDS = ["id", "name", "pricelistId"] as const;
@@ -28,3 +29,24 @@ export const PRICELIST_ASSIGNMENT_FIELDS = ["id", "name", "pricelistId"] as cons
 export type Pricelist = WithRequired<PricelistData, (typeof PRICELIST_FIELDS)[number]>;
 export type Price = WithRequired<PriceData, (typeof PRICE_FIELDS)[number]>;
 export type PricelistAssignment = WithRequired<PricelistAssignmentData, (typeof PRICELIST_ASSIGNMENT_FIELDS)[number]>;
+
+export type PricelistQuery = {
+  readonly keyword?: string;
+  readonly objectIds?: readonly string[];
+  readonly currencies?: readonly string[];
+  readonly sort?: string;
+  readonly skip?: number;
+  readonly take?: number;
+};
+
+export type PricelistAssignmentQuery = {
+  readonly keyword?: string;
+  readonly objectIds?: readonly string[];
+  readonly priceListId?: string;
+  readonly priceListIds?: readonly string[];
+  readonly catalogIds?: readonly string[];
+  readonly storeIds?: readonly string[];
+  readonly sort?: string;
+  readonly skip?: number;
+  readonly take?: number;
+};

@@ -1,507 +1,541 @@
 # vc-testing-module
 
-Automated tests for the Virto Commerce **platform** (REST API and xAPI GraphQL), the **frontend** (vc-frontend) and the **page-builder shell** in the platform admin. Written in TypeScript on [Playwright Test](https://playwright.dev/docs/test-intro), with Allure reporting.
+Automated tests of the [Virto Commerce](https://virtocommerce.com) platform: the REST API, the xAPI (GraphQL), the
+frontend (vc-frontend) and the page builder app of the admin UI. Built on Playwright and TypeScript.
 
-| Project | What it tests | Tests |
-|---|---|---|
-| `restapi` | Platform REST API (`/api/...`) | 298 (+3 destructive) |
-| `graphql` | xAPI GraphQL (`/graphql`) | 156 (+1 destructive) |
-| `e2e-frontend` | vc-frontend in a browser | 68 |
-| `e2e-backend` | Page-builder shell in the platform admin | 30 |
-| `seed` | Loads the test dataset into the platform (setup, not tests) | 3 steps |
+## Key features
 
-## Contents
+- **One test runner for everything.** REST, GraphQL, browser and unit tests are Playwright projects with shared
+  fixtures, reports and configuration.
+- **Typed clients.** REST types are generated from the platform's Swagger, GraphQL operations from its schema, so a
+  platform change shows up as a type error, not a runtime surprise.
+- **A seeded dataset.** `dataset/data` holds the store, catalog, customers, prices, orders and pages every test
+  reads; the `seed` project writes it to a fresh platform.
+- **Self-cleaning test data.** Tests create what they change through the `arrange` fixture, which removes it after
+  the test in reverse order, so tests run in parallel and leave the platform as they found it.
+- **Readable tests.** Every test is `arrange` / `act` / `assert` steps, table-driven where cases repeat, with no
+  conditional logic and no raw selectors; page objects hide the frontend's configuration differences.
+- **Safe by default.** Secrets are masked in every log, error and report; tests that change platform-wide state
+  run only on request, in their own project.
+- **Allure reports** grouped by epic, feature and story, with steps, links to known issues and failure screenshots.
 
-- [Prerequisites](#prerequisites)
-- [Local setup](#local-setup)
-- [Running tests](#running-tests)
-- [Configuration](#configuration)
-- [Project structure](#project-structure)
-- [How tests are written](#how-tests-are-written)
-- [Signed-in users and prefilled carts in e2e tests](#signed-in-users-and-prefilled-carts-in-e2e-tests)
-- [Code generation](#code-generation)
-- [Code quality](#code-quality)
-- [Continuous integration](#continuous-integration)
-- [AI-assisted workflow](#ai-assisted-workflow)
-- [Known platform issues](#known-platform-issues)
+## Tech stack
 
-## Prerequisites
+| Tool | Use |
+|---|---|
+| [Playwright](https://playwright.dev) `@playwright/test` | Test runner, browser automation, API requests |
+| TypeScript 7 (strict) | Language; type-checked with `tsc --noEmit` |
+| [Biome](https://biomejs.dev) | Formatting, linting and the import rules between layers |
+| [zod](https://zod.dev) | Validation of environment variables and data files |
+| GraphQL Code Generator | Typed xAPI documents from `api/graphql/**/*.graphql` |
+| swagger-typescript-api | REST types from the platform's Swagger |
+| Allure 3 (`allure-playwright`) | Test reports |
+| simple-git-hooks | Pre-commit check (Biome on staged files, type check) |
 
-- **Node.js 22.18 or later** (`engines` in `package.json`).
-- **A running Virto Commerce platform** with the modules the tests cover (Catalog, Pricing, Inventory, Orders, Cart/xAPI, Customer, Marketing, Content, Shipping + xPickup, PageBuilder, …). The seeder skips entities whose module is not installed.
-- **A running vc-frontend** connected to that platform, for `e2e-frontend` only.
-- A platform **admin account** (the one used to seed data and call admin APIs).
+## Requirements
 
-The platform version and module versions CI runs against are listed in [`backend-packages.json`](backend-packages.json); a local platform with other versions works as long as it has the modules the dataset needs.
+- **Node.js 22.18 or newer** (runs `.mts` files directly).
+- **A Virto Commerce platform** with the modules listed in [`backend-packages.json`](backend-packages.json),
+  a database and a search engine (Elasticsearch 8 locally). Give Elasticsearch at least 2 GB of memory: with 1 GB
+  it runs out under parallel tests and the search-backed tests fail.
+- **vc-frontend** serving the store `STORE_ID`, for the `e2e-frontend` project only.
+- **The page builder shell** on the platform (`PAGE_BUILDER_PATH`), for the `e2e-backend` project only.
+- A platform administrator account (`ADMIN_USERNAME` / `ADMIN_PASSWORD`).
 
-The defaults assume a local setup: platform at `http://localhost:8090`, frontend at `https://localhost:3000`.
+## Getting started
 
-## Local setup
+### 1. Install
 
-Commands in `shell` blocks are the same in PowerShell and bash; where the syntax differs, both versions are shown.
+Bash:
 
-1. **Install dependencies.** This also installs the git pre-commit hook (see [Code quality](#code-quality)).
+```bash
+git clone https://github.com/VirtoCommerce/vc-testing-module.git
+cd vc-testing-module
+npm ci
+npm run install:browsers
+cp .env.example .env
+```
 
-   ```shell
-   npm install
-   ```
+PowerShell:
 
-2. **Install the browser** used by the e2e projects:
+```powershell
+git clone https://github.com/VirtoCommerce/vc-testing-module.git
+Set-Location vc-testing-module
+npm ci
+npm run install:browsers
+Copy-Item .env.example .env
+```
 
-   ```shell
-   npx playwright install chromium
-   ```
+### 2. Configure `.env`
 
-3. **Create `.env`** from the template and fill in the secrets:
+Fill in the values; every variable is validated when a run starts, and a wrong one fails with its name.
 
-   ```powershell
-   # PowerShell
-   Copy-Item .env.example .env
-   ```
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `BACKEND_BASE_URL` | yes | | Platform origin, e.g. `http://localhost:8090` |
+| `FRONTEND_BASE_URL` | yes | | Frontend origin, e.g. `https://localhost:3000` |
+| `STORE_ID` | yes | | The store the dataset is seeded into and tests run against, e.g. `store-acme` |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | yes | | Platform administrator; seeds the dataset and signs in to the admin UI |
+| `USERS_PASSWORD` | yes | | Password of every dataset user |
+| `PAGE_BUILDER_PATH` | | `/apps/page-builder-shell/` | Path of the page builder app on the platform |
+| `REQUEST_TIMEOUT_MS` | | `30000` | Timeout of one HTTP request |
+| `VERIFY_SSL` | | `true` | `false` accepts self-signed HTTPS certificates (a local frontend) |
+| `RUN_DESTRUCTIVE_TESTS` | | `false` | `true` enables the `isolated` project |
+| `API_WORKERS` | | `4` | Parallel workers of `restapi` and `graphql` (see [Parallel workers](#parallel-workers)) |
+| `FRONTEND_WORKERS` | | `3` | Parallel workers of `e2e-frontend` |
+| `QUANTITY_CONTROL` | | `stepper` | The frontend's quantity control: `stepper` or `button` |
+| `RANGE_FILTER_TYPE` | | `slider` | The frontend's range filter: `slider` or `default` (checkboxes) |
+| `CHECKOUT_MODE` | | `single-page` | The frontend's checkout: `single-page` or `multi-step` |
+| `SEED_ONLY` | | | Comma-separated dataset collections to seed instead of all |
+| `GOOGLE_MAPS_API_KEY` | | | Written into the seeded store's settings |
 
-   ```bash
-   # bash
-   cp .env.example .env
-   ```
+The last three frontend settings must match how the frontend is configured; page objects adapt to them, so the
+same tests run against any configuration.
 
-   At minimum set `ADMIN_PASSWORD` and `USERS_PASSWORD` (the password of every seeded dataset user). For a local frontend with a self-signed certificate set `VERIFY_SSL=false`. All variables are described in [Configuration](#configuration).
+Variables set in the shell or on CI win over `.env`, so one run can override a value:
 
-4. **Seed the dataset** into the platform:
+```bash
+VERIFY_SSL=false npm run test:e2e:frontend
+```
 
-   ```shell
-   npm run seed
-   ```
+```powershell
+$env:VERIFY_SSL = "false"; npm run test:e2e:frontend; Remove-Item Env:VERIFY_SSL
+```
 
-   This loads everything in `dataset/data` (store, catalog, products, prices, inventory, contacts, organizations, users, pages, …) and then moves page-builder pages to the status each page file declares (pages are always created as Draft). Running it again updates the existing records; re-seeded pages drop back to Draft and are moved to their declared status again. Seeded users are created when missing and otherwise get their password reset to `USERS_PASSWORD`, so changing that variable and re-seeding is enough to apply it. Each seed step is allowed up to 15 minutes.
+### 3. Seed the platform
 
-5. **Check the setup** with a quick run:
+```bash
+npm run seed
+```
 
-   ```shell
-   npx playwright test --project=restapi tests/restapi/health-check
-   ```
+The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: records
+the platform already has are left as they are, dataset users get the current `USERS_PASSWORD`, and pages get their
+dataset status. Collections of modules the platform does not have are skipped.
 
-## Running tests
+The seeder does not touch the search index. After seeding a fresh platform, rebuild every document type in the
+admin UI's *Search index* blade and wait until it finishes; CI does this itself.
+
+### 4. Run the tests
 
 | Command | Runs |
 |---|---|
-| `npm test` | All four test projects |
+| `npm test` | `restapi`, `graphql`, `e2e-frontend` and `e2e-backend` |
 | `npm run test:restapi` | REST API tests |
-| `npm run test:graphql` | GraphQL tests |
-| `npm run test:e2e` | Frontend and page-builder e2e tests |
-| `npm run test:e2e:frontend` | Frontend e2e tests |
-| `npm run test:e2e:backend` | Page-builder shell e2e tests |
+| `npm run test:graphql` | xAPI (GraphQL) tests |
+| `npm run test:e2e` | Both browser projects |
+| `npm run test:e2e:frontend` | Frontend browser tests |
+| `npm run test:e2e:backend` | Page builder (admin UI) browser tests |
+| `npm run test:unit` | Unit tests of the framework itself; no platform needed |
+| `npm run test:isolated` | Destructive tests; needs `RUN_DESTRUCTIVE_TESTS=true` (see below) |
 
-Useful Playwright options:
+Any Playwright option can be added after `--`:
 
-```shell
-npx playwright test --project=graphql tests/graphql/cart          # one folder
-npx playwright test --project=e2e-frontend -g "place an order"    # by title
-npx playwright test --project=e2e-frontend --headed               # watch the browser
-npx playwright test --project=e2e-frontend --ui                   # interactive UI mode
-npx playwright show-trace test-results/<test-folder>/trace.zip    # inspect a failure
+```bash
+npm run test:graphql -- tests/graphql/cart              # one folder
+npm run test:restapi -- -g "rename a channel"            # by title
+npm run test:e2e:frontend -- --headed --workers=1        # watch the browser
+npm run test:graphql -- --repeat-each=5 tests/graphql/pickup   # hunt for flakiness
 ```
+
+Use the npm scripts rather than a bare `npx playwright test`: without `--project` Playwright also runs the `seed`
+and `unit` projects.
+
+#### Parallel workers
+
+Every project runs its tests in parallel workers (`fullyParallel`), even the tests of one file. Each group has its
+own number, because each loads the platform differently:
+
+| Projects | Workers | Why |
+|---|---|---|
+| `restapi`, `graphql` | `API_WORKERS` (default 4) | Each worker sends requests non-stop; the platform's database and search engine take the load |
+| `e2e-frontend` | `FRONTEND_WORKERS` (default 3) | Each worker runs a Chrome and loads the frontend; the frontend and the machine take the load |
+| `e2e-backend` | 1 | The page builder's page list is shared: pages created in parallel hide each other from its search |
+| `isolated` | 1 | Destructive tests must never overlap |
+| `unit`, `seed` | Playwright's default (half the CPU cores) | No platform load (`unit`) or one test (`seed`) |
+
+Raise `API_WORKERS` on a strong platform for faster runs; lower it when search-backed tests time out, typically on
+a local Elasticsearch with little memory. `--workers=N` on the command line, or the CI `workers` input, overrides
+every project for one run.
+
+### 5. Read the report
+
+```bash
+npm run report        # builds allure-report/ from allure-results/
+npm run report:open   # opens it
+```
+
+`allure-results/` keeps growing across runs; delete it for a report of one run only.
 
 ### Destructive tests
 
-Tests tagged `@destructive` change platform-wide state (reload modules, restart the platform, drop and rebuild the product index, turn off anonymous access to the store). They are excluded unless explicitly enabled, and should run on their own:
-
-```powershell
-# PowerShell
-$env:RUN_DESTRUCTIVE_TESTS = 'true'; npx playwright test --grep "@destructive"
-```
+`tests/isolated` holds tests that change platform-wide state other tests depend on: they restart the platform,
+reload modules, drop and rebuild the product index, close the store to anonymous users, and change global
+settings. They run only when asked for, with one worker, on a platform nobody else is testing on:
 
 ```bash
-# bash
-RUN_DESTRUCTIVE_TESTS=true npx playwright test --grep "@destructive"
+RUN_DESTRUCTIVE_TESTS=true npm run test:isolated
 ```
-
-### Seeding options
-
-| Command | Does |
-|---|---|
-| `npm run seed` | Seeds everything, applies page statuses and verifies the shipping methods |
-| `npm run seed:page-statuses` | Re-applies page-builder page statuses only (no-op when they already match) |
-
-The last seed step, "verify shipping methods", compares each store's stored shipping methods with `dataset/data/shipping_methods/`: exactly one active method per code, with the seeded settings (for FixedRate, the Ground and Air rates). If the platform holds something else, the step logs what it found, re-applies the dataset to the existing method and checks again; if the result still differs, the seed fails with the platform's data in the message. A broken FixedRate otherwise only shows up later as unrelated cart and checkout failures.
-
-To seed only some entities, set `SEED_ONLY` to their names from `dataset/data/manifest.json`:
 
 ```powershell
-# PowerShell
-$env:SEED_ONLY = 'products,prices'; npm run seed
+$env:RUN_DESTRUCTIVE_TESTS = "true"; npm run test:isolated; Remove-Item Env:RUN_DESTRUCTIVE_TESTS
 ```
 
-```bash
-# bash
-SEED_ONLY=products,prices npm run seed
-```
+Without the flag the `isolated` project does not exist, so it can never run by accident.
 
-In PowerShell, `$env:` variables stay set for the rest of the session; remove one with `Remove-Item Env:SEED_ONLY`. The bash form applies to that one command only.
+## CI
 
-Entities whose module is not installed are skipped (with a warning when they were asked for in `SEED_ONLY`), and so are entities with an empty data folder. "Apply page statuses" runs when `pages` or `pagesContent` was seeded, "verify shipping methods" when `shippingMethods` was. A failing request names the item it was seeding (`item "<id>"`), and the error keeps the platform's response.
+[`.github/workflows/auto-tests.yml`](.github/workflows/auto-tests.yml) runs on demand (*Actions → Auto Tests
+Docker → Run workflow*) through the shared
+[`VirtoCommerce/.github` Playwright workflow](https://github.com/VirtoCommerce/.github). For each database and
+search engine in its matrix it:
 
-### Reports
+1. deploys the platform in Docker with the modules of `backend-packages.json`, and the frontend;
+2. writes `.env` from the `VC_TESTING_MODULE_ENV_FILE_NEW` secret (it must hold `STORE_ID` and `USERS_PASSWORD`;
+   the URLs and the administrator are filled in by the workflow);
+3. runs `npm ci`, installs the browsers, runs the `seed` project and rebuilds the search indexes;
+4. runs each selected suite as its own Playwright run, so one failing suite does not stop the next;
+5. uploads the JUnit, JSON and Allure reports as artifacts.
 
-Every run writes Allure results to `allure-results/`, plus traces and screenshots of failed tests to `test-results/`.
+Inputs: the frontend build (`frontendZipUrl`), the suites (`all` = `graphql`, `restapi`, `e2e`; or one of them;
+`isolated` also needs `RUN_DESTRUCTIVE_TESTS=true` in the secret), an optional `--grep` and `--workers`. CI retries
+a failed test once.
 
-```shell
-npm run report        # build the HTML report into allure-report/
-npm run report:open   # open it
-```
-
-The report tree is grouped by suite, then spec file, then `describe` block (`restapi › restapi/marketing/dynamic-content.spec.ts › dynamic content (admin) › …`). The grouping is set in [`allurerc.mjs`](allurerc.mjs) and uses the `parentSuite` (Playwright project), `suite` (spec file) and `subSuite` (`describe`) labels that `allure-playwright` sets on every result.
-
-`allure-results/` is not cleared between runs, so a report built after several runs mixes their results. For a report of one run, delete it first:
-
-```powershell
-Remove-Item -Recurse -Force allure-results
-```
-
-```bash
-rm -rf allure-results
-```
-
-A CI run uploads a `playwright-test-results-…` artifact with the HTML report in `report/allure-report/` and the failed tests' traces in `test-results/`. The report loads its data over HTTP, so opening `index.html` from disk doesn't work: unzip the artifact and serve the report from this repo.
-
-```shell
-npx allure open <unzipped artifact>/report/allure-report
-npx playwright show-trace <unzipped artifact>/test-results/<test>/trace.zip   # a failed test's trace
-```
-
-## Configuration
-
-All settings come from environment variables, loaded from `.env` when it exists and validated at start-up by `core/env.ts` (an invalid or missing value fails fast with a clear message).
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `BACKEND_BASE_URL` | — | Platform URL, e.g. `http://localhost:8090` |
-| `FRONTEND_BASE_URL` | — | Frontend URL, e.g. `https://localhost:3000` |
-| `PAGE_BUILDER_PATH` | `/apps/page-builder-shell/` | Path of the page-builder shell app on the platform |
-| `STORE_ID` | — | Store the tests use (`store-acme` in the dataset) |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Platform admin account |
-| `USERS_PASSWORD` | — | Password of the seeded dataset users |
-| `REQUEST_TIMEOUT_MS` | `30000` | Timeout of API requests |
-| `VERIFY_SSL` | `true` | Set `false` for self-signed certificates, including a local frontend dev server on `https://localhost:3000` (Node does not trust it even when the browser does) |
-| `RUN_DESTRUCTIVE_TESTS` | `false` | Include `@destructive` tests |
-| `E2E_WORKERS` | 3 | Parallel browser workers for `e2e-frontend` (`e2e-backend` always uses 1) |
-| `QUANTITY_CONTROL` | `stepper` | Frontend quantity control: `stepper` or `button` |
-| `RANGE_FILTER_TYPE` | `slider` | Frontend price filter: `slider` or `default` (checkboxes) |
-| `CHECKOUT_MODE` | `single-page` | Frontend checkout: `single-page` or `multi-step` |
-| `GOOGLE_MAPS_API_KEY` | — | Optional, for map-based frontend features |
-| `SEED_ONLY` | — | Comma-separated entities to seed (see above) |
-
-`QUANTITY_CONTROL`, `RANGE_FILTER_TYPE` and `CHECKOUT_MODE` must match how the frontend theme is configured. Tests that only apply to the other variant are skipped; checkout tests adapt to `CHECKOUT_MODE`.
-
-### Parallel e2e workers (`E2E_WORKERS`)
-
-`E2E_WORKERS` sets how many browsers the `e2e-frontend` project runs at the same time. Each worker is a separate browser that loads frontend pages, and every page load sends catalog, cart and menu queries through xAPI to the platform, which answers most of them from Elasticsearch. So the right number depends on how much concurrent traffic **the platform and its search engine** can serve, not on how many CPU cores the test machine has.
-
-The default is 3, locally and on CI; `E2E_WORKERS` in the environment or `.env` overrides it.
-
-Other projects are not affected: `e2e-backend` always runs with 1 worker (the page builder's counters, status lists and search are shared state), and `restapi` / `graphql` use Playwright's default because they do not render pages.
-
-Choosing a value:
-
-- **Start low on a new environment** (2–4) and raise it while the run stays green.
-- **Too many workers shows up as timeouts, not assertion failures:** pages stuck on a loading spinner, a main menu without categories, a cart that never renders, or plain API calls in `arrange:` steps timing out after 30 s. Lower `E2E_WORKERS` before investigating individual tests.
-- **Check the search engine first when the suite degrades under load.** With Elasticsearch capped at a 512 MB heap (1 GiB container) and Kibana attached to the same node, 8 workers pushed it into long garbage-collection pauses and restarts; platform responses then stalled for up to 30 s. Giving Elasticsearch more memory fixes the cause; fewer workers only reduce the pressure.
-- **A Vite dev server as `FRONTEND_BASE_URL`** (for example `https://localhost:3000` from a local vc-frontend checkout) serves unbundled sources, about 4,000 requests per page load, so each page is slower than against a production build. Prefer fewer workers there.
-
-Examples:
-
-```powershell
-# PowerShell: one run with 2 workers
-$env:E2E_WORKERS = '2'; npm run test:e2e:frontend; Remove-Item Env:E2E_WORKERS
-```
-
-```bash
-# bash: one run with 2 workers
-E2E_WORKERS=2 npm run test:e2e:frontend
-```
-
-To make it permanent for your machine, put `E2E_WORKERS=4` (or another value) in `.env`. On CI, set it in the env secret when the runner can take more or less than the default 3. Playwright's `--workers` option caps the whole run, so it can only lower the number further (for example `npx playwright test --project=e2e-frontend --workers=1` to run one test at a time); to raise it, change `E2E_WORKERS`.
+To test new module versions, update `backend-packages.json`.
 
 ## Project structure
 
+The code is in layers. Each layer may import only the layers before it; Biome enforces this
+(`biome/layers.json`), and specs import Playwright only through `@fixtures`.
+
 ```
-api/                 Clients for the platform: HTTP, auth, REST and GraphQL
-  auth/                Token and cookie sign-in, token cache, browser sessions
-  http/                HttpClient: typed wrapper over Playwright's APIRequestContext
-  rest/
-    clients/           One client class per REST area (catalog, orders, stores, …)
-    types/             Named types over the generated API model, with required fields
-    generated/         Generated from the platform swagger (do not edit)
-  graphql/
-    fragments/         Reusable GraphQL fragments (*.graphql)
-    operations/        Queries and mutations by area (*.graphql)
-    generated/         Typed documents generated from the platform schema (do not edit)
-    graphql-client.ts  Executes typed documents; throws on GraphQL errors
-core/                Framework-free utilities: env, logger, cleanup stack, unique ids, …
-dataset/             Test data and everything that creates it
-  data/                JSON records seeded into the platform, plus manifest.json
-  seeded.ts            Names for seeded values the specs use (users, products, catalog, currency, language)
-  builders/            new…() functions returning valid drafts (contacts, pages, carts, …)
-  arrange/             arrange…() functions that create data and register its cleanup
-  seeder.ts            Seeds dataset/data in manifest order (users: create or reset password)
-  page-statuses.ts     Moves seeded pages to their declared status
-  stock.ts             Queries over seeded inventory (which center stocks what)
-pages/               Page objects (Playwright locators and UI actions, no API calls)
-  frontend/            vc-frontend: pages, layouts, components, CheckoutFlow
-  backend/             Platform admin: vc-shell controls and the page-builder shell
-fixtures/            Playwright fixtures shared by all tests (merged in fixtures/index.ts)
-tests/
-  setup/               The seed project
-  restapi/             REST API specs, one folder per platform area
-  graphql/             GraphQL specs, one folder per xAPI area
-  e2e/frontend/        Frontend specs: account, cart, catalog, checkout, site, wishlists
-  e2e/backend/         Page-builder shell specs
-biome/               Lint, import-order and layer rules (extended by biome.json)
-CLAUDE.md            Short guide for Claude Code (and humans) working in this repo
-.claude/             Claude Code agents, commands and skills (see AI-assisted workflow)
-.github/workflows/   CI: manual test runs (see Continuous integration)
-backend-packages.json Platform image and module versions the CI stack installs
-playwright.config.ts Projects, timeouts and reporters
-allurerc.mjs         Allure report settings (tree grouped by suite)
-codegen-rest.mts     REST types generation
-codegen-graphql.ts   GraphQL types generation
+core  →  api  →  dataset  →  fixtures  →  tests
+                   pages ─────────┘
 ```
 
-### Layers
-
-Each folder is a layer that may only depend on the layers below it. Biome enforces this (`biome/layers.json`), so an import across the rules fails the lint:
-
-| Layer | May import |
+| Alias | Folder |
 |---|---|
-| `core` | nothing else |
-| `api` | `core` |
-| `pages` | `core` (no API calls or data setup in page objects) |
-| `dataset` | `api`, `core` |
-| `fixtures` | everything except `tests` |
-| `tests` | everything; `test` and `expect` must come from `@fixtures`, not `@playwright/test` |
+| `@core/*` | `core/` |
+| `@api/*` | `api/` |
+| `@dataset/*` | `dataset/` |
+| `@pages/*` | `pages/` |
+| `@fixtures` | `fixtures/index.ts` |
 
-Import aliases: `@core/*`, `@api/*`, `@dataset/*`, `@pages/*`, `@fixtures`.
+```
+.
+├── core/                    Helpers with no platform knowledge
+│   ├── env.ts               Reads and validates .env into the frozen `Env` (the `env` fixture)
+│   ├── secret.ts            `Secret`: a value masked in every log, error and report
+│   ├── cleanup-stack.ts     Runs registered undo actions in reverse order, collecting every failure
+│   ├── poll.ts              `pollUntil` and `INDEX_LAG_TIMEOUT_MS` for eventually consistent reads
+│   ├── required-fields.ts   `requireFields` / `requireDefined`: narrow optional API fields or fail clearly
+│   ├── unique-id.ts         Unique names for test data
+│   └── …                    Logger, validation schemas, deep freeze, topological sort, placeholders
+│
+├── api/                     Talking to the platform
+│   ├── api-session.ts       `ApiSession`: one user's REST + GraphQL clients (the `api` fixture)
+│   ├── api-matchers.ts      `toBeHttpError`, `toBeGraphqlError`
+│   ├── mailbox.ts           Reads sent e-mails from the platform's notification journal
+│   ├── auth/                Token endpoint, token cache, browser sign-in state (cookie / local storage)
+│   ├── http/                `HttpClient`, `HttpResponse`, `HttpError`, deadlock retry
+│   ├── rest/
+│   │   ├── rest-api.ts      `RestApi`: every REST client, e.g. `api.rest.catalog.products`
+│   │   ├── clients/         One client per platform module
+│   │   ├── types/           Named types over the generated ones, with the fields tests rely on made required
+│   │   └── generated/       Generated from Swagger (`npm run codegen:rest`); never edit
+│   └── graphql/
+│       ├── graphql-client.ts  Executes typed documents; throws `GraphqlError` on errors
+│       ├── fragments/, operations/  The .graphql documents tests use
+│       └── generated/       Generated from the schema (`npm run codegen:graphql`); never edit
+│
+├── dataset/                 Test data
+│   ├── data/                The seed dataset as JSON, one folder per collection
+│   ├── manifest.ts          How each collection is seeded: endpoint, keys, module, order
+│   ├── dataset.ts           Typed access for tests: `dataset.products.get(id)`, `dataset.users.filter(…)`
+│   ├── seed/                The seeder and the steps after it (user passwords, page statuses)
+│   ├── builders/            `newX()` functions that build unique entities for tests
+│   ├── arrange/             The `arrange` fixture, one file per domain (see below)
+│   ├── known-issues.ts      Known defects, with tracker keys where tickets exist
+│   └── users.ts, stock.ts, store-under-test.ts   Dataset lookups: credentials, fulfillment centers, the store
+│
+├── pages/                   Page objects (depend on `core` only)
+│   ├── selectors.ts         Shared selector helpers
+│   ├── frontend/            vc-frontend: `Frontend` factory (the `frontend` fixture), pages and components
+│   └── backend/             Admin UI: shell controls (blades, grids, selects) and the page builder app
+│
+├── fixtures/                Playwright fixtures; specs import `test`, `expect` and `knownIssue` from `@fixtures`
+│   ├── env.fixture.ts       `env`
+│   ├── dataset.fixture.ts   `dataset`, `store`
+│   ├── api.fixture.ts       `api` (anonymous by default; `test.use({ user })` signs in a dataset user)
+│   ├── cleanup.fixture.ts   `cleanup` (the stack `arrange` registers on)
+│   ├── arrange.fixture.ts   `arrange`
+│   ├── browser.fixture.ts   `shopper`, `frontend`, `pageBuilder`; signs the browser in
+│   └── known-issue.ts       `knownIssue(...)`
+│
+├── tests/
+│   ├── setup/               The `seed` project
+│   ├── restapi/             REST tests, one folder per platform module
+│   ├── graphql/             xAPI tests, by area (cart, catalog, customer, orders, pickup, quotes, security)
+│   ├── e2e/frontend/        Frontend tests (account, cart, catalog, checkout, lists, site)
+│   ├── e2e/backend/         Page builder tests
+│   ├── isolated/            Destructive tests (see above)
+│   └── unit/                Unit tests of core, api and dataset, against local stub servers
+│
+├── biome/                   Lint rules, import rules, layer rules, exceptions
+├── playwright.config.ts     Projects, timeouts, reporters
+├── codegen-graphql.ts, codegen-rest.mts   Code generation
+├── backend-packages.json    Platform and module versions CI deploys
+├── TESTS.md                 Every test of the old suite and where it went
+└── .github/workflows/       CI
+```
+
+### Playwright projects
+
+| Project | Folder | Notes |
+|---|---|---|
+| `unit` | `tests/unit` | No platform needed |
+| `seed` | `tests/setup` | Seeds the dataset; never retried |
+| `restapi` | `tests/restapi` | `API_WORKERS` workers, 90 s per test |
+| `graphql` | `tests/graphql` | `API_WORKERS` workers, 90 s per test |
+| `e2e-frontend` | `tests/e2e/frontend` | Chrome 1920×1080, `FRONTEND_WORKERS` workers, 120 s per test |
+| `e2e-backend` | `tests/e2e/backend` | One worker (the page list is shared), 120 s per test |
+| `isolated` | `tests/isolated` | Only with `RUN_DESTRUCTIVE_TESTS=true`; one worker |
 
 ### Fixtures
 
-Tests get their clients and data through fixtures (`fixtures/`):
-
-| Fixture | Gives |
+| Fixture | What it is |
 |---|---|
-| `env`, `dataset` | Validated settings; the loaded `dataset/data` |
-| `httpClient`, `graphqlClient` | Clients signed in as the `user` option, or anonymous |
-| `platformAdminHttpClient` | REST client signed in as the worker's administrator (see below) |
-| `workerAdministrator` | Credentials of an administrator account created when the worker starts and deleted when it ends; `test.use({ user: asWorkerAdministrator })` signs `httpClient` in as it |
-| `anonymousHttpClient` | A fresh unauthenticated client |
-| `frontendContext` | Store, catalog, currency, culture and user ids for the current user |
-| `customerAccount` | A **fresh** organization + contact + customer user, signed in, deleted after the test |
-| `cleanupStack` | Undo actions registered during the test, run last-first at the end |
-| `shopper` | Who is in the browser (anonymous, dataset user, or the customer account) |
-| `cart` | The shopper's default cart; prefill it with `test.use({ cart: withItems([...]) })` |
-| `pageBuilder`, `pageBuilderClient` | Page-builder shell page object; page-builder REST client |
+| `env` | The validated configuration |
+| `dataset`, `store` | The seed dataset; the store under test (id, catalog, language, currency) |
+| `api` | An `ApiSession`: `api.rest.*`, `api.graphql.execute(...)`, `api.storeContext()`, `api.as(user)`, `api.anonymous()` |
+| `arrange` | Creates test data and removes it after the test |
+| `cleanup` | The cleanup stack, for undoing what the code under test creates |
+| `shopper` | The frontend browser's identity and its `api` session (`test.use({ shopperKind: "customer" })`) |
+| `frontend` | Frontend page objects, e.g. `frontend.cart()`, `frontend.category("smartphones")` |
+| `pageBuilder` | The page builder app of the admin UI |
 
-Options set with `test.use(...)`:
+### `arrange` domains
 
-- `user`: sign in as a dataset user, e.g. `test.use({ user: seededUser(SEEDED_USERS.storeEmployee) })`. Seeded usernames and shared product ids live in `dataset/seeded.ts`.
-- `browserCustomerAccount: withCustomerAccount`: sign a fresh customer account into the browser.
-- `customerAccountRole`: `org-employee` (default) or `org-maintainer`.
+| Domain | Creates |
+|---|---|
+| `arrange.customers` | Organizations, members, signed-in customers (`customerAccount()`), memberships, addresses |
+| `arrange.security` | Back-office users, API keys, roles, OAuth apps, signed-in sessions |
+| `arrange.catalog` | Catalogs, categories, products, tags, product configurations, completeness channels |
+| `arrange.pricing` | Pricelists, prices, assignments |
+| `arrange.marketing` | Promotions, coupons, dynamic content |
+| `arrange.orders` | Orders, quotes |
+| `arrange.carts` | Carts and shopping lists, in a shopper's session |
+| `arrange.pickup` | Pickup locations, and waits until carts and products can be picked up there |
+| `arrange.content` | Assets, content files, menus, page builder pages |
+| `arrange.platform` | Stores, store and global settings, dictionaries, dynamic properties, white-labeling |
 
-The `e2e-backend` project signs the browser in as the platform admin by default.
+Methods named `…Later` create nothing: they register the removal of something the code under test will create.
+`arrange.admin` is the store administrator's session, for reading platform state in assertions.
 
-## How tests are written
+## Writing tests
 
-- **Arrange / act / assert steps.** Every test is split into `test.step("arrange: …")`, `test.step("act: …")` and `test.step("assert: …")`, so reports read as a script.
-- **Own your data.** A test that changes state creates what it needs through `dataset/arrange` or a fixture, and registers the undo in `cleanupStack` right after creating it, or before when the builder sets the id up front. Tests that change account state (carts, lists, addresses, organizations) use `customerAccount` instead of shared seeded users, so they can run in parallel. Seeded data is read-only.
-- **Seeded values by name.** Seeded usernames and the products several specs use come from `dataset/seeded.ts` (`SEEDED_USERS`, `SEEDED_PRODUCTS`, `SEEDED_CATALOG_ID`, …), never as string literals in specs.
-- **Unique names** via `uniqueId(prefix)` for anything a test creates.
-- **Global settings are shared by every test running at the same time**, so a test undoes only its own change, never a snapshot of the whole setting:
-  - list settings (file-extension blacklist, member groups, review types): `arrangeSettingValue(...)` adds a value only if missing and removes only that value afterwards; when adding the value is the test's action, `registerSettingValuesRemoval(...)` + `addSettingValue`/`replaceSettingValue`;
-  - single values: `registerSettingRestore(...)` puts back the effective value (the default when the setting was unset), in a `mode: "default"` file, and only for settings no other file reads.
-- **Missing data fails loudly.** Optional API fields are checked with `requireFields(value, fields, label)`, not hidden behind `?? ""`, `?? []` or `?? 0`; a missing field then fails with a message naming it.
-- **Wait with the web-first API**, never with sleeps: `expect(locator)…` for the UI, `expect.poll(...)` for eventually-consistent APIs (search indexes, pickup locations).
-- **Known product issues** are listed once in `dataset/known-issues.ts` (tracker key and summary) and marked with `test.fail(true, describeIssue(KNOWN_ISSUES.<key>))`, or `test.fixme` for a test that cannot run yet. They pass while the issue exists and fail once it is fixed, so the reason gets revisited. Issues without a tracker key show `[no tracker key]` in the report: fill in `tracker` when the issue is filed.
-- **Page objects** expose locators and user actions; assertions stay in the tests.
-- The `e2e-backend` project runs with **one worker**: page-builder counters, status lists and search are global state that parallel tests would disturb.
-- **Tests of one file run in parallel** (`fullyParallel: true`), so every test must work while its neighbours run at the same moment:
-  - Assert on what the test created, not on the whole result: a search can also return other tests' data, so use `toContainEqual` / `not.toContain` with the test's own ids instead of `toEqual([...])`.
-  - A file whose tests share platform-wide state (global settings, the indexing queue) opts out with `test.describe.configure({ mode: "default" })`, which runs its tests in order on one worker.
-  - Before acting in the UI, wait for the state the action depends on (for example, the cart badge before signing in to merge a cart), not just for the page to load.
-- **One administrator per worker.** Concurrent sign-ins of the same user can fail on the platform (HTTP 500), and some state belongs to the signed-in user (push notifications, saved lists). So `admin` (`ADMIN_USERNAME`) is only used to create a throwaway administrator for each worker (`workerAdministrator`); `platformAdminHttpClient` and `asWorkerAdministrator` sign in as it, and it is signed out and deleted when the worker ends. Tests inside a worker run one at a time, so no two running tests share credentials. Seeded users (`seededUser`) remain for tests that need a specific seeded identity.
-- **Database conflicts are retried.** `HttpClient` repeats a request up to three times (after 0.3, 1 and 2 seconds) when the platform answers 500 with a SQL deadlock or "An error occurred while saving the entity changes", which SQL Server returns under parallel writes; each retry prints a Node warning. A conflict that persists still fails the test.
+### Rules
 
-## Signed-in users and prefilled carts in e2e tests
+- Import `test`, `expect` and `knownIssue` from `@fixtures`, never from `@playwright/test`.
+- Tag every test in Allure: `epic` and `feature` in `beforeEach`, `story` and `description` in the test.
+- Write every phase as a step named `arrange: …`, `act: …` or `assert: …`.
+- No conditional logic, no type casts and no helper functions in specs. Repeated cases are one table-driven test;
+  table rows may hold small lambdas.
+- Create what the test changes with `arrange`; read what it only reads from `dataset`. A test that changes a
+  customer's own state (cart, lists, addresses, locks) creates its own customer.
+- Register cleanup before the change, never after the assertion.
+- Prove a deletion by reading the record by id, not by a search that might just miss it.
+- Waits for search-index reads live in `arrange` (or poll with `INDEX_LAG_TIMEOUT_MS`), never as sleeps.
+- A UI test checks the UI; data rules (search semantics, prices, validation) are checked once through the API.
+- A test that hits a known defect starts with `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test runs
+  and is expected to fail; without one it is skipped as `fixme`. Add the defect to `dataset/known-issues.ts` first.
+- No code comments; names and `test.step` titles say what happens.
 
-Most e2e tests are about one screen: the cart, a checkout step, a wishlist. Getting there through the UI (open the sign-in page, type credentials, add products one by one) would make every test slower and dependent on screens it does not test, and a sign-in or add-to-cart hiccup would fail tests about something else. So the fixtures prepare the browser **before the test starts**: the browser is already signed in, and the cart already holds the products the test needs.
+Before committing, run `npm run check` (format and lint) and `npm run typecheck`; the pre-commit hook runs both.
 
-### How the browser is signed in
-
-The `storageState` fixture (`fixtures/browser.fixture.ts`) builds the browser's initial storage from API calls, so the first page the test opens is already in the right state:
-
-| Who | How | Where it lives in the browser |
-|---|---|---|
-| Anonymous visitor (default) | A random user id per test | `localStorage["user-id"]` on the frontend origin |
-| Dataset user (`user` option) | A token from `/connect/token` | `localStorage["auth"]` on the frontend origin |
-| Fresh customer account (`browserCustomerAccount: withCustomerAccount`) | The account is created, then its token is issued | `localStorage["auth"]` on the frontend origin |
-| Platform admin (`e2e-backend` default) | Cookie sign-in through `/api/platform/security/login` | the platform identity cookie |
-
-Browser tokens are requested through the frontend (`FRONTEND_BASE_URL/connect/token`), not directly from the platform. The platform checks a token's issuer against the host a request arrives on and treats a mismatch as anonymous without an error, so a token issued by `BACKEND_BASE_URL` would not sign the browser in behind a proxy that forwards the frontend host (the CI nginx does). Going through the frontend's proxy makes the issuer match in every setup. Because of this, the Node side must trust the frontend's certificate: with a self-signed local dev server set `VERIFY_SSL=false`, or point `NODE_EXTRA_CA_CERTS` at its root CA.
-
-Tokens come from a per-worker token cache, so a user signs in once per worker, not once per test. The random anonymous id means two anonymous tests never see each other's cart.
-
-The `shopper` fixture describes whoever is in the browser: their `credentials`, a `graphqlClient` signed in as them, and their `context` (store, currency, culture, user id). Use it to arrange data for that same person through the API.
-
-### Which account to use
-
-- **Anonymous (the default)** for anything a guest can do: catalog, cart, guest checkout.
-- **A fresh customer account** whenever the test changes account data: cart, saved-for-later, wishlists, addresses, organizations. Each test gets its own organization, contact and user, deleted afterwards, so tests can run in parallel without touching each other's data.
-
-  ```ts
-  import { saveMemberAddress } from "@dataset/arrange/contact";
-  import { newMemberAddress } from "@dataset/builders/address";
-  import { test, withCustomerAccount } from "@fixtures";
-
-  test.use({ browserCustomerAccount: withCustomerAccount });
-
-  test("pick a saved address", async ({ page, customerAccount }) => {
-    await saveMemberAddress(customerAccount.graphqlClient, customerAccount.organizationId, newMemberAddress("test"));
-    // the browser is signed in as customerAccount
-  });
-  ```
-
-  `customerAccount` is the same account the browser is signed in as. Set `customerAccountRole: "org-maintainer"` for maintainer-only screens.
-
-- **A dataset user** (`user` option) only for read-only checks of seeded data. Seeded users are shared by every worker, so a test that changes their cart or lists interferes with other tests.
-
-### How the cart is prefilled
-
-Use `withItems` in `test.use`:
+### A REST test
 
 ```ts
-import { SEEDED_PRODUCTS } from "@dataset/seeded";
-import { test, withCustomerAccount, withItems } from "@fixtures";
-import { CartPage } from "@pages/frontend/pages/cart-page";
+import * as allure from "allure-js-commons";
 
-test.describe("cart line items", () => {
-  test.use({
-    browserCustomerAccount: withCustomerAccount,
-    cart: withItems([{ productId: SEEDED_PRODUCTS.galaxyA57, quantity: 3 }]),
-  });
+import { expect, test } from "@fixtures";
 
-  test("remove a line item", async ({ page }) => {
-    const cartPage = new CartPage(page);
-    await cartPage.navigate();
-    // the cart already holds the product ×3
+test.beforeEach(async () => {
+  await allure.epic("REST API");
+  await allure.feature("Pricing / Pricelists");
+});
+
+test.describe("pricelists (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com" });
+
+  test("rename a pricelist", async ({ api, arrange }) => {
+    await allure.story("Update");
+    await allure.description("A renamed pricelist is read back with its new name.");
+    const pricelist = await test.step("arrange: a pricelist", () => arrange.pricing.pricelist());
+    const newName = `${pricelist.name}-renamed`;
+
+    await test.step("act: rename the pricelist", () =>
+      api.rest.pricing.pricelists.update({ ...pricelist, name: newName }));
+
+    await test.step("assert: the pricelist has the new name", async () => {
+      expect((await api.rest.pricing.pricelists.get(pricelist.id)).name).toBe(newName);
+    });
   });
 });
 ```
 
-Before the test starts, `withItems`:
+- `test.use({ user })` signs `api` in as a dataset user; without it `api` is anonymous.
+- Missing records: `find(id)` returns `undefined`; `get(id)` throws (with the record name in the message), so use `find` to
+  check that something is gone.
+- Expected rejections: `await expect(promise).rejects.toBeHttpError(400, "reason in the body")`.
+- An endpoint without a client: add a method to its client in `api/rest/clients/`, with types from
+  `api/rest/types/`. Regenerate the types with `npm run codegen:rest` after a platform update.
 
-1. adds the items to the shopper's **default cart** with xAPI `addItemsCart`, in the store's default currency and culture: the cart the frontend shows;
-2. waits until that cart can be read back, so the first page load never races the create;
-3. registers its removal in `cleanupStack`.
+### A GraphQL test
 
-The `cart` fixture is automatic: without `withItems` it does nothing. The test can read the created cart when it needs ids or totals: `async ({ page, cart }) => …`.
+```ts
+import * as allure from "allure-js-commons";
 
-After every frontend e2e test, the whole default cart of the browser's user (signed-in or anonymous) is removed, including anything the test added through the UI; `storageState` registers this, so a test needs no fixture for it.
+import { AddItemsCartDocument } from "@api/graphql/generated/graphql";
+import { expect, test } from "@fixtures";
 
-### When not to use them
+const PRODUCT_ID = "product-smartphone-samsung-galaxy-a57-5g";
 
-- **The sign-in itself is under test.** Sign in through `SignInPage.signIn(...)` with `customerAccount.credentials`, and leave the browser anonymous. This also applies to cart merge (the browser must start anonymous) and to organization locks: locking a membership revokes the user's sessions, so lock first, then sign in through the UI.
-- **The way products get into the cart is under test** (add-to-cart buttons, configurable products, wishlists): use the UI.
-- **Configurable products** cannot be prefilled with `withItems`; they need their configuration sections, so add them through the product page.
+test.beforeEach(async () => {
+  await allure.epic("GraphQL");
+  await allure.feature("Cart / Items");
+});
 
-### Things to keep in mind
+test.describe("cart items (anonymous)", () => {
+  test("add a product to a new cart", async ({ api, arrange }) => {
+    await allure.story("Add");
+    await allure.description("A product added to a new cart is its only line item.");
+    arrange.carts.removeDefaultCartLater(api);
 
-- **Default cart vs named carts.** API and GraphQL tests use `arrangeCart`, which creates a cart with a unique name so parallel tests never share one and registers its removal. The frontend only shows the unnamed default cart, which is why e2e tests use `withItems` (or `addToDefaultCart` for an account other than the shopper, as in the cart-merge test). `addToDefaultCart` registers no cleanup: register `registerDefaultCartRemoval` before calling it (every frontend test already does this for the browser's user).
-- **The frontend signs in with an e-mail.** Fresh accounts therefore use their e-mail address as user name.
-- **Product links may open a new tab.** The frontend opens product pages from cards according to the theme setting `details_browser_target` (`_blank` in release builds); its dev server always uses the same tab. Follow such links through the page object (for example `ProductCard.openConfigurations()`, which returns the page the product opened in), never by clicking and then asserting on the original `page`.
-- **Storage is fixed when the page opens.** Anything that affects the session itself (a lock, a password change) must happen before a UI sign-in, not before a pre-signed-in page.
+    const { addItemsCart } = await test.step("act: add the product ×1", async () =>
+      api.graphql.execute(AddItemsCartDocument, {
+        command: { ...(await api.storeContext()), cartItems: [{ productId: PRODUCT_ID, quantity: 1 }] },
+      }));
 
-## Code generation
-
-The API types are generated from the running platform and committed. Regenerate after a platform or module upgrade, or after adding `.graphql` documents:
-
-```shell
-npm run codegen           # both
-npm run codegen:graphql   # GraphQL: schema from BACKEND_BASE_URL/graphql + documents in api/graphql
-npm run codegen:rest      # REST: swagger from BACKEND_BASE_URL/docs/PlatformUI/swagger.json
+    await test.step("assert: the cart holds the product ×1", () => {
+      expect(addItemsCart?.items?.map((item) => [item?.productId, item?.quantity])).toEqual([[PRODUCT_ID, 1]]);
+    });
+  });
+});
 ```
 
-To add a GraphQL operation: put the `.graphql` file under `api/graphql/operations/<area>/`, run `npm run codegen:graphql`, then use the generated `…Document` constant with `graphqlClient.execute(...)`.
+- `api.storeContext()` gives the variables every xAPI operation needs: store, culture, currency and user id. An
+  anonymous session gets a fresh user id, so anonymous tests never share a cart.
+- A customer of the test's own: `const customer = await arrange.customers.customerAccount()`, then `customer.api`.
+- A new operation: add a `.graphql` file under `api/graphql/operations/<area>/` (reuse `fragments/`), then run
+  `npm run codegen:graphql` to get its typed `…Document`.
+- `execute` throws `GraphqlError` when the response has errors; assert expected errors with
+  `rejects.toBeGraphqlError("VALIDATION")`, or read them with `executeRaw`.
 
-## Code quality
+### An e2e test
 
-| Command | Does |
-|---|---|
-| `npm run check` | Biome lint + format + import order, fixing what it can |
-| `npm run lint` | Biome lint only |
-| `npm run format` | Biome format only |
-| `npm run typecheck` | TypeScript type check (`tsc --noEmit`) |
+```ts
+import * as allure from "allure-js-commons";
 
-A **pre-commit hook** ([simple-git-hooks](https://github.com/toplenboren/simple-git-hooks), installed by `npm install`) runs `biome check` on the staged files and `tsc --noEmit`. If it blocks a commit, run `npm run check`, stage the fixes and commit again. To skip it once:
+import { expect, test } from "@fixtures";
 
-```powershell
-# PowerShell
-$env:SKIP_SIMPLE_GIT_HOOKS = '1'; git commit -m "..."; Remove-Item Env:SKIP_SIMPLE_GIT_HOOKS
+const PRODUCT = { id: "product-smartphone-samsung-galaxy-a57-5g", sku: "smartphone-samsung-galaxy-a57-5g" } as const;
+
+test.beforeEach(async () => {
+  await allure.epic("E2E");
+  await allure.feature("Frontend / Cart");
+});
+
+test.describe("cart (customer of their own)", () => {
+  test.use({ shopperKind: "customer" });
+
+  test("change the quantity of a line item", async ({ frontend, shopper, arrange }) => {
+    await allure.story("Line items");
+    await allure.description("A line item's quantity changed in the cart is what the cart badge shows.");
+    await test.step("arrange: the cart holds the product ×3", () =>
+      arrange.carts.defaultCart(shopper.api, [{ productId: PRODUCT.id, quantity: 3 }]));
+    const cart = frontend.cart();
+    const { quantity } = cart.lineItem(PRODUCT.sku);
+
+    await test.step("arrange: open the cart", async () => {
+      await cart.navigate();
+      await expect(quantity.input).toHaveValue("3");
+    });
+
+    await test.step("act: set the quantity to 4", () => quantity.setQuantity(4));
+
+    await test.step("assert: the cart badge shows 4", async () => {
+      await expect(cart.cartQuantityLabel).toHaveText("4");
+    });
+  });
+});
 ```
 
-```bash
-# bash
-SKIP_SIMPLE_GIT_HOOKS=1 git commit -m "..."
+- The browser starts signed in: as an anonymous visitor (default) or as a new customer
+  (`test.use({ shopperKind: "customer" })`). Arrange the shopper's data through `shopper.api`, the same identity.
+- `frontend` builds page objects for the configured frontend: `setQuantity` uses the stepper or the add-to-cart
+  input as `QUANTITY_CONTROL` says, and `frontend.checkout()` walks the single-page or multi-step checkout.
+- Specs hold no selectors. Add locators and multi-step actions to `pages/`; a page object exposes `Locator`s for
+  assertions and methods that wait for what they trigger.
+- Page builder tests use the `pageBuilder` fixture; the browser is signed in to the admin UI as the administrator.
+
+### Cleaning up
+
+Every test gets a `CleanupStack` (`core/cleanup-stack.ts`) as the `cleanup` fixture. A test, or `arrange` on its
+behalf, pushes an undo action for each change; after the test the fixture runs them all.
+
+- **When:** after the test body, whether it passed or failed (it is fixture teardown), while the `api` session is
+  still signed in.
+- **Order:** last registered first (LIFO), so dependants go before what they depend on: a membership before its
+  organization, a user before its contact, a price before its pricelist.
+- **Failures:** a failing undo does not stop the others. When all have run, the test fails with
+  `"<n> cleanup action(s) failed"` and one line per failure, secrets masked, so leftover data never goes unnoticed.
+- **Report:** each undo is an Allure step `cleanup: <description>`.
+
+`arrange` registers the undo of everything it creates, and its `…Later` methods register undos for what the code
+under test creates. Use `cleanup` directly only when a test creates or changes something `arrange` has no method
+for:
+
+```ts
+test("create a catalog", async ({ api, cleanup, store }) => {
+  const draft = newCatalog(store.defaultLanguage);
+  cleanup.push(`delete catalog ${draft.name}`, () => api.rest.catalog.catalogs.delete(draft.id));
+
+  const catalog = await test.step("act: create the catalog", () => api.rest.catalog.catalogs.create(draft));
+
+  await test.step("assert: the catalog has the given id", () => {
+    expect(catalog.id).toBe(draft.id);
+  });
+});
 ```
 
-## Continuous integration
+Rules for undo actions:
 
-Tests run on GitHub Actions through [`.github/workflows/auto-tests.yml`](.github/workflows/auto-tests.yml), started by hand: **Actions → Auto Tests Docker → Run workflow**, on the branch whose tests should run.
+- **Push before the change.** If the change fails halfway, or the assertion after it fails, the undo still runs.
+  For that the id must be known up front: builders set `id: randomUUID()`, which the platform keeps for most
+  entities. Where the platform assigns the id (page builder pages, GraphQL carts and lists), push right after the
+  create, before any assertion.
+- **Make the undo tolerant.** It may run when the change never happened or the test already deleted the record:
+  most platform deletes by id ignore a missing id; where one does not, check first, as the shopping list undo does.
+- **Undo what was changed, not just what was created.** A changed setting is restored to its old value
+  (`arrange.platform.setting`, `storeSetting`); a renamed folder is deleted under its new name.
+- **Describe it** in a few words with the record's name or id: the description is the report step and the
+  failure message.
 
-| Input | Default | Meaning |
-|---|---|---|
-| `frontendZipUrl` | `latest` | vc-frontend build to deploy |
-| `testSuites` | `all` | `all` (= `graphql`, `restapi`, `e2e`), or one of `graphql`, `restapi`, `e2e` (both e2e projects), `e2e-frontend`, `e2e-backend` |
-| `grep` | empty | Playwright `--grep` pattern applied to every suite, e.g. a test title or tag |
+### Adding seed data
 
-The workflow calls the shared Playwright workflow from [`VirtoCommerce/.github`](https://github.com/VirtoCommerce/.github), which for each **database × search engine** combination:
+Add a JSON file to the collection's folder in `dataset/data/` (ids are prefixed with the collection, e.g.
+`product-…`), reference it from tests by id, and run `npm run seed`. `${ENV:NAME}` placeholders take values from
+`.env`. Tests read seeded records through `dataset`, so data and expectations never drift apart.
 
-1. starts the platform in Docker with the image and modules listed in [`backend-packages.json`](backend-packages.json), plus the frontend build (search engine: the one the module list installs, Elasticsearch 8 today; databases: SQL Server, MySQL and PostgreSQL by default, so a run executes the suites once per database);
-2. writes `.env` from the env-file secret, setting `BACKEND_BASE_URL=http://localhost:8090`, `FRONTEND_BASE_URL=http://localhost` (the production frontend build, not a dev server) and the admin account;
-3. installs dependencies and Chromium, runs the `seed` project and a full re-index;
-4. runs the chosen suites one project at a time with list, JUnit, JSON and Allure reporters (the `CI` variable is set, so failed tests are retried once and reported as flaky when the retry passes; `e2e-frontend` uses 3 workers unless `E2E_WORKERS` is in the env secret);
-5. builds the Allure report, lists failed tests in the run summary, and uploads a `playwright-test-results-<run>-<attempt>-<database>-<engine>` artifact (see [Reports](#reports) for opening it).
+## Scripts
 
-**Secrets** used by the workflow:
-
-| Secret | Holds |
+| Script | Does |
 |---|---|
-| `REPO_TOKEN` | Token for the shared workflow to fetch packages and repositories |
-| env-file secret (placeholder `TS_ENV_SECRET_NAME` for now) | The whole `.env` for CI: at least `STORE_ID`, `ADMIN_PASSWORD`, `USERS_PASSWORD`, `GOOGLE_MAPS_API_KEY`; optionally `E2E_WORKERS`, and `RUN_DESTRUCTIVE_TESTS=true` to include destructive tests |
-| `SENDGRID_APIKEY_4E2E_AUTOTESTS` | E-mail sending on the CI platform (notification flows such as the password-reset e-mail) |
-| `E2E_APPINSIGHTSINSTRUMENTATIONKEY` | Optional platform telemetry |
-
-**Keeping `backend-packages.json` current:** it pins the platform image (`PlatformImageTag`) and every module version CI installs. Tests target the edge versions: the latest platform release and, for each module, the newest release in the edge feed [`modules_v3.json`](https://raw.githubusercontent.com/VirtoCommerce/vc-modules/master/modules_v3.json) (its first version without a `VersionTag`). Bump the file to the current edge versions when new releases come out, and in the same change as tests that depend on them.
-
-The shared workflow is currently referenced by a feature branch (`vcst-6033-playwright-workflow`); it moves to a release tag once VCST-6033 is released. Open CI work is tracked in [REFINEMENTS.md](REFINEMENTS.md) (section 8).
-
-## AI-assisted workflow
-
-[CLAUDE.md](CLAUDE.md) gives [Claude Code](https://claude.com/claude-code) the commands, layers and conventions of this repo; `.claude/` adds agents, commands and skills that follow them.
-
-| Command | Does |
-|---|---|
-| `/qa-plan <ticket or requirement>` | Test strategy and file-by-file implementation plan (`qa-planner` agent) |
-| `/qa-implement` | Implements the plan, then runs typecheck, lint, `--list` and the new specs (`qa-automation-expert` agent) |
-| `/qa-review [files or PR]` | Reviews the changes against the project checklists (`qa-reviewer` agent) |
-| `/code-review-full [scope]` | Nine parallel reviews (tests, lint, quality, security, style, test quality, runtime, dependencies/CI, simplification) |
-| `/migrate-katalon-module <Module> [ticket]` | Moves a Katalon REST module into `tests/restapi` with endpoint and 1-to-1 checks |
-| `/generate-coverage-report` | Sprint coverage report and presentation from `playwright test --list` and git history |
-
-The agents use skills for each artifact: `write-rest-api-test`, `write-graphql-test`, `write-e2e-test`, `create-rest-client`, `create-graphql-layer`, `create-ui-layer`, `plan-test-strategy`, `plan-implementation`, `review-test-code`, `review-pr`. When a convention changes, update CLAUDE.md and the affected skills in the same change.
-
-## Known platform issues
-
-- **Parallel sign-ins of the same user fail.** Concurrent `POST /connect/token` requests for one user sometimes return HTTP 500, so the first test of a worker can fail at sign-in. See [BUG-concurrent-token-sign-in-500.md](BUG-concurrent-token-sign-in-500.md).
-- **Page-builder search window.** The page search applies the keyword only to the newest 20 pages of the default sort; one reason `e2e-backend` runs with a single worker.
-- **Indexation lock survives a crash.** Indexation holds a distributed lock (`IndexationJob`, 12-hour timeout, stored in Redis when the platform uses it). If the platform stops during an indexation, every later indexation is refused with "Indexation is already in progress" until the lock expires, also after a platform restart; search results go stale and the indexing tests fail. Delete the lock key in Redis or restart Redis to recover.
-- **Indexation jobs report `Succeeded` even when indexing failed or was refused.** The real outcome is in the indexation's progress notification (`description`, `errorCount`, `errors`); tests read it with `SearchIndexesClient.getProgress`, never the job state.
-- **Verification emails are not sent.** `POST /api/platform/security/users/{id}/sendVerificationEmail` answers 200, but no `ConfirmationEmailNotification` reaches the notification journal, for managers and customers alike and also with `Stores.EmailVerificationEnabled` on. "send a verification email" is marked `test.fail` until the platform sends it.
-- **White-labeling settings cannot be deleted.** `/api/white-labeling` has no delete, and deleting an organization leaves its setting behind. The page-context white-labeling test disables its setting in cleanup and carries a `leaves data` annotation.
-- **Local-storage uploads cannot be deleted.** `POST /api/platform/assets/localstorage` saves the file to the platform's local upload folder (used for imports) and returns only its name; no endpoint lists, downloads or deletes it. The "upload a file to local storage" test leaves one small, uniquely named file per run and says so in its `leaves data` annotation; clear the folder on the platform host if it matters.
+| `npm run install:browsers` | Installs Chromium for Playwright |
+| `npm run seed` | Seeds the dataset into the platform |
+| `npm test`, `npm run test:*` | Runs tests (see above) |
+| `npm run report`, `npm run report:open` | Builds and opens the Allure report |
+| `npm run check` | Formats and lints with fixes |
+| `npm run lint`, `npm run format` | Lint only, format only |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run codegen` | Regenerates GraphQL and REST types from the running platform |

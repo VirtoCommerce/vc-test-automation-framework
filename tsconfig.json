@@ -23,5 +23,6 @@
       "@pages/*": ["./pages/*"],
       "@fixtures": ["./fixtures/index.ts"]
     }
-  }
+  },
+  "exclude": ["node_modules"]
 }

@@ -1,0 +1,10 @@
+{
+  "id": "page-acme-wholesale-offers",
+  "name": "wholesale-offers",
+  "permalink": "/wholesale-offers",
+  "storeId": "${ENV:STORE_ID}",
+  "cultureName": "en-US",
+  "status": "Published",
+  "visibility": false,
+  "userGroups": "Wholesaler"
+}

@@ -1,11 +1,14 @@
 {
   "name": "vc-testing-module",
   "version": "1.0.0",
+  "private": true,
+  "description": "Playwright tests of the Virto Commerce platform: REST, GraphQL (xAPI), frontend and page builder e2e",
   "engines": {
     "node": ">=22.18"
   },
   "scripts": {
     "prepare": "simple-git-hooks",
+    "install:browsers": "playwright install chromium",
     "format": "biome format --write .",
     "lint": "biome lint .",
     "check": "biome check --write .",
@@ -14,14 +17,15 @@
     "codegen:graphql": "graphql-codegen --config codegen-graphql.ts",
     "codegen:rest": "node --env-file-if-exists=.env codegen-rest.mts",
     "seed": "playwright test --project=seed --reporter=list",
-    "seed:page-statuses": "playwright test --project=seed --grep \"apply page statuses\" --reporter=list",
     "test": "playwright test --project=restapi --project=graphql --project=e2e-frontend --project=e2e-backend",
+    "test:unit": "playwright test --project=unit",
     "test:restapi": "playwright test --project=restapi",
     "test:graphql": "playwright test --project=graphql",
     "test:e2e": "playwright test --project=e2e-frontend --project=e2e-backend",
     "test:e2e:frontend": "playwright test --project=e2e-frontend",
     "test:e2e:backend": "playwright test --project=e2e-backend",
-    "report": "allure generate --output allure-report",
+    "test:isolated": "playwright test --project=isolated",
+    "report": "allure generate allure-results",
     "report:open": "allure open allure-report"
   },
   "devDependencies": {

@@ -4420,6 +4420,8 @@ export interface VirtoCommerceFileExperienceApiCoreModelsFileUploadScopeOptions 
   allowedExtensions: string[];
   /** @format int64 */
   maxFileSize: number;
+  /** @format int64 */
+  minFileSize?: number;
   /** @minLength 1 */
   scope: string;
 }
@@ -6770,6 +6772,7 @@ export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderSharedCompon
 
 export interface VirtoCommercePageBuilderModuleCoreModelsUpdatePageContentRequest {
   content?: string | null;
+  eTag?: string | null;
 }
 
 export interface VirtoCommercePageBuilderModuleWebControllersApiPageBuilderControllerSaveFilesModel {
@@ -7938,6 +7941,8 @@ export interface VirtoCommercePlatformWebModelModularityPluginEntry {
    * can dispatch on it.
    */
   contentFiles?: VirtoCommercePlatformWebModelModularityContentFile[] | null;
+  /** The `contributions` object of `plugin.json`; `null`, and so omitted from the response, when absent. */
+  contributions?: object | null;
   /**
    * The plugin's primary file. For Module Federation plugins this is the
    * federation entry (`remoteEntry.js`). For the legacy AngularJS host
@@ -8790,9 +8795,18 @@ export interface VirtoCommerceSeoCoreModelsBrokenLinkSearchResult {
   totalCount?: number;
 }
 
+export interface VirtoCommerceSeoCoreModelsExplainSeoCandidateReason {
+  code?: string | null;
+  details?: string | null;
+}
+
 export interface VirtoCommerceSeoCoreModelsExplainSeoExplainItem {
+  readonly isResolved?: boolean;
   /** @format int32 */
   objectTypePriority?: number;
+  readonly reasons?:
+    | VirtoCommerceSeoCoreModelsExplainSeoCandidateReason[]
+    | null;
   /** @format int32 */
   score?: number;
   seoInfo?: VirtoCommerceSeoCoreModelsSeoInfo | null;
@@ -8810,7 +8824,8 @@ export type VirtoCommerceSeoCoreModelsExplainSeoExplainStage =
   | "Scored"
   | "FilteredScore"
   | "Ordered"
-  | "Final";
+  | "Final"
+  | "Candidates";
 
 export interface VirtoCommerceSeoCoreModelsRedirectRule {
   /**

@@ -138,7 +138,12 @@ test.describe("pickup locations (anonymous)", () => {
     });
   }
 
-  test("filter pickup locations by keyword", async ({ api, dataset }) => {
+  test("filter pickup locations by keyword", {
+    annotation: {
+      type: "database difference",
+      description: "PostgreSQL matches names only; SQL Server and MySQL also match the address, ignoring case.",
+    },
+  }, async ({ api, dataset }) => {
     await allure.story("Search");
     await allure.description(
       `Searching "${KEYWORD}" finds every dataset location named with ${KEYWORD}, and every result mentions ` +

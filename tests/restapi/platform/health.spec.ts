@@ -11,7 +11,12 @@ test.beforeEach(async () => {
 });
 
 test.describe("health check (anonymous)", () => {
-  test("get the health report", async ({ api }) => {
+  test("get the health report", {
+    annotation: {
+      type: "database difference",
+      description: "The database check is named PostgreSql health, SQL Server health or MySql health.",
+    },
+  }, async ({ api }) => {
     await allure.story("Health");
     await allure.description(
       "The health report has the platform's checks and a database check, and none of them is unhealthy.",

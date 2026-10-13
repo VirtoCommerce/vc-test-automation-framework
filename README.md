@@ -256,6 +256,29 @@ a failed test once.
 
 To test new module versions, update `backend-packages.json`.
 
+### Database differences
+
+CI runs every suite on PostgreSQL, SQL Server and MySQL. Where the platform behaves differently per database, the
+test asserts what holds on all three and carries a `database difference` annotation that says how (search the specs
+for it, or see it in the report):
+
+| Behaviour | PostgreSQL | SQL Server, MySQL | How the test copes | Spec |
+|---|---|---|---|---|
+| Pickup location keyword search | Matches the name only | Also matches the address, ignoring case | Expects every location named with the keyword, and every result to mention it in its name or address, in any case | `graphql/pickup/pickup-locations.spec.ts` |
+| Name of the database health check | `PostgreSql health` | `SQL Server health`, `MySql health` | Matches any of the three names | `restapi/platform/health.spec.ts` |
+
+When a test fails on only one database, check whether the platform differs there before calling it a defect. If
+it does, make the assertion hold on every database, annotate the test and add a row here:
+
+```ts
+test("filter pickup locations by keyword", {
+  annotation: {
+    type: "database difference",
+    description: "PostgreSQL matches names only; SQL Server and MySQL also match the address, ignoring case.",
+  },
+}, async ({ api, dataset }) => {
+```
+
 ## Project structure
 
 The code is in layers. Each layer may import only the layers before it; Biome enforces this

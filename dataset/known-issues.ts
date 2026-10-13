@@ -34,8 +34,4 @@ export const KNOWN_ISSUES = {
     summary:
       "The page builder stores permalinks as sent: whitespace and the characters & ? # are neither rejected nor removed",
   },
-  shipToLabelNotRefreshed: {
-    summary:
-      "The frontend header keeps showing 'Select address' after a saved ship-to address is picked, until a reload",
-  },
 } as const satisfies Readonly<Record<string, KnownIssue>>;

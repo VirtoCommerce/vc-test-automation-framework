@@ -21,7 +21,13 @@ test.describe("seedRequests", () => {
     const spec: CollectionSpec = { ...EACH, endpoint: "/api/stores/${ENV:STORE_ID}/properties", send: "all" };
 
     expect(seedRequests(spec, records, ENV)).toEqual([
-      { label: "2 records", path: "/api/stores/store%20under%20test/properties", findPath: undefined, body: records },
+      {
+        label: "2 records",
+        path: "/api/stores/store%20under%20test/properties",
+        findPath: undefined,
+        ifMatchPath: undefined,
+        body: records,
+      },
     ]);
   });
 
@@ -35,8 +41,8 @@ test.describe("seedRequests", () => {
     const records = [{ id: "item-b" }, { id: "item-a" }];
 
     expect(seedRequests(EACH, records, ENV)).toEqual([
-      { label: 'record "item-b"', path: "/api/items", findPath: undefined, body: records[0] },
-      { label: 'record "item-a"', path: "/api/items", findPath: undefined, body: records[1] },
+      { label: 'record "item-b"', path: "/api/items", findPath: undefined, ifMatchPath: undefined, body: records[0] },
+      { label: 'record "item-a"', path: "/api/items", findPath: undefined, ifMatchPath: undefined, body: records[1] },
     ]);
   });
 

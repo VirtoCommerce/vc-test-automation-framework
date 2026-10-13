@@ -23,29 +23,33 @@ const DATASET = loadDataset(PLACEHOLDERS);
 interface SentRequest {
   readonly method: HttpMethod;
   readonly path: string;
+  readonly ifMatch?: string;
 }
 
-type Answer = { readonly status: number; readonly body?: unknown };
+type Answer = { readonly status: number; readonly body?: unknown; readonly eTag?: string };
 
 /** An HTTP client that records every request and answers by path; unknown paths answer 200 without a body. */
 function fakeHttp(answers: Readonly<Record<string, Answer>> = {}): SeedHttp & { readonly sent: SentRequest[] } {
   const sent: SentRequest[] = [];
-  function answer(method: HttpMethod, path: string): HttpResponse {
-    sent.push({ method, path });
-    const { status, body } = answers[path] ?? { status: 200 };
+  function answer(method: HttpMethod, path: string, ifMatch?: string): HttpResponse {
+    sent.push(ifMatch === undefined ? { method, path } : { method, path, ifMatch });
+    const { status, body, eTag } = answers[path] ?? { status: 200 };
     return new HttpResponse({
       method,
       url: path,
       status,
       statusText: String(status),
-      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      headers: {
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...(eTag === undefined ? {} : { etag: eTag }),
+      },
       text: body === undefined ? "" : JSON.stringify(body),
     });
   }
   return {
     sent,
     get: async (path) => answer("GET", path),
-    send: async (method, path) => answer(method, path),
+    send: async (method, path, options) => answer(method, path, options?.headers?.["If-Match"]),
   };
 }
 
@@ -68,6 +72,47 @@ function scope(collections: readonly CollectionName[], skipped: readonly Collect
 }
 
 test.describe("seedDataset", () => {
+  test("sends the ETag read right before each request as If-Match, where the manifest asks for it", async () => {
+    const paths = DATASET.pagesContent
+      .all()
+      .map(
+        (content) =>
+          `/api/page-builder-pages/grouped/${encodeURIComponent(String(Reflect.get(content, "pageId")))}/content`,
+      );
+    const http = fakeHttp(Object.fromEntries(paths.map((path) => [path, { status: 200, eTag: `"${path}"` }])));
+
+    await seedDataset({
+      http,
+      dataset: DATASET,
+      placeholders: PLACEHOLDERS,
+      logger: capture().logger,
+      scope: scope(["pagesContent"]),
+    });
+
+    expect(http.sent).toEqual(
+      paths.flatMap((path) => [
+        { method: "GET", path },
+        { method: "POST", path, ifMatch: `"${path}"` },
+      ]),
+    );
+  });
+
+  test("sends without If-Match when the version read has no ETag, as older modules answer", async () => {
+    const http = fakeHttp();
+
+    await seedDataset({
+      http,
+      dataset: DATASET,
+      placeholders: PLACEHOLDERS,
+      logger: capture().logger,
+      scope: scope(["pagesContent"]),
+    });
+
+    expect(http.sent.filter(({ method }) => method === "POST").map(({ ifMatch }) => ifMatch)).toEqual(
+      DATASET.pagesContent.all().map(() => undefined),
+    );
+  });
+
   test("sends every record of the scoped collections with the manifest's method and path", async () => {
     const http = fakeHttp();
 

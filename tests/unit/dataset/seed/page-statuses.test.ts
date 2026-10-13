@@ -10,8 +10,11 @@ import { applyPageStatuses } from "@dataset/seed/page-statuses";
 
 const SILENT = new Logger("seed", new Writable({ write: (_chunk, _encoding, callback) => callback() }));
 
-/** Pages the platform holds with a status, recording every status change. */
-function fakePages(stored: Readonly<Record<string, PageStatus>>): PageStatusApi & {
+/** Pages the platform holds with a status, recording every status change; `withChanges` have an unpublished draft. */
+function fakePages(
+  stored: Readonly<Record<string, PageStatus>>,
+  withChanges: readonly string[] = [],
+): PageStatusApi & {
   readonly changes: [string, PageStatus][];
   readonly searches: unknown[];
 } {
@@ -29,10 +32,29 @@ function fakePages(stored: Readonly<Record<string, PageStatus>>): PageStatusApi 
     setStatus: async (groupId, status) => {
       changes.push([groupId, status]);
     },
+    publishStatus: async (groupId) => ({
+      published: stored[groupId] === "Published",
+      hasChanges: withChanges.includes(groupId),
+    }),
   };
 }
 
 test.describe("applyPageStatuses", () => {
+  test("publishes again a published page whose content was saved as an unpublished draft", async () => {
+    const pages = fakePages({ "page-a": "Published", "page-b": "Published" }, ["page-a"]);
+
+    await applyPageStatuses(
+      pages,
+      [
+        { id: "page-a", name: "a", storeId: "store-1", status: "Published" },
+        { id: "page-b", name: "b", storeId: "store-1", status: "Published" },
+      ],
+      SILENT,
+    );
+
+    expect(pages.changes).toEqual([["page-a", "Published"]]);
+  });
+
   test("changes only the pages whose status differs from the dataset's", async () => {
     const pages = fakePages({ "page-a": "Draft", "page-b": "Published" });
 

@@ -12,6 +12,8 @@ export interface SeedRequest {
   readonly path: string;
   /** The path that finds an existing record first, for collections that must not be sent twice. */
   readonly findPath: string | undefined;
+  /** The path whose `ETag` is sent as `If-Match`, for endpoints that require the current version. */
+  readonly ifMatchPath: string | undefined;
   /** The request body: one record, or all of them. */
   readonly body: unknown;
 }
@@ -37,6 +39,7 @@ export function seedRequests(spec: CollectionSpec, records: readonly object[], e
         label: `${records.length} records`,
         path: interpolate(spec.endpoint, { ENV: (key) => env[key] }, encodeURIComponent),
         findPath: undefined,
+        ifMatchPath: undefined,
         body: records,
       },
     ];
@@ -45,6 +48,7 @@ export function seedRequests(spec: CollectionSpec, records: readonly object[], e
     label: labelOf(spec, record, index),
     path: resolvePath(spec.endpoint, env, record),
     findPath: spec.find === undefined ? undefined : resolvePath(spec.find, env, record),
+    ifMatchPath: spec.ifMatchFrom === undefined ? undefined : resolvePath(spec.ifMatchFrom, env, record),
     body: record,
   }));
 }

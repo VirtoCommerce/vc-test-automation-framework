@@ -104,13 +104,19 @@ async function seedCollection(
         existing += 1;
         continue;
       }
-      expectAccepted(await http.send(spec.method, request.path, { json: request.body }));
+      const eTag = request.ifMatchPath === undefined ? undefined : await currentETag(http, request.ifMatchPath);
+      const headers = eTag === undefined ? {} : { "If-Match": eTag };
+      expectAccepted(await http.send(spec.method, request.path, { json: request.body, headers }));
       sent += 1;
     } catch (error) {
       throw failure(name, request, error);
     }
   }
   return { sent, existing };
+}
+
+async function currentETag(http: SeedHttp, path: string): Promise<string | undefined> {
+  return (await http.get(path)).expectOk().headers["etag"];
 }
 
 async function isStored(http: SeedHttp, findPath: string): Promise<boolean> {

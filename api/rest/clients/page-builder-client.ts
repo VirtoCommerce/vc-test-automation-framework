@@ -4,6 +4,7 @@ import type {
   GroupedPage,
   GroupedPageData,
   GroupedPageSearchResult,
+  PagePublishStatus,
   PageSearchCriteria,
   PageStatus,
 } from "../types/page-builder";
@@ -43,6 +44,12 @@ class PagesResource {
         (await this.#httpClient.post(`${PAGES_PATH}/grouped/archive`, { query: { ids: [groupId] } })).expectOk();
         return;
     }
+  }
+
+  /** Reads whether the page is published and whether a saved draft differs from it. */
+  async publishStatus(groupId: string): Promise<PagePublishStatus> {
+    const path = `${PAGES_PATH}/grouped/publish-status/${encodeURIComponent(groupId)}`;
+    return (await this.#httpClient.get(path)).json<PagePublishStatus>();
   }
 
   async delete(groupId: string): Promise<void> {

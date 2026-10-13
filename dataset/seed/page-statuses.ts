@@ -7,7 +7,7 @@ import { PAGE_STATUSES } from "@api/rest/types/page-builder";
 import { requireFields } from "@core/required-fields";
 
 /** What setting page statuses needs of the page builder: finding pages and changing their status. */
-export type PageStatusApi = Pick<PageBuilderClient["pages"], "search" | "setStatus">;
+export type PageStatusApi = Pick<PageBuilderClient["pages"], "search" | "setStatus" | "publishStatus">;
 
 /** A seeded page and the status the dataset gives it. */
 interface SeededPage {
@@ -20,6 +20,8 @@ interface SeededPage {
 /**
  * Sets each seeded page to its dataset `status` (`Draft` when absent), skipping pages already in it.
  * Needed because the platform creates every page as a draft and changes status only through actions.
+ * A published page whose content was saved again holds that content as an unpublished draft, so a page that is
+ * `Published` in the dataset is published again when it has unpublished changes.
  *
  * @param pages - Signed in as an administrator.
  * @throws Error when a page record lacks its id, name or store, or names an unknown status.
@@ -39,13 +41,21 @@ export async function applyPageStatuses(
   }
   for (const page of seeded) {
     const status = current.get(page.id);
-    if (status === page.status) {
+    if (status === page.status && !(await hasUnpublishedChanges(pages, page))) {
       logger.info(`page ${page.name}: already ${page.status}`);
       continue;
     }
     await pages.setStatus(page.id, page.status);
-    logger.success(`page ${page.name}: ${status ?? "not found"} → ${page.status}`);
+    logger.success(
+      status === page.status
+        ? `page ${page.name}: ${page.status} again, its unpublished changes published`
+        : `page ${page.name}: ${status ?? "not found"} → ${page.status}`,
+    );
   }
+}
+
+async function hasUnpublishedChanges(pages: PageStatusApi, page: SeededPage): Promise<boolean> {
+  return page.status === "Published" && (await pages.publishStatus(page.id)).hasChanges;
 }
 
 function seededPage(record: DatasetRecord): SeededPage {

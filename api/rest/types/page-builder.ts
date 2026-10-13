@@ -14,4 +14,10 @@ export const PAGE_STATUSES = ["Draft", "Published", "Archived"] as const;
 
 export type PageStatus = (typeof PAGE_STATUSES)[number];
 
+/** Publication state of a page: `hasChanges` when a saved draft differs from what is published. */
+export interface PagePublishStatus {
+  readonly published: boolean;
+  readonly hasChanges: boolean;
+}
+
 export type GroupedPage = WithRequired<GroupedPageData, (typeof GROUPED_PAGE_FIELDS)[number]>;

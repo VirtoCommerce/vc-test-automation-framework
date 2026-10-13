@@ -20,6 +20,11 @@ export interface CollectionSpec {
   readonly endpoint: `/${string}`;
   /** The path that finds an existing record, for collections that must not be sent twice. */
   readonly find?: `/${string}`;
+  /**
+   * The path whose `ETag` the seed request sends as `If-Match`, for endpoints that refuse a write without the
+   * current version (428). Read right before each request; without an `ETag` (older modules) none is sent.
+   */
+  readonly ifMatchFrom?: `/${string}`;
   /** `each`: one request per record; `all`: one request with every record. */
   readonly send: "each" | "all";
   /** The field that references a parent record in the same collection; parents are sent first. */
@@ -256,6 +261,7 @@ export const MANIFEST = {
     keys: ["pageId"],
     method: "POST",
     endpoint: "/api/page-builder-pages/grouped/${RECORD:pageId}/content",
+    ifMatchFrom: "/api/page-builder-pages/grouped/${RECORD:pageId}/content",
     send: "each",
   },
 } as const satisfies Readonly<Record<string, CollectionSpec>>;

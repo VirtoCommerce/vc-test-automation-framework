@@ -373,7 +373,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 | `arrange.security` | Back-office users, API keys, roles, OAuth apps, signed-in sessions |
 | `arrange.catalog` | Catalogs, categories, products, tags, product configurations, completeness channels |
 | `arrange.pricing` | Pricelists, prices, assignments |
-| `arrange.marketing` | Promotions, coupons, dynamic content |
+| `arrange.marketing` | Promotions, dynamic content |
 | `arrange.orders` | Orders, quotes |
 | `arrange.carts` | Carts and shopping lists, in a shopper's session |
 | `arrange.pickup` | Pickup locations, and waits until carts and products can be picked up there |

@@ -93,7 +93,7 @@ function uniquePath(prefix: string): string {
 
 test.describe("HttpClient", () => {
   test.describe("methods", () => {
-    for (const method of ["get", "post", "put", "patch", "delete"] as const) {
+    for (const method of ["get", "post", "put", "delete"] as const) {
       test(`${method} sends ${method.toUpperCase()} to the path under the base URL`, async () => {
         const response = await client()[method]("/api/items");
 

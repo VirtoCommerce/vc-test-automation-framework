@@ -24,9 +24,4 @@ export abstract class FrontendPage {
   async navigate(): Promise<void> {
     await this.page.goto(this.path, { waitUntil: "load" });
   }
-
-  /** Clicks the page's top-left corner to close popups and blur inputs. */
-  async clickOutside(): Promise<void> {
-    await this.page.locator("body").click({ position: { x: 1, y: 1 } });
-  }
 }

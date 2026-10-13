@@ -1,12 +1,12 @@
 import type { ApiSession } from "@api/api-session";
-import type { Coupon, NamedEntity, NamedEntityData, Promotion } from "@api/rest/types/marketing";
+import type { NamedEntity, NamedEntityData, Promotion } from "@api/rest/types/marketing";
 import type { CleanupStack } from "@core/cleanup-stack";
-import type { CouponLimits, DynamicContentKind } from "../builders/marketing";
+import type { DynamicContentKind } from "../builders/marketing";
 import type { ArrangeContext } from "./context";
 
-import { newCoupon, newDynamicContent, newPromotion } from "../builders/marketing";
+import { newDynamicContent, newPromotion } from "../builders/marketing";
 
-/** Arranges promotions, coupons and marketing dynamic content. */
+/** Arranges promotions and marketing dynamic content. */
 export class MarketingArrange {
   readonly #admin: ApiSession;
   readonly #cleanup: CleanupStack;
@@ -22,21 +22,6 @@ export class MarketingArrange {
     const draft = newPromotion();
     this.#cleanup.push(`delete promotion ${draft.name}`, () => promotions.delete([draft.id]));
     return promotions.create(draft);
-  }
-
-  /**
-   * Creates a coupon for a promotion and deletes it after the test.
-   *
-   * @param limits - How often the coupon may be used.
-   * @returns The coupon as the platform stores it.
-   */
-  async coupon(promotionId: string, limits: CouponLimits): Promise<Coupon> {
-    const { coupons } = this.#admin.rest.promotions;
-    const draft = newCoupon(promotionId, limits);
-    await coupons.saveMany([draft]);
-    const coupon = await coupons.getByCode(promotionId, draft.code);
-    this.#cleanup.push(`delete coupon ${coupon.code}`, () => coupons.delete([coupon.id]));
-    return coupon;
   }
 
   /**

@@ -48,7 +48,7 @@ export interface ArrangeOptions {
  * - `security`: back-office users, API keys, roles, OAuth apps, signed-in sessions.
  * - `catalog`: catalogs, categories, products, tags, product configurations, completeness channels.
  * - `pricing`: pricelists, prices, pricelist assignments.
- * - `marketing`: promotions, coupons, dynamic content.
+ * - `marketing`: promotions, dynamic content.
  * - `orders`: orders and quotes.
  * - `carts`: carts and shopping lists in a shopper's session.
  * - `pickup`: pickup locations and waiting for pickup searches.

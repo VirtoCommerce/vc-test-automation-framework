@@ -106,10 +106,6 @@ class ProductsResource {
     const response = await this.#httpClient.post(PRODUCTS_PATH, { json: product });
     return requireFields(response.json<CatalogProductData>(), CATALOG_PRODUCT_FIELDS, "Saved product");
   }
-
-  async delete(ids: readonly string[]): Promise<void> {
-    (await this.#httpClient.delete(PRODUCTS_PATH, { query: { ids } })).expectOk();
-  }
 }
 
 class ListEntriesResource {

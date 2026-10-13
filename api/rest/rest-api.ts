@@ -28,7 +28,6 @@ import { RolesClient } from "./clients/roles-client";
 import { SearchIndexesClient } from "./clients/search-indexes-client";
 import { SeoInfosClient } from "./clients/seo-infos-client";
 import { SettingsClient } from "./clients/settings-client";
-import { ShippingMethodsClient } from "./clients/shipping-methods-client";
 import { StoresClient } from "./clients/stores-client";
 import { UsersClient } from "./clients/users-client";
 import { WhiteLabelingClient } from "./clients/white-labeling-client";
@@ -70,7 +69,6 @@ export class RestApi {
   readonly searchIndexes: SearchIndexesClient;
   readonly seoInfos: SeoInfosClient;
   readonly settings: SettingsClient;
-  readonly shippingMethods: ShippingMethodsClient;
   readonly stores: StoresClient;
   readonly users: UsersClient;
   readonly whiteLabeling: WhiteLabelingClient;
@@ -104,7 +102,6 @@ export class RestApi {
     this.searchIndexes = new SearchIndexesClient(httpClient);
     this.seoInfos = new SeoInfosClient(httpClient);
     this.settings = new SettingsClient(httpClient);
-    this.shippingMethods = new ShippingMethodsClient(httpClient);
     this.stores = new StoresClient(httpClient);
     this.users = new UsersClient(httpClient);
     this.whiteLabeling = new WhiteLabelingClient(httpClient);

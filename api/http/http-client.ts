@@ -135,11 +135,6 @@ export class HttpClient {
     return this.send("PUT", path, options);
   }
 
-  /** Sends a `PATCH` request. See {@link HttpClient#send}. */
-  patch(path: string, options?: RequestOptions): Promise<HttpResponse> {
-    return this.send("PATCH", path, options);
-  }
-
   /** Sends a `DELETE` request. See {@link HttpClient#send}. */
   delete(path: string, options?: RequestOptions): Promise<HttpResponse> {
     return this.send("DELETE", path, options);

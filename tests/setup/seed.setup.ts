@@ -44,7 +44,7 @@ test("seed the dataset", async ({ playwright, dataset, env, store }) => {
     ApiSession.open(connection, (userName) => credentialsOf(dataset, userName), env.admin));
 
   const scope = await test.step("arrange: the collections to seed", async () =>
-    resolveSeedScope(await admin.rest.modules.getInstalledIds(), parseSeedOnly(env.seedOnly)));
+    resolveSeedScope(await admin.rest.modules.getInstalled(), parseSeedOnly(env.seedOnly)));
 
   await test.step("act: seed the collections", () =>
     seedDataset({

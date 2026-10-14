@@ -2,6 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { newPage } from "@dataset/builders/page-builder";
 import { KNOWN_ISSUES } from "@dataset/known-issues";
+import { MODULES } from "@dataset/modules";
 import { expect, knownIssue, test } from "@fixtures";
 
 const SEARCH_PAGE_SIZE = 20;
@@ -38,7 +39,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("page builder pages (store administrator)", () => {
-  test.use({ user: "acme_store_administrator@acme.com" });
+  test.use({ user: "acme_store_administrator@acme.com", requiresModules: [MODULES.pageBuilder] });
 
   test("keyword search finds a page beyond the newest pages", async ({ api, arrange, store }) => {
     await allure.story("Search");

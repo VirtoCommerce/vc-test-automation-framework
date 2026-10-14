@@ -55,10 +55,10 @@ test.describe("platform system (store administrator)", () => {
     await allure.story("Modules");
     await allure.description("The catalog module is installed.");
 
-    const moduleIds = await test.step("act: list the installed modules", () => api.rest.modules.getInstalledIds());
+    const modules = await test.step("act: list the installed modules", () => api.rest.modules.getInstalled());
 
     await test.step(`assert: ${CATALOG_MODULE_ID} is installed`, () => {
-      expect([...moduleIds]).toContain(CATALOG_MODULE_ID);
+      expect([...modules.keys()]).toContain(CATALOG_MODULE_ID);
     });
   });
 });

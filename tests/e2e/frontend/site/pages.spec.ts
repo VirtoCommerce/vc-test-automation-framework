@@ -1,6 +1,7 @@
 import * as allure from "allure-js-commons";
 
 import { Secret } from "@core/secret";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const PAGE_TEXT = "Welcome to the automated test page";
@@ -11,6 +12,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("content pages (anonymous)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   test("a published page builder page is served on the frontend", async ({ frontend, page, arrange }) => {
     await allure.feature("Frontend / Content pages");
     await allure.story("Page builder pages");

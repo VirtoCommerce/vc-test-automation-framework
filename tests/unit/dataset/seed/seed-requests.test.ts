@@ -13,7 +13,7 @@ const ENV = {
   GOOGLE_MAPS_API_KEY: "",
 };
 
-const EACH: CollectionSpec = { moduleId: "Module", method: "POST", endpoint: "/api/items", send: "each" };
+const EACH: CollectionSpec = { module: { id: "Module" }, method: "POST", endpoint: "/api/items", send: "each" };
 
 test.describe("seedRequests", () => {
   test("sends one request with every record for send: all", () => {

@@ -1,9 +1,12 @@
 import type { HttpMethod } from "@api/http/http-method";
+import type { ModuleRequirement } from "@core/modules";
+
+import { MODULES } from "./modules";
 
 /** How the records of one collection are sent to the platform. */
 export interface CollectionSpec {
-  /** The module that must be installed for the collection to be seeded. */
-  readonly moduleId: string;
+  /** The module, and its version range, the collection needs; without it the collection is skipped. */
+  readonly module: ModuleRequirement;
   /**
    * Starts record ids: ids are `<idPrefix>-<slug>` and files `<slug>.json`.
    * Absent when records have no id of their own (the platform keys them by `keys`).
@@ -37,13 +40,13 @@ export interface CollectionSpec {
  */
 export const MANIFEST = {
   globalPlatformSettings: {
-    moduleId: "VirtoCommerce.Core",
+    module: MODULES.core,
     method: "POST",
     endpoint: "/api/platform/settings/v2/global/values",
     send: "each",
   },
   platformSettings: {
-    moduleId: "VirtoCommerce.Core",
+    module: MODULES.core,
     idPrefix: "platform-setting",
     keys: ["name"],
     method: "POST",
@@ -51,14 +54,14 @@ export const MANIFEST = {
     send: "all",
   },
   currencies: {
-    moduleId: "VirtoCommerce.Core",
+    module: MODULES.core,
     keys: ["code"],
     method: "POST",
     endpoint: "/api/currencies",
     send: "each",
   },
   measures: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     idPrefix: "measure",
     keys: ["code"],
     method: "PUT",
@@ -66,48 +69,48 @@ export const MANIFEST = {
     send: "each",
   },
   fulfillmentCenters: {
-    moduleId: "VirtoCommerce.Inventory",
+    module: MODULES.inventory,
     idPrefix: "fulfillment-center",
     method: "PUT",
     endpoint: "/api/inventory/fulfillmentcenters",
     send: "each",
   },
   pricelists: {
-    moduleId: "VirtoCommerce.Pricing",
+    module: MODULES.pricing,
     idPrefix: "pricelist",
     method: "POST",
     endpoint: "/api/pricing/pricelists",
     send: "each",
   },
   catalogs: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     idPrefix: "catalog",
     method: "POST",
     endpoint: "/api/catalog/catalogs",
     send: "each",
   },
   pricelistAssignments: {
-    moduleId: "VirtoCommerce.Pricing",
+    module: MODULES.pricing,
     idPrefix: "pricelist-assignment",
     method: "POST",
     endpoint: "/api/pricing/assignments",
     send: "each",
   },
   catalogPropertyGroups: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     idPrefix: "catalog-property-group",
     method: "POST",
     endpoint: "/api/catalog/propertygroups",
     send: "each",
   },
   stores: {
-    moduleId: "VirtoCommerce.Store",
+    module: MODULES.store,
     method: "POST",
     endpoint: "/api/stores",
     send: "each",
   },
   categories: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     idPrefix: "category",
     keys: ["code"],
     method: "POST",
@@ -116,14 +119,14 @@ export const MANIFEST = {
     parentField: "parentId",
   },
   catalogProperties: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     idPrefix: "catalog-property",
     method: "POST",
     endpoint: "/api/catalog/properties?id=${RECORD:id}",
     send: "each",
   },
   products: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     idPrefix: "product",
     keys: ["code"],
     method: "POST",
@@ -132,21 +135,21 @@ export const MANIFEST = {
     parentField: "mainProductId",
   },
   aggregationProperties: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     keys: ["name"],
     method: "PUT",
     endpoint: "/api/catalog/aggregationproperties/${ENV:STORE_ID}/properties",
     send: "all",
   },
   productInventories: {
-    moduleId: "VirtoCommerce.Inventory",
+    module: MODULES.inventory,
     keys: [["productId", "fulfillmentCenterId"]],
     method: "PUT",
     endpoint: "/api/inventory/products/${RECORD:productId}",
     send: "each",
   },
   productConfigurations: {
-    moduleId: "VirtoCommerce.Catalog",
+    module: MODULES.catalog,
     idPrefix: "product-configuration",
     keys: ["productId"],
     method: "POST",
@@ -154,28 +157,28 @@ export const MANIFEST = {
     send: "each",
   },
   prices: {
-    moduleId: "VirtoCommerce.Pricing",
+    module: MODULES.pricing,
     keys: ["productId"],
     method: "PUT",
     endpoint: "/api/products/${RECORD:productId}/prices",
     send: "each",
   },
   promotions: {
-    moduleId: "VirtoCommerce.Marketing",
+    module: MODULES.marketing,
     idPrefix: "promotion",
     method: "POST",
     endpoint: "/api/marketing/promotions",
     send: "each",
   },
   coupons: {
-    moduleId: "VirtoCommerce.Marketing",
+    module: MODULES.marketing,
     keys: ["code"],
     method: "POST",
     endpoint: "/api/marketing/promotions/coupons/add",
     send: "all",
   },
   roles: {
-    moduleId: "VirtoCommerce.Core",
+    module: MODULES.core,
     idPrefix: "role",
     keys: ["name"],
     method: "PUT",
@@ -183,21 +186,21 @@ export const MANIFEST = {
     send: "each",
   },
   organizations: {
-    moduleId: "VirtoCommerce.Customer",
+    module: MODULES.customer,
     idPrefix: "organization",
     method: "POST",
     endpoint: "/api/members",
     send: "each",
   },
   contacts: {
-    moduleId: "VirtoCommerce.Customer",
+    module: MODULES.customer,
     idPrefix: "contact",
     method: "POST",
     endpoint: "/api/members",
     send: "each",
   },
   users: {
-    moduleId: "VirtoCommerce.Core",
+    module: MODULES.core,
     idPrefix: "user",
     keys: ["userName"],
     method: "POST",
@@ -206,7 +209,7 @@ export const MANIFEST = {
     send: "each",
   },
   organizationMemberships: {
-    moduleId: "VirtoCommerce.Customer",
+    module: MODULES.customer,
     keys: [["userId", "organizationId"]],
     method: "POST",
     endpoint: "/api/customer/organization-memberships",
@@ -214,14 +217,14 @@ export const MANIFEST = {
     send: "each",
   },
   pickupLocations: {
-    moduleId: "VirtoCommerce.XPickup",
+    module: MODULES.pickup,
     idPrefix: "pickup-location",
     method: "POST",
     endpoint: "/api/shipping/pickup-locations",
     send: "each",
   },
   orders: {
-    moduleId: "VirtoCommerce.Orders",
+    module: MODULES.orders,
     idPrefix: "order",
     keys: ["number"],
     method: "POST",
@@ -229,35 +232,35 @@ export const MANIFEST = {
     send: "each",
   },
   notifications: {
-    moduleId: "VirtoCommerce.Notifications",
+    module: MODULES.notifications,
     keys: ["type"],
     method: "PUT",
     endpoint: "/api/notifications/${RECORD:type}",
     send: "each",
   },
   shippingMethods: {
-    moduleId: "VirtoCommerce.Shipping",
+    module: MODULES.shipping,
     keys: ["code"],
     method: "PUT",
     endpoint: "/api/shipping",
     send: "each",
   },
   paymentMethods: {
-    moduleId: "VirtoCommerce.Payment",
+    module: MODULES.payment,
     keys: ["code"],
     method: "PUT",
     endpoint: "/api/payment",
     send: "each",
   },
   pages: {
-    moduleId: "VirtoCommerce.PageBuilderModule",
+    module: MODULES.pageBuilder,
     idPrefix: "page",
     method: "POST",
     endpoint: "/api/page-builder-pages/grouped",
     send: "each",
   },
   pagesContent: {
-    moduleId: "VirtoCommerce.PageBuilderModule",
+    module: MODULES.pageBuilder,
     keys: ["pageId"],
     method: "POST",
     endpoint: "/api/page-builder-pages/grouped/${RECORD:pageId}/content",

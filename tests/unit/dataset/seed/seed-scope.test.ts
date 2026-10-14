@@ -1,16 +1,28 @@
 import { expect, test } from "@playwright/test";
 
 import { COLLECTION_NAMES, isCollectionName, MANIFEST } from "@dataset/manifest";
+import { MODULES } from "@dataset/modules";
 import { parseSeedOnly, resolveSeedScope } from "@dataset/seed/seed-scope";
 
-const ALL_MODULES: ReadonlySet<string> = new Set(COLLECTION_NAMES.map((name) => MANIFEST[name].moduleId));
+const NEWEST = "9.9999.0";
+const ALL_MODULES: ReadonlyMap<string, string> = new Map(
+  COLLECTION_NAMES.map((name) => [MANIFEST[name].module.id, NEWEST]),
+);
 
-function without(moduleId: string): ReadonlySet<string> {
-  return new Set([...ALL_MODULES].filter((id) => id !== moduleId));
+function installedWith(changes: Readonly<Record<string, string | undefined>>): ReadonlyMap<string, string> {
+  const installed = new Map(ALL_MODULES);
+  for (const [id, version] of Object.entries(changes)) {
+    if (version === undefined) {
+      installed.delete(id);
+    } else {
+      installed.set(id, version);
+    }
+  }
+  return installed;
 }
 
 test.describe("resolveSeedScope", () => {
-  test("seeds every collection in seed order when nothing is limited and everything is installed", () => {
+  test("seeds every collection in seed order when nothing is limited and everything qualifies", () => {
     expect(resolveSeedScope(ALL_MODULES, undefined)).toEqual({
       partial: false,
       collections: COLLECTION_NAMES,
@@ -18,11 +30,21 @@ test.describe("resolveSeedScope", () => {
     });
   });
 
-  test("skips the collections whose module is not installed", () => {
-    const scope = resolveSeedScope(without("VirtoCommerce.XPickup"), undefined);
+  test("skips the collections whose module is not installed, with the reason", () => {
+    const scope = resolveSeedScope(installedWith({ [MODULES.pickup.id]: undefined }), undefined);
 
-    expect(scope.skipped).toEqual(["pickupLocations"]);
+    expect(scope.skipped).toEqual([{ name: "pickupLocations", reason: "VirtoCommerce.XPickup is not installed" }]);
     expect(scope.collections).toEqual(COLLECTION_NAMES.filter((name) => name !== "pickupLocations"));
+  });
+
+  test("skips the collections whose module is older than their range, with the reason", () => {
+    const scope = resolveSeedScope(installedWith({ [MODULES.pageBuilder.id]: "3.1012.1" }), undefined);
+    const reason = `VirtoCommerce.PageBuilderModule 3.1012.1 is older than ${MODULES.pageBuilder.minVersion}`;
+
+    expect(scope.skipped).toEqual([
+      { name: "pages", reason },
+      { name: "pagesContent", reason },
+    ]);
   });
 
   test("seeds only the listed collections, in seed order", () => {
@@ -32,16 +54,20 @@ test.describe("resolveSeedScope", () => {
   });
 
   test("reports a listed collection whose module is not installed as skipped", () => {
-    const scope = resolveSeedScope(without("VirtoCommerce.XPickup"), ["pickupLocations", "users"]);
+    const scope = resolveSeedScope(installedWith({ [MODULES.pickup.id]: undefined }), ["pickupLocations", "users"]);
 
-    expect(scope).toEqual({ partial: true, collections: ["users"], skipped: ["pickupLocations"] });
+    expect(scope).toEqual({
+      partial: true,
+      collections: ["users"],
+      skipped: [{ name: "pickupLocations", reason: "VirtoCommerce.XPickup is not installed" }],
+    });
   });
 
   test("seeds nothing when no module is installed", () => {
-    const scope = resolveSeedScope(new Set(), undefined);
+    const scope = resolveSeedScope(new Map(), undefined);
 
     expect(scope.collections).toEqual([]);
-    expect(scope.skipped).toEqual(COLLECTION_NAMES);
+    expect(scope.skipped.map(({ name }) => name)).toEqual(COLLECTION_NAMES);
   });
 });
 

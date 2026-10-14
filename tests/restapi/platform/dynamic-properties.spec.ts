@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import * as allure from "allure-js-commons";
 
 import { uniqueId } from "@core/unique-id";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const CONTACT_TYPE = "VirtoCommerce.CustomerModule.Core.Model.Contact";
@@ -26,7 +27,7 @@ const OBJECT_TYPES = [
     "VirtoCommerce.OrdersModule.Core.Model.Shipment",
     STORE_TYPE,
   ].map((objectType) => ({ objectType, requiresModules: [] })),
-  { objectType: "VirtoCommerce.QuoteModule.Core.Model.QuoteRequest", requiresModules: ["VirtoCommerce.Quote"] },
+  { objectType: "VirtoCommerce.QuoteModule.Core.Model.QuoteRequest", requiresModules: [MODULES.quote] },
 ];
 const VALUE_TYPES = [
   { title: "ShortText (array)", valueType: "ShortText", isArray: true, isMultilingual: false, isDictionary: false },

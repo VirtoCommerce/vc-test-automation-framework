@@ -11,9 +11,9 @@ import {
 } from "@api/graphql/generated/graphql";
 import { lineItemOf } from "@api/graphql/line-items";
 import { requireFields } from "@core/required-fields";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
-const QUOTE_MODULE = "VirtoCommerce.Quote";
 const PRODUCT_ID = "product-smartphone-apple-iphone-17-256gb-black";
 const SECOND_PRODUCT_ID = "product-sodimm-crucial-ddr4-2400-8gb";
 const SHIPPING = 1;
@@ -34,7 +34,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("quotes (customer of their own)", () => {
-  test.use({ requiresModules: [QUOTE_MODULE] });
+  test.use({ requiresModules: [MODULES.quote] });
 
   test("create an empty quote", async ({ arrange }) => {
     await allure.story("Create");

@@ -46,15 +46,16 @@ export interface SeedSummary {
  *
  * - With a `find` path, a record the platform already has is left as it is (the platform refuses duplicates).
  * - A failed request stops the run, including `200` answers with `succeeded: false` (refused user or role).
- * - Collections without records are skipped with a warning; so are the collections of uninstalled modules.
+ * - Collections without records are skipped with a warning; so are those whose module is not installed or not
+ *   in the collection's version range.
  *
  * @throws Error naming the collection and the record when a request fails; known secret values are masked.
  */
 export async function seedDataset(run: SeedRun): Promise<SeedSummary> {
   const { dataset, logger, scope } = run;
   const startedAt = Date.now();
-  for (const name of scope.skipped) {
-    logger.warn(`${name}: module ${MANIFEST[name].moduleId} is not installed, skipped`);
+  for (const { name, reason } of scope.skipped) {
+    logger.warn(`${name}: ${reason}, skipped`);
   }
   logger.info(`seeding ${scope.collections.length} collections: ${scope.collections.join(", ")}`);
 

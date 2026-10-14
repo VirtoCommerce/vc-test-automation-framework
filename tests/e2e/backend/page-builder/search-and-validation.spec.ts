@@ -1,6 +1,7 @@
 import * as allure from "allure-js-commons";
 
 import { uniqueId } from "@core/unique-id";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 import { Route } from "@pages/backend/page-builder/page-builder";
 import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/controls";
@@ -20,6 +21,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("page search (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   test("search matches part of the name and ignores case", async ({ pageBuilder, arrange }) => {
     await allure.story("Search");
     await allure.description(
@@ -53,6 +56,8 @@ test.describe("page search (platform admin)", () => {
 });
 
 test.describe("page validation (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   for (const { fields, missing } of NEW_PAGE_FIELDS) {
     test(`Save is disabled for a new page without ${missing}`, async ({ pageBuilder }) => {
       await allure.story("Validation");

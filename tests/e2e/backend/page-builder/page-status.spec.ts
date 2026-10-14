@@ -2,6 +2,7 @@ import type { Arrange } from "@dataset/arrange";
 
 import * as allure from "allure-js-commons";
 
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 import { Column, Route } from "@pages/backend/page-builder/page-builder";
 import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/controls";
@@ -26,6 +27,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("status filters (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   for (const { route, status, page, create } of STATUS_LISTS) {
     test(`the ${route} list shows only ${status} pages and its counter matches`, async ({ pageBuilder, arrange }) => {
       await allure.story("Status lists");
@@ -91,6 +94,8 @@ test.describe("status filters (platform admin)", () => {
 });
 
 test.describe("status transitions (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   test("publishing a draft moves it to the active list", async ({ pageBuilder, arrange }) => {
     await allure.story("Status transitions");
     await allure.description("A published draft leaves the draft list for the active list, and both counters match.");
@@ -147,6 +152,8 @@ test.describe("status transitions (platform admin)", () => {
 });
 
 test.describe("user feedback (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   test("saving a page shows a success toast and disables Save again", async ({ pageBuilder, arrange }) => {
     await allure.story("Feedback");
     await allure.description(

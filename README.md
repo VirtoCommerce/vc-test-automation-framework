@@ -113,8 +113,9 @@ npm run seed
 
 The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: records
 the platform already has are left as they are, dataset users get the current `USERS_PASSWORD`, and pages get their
-dataset status. Collections of modules the platform does not have are skipped with a warning, such as
-`[seed] WARN pickupLocations: module VirtoCommerce.XPickup is not installed, skipped`.
+dataset status. A collection whose module is not installed, or not in the version range the suite needs
+(`dataset/modules.ts`), is skipped with a warning, such as
+`[seed] WARN pages: VirtoCommerce.PageBuilderModule 3.1012.1 is older than 3.1034.0, skipped`.
 
 The seeder does not touch the search index. After seeding a fresh platform, rebuild every document type in the
 admin UI's *Search index* blade and wait until it finishes; CI does this itself.
@@ -309,6 +310,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   ├── poll.ts              `pollUntil` and `INDEX_LAG_TIMEOUT_MS` for eventually consistent reads
 │   ├── required-fields.ts   `requireFields` / `requireDefined`: narrow optional API fields or fail clearly
 │   ├── unique-id.ts         Unique names for test data
+│   ├── modules.ts           Module requirements with version ranges, and why an installed module set misses one
 │   └── …                    Logger, validation schemas, deep freeze, topological sort, placeholders
 │
 ├── api/                     Talking to the platform
@@ -330,6 +332,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 ├── dataset/                 Test data
 │   ├── data/                The seed dataset as JSON, one folder per collection
 │   ├── manifest.ts          How each collection is seeded: endpoint, keys, module, order
+│   ├── modules.ts           `MODULES`: the platform modules (and version ranges) the seed and the tests need
 │   ├── dataset.ts           Typed access for tests: `dataset.products.get(id)`, `dataset.users.filter(…)`
 │   ├── seed/                The seeder and the steps after it (user passwords, page statuses)
 │   ├── builders/            `newX()` functions that build unique entities for tests
@@ -387,7 +390,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 | `env` | The validated configuration |
 | `dataset`, `store` | The seed dataset; the store under test (id, catalog, language, currency) |
 | `api` | An `ApiSession`: `api.rest.*`, `api.graphql.execute(...)`, `api.storeContext()`, `api.as(user)`, `api.anonymous()` |
-| `requiresModules` | Option: platform modules a test needs; without one installed the test is skipped, naming it |
+| `requiresModules` | Option: platform modules a test needs, from `MODULES`; where one is missing or outside its version range the test is skipped, with the reason |
 | `arrange` | Creates test data and removes it after the test |
 | `cleanup` | The cleanup stack, for undoing what the code under test creates |
 | `shopper` | The frontend browser's identity and its `api` session (`test.use({ shopperKind: "customer" })`) |
@@ -428,9 +431,17 @@ Methods named `…Later` create nothing: they register the removal of something 
 - Waits for search-index reads live in `arrange` (or poll with `INDEX_LAG_TIMEOUT_MS`), never as sleeps.
 - A UI test checks the UI; data rules (search semantics, prices, validation) are checked once through the API.
 - A test that needs an optional platform module (one not every deployment installs: `VirtoCommerce.Quote`,
-  `VirtoCommerce.XPickup`, `VirtoCommerce.WhiteLabeling`) declares it with `test.use({ requiresModules: ["VirtoCommerce.X"] })` on its
-  `describe`; it is skipped where the module is missing. Keep fields of such modules out of shared GraphQL
-  fragments: a field the schema lacks fails the whole query.
+  `VirtoCommerce.XPickup`, `VirtoCommerce.WhiteLabeling`, `VirtoCommerce.PageBuilderModule`) declares it with
+  `test.use({ requiresModules: [MODULES.x] })` on its `describe`; it is skipped where the module is missing or
+  outside its version range. Keep fields of such modules out of shared GraphQL fragments: a field the schema lacks
+  fails the whole query.
+- Module requirements live in one place, `MODULES` in `dataset/modules.ts`, shared by the seed manifest and the
+  tests, so a collection the seed skips and the tests that use its data skip for the same reason. A requirement
+  may carry a version range: `minVersion` (inclusive) when the suite relies on a fix or feature of that version,
+  `beforeVersion` (exclusive) when a later version changes what a test checks. The range is what the suite is
+  proven on: raise `minVersion` when the suite starts relying on a newer fix, lower it only after a green run on
+  the older version. The suite targets edge versions; version ranges are for the few modules it deliberately
+  follows at edge (today PageBuilder), not for general differences between stable and edge bundles.
 - A test that hits a known defect starts with `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test runs
   and is expected to fail; without one it is skipped as `fixme`. Add the defect to `dataset/known-issues.ts` first.
 - No code comments; names and `test.step` titles say what happens.

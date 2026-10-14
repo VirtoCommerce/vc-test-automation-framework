@@ -1,3 +1,4 @@
+import type { InstalledModules } from "@core/modules";
 import type { HttpClient } from "../../http/http-client";
 import type { ModuleDescriptorData } from "../types/modules";
 
@@ -14,12 +15,14 @@ export class ModulesClient {
     this.#httpClient = httpClient;
   }
 
-  async getInstalledIds(): Promise<ReadonlySet<string>> {
+  /** Lists the installed modules with their versions. */
+  async getInstalled(): Promise<InstalledModules> {
     const modules = (await this.#httpClient.get(MODULES_PATH)).json<ModuleDescriptorData[]>();
-    return new Set(
+    return new Map(
       modules
         .filter((module) => module.isInstalled)
-        .map((module) => requireFields(module, MODULE_DESCRIPTOR_FIELDS, "Installed module").id),
+        .map((module) => requireFields(module, MODULE_DESCRIPTOR_FIELDS, "Installed module"))
+        .map(({ id, version }) => [id, version]),
     );
   }
 

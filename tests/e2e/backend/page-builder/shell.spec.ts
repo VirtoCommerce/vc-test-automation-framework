@@ -1,5 +1,6 @@
 import * as allure from "allure-js-commons";
 
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 import { Column, Route } from "@pages/backend/page-builder/page-builder";
 
@@ -11,6 +12,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("page builder shell (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   test("the shell loads with the grid and a readable details blade", async ({ pageBuilder, arrange, store }) => {
     await allure.story("Shell");
     await allure.description(

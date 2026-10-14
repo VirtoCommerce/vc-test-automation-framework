@@ -2,6 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { uniqueId } from "@core/unique-id";
 import { TEST_PAGE_PREFIX } from "@dataset/builders/page-builder";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 import { Column, DetailsToolbar, Route } from "@pages/backend/page-builder/page-builder";
 import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/controls";
@@ -14,6 +15,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("page management (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   test("create a draft page", async ({ pageBuilder, arrange, store }) => {
     await allure.story("Pages");
     await allure.description(

@@ -2,10 +2,10 @@ import type { ArrangedPickupLocations } from "@dataset/arrange";
 
 import * as allure from "allure-js-commons";
 
+import { MODULES } from "@dataset/modules";
 import { findFulfillmentCenter } from "@dataset/stock";
 import { expect, test } from "@fixtures";
 
-const PICKUP_MODULE = "VirtoCommerce.XPickup";
 const PRODUCT_ID = "product-smartphone-google-pixel-10-lemongrass";
 const ITEMS = [{ productId: PRODUCT_ID, quantity: 3 }] as const;
 const SHIPPING_METHODS = ["FixedRate_Ground", "FixedRate_Air"] as const;
@@ -67,7 +67,7 @@ test.describe("checkout delivery (anonymous)", () => {
 });
 
 test.describe("checkout delivery with pickup (anonymous)", () => {
-  test.use({ requiresModules: [PICKUP_MODULE] });
+  test.use({ requiresModules: [MODULES.pickup] });
 
   test.beforeEach(async ({ shopper, arrange }) => {
     await test.step("arrange: a cart", () => arrange.carts.defaultCart(shopper.api, ITEMS));
@@ -94,7 +94,7 @@ test.describe("checkout delivery with pickup (anonymous)", () => {
 });
 
 pickupTest.describe("checkout pickup locations (anonymous, with a new location)", () => {
-  pickupTest.use({ requiresModules: [PICKUP_MODULE] });
+  pickupTest.use({ requiresModules: [MODULES.pickup] });
 
   pickupTest.beforeEach(async ({ frontend, location }) => {
     const flow = frontend.checkout();

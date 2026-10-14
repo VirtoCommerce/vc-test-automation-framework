@@ -105,7 +105,7 @@ test.describe("RestApi", () => {
     received.length = 0;
     const restApi = new RestApi(new HttpClient(context).withHeaders({ "X-Test-User": "rest-api-user" }), "store-acme");
 
-    await restApi.modules.getInstalledIds();
+    await restApi.modules.getInstalled();
 
     expect(received).toEqual([{ path: "/api/platform/modules", user: "rest-api-user" }]);
   });

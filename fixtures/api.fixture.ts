@@ -1,10 +1,12 @@
 import type { ApiConnection } from "@api/api-session";
+import type { InstalledModules, ModuleRequirement } from "@core/modules";
 
 import { ApiSession } from "@api/api-session";
 import { TokenClient } from "@api/auth/token-client";
 import { TokenManager } from "@api/auth/token-manager";
 import { HttpClient } from "@api/http/http-client";
 import { Logger } from "@core/logger";
+import { unmetReasons } from "@core/modules";
 import { credentialsOf } from "@dataset/users";
 
 import { test as datasetTest } from "./dataset.fixture";
@@ -19,36 +21,27 @@ export interface ApiFixtures {
    */
   readonly user: string | undefined;
   /**
-   * Option: platform modules the tests need, such as `VirtoCommerce.WhiteLabeling`. A test whose module is not
-   * installed is skipped, naming it. Empty (the default) checks nothing.
+   * Option: platform modules the tests need, from `MODULES` (`@dataset/modules`), with their version ranges. A test
+   * whose module is not installed or not in its range is skipped, with the reason. Empty (the default) checks
+   * nothing.
    *
    * @example
-   * test.use({ requiresModules: ["VirtoCommerce.WhiteLabeling"] });
+   * test.use({ requiresModules: [MODULES.pageBuilder] });
    */
-  readonly requiresModules: readonly string[];
+  readonly requiresModules: readonly ModuleRequirement[];
   /**
    * API session of `user`, signed in before the test. Use `api.rest`, `api.graphql`, and `api.as(otherUser)`
    * or `api.anonymous()` for another identity.
    */
   readonly api: ApiSession;
-  /** Skips the test when a module of `requiresModules` is not installed; runs for every test. */
+  /** Skips the test when a module of `requiresModules` is not installed or not in its range; runs for every test. */
   readonly _requiredModules: undefined;
 }
 
 interface ApiWorkerFixtures {
   readonly _connection: ApiConnection;
-  /** Ids of the installed platform modules, read once per worker as the platform administrator on first call. */
-  readonly _installedModules: () => Promise<ReadonlySet<string>>;
-}
-
-/**
- * Returns the modules of `required` that are not in `installed`, in the given order.
- *
- * @example
- * missingModules(["VirtoCommerce.WhiteLabeling"], new Set(["VirtoCommerce.Core"])); // ["VirtoCommerce.WhiteLabeling"]
- */
-export function missingModules(required: readonly string[], installed: ReadonlySet<string>): string[] {
-  return required.filter((moduleId) => !installed.has(moduleId));
+  /** The installed platform modules, read once per worker as the platform administrator on first call. */
+  readonly _installedModules: () => Promise<InstalledModules>;
 }
 
 /** Adds {@link ApiFixtures} on top of the dataset fixtures; one request context per worker, signed out at its end. */
@@ -77,10 +70,10 @@ export const test = datasetTest.extend<ApiFixtures, ApiWorkerFixtures>({
 
   _installedModules: [
     async ({ _connection, dataset, env }, use) => {
-      let installed: Promise<ReadonlySet<string>> | undefined;
-      async function read(): Promise<ReadonlySet<string>> {
+      let installed: Promise<InstalledModules> | undefined;
+      async function read(): Promise<InstalledModules> {
         const admin = await ApiSession.open(_connection, (userName) => credentialsOf(dataset, userName), env.admin);
-        return admin.rest.modules.getInstalledIds();
+        return admin.rest.modules.getInstalled();
       }
       await use(() => {
         installed ??= read();
@@ -96,13 +89,11 @@ export const test = datasetTest.extend<ApiFixtures, ApiWorkerFixtures>({
 
   _requiredModules: [
     async ({ requiresModules, _installedModules }, use, testInfo) => {
-      const missing = requiresModules.length === 0 ? [] : missingModules(requiresModules, await _installedModules());
-      if (missing.length > 0) {
-        new Logger("modules").warn(
-          `skipped "${testInfo.titlePath.slice(1).join(" › ")}": not installed: ${missing.join(", ")}`,
-        );
+      const unmet = requiresModules.length === 0 ? [] : unmetReasons(requiresModules, await _installedModules());
+      if (unmet.length > 0) {
+        new Logger("modules").warn(`skipped "${testInfo.titlePath.slice(1).join(" › ")}": ${unmet.join("; ")}`);
       }
-      testInfo.skip(missing.length > 0, `Not installed: ${missing.join(", ")}`);
+      testInfo.skip(unmet.length > 0, unmet.join("; "));
       await use(undefined);
     },
     { auto: true },

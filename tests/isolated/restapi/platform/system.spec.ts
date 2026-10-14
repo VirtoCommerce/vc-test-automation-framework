@@ -21,7 +21,7 @@ test.describe("platform system (store administrator, whole platform)", () => {
     await test.step("act: reload the modules", () => api.rest.modules.reload());
 
     await test.step(`assert: ${CATALOG_MODULE_ID} is still installed`, async () => {
-      expect([...(await api.rest.modules.getInstalledIds())]).toContain(CATALOG_MODULE_ID);
+      expect([...(await api.rest.modules.getInstalled()).keys()]).toContain(CATALOG_MODULE_ID);
     });
   });
 

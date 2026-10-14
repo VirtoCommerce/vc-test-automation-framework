@@ -1,5 +1,6 @@
 import type { HttpMethod } from "@api/http/http-method";
 import type { CollectionName } from "@dataset/manifest";
+import type { SkippedCollection } from "@dataset/seed/seed-scope";
 import type { SeedHttp } from "@dataset/seed/seeder";
 
 import { Writable } from "node:stream";
@@ -67,7 +68,7 @@ function capture(): { readonly logger: Logger; readonly lines: () => string[] } 
   };
 }
 
-function scope(collections: readonly CollectionName[], skipped: readonly CollectionName[] = []) {
+function scope(collections: readonly CollectionName[], skipped: readonly SkippedCollection[] = []) {
   return { partial: true, collections, skipped };
 }
 
@@ -219,11 +220,14 @@ test.describe("seedDataset", () => {
         dataset: DATASET,
         placeholders: PLACEHOLDERS,
         logger,
-        scope: { ...scope([], ["pickupLocations"]), partial },
+        scope: {
+          ...scope([], [{ name: "pickupLocations", reason: "VirtoCommerce.XPickup is not installed" }]),
+          partial,
+        },
       });
 
       expect(lines()).toContainEqual(
-        expect.stringMatching(/WARN pickupLocations: module VirtoCommerce\.XPickup is not installed, skipped$/),
+        expect.stringMatching(/WARN pickupLocations: VirtoCommerce\.XPickup is not installed, skipped$/),
       );
     });
   }

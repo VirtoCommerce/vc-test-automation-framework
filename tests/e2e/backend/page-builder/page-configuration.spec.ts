@@ -2,6 +2,7 @@ import type { PageDetailsBlade } from "@pages/backend/page-builder/page-builder"
 
 import * as allure from "allure-js-commons";
 
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 import { Route } from "@pages/backend/page-builder/page-builder";
 
@@ -19,6 +20,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("page configuration (platform admin)", () => {
+  test.use({ requiresModules: [MODULES.pageBuilder] });
+
   test("the details blade exposes every configuration field", async ({ pageBuilder, arrange }) => {
     await allure.story("Configuration");
     await allure.description(

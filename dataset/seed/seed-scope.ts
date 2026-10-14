@@ -1,6 +1,16 @@
+import type { InstalledModules } from "@core/modules";
 import type { CollectionName } from "../manifest";
 
+import { unmetReason } from "@core/modules";
+
 import { COLLECTION_NAMES, isCollectionName, MANIFEST } from "../manifest";
+
+/** A collection left out of a seed run, and why. */
+export interface SkippedCollection {
+  readonly name: CollectionName;
+  /** Why its module does not qualify, such as `VirtoCommerce.XPickup is not installed`. */
+  readonly reason: string;
+}
 
 /** What one seed run covers. */
 export interface SeedScope {
@@ -8,26 +18,29 @@ export interface SeedScope {
   readonly partial: boolean;
   /** The collections to seed, in seed order. */
   readonly collections: readonly CollectionName[];
-  /** The selected collections left out because their module is not installed, in seed order. */
-  readonly skipped: readonly CollectionName[];
+  /** The selected collections whose module is missing or outside its version range, in seed order. */
+  readonly skipped: readonly SkippedCollection[];
 }
 
 /**
- * Decides which collections a run seeds: all, or those in `SEED_ONLY`, minus those whose module is not installed.
- * Keeps the manifest's seed order whatever order `SEED_ONLY` uses.
+ * Decides which collections a run seeds: all, or those in `SEED_ONLY`, minus those whose module is not installed
+ * or not in the collection's version range. Keeps the manifest's seed order whatever order `SEED_ONLY` uses.
  *
  * @param only - From {@link parseSeedOnly}; `undefined` for a full seed.
  */
-export function resolveSeedScope(
-  installedModuleIds: ReadonlySet<string>,
-  only: readonly CollectionName[] | undefined,
-): SeedScope {
+export function resolveSeedScope(installed: InstalledModules, only: readonly CollectionName[] | undefined): SeedScope {
   const selected = COLLECTION_NAMES.filter((name) => only === undefined || only.includes(name));
-  return {
-    partial: only !== undefined,
-    collections: selected.filter((name) => installedModuleIds.has(MANIFEST[name].moduleId)),
-    skipped: selected.filter((name) => !installedModuleIds.has(MANIFEST[name].moduleId)),
-  };
+  const collections: CollectionName[] = [];
+  const skipped: SkippedCollection[] = [];
+  for (const name of selected) {
+    const reason = unmetReason(MANIFEST[name].module, installed);
+    if (reason === undefined) {
+      collections.push(name);
+    } else {
+      skipped.push({ name, reason });
+    }
+  }
+  return { partial: only !== undefined, collections, skipped };
 }
 
 /**

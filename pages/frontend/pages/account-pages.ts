@@ -1,9 +1,8 @@
 import type { Locator, Page } from "@playwright/test";
-import type { QuantityControlKind } from "../components/controls";
 
 import { exactText } from "../../selectors";
 import { ConfirmationModal } from "../components/controls";
-import { LineItem, productItem, productItems } from "../components/product";
+import { productItems } from "../components/product";
 import { ListCard, ListSettingsModal, ListSharingModal } from "../components/wishlist";
 import { FrontendPage } from "./layout";
 
@@ -22,11 +21,7 @@ export class ListsPage extends FrontendPage {
     this.cards = page.locator("[data-test-id='wishlist-card']");
     this.settingsModal = new ListSettingsModal(page);
     this.sharingModal = new ListSharingModal(page);
-    this.deleteModal = new ConfirmationModal(
-      page.locator("[data-test-id='delete-wishlist-modal']"),
-      "delete-button",
-      "cancel-button",
-    );
+    this.deleteModal = new ConfirmationModal(page.locator("[data-test-id='delete-wishlist-modal']"), "delete-button");
   }
 
   /** @param name - List name, matched exactly. */
@@ -42,18 +37,12 @@ export class ListDetailsPage extends FrontendPage {
   readonly path: string;
   readonly lineItems: Locator;
   readonly addAllToCartButton: Locator;
-  readonly #quantityControl: QuantityControlKind;
 
-  constructor(page: Page, listId: string, quantityControl: QuantityControlKind) {
+  constructor(page: Page, listId: string) {
     super(page);
-    this.#quantityControl = quantityControl;
     this.path = `/account/lists/${listId}`;
     this.lineItems = productItems(this.root);
     this.addAllToCartButton = page.locator("[data-test-id='add-all-to-cart-button']");
-  }
-
-  lineItem(sku: string): LineItem {
-    return new LineItem(productItem(this.root, sku), this.#quantityControl);
   }
 }
 

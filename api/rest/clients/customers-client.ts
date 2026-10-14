@@ -83,18 +83,9 @@ class EmployeesResource {
     this.#httpClient = httpClient;
   }
 
-  async create(employee: EmployeeData): Promise<Member<EmployeeData>> {
-    const response = await this.#httpClient.post(EMPLOYEES_PATH, { json: employee });
-    return requireFields(response.json<EmployeeData>(), MEMBER_FIELDS, "Created employee");
-  }
-
   async getMany(ids: readonly string[]): Promise<Member<EmployeeData>[]> {
     const response = await this.#httpClient.get(EMPLOYEES_PATH, { query: { ids } });
     return requireFieldsOfEach(response.json<EmployeeData[]>(), MEMBER_FIELDS, "Employee");
-  }
-
-  async createMany(employees: readonly EmployeeData[]): Promise<void> {
-    (await this.#httpClient.post(`${EMPLOYEES_PATH}/bulk`, { json: employees })).expectOk();
   }
 }
 

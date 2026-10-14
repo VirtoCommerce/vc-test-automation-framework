@@ -92,6 +92,9 @@ Fill in the values; every variable is validated when a run starts, and a wrong o
 The last three frontend settings must match how the frontend is configured; page objects adapt to them, so the
 same tests run against any configuration.
 
+An empty variable (`API_WORKERS=`) counts as unset: an optional one takes its default, a required one is reported
+missing.
+
 Variables set in the shell or on CI win over `.env`, so one run can override a value:
 
 ```bash
@@ -110,7 +113,8 @@ npm run seed
 
 The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: records
 the platform already has are left as they are, dataset users get the current `USERS_PASSWORD`, and pages get their
-dataset status. Collections of modules the platform does not have are skipped.
+dataset status. Collections of modules the platform does not have are skipped with a warning, such as
+`[seed] WARN pickupLocations: module VirtoCommerce.XPickup is not installed, skipped`.
 
 The seeder does not touch the search index. After seeding a fresh platform, rebuild every document type in the
 admin UI's *Search index* blade and wait until it finishes; CI does this itself.
@@ -210,12 +214,14 @@ report's attachments, or locally:
 npx playwright show-trace test-results/<test folder>/trace.zip
 ```
 
-Browser traces hold every action, DOM snapshot, console message and network request. API traces show the steps and
-the error but not the HTTP calls, which go through a worker-wide request context that per-test tracing does not
-record. The seed sends its requests through the test's own request context, so a failed seed's trace holds every
-call with its status; CI runs the seed without the Allure reporter, so its trace is in the artifact's
-`test-results/seed/`. Traces are not masked: they can hold tokens and passwords, so share them only where the `.env` values may
-be seen.
+Browser traces hold every action, DOM snapshot, console message and network request. API traces hold the steps and
+every REST and GraphQL call of the test, from the sign-in and `arrange` through the test to cleanup, with headers,
+bodies, status and timing (the trace viewer's *Network* tab); browser traces hold these calls too. A sign-in reused
+from an earlier test of the worker sends nothing, so it is not in the trace. A failed seed's trace holds every call
+too; CI runs the seed without the Allure reporter, so its trace is in the artifact's `test-results/seed/`.
+
+Traces are not masked: they hold tokens, cookies and typed passwords. Use only throwaway credentials on a temporary
+platform, as CI does, and share traces only where the `.env` values may be seen.
 
 ### Destructive tests
 
@@ -252,6 +258,29 @@ Inputs: the frontend build (`frontendZipUrl`), the suites (`all` = `graphql`, `r
 a failed test once.
 
 To test new module versions, update `backend-packages.json`.
+
+### Database differences
+
+CI runs every suite on PostgreSQL, SQL Server and MySQL. Where the platform behaves differently per database, the
+test asserts what holds on all three and carries a `database difference` annotation that says how (search the specs
+for it, or see it in the report):
+
+| Behaviour | PostgreSQL | SQL Server, MySQL | How the test copes | Spec |
+|---|---|---|---|---|
+| Pickup location keyword search | Matches the name only | Also matches the address, ignoring case | Expects every location named with the keyword, and every result to mention it in its name or address, in any case | `graphql/pickup/pickup-locations.spec.ts` |
+| Name of the database health check | `PostgreSql health` | `SQL Server health`, `MySql health` | Matches any of the three names | `restapi/platform/health.spec.ts` |
+
+When a test fails on only one database, check whether the platform differs there before calling it a defect. If
+it does, make the assertion hold on every database, annotate the test and add a row here:
+
+```ts
+test("filter pickup locations by keyword", {
+  annotation: {
+    type: "database difference",
+    description: "PostgreSQL matches names only; SQL Server and MySQL also match the address, ignoring case.",
+  },
+}, async ({ api, dataset }) => {
+```
 
 ## Project structure
 
@@ -373,7 +402,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 | `arrange.security` | Back-office users, API keys, roles, OAuth apps, signed-in sessions |
 | `arrange.catalog` | Catalogs, categories, products, tags, product configurations, completeness channels |
 | `arrange.pricing` | Pricelists, prices, assignments |
-| `arrange.marketing` | Promotions, coupons, dynamic content |
+| `arrange.marketing` | Promotions, dynamic content |
 | `arrange.orders` | Orders, quotes |
 | `arrange.carts` | Carts and shopping lists, in a shopper's session |
 | `arrange.pickup` | Pickup locations, and waits until carts and products can be picked up there |
@@ -398,8 +427,8 @@ Methods named `…Later` create nothing: they register the removal of something 
 - Prove a deletion by reading the record by id, not by a search that might just miss it.
 - Waits for search-index reads live in `arrange` (or poll with `INDEX_LAG_TIMEOUT_MS`), never as sleeps.
 - A UI test checks the UI; data rules (search semantics, prices, validation) are checked once through the API.
-- A test that needs an optional platform module (one not every deployment installs, such as
-  `VirtoCommerce.WhiteLabeling`) declares it with `test.use({ requiresModules: ["VirtoCommerce.X"] })` on its
+- A test that needs an optional platform module (one not every deployment installs: `VirtoCommerce.Quote`,
+  `VirtoCommerce.XPickup`, `VirtoCommerce.WhiteLabeling`) declares it with `test.use({ requiresModules: ["VirtoCommerce.X"] })` on its
   `describe`; it is skipped where the module is missing. Keep fields of such modules out of shared GraphQL
   fragments: a field the schema lacks fails the whole query.
 - A test that hits a known defect starts with `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test runs

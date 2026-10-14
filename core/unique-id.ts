@@ -10,3 +10,19 @@ import { randomUUID } from "node:crypto";
 export function uniqueId(prefix: string): string {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
+
+/**
+ * Builds a run-unique person name: the prefix, a space and eight random letters, such as `Customer Kgdafpnm`.
+ * Use it for first and last names: xAPI `updateContact`, which the frontend calls when the ship-to address
+ * changes, refuses names with digits or dashes.
+ *
+ * @example
+ * uniqueName("Customer"); // "Customer Kgdafpnm"
+ */
+export function uniqueName(prefix: string): string {
+  const letters = randomUUID()
+    .replaceAll("-", "")
+    .slice(0, 8)
+    .replace(/\d/g, (digit) => String.fromCharCode("g".charCodeAt(0) + Number(digit)));
+  return `${prefix} ${letters.charAt(0).toUpperCase()}${letters.slice(1)}`;
+}

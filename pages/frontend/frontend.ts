@@ -79,7 +79,7 @@ export class Frontend {
 
   /** Details page of one of the account's lists. */
   list(listId: string): ListDetailsPage {
-    return new ListDetailsPage(this.page, listId, this.settings.quantityControl);
+    return new ListDetailsPage(this.page, listId);
   }
 
   /** @param sharingKey - Key from the share link (the list's sharing setting id). */

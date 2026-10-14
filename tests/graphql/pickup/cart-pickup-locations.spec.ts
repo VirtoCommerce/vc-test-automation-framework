@@ -4,6 +4,7 @@ import { CartPickupLocationsDocument } from "@api/graphql/generated/graphql";
 import { findFulfillmentCenter } from "@dataset/stock";
 import { expect, test } from "@fixtures";
 
+const PICKUP_MODULE = "VirtoCommerce.XPickup";
 const MEMORY_ID = "product-sodimm-crucial-ddr4-2400-8gb";
 const PHONE_ID = "product-smartphone-apple-iphone-17-256gb-black";
 const ALL_LOCATIONS = 100;
@@ -14,6 +15,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("cart pickup locations (anonymous)", () => {
+  test.use({ requiresModules: [PICKUP_MODULE] });
+
   test("cart pickup locations of a product missing at the same-day center are transfers", async ({
     api,
     arrange,

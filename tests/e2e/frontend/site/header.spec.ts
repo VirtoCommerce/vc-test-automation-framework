@@ -2,8 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { requireFields } from "@core/required-fields";
 import { newMemberAddress, TEST_ADDRESS } from "@dataset/builders/address";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
-import { expect, knownIssue, test } from "@fixtures";
+import { expect, test } from "@fixtures";
 
 const HEADER_SELECTORS = [
   { name: "currency", value: "EUR", label: "EUR", selector: "currencySelector" },
@@ -64,7 +63,6 @@ test.describe("top header (customer of their own)", () => {
   test.use({ shopperKind: "customer" });
 
   test("pick a saved address from the ship-to selector", async ({ frontend, shopper, arrange }) => {
-    await knownIssue(KNOWN_ISSUES.shipToLabelNotRefreshed);
     await allure.story("Ship-to address");
     await allure.description("A saved organization address picked in the header becomes the ship-to address.");
     const { organizationId } = requireFields(shopper.account, ["organizationId"], "Customer");

@@ -81,13 +81,14 @@ export type Env = output<typeof EnvSchema>;
 let cachedEnv: Env | undefined;
 
 /**
- * Validates raw variables into an {@link Env}. Pure (no file or `process.env` access), for unit tests;
- * elsewhere use {@link getEnv}.
+ * Validates raw variables into an {@link Env}. An empty variable counts as unset, so it takes its default (or is
+ * reported missing). Pure (no file or `process.env` access), for unit tests; elsewhere use {@link getEnv}.
  *
  * @throws Error `"Invalid environment:"` listing every missing or invalid variable.
  */
 export function parseEnv(vars: Readonly<Record<string, string | undefined>>): Env {
-  return parseOrThrow(EnvSchema, vars, "Invalid environment");
+  const setVars = Object.fromEntries(Object.entries(vars).filter(([, value]) => value !== ""));
+  return parseOrThrow(EnvSchema, setVars, "Invalid environment");
 }
 
 /**

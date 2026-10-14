@@ -210,19 +210,21 @@ test.describe("seedDataset", () => {
     expect(order).not.toContain("finish pages");
   });
 
-  test("warns about skipped modules on a partial run", async () => {
-    const { logger, lines } = capture();
+  for (const partial of [true, false]) {
+    test(`warns about skipped modules on a ${partial ? "partial" : "full"} run`, async () => {
+      const { logger, lines } = capture();
 
-    await seedDataset({
-      http: fakeHttp(),
-      dataset: DATASET,
-      placeholders: PLACEHOLDERS,
-      logger,
-      scope: scope([], ["pickupLocations"]),
+      await seedDataset({
+        http: fakeHttp(),
+        dataset: DATASET,
+        placeholders: PLACEHOLDERS,
+        logger,
+        scope: { ...scope([], ["pickupLocations"]), partial },
+      });
+
+      expect(lines()).toContainEqual(
+        expect.stringMatching(/WARN pickupLocations: module VirtoCommerce\.XPickup is not installed, skipped$/),
+      );
     });
-
-    expect(lines()).toContainEqual(
-      expect.stringMatching(/WARN pickupLocations: module VirtoCommerce\.XPickup is not installed, skipped$/),
-    );
-  });
+  }
 });

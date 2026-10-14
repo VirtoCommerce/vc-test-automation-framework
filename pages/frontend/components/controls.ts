@@ -23,8 +23,6 @@ export class QuantityControl {
   readonly compact: Locator;
   /** Exists only when the frontend renders steppers. */
   readonly stepper: Locator;
-  /** Wide add-to-cart button; exists only when the frontend renders add-to-cart buttons. */
-  readonly textButton: Locator;
   readonly #kind: QuantityControlKind;
   readonly #commit: QuantityCommit;
   readonly #incrementButton: Locator;
@@ -41,7 +39,6 @@ export class QuantityControl {
     this.#commit = commit;
     this.stepper = root.locator("[data-test-id='quantity-stepper']");
     const addToCart = root.locator("[data-test-id='add-to-cart-button']");
-    this.textButton = addToCart.locator(".vc-add-to-cart__text-button");
     this.#buttons = addToCart.locator(".vc-add-to-cart__text-button, .vc-add-to-cart__icon-button");
     this.#incrementButton = this.stepper.locator(".vc-quantity-stepper__increment");
     this.#decrementButton = this.stepper.locator(".vc-quantity-stepper__decrement");
@@ -71,31 +68,15 @@ export class QuantityControl {
   }
 }
 
-/** Removable chip, such as an applied filter. */
-export class Chip {
-  readonly root: Locator;
-  readonly closeButton: Locator;
-
-  constructor(root: Locator) {
-    this.root = root;
-    this.closeButton = root.locator(".vc-chip__close-button");
-  }
-}
-
 /** Frontend modal that asks to confirm an action, such as clearing the cart. */
 export class ConfirmationModal {
   readonly root: Locator;
   readonly confirmButton: Locator;
-  readonly cancelButton: Locator;
 
-  /**
-   * @param confirmButtonId - `data-test-id` of the confirm button, such as `yes-button`.
-   * @param cancelButtonId - `data-test-id` of the cancel button, such as `no-button`.
-   */
-  constructor(root: Locator, confirmButtonId: string, cancelButtonId: string) {
+  /** @param confirmButtonId - `data-test-id` of the confirm button, such as `yes-button`. */
+  constructor(root: Locator, confirmButtonId: string) {
     this.root = root;
     this.confirmButton = root.locator(`[data-test-id='${confirmButtonId}']`);
-    this.cancelButton = root.locator(`[data-test-id='${cancelButtonId}']`);
   }
 }
 

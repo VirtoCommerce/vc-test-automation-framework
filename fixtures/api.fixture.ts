@@ -4,6 +4,7 @@ import { ApiSession } from "@api/api-session";
 import { TokenClient } from "@api/auth/token-client";
 import { TokenManager } from "@api/auth/token-manager";
 import { HttpClient } from "@api/http/http-client";
+import { Logger } from "@core/logger";
 import { credentialsOf } from "@dataset/users";
 
 import { test as datasetTest } from "./dataset.fixture";
@@ -96,6 +97,11 @@ export const test = datasetTest.extend<ApiFixtures, ApiWorkerFixtures>({
   _requiredModules: [
     async ({ requiresModules, _installedModules }, use, testInfo) => {
       const missing = requiresModules.length === 0 ? [] : missingModules(requiresModules, await _installedModules());
+      if (missing.length > 0) {
+        new Logger("modules").warn(
+          `skipped "${testInfo.titlePath.slice(1).join(" › ")}": not installed: ${missing.join(", ")}`,
+        );
+      }
       testInfo.skip(missing.length > 0, `Not installed: ${missing.join(", ")}`);
       await use(undefined);
     },

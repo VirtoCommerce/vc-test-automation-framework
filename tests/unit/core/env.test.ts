@@ -70,6 +70,24 @@ test.describe("parseEnv", () => {
     expect(env.googleMapsApiKey.reveal()).toBe("env-maps-key");
   });
 
+  test("reads an empty optional variable as unset and applies its default", () => {
+    const blank = {
+      PAGE_BUILDER_PATH: "",
+      GOOGLE_MAPS_API_KEY: "",
+      REQUEST_TIMEOUT_MS: "",
+      VERIFY_SSL: "",
+      RUN_DESTRUCTIVE_TESTS: "",
+      API_WORKERS: "",
+      FRONTEND_WORKERS: "",
+      QUANTITY_CONTROL: "",
+      RANGE_FILTER_TYPE: "",
+      CHECKOUT_MODE: "",
+      SEED_ONLY: "",
+    };
+
+    expect(parseEnv({ ...REQUIRED, ...blank })).toEqual(parseEnv(REQUIRED));
+  });
+
   test("ignores variables it does not know", () => {
     expect(parseEnv({ ...REQUIRED, PATH: "/usr/bin" })).not.toHaveProperty("PATH");
   });
@@ -133,7 +151,7 @@ test.describe("parseEnv", () => {
       ["QUANTITY_CONTROL", "slider"],
       ["RANGE_FILTER_TYPE", "stepper"],
       ["CHECKOUT_MODE", "one-page"],
-      ["SEED_ONLY", ""],
+      ["SEED_ONLY", "   "],
     ] as const) {
       test(`rejects ${name}=${JSON.stringify(value)}`, () => {
         expect(() => parseEnv({ ...REQUIRED, [name]: value })).toThrow(name);

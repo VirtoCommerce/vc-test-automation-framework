@@ -52,7 +52,7 @@ class ItemsResource {
   }
 
   /** Reads a content file as text; `undefined` when missing (the platform answers 404). */
-  async getText(contentType: ContentType, relativeUrl: string): Promise<string | undefined> {
+  async findText(contentType: ContentType, relativeUrl: string): Promise<string | undefined> {
     const response = await this.#httpClient.get(contentPath(contentType, this.#storeId), { query: { relativeUrl } });
     return response.status === 404 ? undefined : response.expectOk().text;
   }

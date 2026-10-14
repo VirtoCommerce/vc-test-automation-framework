@@ -3,20 +3,10 @@ import type {
   VirtoCommerceShippingModuleCoreModelPickupLocationAddress as PickupLocationAddress,
   VirtoCommerceShippingModuleCoreModelPickupLocation as PickupLocationData,
   VirtoCommerceShippingModuleCoreModelShippingMethod as ShippingMethodData,
-  VirtoCommerceShippingModuleCoreModelSearchShippingMethodsSearchCriteria as ShippingMethodsSearchCriteria,
-  VirtoCommerceShippingModuleCoreModelSearchShippingMethodsSearchResult as ShippingMethodsSearchResult,
 } from "../generated/rest-api";
 
-export type {
-  PickupLocationAddress,
-  PickupLocationData,
-  ShippingMethodData,
-  ShippingMethodsSearchCriteria,
-  ShippingMethodsSearchResult,
-};
+export type { PickupLocationAddress, PickupLocationData, ShippingMethodData };
 
 export const PICKUP_LOCATION_FIELDS = ["id", "storeId", "name"] as const;
-export const SHIPPING_METHOD_FIELDS = ["code", "storeId"] as const;
 
 export type PickupLocation = WithRequired<PickupLocationData, (typeof PICKUP_LOCATION_FIELDS)[number]>;
-export type ShippingMethod = WithRequired<ShippingMethodData, (typeof SHIPPING_METHOD_FIELDS)[number]>;

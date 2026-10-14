@@ -10,7 +10,7 @@ import type { UserDraft } from "./security";
 
 import { randomUUID } from "node:crypto";
 
-import { uniqueId } from "@core/unique-id";
+import { uniqueId, uniqueName } from "@core/unique-id";
 
 import { TEST_ADDRESS } from "./address";
 import { newPassword } from "./security";
@@ -37,12 +37,12 @@ export function newOrganization(name = uniqueId("test-organization")): Organizat
 }
 
 /**
- * Builds an approved contact `Test Customer-…` with a random id.
+ * Builds an approved contact `Test Customer …` (letters only, see {@link uniqueName}) with a random id.
  *
  * @param organizationId - Makes the contact a member of this organization and its default one; none by default.
  */
 export function newContact(organizationId?: string): ContactDraft {
-  const lastName = uniqueId("Customer");
+  const lastName = uniqueName("Customer");
   const contact: ContactDraft = {
     id: randomUUID(),
     memberType: "Contact",
@@ -56,9 +56,9 @@ export function newContact(organizationId?: string): ContactDraft {
     : { ...contact, organizations: [organizationId], defaultOrganizationId: organizationId };
 }
 
-/** Builds an employee `Test Employee-…` with a random id. */
+/** Builds an employee `Test Employee …` (letters only, see {@link uniqueName}) with a random id. */
 export function newEmployee(): EmployeeDraft {
-  const lastName = uniqueId("Employee");
+  const lastName = uniqueName("Employee");
   return { id: randomUUID(), memberType: "Employee", firstName: "Test", lastName, name: `Test ${lastName}` };
 }
 

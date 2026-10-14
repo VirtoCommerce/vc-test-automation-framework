@@ -33,7 +33,6 @@ import { RolesClient } from "@api/rest/clients/roles-client";
 import { SearchIndexesClient } from "@api/rest/clients/search-indexes-client";
 import { SeoInfosClient } from "@api/rest/clients/seo-infos-client";
 import { SettingsClient } from "@api/rest/clients/settings-client";
-import { ShippingMethodsClient } from "@api/rest/clients/shipping-methods-client";
 import { StoresClient } from "@api/rest/clients/stores-client";
 import { UsersClient } from "@api/rest/clients/users-client";
 import { WhiteLabelingClient } from "@api/rest/clients/white-labeling-client";
@@ -97,7 +96,6 @@ test.describe("RestApi", () => {
     expect(restApi.searchIndexes).toBeInstanceOf(SearchIndexesClient);
     expect(restApi.seoInfos).toBeInstanceOf(SeoInfosClient);
     expect(restApi.settings).toBeInstanceOf(SettingsClient);
-    expect(restApi.shippingMethods).toBeInstanceOf(ShippingMethodsClient);
     expect(restApi.stores).toBeInstanceOf(StoresClient);
     expect(restApi.users).toBeInstanceOf(UsersClient);
     expect(restApi.whiteLabeling).toBeInstanceOf(WhiteLabelingClient);

@@ -50,9 +50,10 @@ interface BrowserWorkerFixtures {
 }
 
 /**
- * Adds {@link BrowserFixtures} on top of `arrange`. The browser starts signed in through `storageState`:
- * on the frontend as the shopper (token or anonymous user id in local storage), on the admin UI as `env.admin`
- * (sign-in cookie).
+ * Adds {@link BrowserFixtures} on top of `arrange`. The browser context starts signed in: on the frontend as the
+ * shopper (token or anonymous user id in local storage), on the admin UI as `env.admin` (sign-in cookie). The
+ * sign-in is set on `context`, not through the `storageState` option, which Playwright's trace recording depends
+ * on: that would set `api`, `arrange` and `cleanup` up before the trace starts and tear them down after it ends.
  */
 export const test = arrangeTest.extend<BrowserOptions & BrowserFixtures, BrowserWorkerFixtures>({
   app: [undefined, { option: true }],
@@ -92,20 +93,18 @@ export const test = arrangeTest.extend<BrowserOptions & BrowserFixtures, Browser
     await use({ api: account.api, account });
   },
 
-  storageState: async ({ app, shopper, browserSessions, env }, use) => {
+  context: async ({ context, app, shopper, browserSessions, env }, use) => {
     if (app === "backend") {
-      await use(await browserSessions.signedIn("backend", env.admin));
-      return;
+      await context.setStorageState(await browserSessions.signedIn("backend", env.admin));
     }
     if (app === "frontend") {
-      await use(
+      await context.setStorageState(
         shopper.account === undefined
           ? browserSessions.anonymous("frontend", (await shopper.api.storeContext()).userId)
           : await browserSessions.signedIn("frontend", shopper.account.credentials),
       );
-      return;
     }
-    await use(undefined);
+    await use(context);
   },
 
   frontend: async ({ page, env }, use) => {

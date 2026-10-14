@@ -6,6 +6,6 @@ import type {
 
 export type { FulfillmentCenterData, InventoryInfoData };
 
-export const INVENTORY_INFO_FIELDS = ["productId", "fulfillmentCenterId", "inStockQuantity"] as const;
+const INVENTORY_INFO_FIELDS = ["productId", "fulfillmentCenterId", "inStockQuantity"] as const;
 
 export type InventoryInfo = WithRequired<InventoryInfoData, (typeof INVENTORY_INFO_FIELDS)[number]>;

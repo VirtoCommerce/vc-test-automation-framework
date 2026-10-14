@@ -46,7 +46,7 @@ export function newCoupon(promotionId: string, limits: CouponLimits): CouponDraf
 }
 
 /** Builds an inactive publication named `test-content-publication-…`, so other tests' shoppers never see it. */
-export function newPublication(): WithRequired<DynamicContentPublicationData, "id" | "name"> {
+function newPublication(): WithRequired<DynamicContentPublicationData, "id" | "name"> {
   return { id: randomUUID(), name: uniqueId("test-content-publication"), isActive: false };
 }
 

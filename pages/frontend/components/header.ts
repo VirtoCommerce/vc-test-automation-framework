@@ -90,14 +90,6 @@ export class AccountMenu {
     return this.root.locator(`[role='option']:has(${attributeSelector({ "data-organization-name": name })})`);
   }
 
-  /** Reads the names of the organizations listed right now (no waiting). */
-  async organizationNames(): Promise<string[]> {
-    const names = await this.root
-      .locator("[data-organization-name]")
-      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-organization-name")));
-    return names.filter((name): name is string => name !== null);
-  }
-
   /** Types a term into the organization search and clicks search; does not wait for the results. */
   async searchOrganizations(term: string): Promise<void> {
     await this.#searchInput.fill(term);

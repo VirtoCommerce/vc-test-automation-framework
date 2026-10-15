@@ -355,7 +355,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   └── known-issue.ts       `knownIssue(...)`
 │
 ├── tests/
-│   ├── setup/               The `seed` project
+│   ├── setup/               The `modules` and `seed` setup projects
 │   ├── restapi/             REST tests, one folder per platform module
 │   ├── graphql/             xAPI tests, by area (cart, catalog, customer, orders, pickup, quotes, security)
 │   ├── e2e/frontend/        Frontend tests (account, cart, catalog, checkout, lists, site)
@@ -376,6 +376,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 | Project | Folder | Notes |
 |---|---|---|
 | `unit` | `tests/unit` | No platform needed |
+| `modules` | `tests/setup` | Reads the platform's installed modules once per run, for `requiresModules` and the seed; every project but `unit` depends on it |
 | `seed` | `tests/setup` | Seeds the dataset; never retried |
 | `restapi` | `tests/restapi` | `API_WORKERS` workers, 90 s per test |
 | `graphql` | `tests/graphql` | `API_WORKERS` workers, 90 s per test |
@@ -435,6 +436,9 @@ Methods named `…Later` create nothing: they register the removal of something 
   `test.use({ requiresModules: [MODULES.x] })` on its `describe`; it is skipped where the module is missing or
   outside its version range. Keep fields of such modules out of shared GraphQL fragments: a field the schema lacks
   fails the whole query.
+- The installed modules are read once per run, by the `modules` setup project, which every project but `unit`
+  depends on: it saves them to `test-results/installed-modules.json` and logs how many there are; the seed and
+  `requiresModules` read that file, so no worker signs in to check modules.
 - Module requirements live in one place, `MODULES` in `dataset/modules.ts`, shared by the seed manifest and the
   tests, so a collection the seed skips and the tests that use its data skip for the same reason. A requirement
   may carry a version range: `minVersion` (inclusive) when the suite relies on a fix or feature of that version,

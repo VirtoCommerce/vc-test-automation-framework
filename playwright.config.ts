@@ -6,6 +6,7 @@ import { getEnv } from "@core/env";
 
 const env = getEnv();
 
+const MODULES_SETUP = ["modules"];
 const API_TEST_TIMEOUT_MS = 90_000;
 const BROWSER_TEST_TIMEOUT_MS = 120_000;
 const BROWSER_EXPECT_TIMEOUT_MS = 30_000;
@@ -30,14 +31,23 @@ export default defineConfig<BrowserOptions>({
       testDir: "tests/unit",
     },
     {
+      name: "modules",
+      testDir: "tests/setup",
+      testMatch: "modules.setup.ts",
+      retries: 0,
+      use: { trace: "retain-on-failure" },
+    },
+    {
       name: "seed",
       testDir: "tests/setup",
-      testMatch: "*.setup.ts",
+      testMatch: "seed.setup.ts",
+      dependencies: MODULES_SETUP,
       retries: 0,
       use: { trace: "retain-on-failure" },
     },
     {
       name: "graphql",
+      dependencies: MODULES_SETUP,
       testDir: "tests/graphql",
       workers: env.apiWorkers,
       timeout: API_TEST_TIMEOUT_MS,
@@ -45,6 +55,7 @@ export default defineConfig<BrowserOptions>({
     },
     {
       name: "restapi",
+      dependencies: MODULES_SETUP,
       testDir: "tests/restapi",
       workers: env.apiWorkers,
       timeout: API_TEST_TIMEOUT_MS,
@@ -52,6 +63,7 @@ export default defineConfig<BrowserOptions>({
     },
     {
       name: "e2e-frontend",
+      dependencies: MODULES_SETUP,
       testDir: "tests/e2e/frontend",
       workers: env.frontendWorkers,
       timeout: BROWSER_TEST_TIMEOUT_MS,
@@ -60,6 +72,7 @@ export default defineConfig<BrowserOptions>({
     },
     {
       name: "e2e-backend",
+      dependencies: MODULES_SETUP,
       testDir: "tests/e2e/backend",
       workers: 1,
       timeout: BROWSER_TEST_TIMEOUT_MS,
@@ -70,6 +83,7 @@ export default defineConfig<BrowserOptions>({
       ? [
           {
             name: "isolated",
+            dependencies: MODULES_SETUP,
             testDir: "tests/isolated",
             timeout: API_TEST_TIMEOUT_MS,
             workers: 1,

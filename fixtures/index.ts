@@ -3,7 +3,7 @@ import { mergeExpects } from "@playwright/test";
 import { apiExpect } from "@api/api-matchers";
 
 import { test as browserTest } from "./browser.fixture";
-import { test as datasetTest } from "./dataset.fixture";
+import { test as setupFixturesTest } from "./setup.fixture";
 
 export type { BrowserOptions, Shopper, ShopperKind } from "./browser.fixture";
 
@@ -19,12 +19,14 @@ export type { BrowserOptions, Shopper, ShopperKind } from "./browser.fixture";
 export const test = browserTest;
 
 /**
- * Playwright `test` with only `env`, `dataset` and `store`, for setup that runs before the dataset exists, such as
- * the seed: it signs nobody in and loads no browser state, so it never needs a dataset user.
+ * Playwright `test` for the setup projects (`modules`, `seed`), which run before the dataset exists: `env`,
+ * `dataset`, `store` and `platformAdmin`, the platform administrator from the environment. It loads no browser
+ * state and never signs in a dataset user.
  */
-export const setupTest = datasetTest;
+export const setupTest = setupFixturesTest;
 
 /** Playwright `expect` extended with the project's API matchers; import it from `@fixtures`. */
 export const expect = mergeExpects(apiExpect);
 
+export { loadInstalledModules, saveInstalledModules } from "./installed-modules";
 export { knownIssue } from "./known-issue";

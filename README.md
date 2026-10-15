@@ -111,9 +111,12 @@ $env:VERIFY_SSL = "false"; npm run test:e2e:frontend; Remove-Item Env:VERIFY_SSL
 npm run seed
 ```
 
-The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: records
-the platform already has are left as they are, dataset users get the current `USERS_PASSWORD`, and pages get their
-dataset status. A collection whose module is not installed, or not in the version range the suite needs
+The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: each
+collection declares in `dataset/manifest.ts` how a repeat avoids duplicates (`repeat`). Most replace the stored
+record by its id or key (`upsert`), so dataset changes reach the platform; a few whose endpoints refuse a record
+twice (users, organization memberships, coupons, orders) look it up and leave it as it is (`find`). Shipping and
+payment methods, whose ids the platform assigns, are found by store and code and updated in place. Dataset users
+get the current `USERS_PASSWORD`, and pages get their dataset status. A collection whose module is not installed, or not in the version range the suite needs
 (`dataset/modules.ts`), is skipped with a warning, such as
 `[seed] WARN pages: VirtoCommerce.PageBuilderModule 3.1012.1 is older than 3.1034.0, skipped`.
 
@@ -625,7 +628,10 @@ Rules for undo actions:
 ### Adding seed data
 
 Add a JSON file to the collection's folder in `dataset/data/` (ids are prefixed with the collection, e.g.
-`product-…`), reference it from tests by id, and run `npm run seed`. `${ENV:NAME}` placeholders take values from
+`product-…`), reference it from tests by id, and run `npm run seed`. A new collection in `dataset/manifest.ts`
+must say how a repeated seed avoids duplicates: `repeat: "upsert"` when its endpoint replaces a record by id or key
+(prove it by seeding twice), or `repeat: "find"` with a `find` path when the endpoint refuses a record twice; for
+records whose id the platform assigns, `storedIdFrom` finds the stored one by a search. `${ENV:NAME}` placeholders take values from
 `.env`. Tests read seeded records through `dataset`, so data and expectations never drift apart.
 
 ## Scripts

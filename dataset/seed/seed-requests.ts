@@ -1,7 +1,7 @@
 import type { CollectionSpec } from "../manifest";
 import type { EnvPlaceholders } from "../placeholders";
 
-import { interpolate } from "@core/interpolate";
+import { interpolate, jsonStringContent } from "@core/interpolate";
 import { topologicalSort } from "@core/topological-sort";
 
 /** One request of a seed run. */
@@ -73,7 +73,28 @@ export function findPathOf(spec: CollectionSpec, record: object, env: EnvPlaceho
 }
 
 function resolvePath(template: string, env: EnvPlaceholders, record: object): string {
-  return interpolate(template, { ENV: (key) => env[key], RECORD: (key) => fieldOf(record, key) }, encodeURIComponent);
+  return interpolate(template, sourcesOf(env, record), encodeURIComponent);
+}
+
+function sourcesOf(env: EnvPlaceholders, record: object): Parameters<typeof interpolate>[1] {
+  return { ENV: (key) => env[key], RECORD: (key) => fieldOf(record, key) };
+}
+
+/**
+ * The search that finds a record's stored copy, for collections with `storedIdFrom`, with its placeholders filled
+ * in; `undefined` for other collections.
+ */
+export function storedIdSearchOf(
+  spec: CollectionSpec,
+  record: object,
+  env: EnvPlaceholders,
+): { readonly path: string; readonly criteria: unknown; readonly match: string } | undefined {
+  const lookup = spec.storedIdFrom;
+  if (lookup === undefined) {
+    return undefined;
+  }
+  const criteria = interpolate(JSON.stringify(lookup.criteria), sourcesOf(env, record), jsonStringContent);
+  return { path: resolvePath(lookup.search, env, record), criteria: JSON.parse(criteria), match: lookup.match };
 }
 
 /** Names one record for logs and error messages: by id, by its first key, or by its position. */

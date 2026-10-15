@@ -3,26 +3,7 @@
 Architecture and design refinements for this project, ordered by value for the effort. Each item says what is
 wrong today, what to change, and roughly how big the change is. When an item is done, remove it from this file.
 
-## 1. Make "the seed is repeatable" a manifest rule
-
-**Problem.** `npm run seed` is meant to be safe to repeat, but collections that create a duplicate on a second
-run were found one by one: coupons and orders (fixed), shipping methods (open: a duplicate key on
-`IX_StoreShippingMethodEntity_TypeName_StoreId`), and probably payment methods.
-
-**Change.** Every collection in `dataset/manifest.ts` declares how a repeat avoids duplicates:
-
-```ts
-/** How a second seed avoids duplicates: look the record up and skip it, or rely on the endpoint replacing it. */
-readonly repeat: "find" | "upsert";
-```
-
-A unit test requires a `find` path wherever `repeat` is `"find"`, so no collection can be added without
-deciding. Shipping and payment methods get fixed with it. The platform creates them per store, so their lookup
-is by store and code, not by an id the dataset chooses.
-
-**Size.** The manifest field and test; the fix for shipping and payment methods.
-
-## 2. Less boilerplate in the REST clients
+## 1. Less boilerplate in the REST clients
 
 **Problem.** The REST client layer repeats the same plumbing in every client:
 
@@ -54,7 +35,7 @@ is by store and code, not by an id the dataset chooses.
 **Size.** About a quarter of `api/rest` goes away, with no change in behaviour. It is mechanical and can be done
 one client at a time, with the type check as the safety net. Start with a small client such as pricing.
 
-## 3. One helper for GraphQL waits in page objects
+## 2. One helper for GraphQL waits in page objects
 
 **Problem.** Page objects that wait for an API response each carry their own helper: the cart coupon section
 (`pages/frontend/components/coupons.ts`) and the page builder shell (`pages/backend/page-builder/page-builder.ts`).
@@ -71,7 +52,7 @@ touched.
 
 **Size.** Small.
 
-## 4. Cart totals check as a matcher
+## 3. Cart totals check as a matcher
 
 **Problem.** "Subtotal − discount + tax + shipping = total" is written out inline in five GraphQL coupon tests.
 
@@ -83,7 +64,7 @@ expect(cart).toHaveConsistentTotals();
 
 **Size.** Small: the matcher, its unit test, five call sites.
 
-## 5. Register the undo and create in one call in `arrange`
+## 4. Register the undo and create in one call in `arrange`
 
 **Problem.** "Register cleanup before the change" is done by hand about 40 times in `dataset/arrange/`: first
 `cleanup.push(…)`, then the create call. Swapping the two lines would compile and leave data behind when the
@@ -98,14 +79,14 @@ async track<T>(description: string, undo: () => Promise<void>, create: () => Pro
 
 **Size.** Small; it makes the rule hard to get wrong rather than saving lines.
 
-## 6. Kept in view
+## 5. Kept in view
 
 - **`pages/` structure.** Split into layouts, pages, components and flows (deferred). `components/` keeps growing;
   coupons added another file.
 - **Coupon UI selectors.** The frontend's coupon section has no `data-test-id`s, so its page objects use CSS
   classes, as the page builder ones do. Request `data-test-id`s from the frontend team, as for the page builder.
 
-## 7. Left from the migration of the old suite
+## 6. Left from the migration of the old suite
 
 Every test of the old suite is ported, merged or dropped except the four below. The migration map (`TESTS.md`) was
 removed once only these were left; it stays in the git history.
@@ -191,5 +172,5 @@ frontend shows no error.
 
 ## Suggested order
 
-1 first: it prevents a problem we actually hit. Then 2, as a separate mechanical PR. Then 3 to 5 as small
-tidy-ups, each in passing when that code is touched next.
+1 first, as a separate mechanical PR. Then 2 to 4 as small tidy-ups, each in passing when that code is touched
+next.

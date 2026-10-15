@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 
 import { loadDataset } from "@dataset/dataset";
 import { COLLECTION_NAMES, MANIFEST } from "@dataset/manifest";
-import { findPathOf, seedRequests } from "@dataset/seed/seed-requests";
+import { findPathOf, seedRequests, storedIdSearchOf } from "@dataset/seed/seed-requests";
 
 const ENV = {
   STORE_ID: "store under test",
@@ -13,7 +13,13 @@ const ENV = {
   GOOGLE_MAPS_API_KEY: "",
 };
 
-const EACH: CollectionSpec = { module: { id: "Module" }, method: "POST", endpoint: "/api/items", send: "each" };
+const EACH: CollectionSpec = {
+  module: { id: "Module" },
+  method: "POST",
+  endpoint: "/api/items",
+  send: "each",
+  repeat: "upsert",
+};
 
 test.describe("seedRequests", () => {
   test("sends one request with every record for send: all", () => {
@@ -44,6 +50,25 @@ test.describe("seedRequests", () => {
       { label: 'record "item-b"', path: "/api/items", findPath: undefined, ifMatchPath: undefined, body: records[0] },
       { label: 'record "item-a"', path: "/api/items", findPath: undefined, ifMatchPath: undefined, body: records[1] },
     ]);
+  });
+
+  test("fills the record and environment into the stored-id search, or gives none without storedIdFrom", () => {
+    const spec: CollectionSpec = {
+      ...EACH,
+      storedIdFrom: {
+        search: "/api/${ENV:STORE_ID}/search",
+        criteria: { storeId: "${ENV:STORE_ID}", codes: ["${RECORD:code}"], withoutTransient: true },
+        match: "code",
+      },
+    };
+    const record = { code: 'Fixed "Rate"' };
+
+    expect(storedIdSearchOf(spec, record, ENV)).toEqual({
+      path: "/api/store%20under%20test/search",
+      criteria: { storeId: "store under test", codes: ['Fixed "Rate"'], withoutTransient: true },
+      match: "code",
+    });
+    expect(storedIdSearchOf(EACH, record, ENV)).toBeUndefined();
   });
 
   test("gives one record's find path, or none for a collection without find", () => {

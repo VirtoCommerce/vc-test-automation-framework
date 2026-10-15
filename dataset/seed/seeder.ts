@@ -3,13 +3,12 @@ import type { Logger } from "@core/logger";
 import type { Dataset } from "../dataset";
 import type { CollectionName } from "../manifest";
 import type { EnvPlaceholders } from "../placeholders";
-import type { SeedRequest } from "./seed-requests";
 import type { SeedScope } from "./seed-scope";
 
 import { Secret } from "@core/secret";
 
 import { MANIFEST } from "../manifest";
-import { seedRequests } from "./seed-requests";
+import { findPathOf, labelOf, seedRequests } from "./seed-requests";
 
 /** What the seeder sends requests with: an HTTP client signed in as a platform administrator. */
 export type SeedHttp = Pick<HttpClient, "get" | "send">;
@@ -93,7 +92,20 @@ async function seedCollection(
   const spec = MANIFEST[name];
   let sent = 0;
   let existing = 0;
-  for (const request of seedRequests(spec, records, placeholders)) {
+  const missing: object[] = [];
+  for (const [index, record] of records.entries()) {
+    const findPath = spec.send === "all" ? findPathOf(spec, record, placeholders) : undefined;
+    try {
+      if (findPath !== undefined && (await isStored(http, findPath))) {
+        existing += 1;
+      } else {
+        missing.push(record);
+      }
+    } catch (error) {
+      throw failure(name, labelOf(spec, record, index), error);
+    }
+  }
+  for (const request of seedRequests(spec, missing, placeholders)) {
     try {
       if (request.findPath !== undefined && (await isStored(http, request.findPath))) {
         existing += 1;
@@ -104,7 +116,7 @@ async function seedCollection(
       expectAccepted(await http.send(spec.method, request.path, { json: request.body, headers }));
       sent += 1;
     } catch (error) {
-      throw failure(name, request, error);
+      throw failure(name, request.label, error);
     }
   }
   return { sent, existing };
@@ -130,9 +142,9 @@ function expectAccepted(response: Awaited<ReturnType<SeedHttp["send"]>>): void {
   }
 }
 
-function failure(name: CollectionName, request: SeedRequest, error: unknown): Error {
+function failure(name: CollectionName, label: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
-  return new Error(Secret.mask(`${name} ${request.label}: ${message}`), { cause: error });
+  return new Error(Secret.mask(`${name} ${label}: ${message}`), { cause: error });
 }
 
 function seconds(since: number): string {

@@ -30,8 +30,11 @@ interface SentRequest {
 type Answer = { readonly status: number; readonly body?: unknown; readonly eTag?: string };
 
 /** An HTTP client that records every request and answers by path; unknown paths answer 200 without a body. */
-function fakeHttp(answers: Readonly<Record<string, Answer>> = {}): SeedHttp & { readonly sent: SentRequest[] } {
+function fakeHttp(
+  answers: Readonly<Record<string, Answer>> = {},
+): SeedHttp & { readonly sent: SentRequest[]; readonly bodies: unknown[] } {
   const sent: SentRequest[] = [];
+  const bodies: unknown[] = [];
   function answer(method: HttpMethod, path: string, ifMatch?: string): HttpResponse {
     sent.push(ifMatch === undefined ? { method, path } : { method, path, ifMatch });
     const { status, body, eTag } = answers[path] ?? { status: 200 };
@@ -49,8 +52,12 @@ function fakeHttp(answers: Readonly<Record<string, Answer>> = {}): SeedHttp & { 
   }
   return {
     sent,
+    bodies,
     get: async (path) => answer("GET", path),
-    send: async (method, path, options) => answer(method, path, options?.headers?.["If-Match"]),
+    send: async (method, path, options) => {
+      bodies.push(options?.json);
+      return answer(method, path, options?.headers?.["If-Match"]);
+    },
   };
 }
 
@@ -144,6 +151,47 @@ test.describe("seedDataset", () => {
 
     expect(http.sent.filter(({ method }) => method === "POST")).toHaveLength(others.length);
     expect(summary).toMatchObject({ sent: others.length, existing: 1 });
+  });
+
+  test("sends the records of a batch collection with a find path together, leaving the stored ones out", async () => {
+    const [stored, ...others] = DATASET.coupons.all();
+    const http = fakeHttp({
+      [`/api/marketing/promotions/coupons/${String(stored?.id)}`]: { status: 200, body: { id: stored?.id } },
+    });
+
+    const summary = await seedDataset({
+      http,
+      dataset: DATASET,
+      placeholders: PLACEHOLDERS,
+      logger: capture().logger,
+      scope: scope(["coupons"]),
+    });
+
+    expect(http.sent.filter(({ method }) => method === "POST")).toEqual([
+      { method: "POST", path: "/api/marketing/promotions/coupons/add" },
+    ]);
+    expect(http.bodies).toEqual([others]);
+    expect(summary).toMatchObject({ sent: 1, existing: 1 });
+  });
+
+  test("sends nothing for a batch collection whose records are all stored", async () => {
+    const coupons = DATASET.coupons.all();
+    const http = fakeHttp(
+      Object.fromEntries(
+        coupons.map(({ id }) => [`/api/marketing/promotions/coupons/${String(id)}`, { status: 200, body: { id } }]),
+      ),
+    );
+
+    const summary = await seedDataset({
+      http,
+      dataset: DATASET,
+      placeholders: PLACEHOLDERS,
+      logger: capture().logger,
+      scope: scope(["coupons"]),
+    });
+
+    expect(http.sent.filter(({ method }) => method === "POST")).toEqual([]);
+    expect(summary).toMatchObject({ sent: 0, existing: coupons.length });
   });
 
   test("stops at a request the platform refuses with succeeded: false, naming the record", async () => {

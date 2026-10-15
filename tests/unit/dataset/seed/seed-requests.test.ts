@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 
 import { loadDataset } from "@dataset/dataset";
 import { COLLECTION_NAMES, MANIFEST } from "@dataset/manifest";
-import { seedRequests } from "@dataset/seed/seed-requests";
+import { findPathOf, seedRequests } from "@dataset/seed/seed-requests";
 
 const ENV = {
   STORE_ID: "store under test",
@@ -44,6 +44,13 @@ test.describe("seedRequests", () => {
       { label: 'record "item-b"', path: "/api/items", findPath: undefined, ifMatchPath: undefined, body: records[0] },
       { label: 'record "item-a"', path: "/api/items", findPath: undefined, ifMatchPath: undefined, body: records[1] },
     ]);
+  });
+
+  test("gives one record's find path, or none for a collection without find", () => {
+    const record = { id: "item/b" };
+
+    expect(findPathOf({ ...EACH, find: "/api/items/${RECORD:id}" }, record, ENV)).toBe("/api/items/item%2Fb");
+    expect(findPathOf(EACH, record, ENV)).toBeUndefined();
   });
 
   test("fills record fields into the path and the find path, URL-encoded", () => {

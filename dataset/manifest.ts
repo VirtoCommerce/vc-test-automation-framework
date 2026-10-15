@@ -21,7 +21,10 @@ export interface CollectionSpec {
   readonly method: HttpMethod;
   /** The seed request's path; may contain `${ENV:…}` and, with `send: "each"`, `${RECORD:field}`. */
   readonly endpoint: `/${string}`;
-  /** The path that finds an existing record, for collections that must not be sent twice. */
+  /**
+   * The path that finds an existing record, for collections that must not be sent twice: a stored record is left
+   * as it is. With `send: "all"`, the records not found are sent together in one request.
+   */
   readonly find?: `/${string}`;
   /**
    * The path whose `ETag` the seed request sends as `If-Match`, for endpoints that refuse a write without the
@@ -172,9 +175,11 @@ export const MANIFEST = {
   },
   coupons: {
     module: MODULES.marketing,
+    idPrefix: "coupon",
     keys: ["code"],
     method: "POST",
     endpoint: "/api/marketing/promotions/coupons/add",
+    find: "/api/marketing/promotions/coupons/${RECORD:id}",
     send: "all",
   },
   roles: {
@@ -229,6 +234,7 @@ export const MANIFEST = {
     keys: ["number"],
     method: "POST",
     endpoint: "/api/order/customerOrders",
+    find: "/api/order/customerOrders/${RECORD:id}",
     send: "each",
   },
   notifications: {

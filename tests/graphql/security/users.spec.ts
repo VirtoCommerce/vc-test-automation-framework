@@ -13,6 +13,7 @@ import { Mailbox } from "@api/mailbox";
 import { INDEX_LAG_TIMEOUT_MS } from "@core/poll";
 import { uniqueId } from "@core/unique-id";
 import { newPassword } from "@dataset/builders/security";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const RESET_PASSWORD_NOTIFICATION = "ResetPasswordEmailNotification";
@@ -169,6 +170,10 @@ test.describe("user invitation (organization maintainer and store administrator)
         .toContainEqual({ status: INVITED_STATUS, userNames: [email] });
     });
   });
+});
+
+test.describe("registration by invitation (organization maintainer and store administrator)", () => {
+  test.use({ requiresModules: [MODULES.organizationInvites] });
 
   test("register by invitation", async ({ api, arrange, env }) => {
     await allure.story("Invitation");

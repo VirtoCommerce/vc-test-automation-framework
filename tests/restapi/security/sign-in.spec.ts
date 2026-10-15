@@ -3,6 +3,7 @@ import * as allure from "allure-js-commons";
 import { authHeader } from "@api/auth/token-client";
 import { requireFields } from "@core/required-fields";
 import { newPassword } from "@dataset/builders/security";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const ADMINISTRATOR = "acme_store_administrator@acme.com";
@@ -114,6 +115,10 @@ test.describe("sign-in (store administrator)", () => {
       expect(await api.auth.refresh(refreshToken)).toBeUndefined();
     });
   });
+});
+
+test.describe("sign-in with locked organizations (store administrator)", () => {
+  test.use({ user: ADMINISTRATOR, requiresModules: [MODULES.organizationLocks] });
 
   test("VCST-5317: sign in with a stale organization once every organization is locked", async ({ api, arrange }) => {
     await allure.story("Organization fallback");

@@ -2,6 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { requireFields } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const NO_MATCH = "NonExistentOrg";
@@ -42,6 +43,10 @@ test.describe("organizations menu (customer of their own)", () => {
       await expect(topHeader.organizationNameLabel).toHaveText(otherName);
     });
   });
+});
+
+test.describe("organizations menu search (customer of their own)", () => {
+  test.use({ shopperKind: "customer", requiresModules: [MODULES.contactOrganizations] });
 
   test("search organizations by part of their name", async ({ frontend, shopper, arrange }) => {
     await allure.story("Search organizations");
@@ -100,6 +105,8 @@ test.describe("organizations menu (customer of their own)", () => {
 });
 
 test.describe("organizations menu with locked memberships (anonymous, then signing in)", () => {
+  test.use({ requiresModules: [MODULES.organizationLocks] });
+
   test("a locked organization stays listed but cannot be selected", async ({ frontend, page, arrange }) => {
     await allure.story("Locked membership");
     await allure.description(

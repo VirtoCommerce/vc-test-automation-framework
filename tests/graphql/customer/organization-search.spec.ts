@@ -2,6 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { GetOrganizationsDocument } from "@api/graphql/generated/graphql";
 import { uniqueId } from "@core/unique-id";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const ORGANIZATIONS_PAGE_SIZE = 100;
@@ -18,6 +19,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("organization search (customer of their own)", () => {
+  test.use({ requiresModules: [MODULES.contactOrganizations] });
+
   for (const { term, description } of SPECIAL_CHARACTER_TERMS) {
     test(`search organizations by a term with ${description}`, async ({ arrange }) => {
       await allure.story("Search");

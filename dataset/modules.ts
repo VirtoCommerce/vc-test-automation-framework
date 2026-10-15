@@ -8,6 +8,7 @@ import type { ModuleRequirement } from "@core/modules";
  * so the reason for the minimum is visible where a test requires it.
  */
 export const MODULES = {
+  backgroundJobs: { id: "VirtoCommerce.BackgroundJobs" },
   core: { id: "VirtoCommerce.Core" },
   catalog: { id: "VirtoCommerce.Catalog" },
   customer: { id: "VirtoCommerce.Customer" },

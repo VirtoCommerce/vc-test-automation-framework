@@ -88,7 +88,7 @@ await whenGraphql(page, "ClearCart", () => cart.clearCartModal.confirmButton.cli
 ## Step 3: Page Builder Tests
 
 ```ts
-import { Column, Route } from "@pages/backend/page-builder/page-builder";
+import { Column, Route } from "@pages/backend/page-builder/routes";
 
 test.describe("status transitions (platform admin)", () => {
   test("publishing a draft moves it to the active list", async ({ pageBuilder, arrange }) => {

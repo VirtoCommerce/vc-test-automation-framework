@@ -344,9 +344,17 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   └── users.ts, stock.ts, store-under-test.ts   Dataset lookups: credentials, fulfillment centers, the store
 │
 ├── pages/                   Page objects (depend on `core` only)
-│   ├── selectors.ts         Shared selector helpers
-│   ├── frontend/            vc-frontend: `Frontend` factory (the `frontend` fixture), pages and components
-│   └── backend/             Admin UI: shell controls (blades, grids, selects) and the page builder app
+│   ├── selectors.ts         Shared selector helpers; `responses.ts`: wait for the response an action causes
+│   ├── frontend/            vc-frontend
+│   │   ├── frontend.ts      `Frontend` factory (the `frontend` fixture)
+│   │   ├── layouts/         `MainLayout`: top header and cart badge, the base of every page
+│   │   ├── ui-kit/          Wrappers of the vc-frontend UI kit (quantity control, widget, dropdown filter, …)
+│   │   ├── components/      Parts of pages, one area per file or folder (header, address, catalog, checkout, …)
+│   │   ├── pages/           One page per file, by area (site, catalog, cart, checkout, account, lists)
+│   │   └── flows/           Journeys over several pages (`CheckoutFlow`)
+│   └── backend/             Admin UI
+│       ├── vc-shell/        Wrappers of the vc-shell UI kit (blade, data grid, select, date picker, switch, …)
+│       └── page-builder/    The page builder app: routes, list and details blades, `PageBuilderShell`
 │
 ├── fixtures/                Playwright fixtures; specs import `test`, `expect` and `knownIssue` from `@fixtures`
 │   ├── env.fixture.ts       `env`
@@ -580,6 +588,10 @@ test.describe("cart (customer of their own)", () => {
   input as `QUANTITY_CONTROL` says, and `frontend.checkout()` walks the single-page or multi-step checkout.
 - Specs hold no selectors. Add locators and multi-step actions to `pages/`; a page object exposes `Locator`s for
   assertions and methods that wait for what they trigger.
+- UI-kit classes (`.vc-*`) appear only in `frontend/ui-kit/` and `backend/vc-shell/`, so a change in either kit is
+  fixed in one place. Components and pages use `data-test-id`s and these wrappers.
+- Locate by test id with `getByTestId("…")`: the config sets `testIdAttribute` to the frontend's `data-test-id`
+  (Playwright's default is `data-testid`). A prefix match takes a pattern: `getByTestId(/^filter-price-/)`.
 - Page builder tests use the `pageBuilder` fixture; the browser is signed in to the admin UI as the administrator.
 
 ### Cleaning up

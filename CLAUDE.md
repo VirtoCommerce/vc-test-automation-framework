@@ -30,7 +30,7 @@ Each folder imports only the folders before it; `biome/layers.json` enforces it.
 |---|---|---|
 | `core/` | env, `Secret`, `CleanupStack`, `pollUntil` / `INDEX_LAG_TIMEOUT_MS`, `requireFields`, `uniqueId`, logger | nothing |
 | `api/` | `ApiSession`, `HttpClient`, auth, REST clients + types, GraphQL client + `.graphql` documents, `Mailbox`, matchers | `core` |
-| `pages/` | page objects: locators and UI actions | `core` |
+| `pages/` | page objects: `frontend/` (layouts, ui-kit, components, pages, flows), `backend/` (vc-shell, page-builder) | `core` |
 | `dataset/` | seed data (`data/`, `manifest.ts`, `seed/`), typed access (`dataset.ts`), builders (`newX()`), `arrange/`, `known-issues.ts` | `api`, `core` |
 | `fixtures/` | Playwright fixtures, exported from `fixtures/index.ts` with `knownIssue` | all but `tests` |
 | `tests/` | `restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/`, `isolated/`, `setup/`, `unit/` | all; Playwright only through `@fixtures` (except `unit/`) |

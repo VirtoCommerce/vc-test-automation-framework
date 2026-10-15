@@ -1,18 +1,20 @@
 import type { Locator, Page } from "@playwright/test";
-import type { QuantityControlKind } from "../components/controls";
-import type { RangeFilterKind } from "../components/product";
+import type { RangeFilterKind } from "../../components/catalog/price-filter";
+import type { QuantityControlKind } from "../../ui-kit/quantity-control";
 
 import { expect } from "@playwright/test";
 
-import { PriceFilter, ProductCard, ProductConfiguration, productItem, productItems } from "../components/product";
-import { FrontendPage } from "./layout";
+import { PriceFilter } from "../../components/catalog/price-filter";
+import { ProductCard } from "../../components/catalog/product-card";
+import { productItem, productItems } from "../../components/catalog/product-items";
+import { MainLayout } from "../../layouts/main-layout";
 
 const FIRST_CARDS_TIMEOUT_MS = 60_000;
 const SCROLL_TIMEOUT_MS = 30_000;
 const SCROLL_STEP_PX = 2_000;
 
 /** Category page with an infinitely loading product list; use {@link scrollToProduct} to get a card. */
-export class CategoryPage extends FrontendPage {
+export class CategoryPage extends MainLayout {
   readonly path: string;
   readonly productsCountLabel: Locator;
   readonly gridViewTab: Locator;
@@ -37,12 +39,12 @@ export class CategoryPage extends FrontendPage {
     super(page);
     this.path = `/${categoryPath}?sort=${sort}`;
     this.#quantityControl = kinds.quantityControl;
-    this.productsCountLabel = page.locator("[data-test-id='products-count-label']");
-    this.gridViewTab = page.locator("[data-test-id='view-switcher'] [data-test-id='grid-view-tab']");
-    this.listViewTab = page.locator("[data-test-id='view-switcher'] [data-test-id='list-view-tab']");
-    this.gridView = page.locator("[data-test-id='products-grid-view']");
-    this.listView = page.locator("[data-test-id='products-list-view']");
-    this.priceFilter = new PriceFilter(page.locator("[data-test-id='filter-price']"), kinds.rangeFilterType);
+    this.productsCountLabel = page.getByTestId("products-count-label");
+    this.gridViewTab = page.getByTestId("view-switcher").getByTestId("grid-view-tab");
+    this.listViewTab = page.getByTestId("view-switcher").getByTestId("list-view-tab");
+    this.gridView = page.getByTestId("products-grid-view");
+    this.listView = page.getByTestId("products-list-view");
+    this.priceFilter = new PriceFilter(page.getByTestId("filter-price"), kinds.rangeFilterType);
     this.productCards = productItems(this.gridView.or(this.listView));
   }
 
@@ -68,27 +70,5 @@ export class CategoryPage extends FrontendPage {
       .toBe(true);
     await card.scrollIntoViewIfNeeded();
     return new ProductCard(card, sku, this.#quantityControl);
-  }
-}
-
-/** Product page; {@link configuration} is for configurable products. */
-export class ProductPage extends FrontendPage {
-  readonly path: string;
-  readonly addToListButton: Locator;
-  readonly configuration: ProductConfiguration;
-  readonly totalPrice: Locator;
-  readonly addToCartButton: Locator;
-  /** Shown instead of {@link addToCartButton} when editing a configured cart line item. */
-  readonly updateCartButton: Locator;
-
-  /** @param productPath - Product path, such as `laptops/acer-predator-helios-neo-16-ai`; a leading `/` is optional. */
-  constructor(page: Page, productPath: string) {
-    super(page);
-    this.path = `/${productPath.replace(/^\//, "")}`;
-    this.addToListButton = this.root.locator("[data-test-id='add-to-list-button']");
-    this.configuration = new ProductConfiguration(this.root.locator(".product-configuration"));
-    this.totalPrice = this.root.locator(".product-price__value .price__value");
-    this.addToCartButton = this.root.locator(".product-price__actions button[title='Add to cart']");
-    this.updateCartButton = this.root.locator(".product-price__actions button[title='Update cart']");
   }
 }

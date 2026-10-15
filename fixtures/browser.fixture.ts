@@ -6,7 +6,7 @@ import { BrowserSessions } from "@api/auth/browser-sessions";
 import { TokenClient } from "@api/auth/token-client";
 import { TokenManager } from "@api/auth/token-manager";
 import { HttpClient } from "@api/http/http-client";
-import { PageBuilderShell } from "@pages/backend/page-builder/page-builder";
+import { PageBuilderShell } from "@pages/backend/page-builder/page-builder-shell";
 import { Frontend } from "@pages/frontend/frontend";
 
 import { test as arrangeTest } from "./arrange.fixture";

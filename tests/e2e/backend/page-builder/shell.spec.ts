@@ -2,7 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
-import { Column, Route } from "@pages/backend/page-builder/page-builder";
+import { Column, Route } from "@pages/backend/page-builder/routes";
 
 const ADMINISTRATOR_ROLE = "Administrator";
 

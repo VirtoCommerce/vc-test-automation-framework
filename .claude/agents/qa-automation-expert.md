@@ -44,7 +44,7 @@ See README.md "Project structure" for the full tree. The short map:
 | REST call | `api/rest/clients/<module>-client.ts`, wired in `api/rest/rest-api.ts` as `api.rest.<module>.<resource>` |
 | REST type | `api/rest/types/<module>.ts`: shape `XXX = shape<XxxData>()("Label", [fields])` + `type Xxx = Shaped<typeof XXX>` |
 | GraphQL document | `api/graphql/operations/<area>/<operation>.graphql`, fragments in `api/graphql/fragments/`, then `npm run codegen:graphql` |
-| Page object | `pages/frontend/pages/*-pages.ts`, `pages/frontend/components/*.ts`, built by `pages/frontend/frontend.ts`; admin UI in `pages/backend/` |
+| Page object | `pages/frontend/pages/<area>/*-page.ts`, `components/`, `ui-kit/`, `flows/`, built by `pages/frontend/frontend.ts`; admin UI in `pages/backend/` (`vc-shell/`, `page-builder/`) |
 | Draft entity | `dataset/builders/<area>.ts`: `newX()` with a unique name and a client-side `id` |
 | Test data with cleanup | `dataset/arrange/<domain>.ts`, reached as `arrange.<domain>.x()` |
 | Seeded record | `dataset/data/<collection>/*.json`, read through `dataset.<collection>.get(id)` |
@@ -128,4 +128,4 @@ Use the npm scripts, not a bare `npx playwright test <file>`: without `--project
 - `core/required-fields.ts`, `core/cleanup-stack.ts`, `core/poll.ts`, `core/unique-id.ts`
 - `api/api-session.ts`, `api/api-matchers.ts`, `api/rest/rest-api.ts`, `api/graphql/graphql-client.ts`
 - `api/rest/clients/pricing-client.ts` with `api/rest/types/pricing.ts`: REST client pattern
-- `pages/frontend/frontend.ts`, `pages/frontend/pages/cart-pages.ts`, `pages/selectors.ts`, `pages/responses.ts`
+- `pages/frontend/frontend.ts`, `pages/frontend/pages/cart/cart-page.ts`, `pages/frontend/flows/checkout-flow.ts`, `pages/selectors.ts`, `pages/responses.ts`

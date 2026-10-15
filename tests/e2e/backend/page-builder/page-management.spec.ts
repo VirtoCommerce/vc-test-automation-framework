@@ -4,8 +4,8 @@ import { uniqueId } from "@core/unique-id";
 import { TEST_PAGE_PREFIX } from "@dataset/builders/page-builder";
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
-import { Column, DetailsToolbar, Route } from "@pages/backend/page-builder/page-builder";
-import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/controls";
+import { Column, DetailsToolbar, Route } from "@pages/backend/page-builder/routes";
+import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade";
 
 const DESIGNER_APP = "page-builder-designer";
 

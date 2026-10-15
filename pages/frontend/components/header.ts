@@ -21,8 +21,8 @@ export class HeaderSelector {
   /** @param itemAttribute - Attribute holding each item's value, such as `data-currency-code`. */
   constructor(root: Locator, name: "currency" | "language", itemAttribute: string) {
     this.root = root;
-    this.button = root.locator(`[data-test-id='${name}-selector-button']`);
-    this.currentLabel = root.locator(`[data-test-id='current-${name}-label']`);
+    this.button = root.getByTestId(`${name}-selector-button`);
+    this.currentLabel = root.getByTestId(`current-${name}-label`);
     this.#itemAttribute = itemAttribute;
   }
 
@@ -44,8 +44,8 @@ export class ShipToSelector {
 
   constructor(root: Locator) {
     this.root = root;
-    this.selectedAddressLabel = root.locator("[data-test-id='selected-address-label']");
-    this.addressesList = root.locator("[data-test-id='shipping-addresses-list']");
+    this.selectedAddressLabel = root.getByTestId("selected-address-label");
+    this.addressesList = root.getByTestId("shipping-addresses-list");
   }
 
   /** Address buttons in the opened list whose data attributes match the filter. */
@@ -73,11 +73,11 @@ export class AccountMenu {
 
   constructor(root: Locator) {
     this.root = root;
-    this.dashboardLink = root.locator("[data-test-id='dashboard-link']");
-    this.organizationsEmptyList = root.locator("[data-test-id='organizations-empty-list']");
+    this.dashboardLink = root.getByTestId("dashboard-link");
+    this.organizationsEmptyList = root.getByTestId("organizations-empty-list");
     this.organizationOptions = root.locator("[data-vc-organization-option] [role='option']");
-    this.#searchInput = root.locator("[data-test-id='organizations-search'] input");
-    this.#searchButton = root.locator("[data-test-id='organizations-search-button']");
+    this.#searchInput = root.getByTestId("organizations-search").locator("input");
+    this.#searchButton = root.getByTestId("organizations-search-button");
   }
 
   /** Organization entry matched by its exact `data-organization-name`. */
@@ -110,21 +110,13 @@ export class TopHeader {
 
   constructor(root: Locator) {
     this.root = root;
-    this.languageSelector = new HeaderSelector(
-      root.locator("[data-test-id='language-selector']"),
-      "language",
-      "data-culture-name",
-    );
-    this.currencySelector = new HeaderSelector(
-      root.locator("[data-test-id='currency-selector']"),
-      "currency",
-      "data-currency-code",
-    );
-    this.accountButton = root.locator("[data-test-id='account-button']");
-    this.organizationNameLabel = this.accountButton.locator("[data-test-id='organization-name-label']");
-    this.accountMenu = new AccountMenu(root.locator("[data-test-id='account-menu']"));
-    this.addShippingAddressButton = root.locator("[data-test-id='add-shipping-address-button']");
-    this.shipToSelector = new ShipToSelector(root.locator("[data-test-id='ship-to-selector']"));
+    this.languageSelector = new HeaderSelector(root.getByTestId("language-selector"), "language", "data-culture-name");
+    this.currencySelector = new HeaderSelector(root.getByTestId("currency-selector"), "currency", "data-currency-code");
+    this.accountButton = root.getByTestId("account-button");
+    this.organizationNameLabel = this.accountButton.getByTestId("organization-name-label");
+    this.accountMenu = new AccountMenu(root.getByTestId("account-menu"));
+    this.addShippingAddressButton = root.getByTestId("add-shipping-address-button");
+    this.shipToSelector = new ShipToSelector(root.getByTestId("ship-to-selector"));
   }
 
   /** Clicks the account button and waits for the account menu. */

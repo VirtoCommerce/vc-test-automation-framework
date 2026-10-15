@@ -1,12 +1,22 @@
 import type { Page } from "@playwright/test";
 import type { Env } from "@core/env";
 
-import { EditAddressModal, PickupLocationsModal, SelectAddressModal } from "./components/address";
+import { EditAddressModal } from "./components/address/address-form";
+import { PickupLocationsModal } from "./components/address/pickup-locations-modal";
+import { SelectAddressModal } from "./components/address/select-address-modal";
 import { AddToListsModal } from "./components/wishlist";
-import { CouponsPage, ListDetailsPage, ListsPage, SharedListPage } from "./pages/account-pages";
-import { CartPage, CheckoutFlow, SavedForLaterPage } from "./pages/cart-pages";
-import { CategoryPage, ProductPage } from "./pages/catalog-pages";
-import { ContentPage, HomePage, SignInPage } from "./pages/site-pages";
+import { CheckoutFlow } from "./flows/checkout-flow";
+import { CouponsPage } from "./pages/account/coupons-page";
+import { SavedForLaterPage } from "./pages/account/saved-for-later-page";
+import { CartPage } from "./pages/cart/cart-page";
+import { CategoryPage } from "./pages/catalog/category-page";
+import { ProductPage } from "./pages/catalog/product-page";
+import { ListDetailsPage } from "./pages/lists/list-details-page";
+import { ListsPage } from "./pages/lists/lists-page";
+import { SharedListPage } from "./pages/lists/shared-list-page";
+import { ContentPage } from "./pages/site/content-page";
+import { HomePage } from "./pages/site/home-page";
+import { SignInPage } from "./pages/site/sign-in-page";
 
 /** Frontend configuration the page objects adapt to: quantity control, range filter and checkout mode. */
 export type FrontendSettings = Pick<Env, "quantityControl" | "rangeFilterType" | "checkoutMode">;

@@ -25,6 +25,7 @@ export default defineConfig<BrowserOptions>({
   forbidOnly: Boolean(process.env["CI"]),
   retries: process.env["CI"] ? 1 : 0,
   reporter: [["list"], ["allure-playwright", { resultsDir: "allure-results" }]],
+  use: { testIdAttribute: "data-test-id" },
   projects: [
     {
       name: "unit",

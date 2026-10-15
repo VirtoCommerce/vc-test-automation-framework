@@ -1,6 +1,6 @@
 ---
 name: create-ui-layer
-description: "Create frontend page objects (FrontendPage subclasses, components, the Frontend factory) and page builder shell objects (Blade, DataGrid controls) with readonly Playwright locators, data-test-id selectors and actions that hide frontend settings from specs"
+description: "Create frontend page objects (MainLayout pages, components, ui-kit wrappers, the Frontend factory) and page builder shell objects (Blade, DataGrid controls) with readonly Playwright locators, data-test-id selectors and actions that hide frontend settings from specs"
 argument-hint: "<page-or-component>"
 ---
 
@@ -12,14 +12,23 @@ user actions, no API calls, no test data. Specs hold no selectors, so every loca
 ## File Locations
 
 - Frontend factory: `pages/frontend/frontend.ts` (`Frontend`, the `frontend` fixture)
-- Frontend pages: `pages/frontend/pages/` — `layout.ts` (`FrontendPage`), `cart-pages.ts` (`CartPage`,
-  `SavedForLaterPage`, `CheckoutFlow`), `catalog-pages.ts`, `account-pages.ts`, `site-pages.ts`
-- Frontend components: `pages/frontend/components/` — `controls.ts` (`QuantityControl`, `ConfirmationModal`,
-  `DropdownFilter`), `product.ts`, `address.ts`, `checkout.ts`, `header.ts`, `wishlist.ts`
-- Admin UI building blocks: `pages/backend/shell/controls.ts` (`Blade`, `DataGrid`, `GridRow`, `Select`,
-  `DatePicker`, `Card`, `AppMenu`, `Notifications`, `ConfirmationPopup`)
-- Page builder: `pages/backend/page-builder/page-builder.ts` (`PageBuilderShell`, the `pageBuilder` fixture;
-  `PagesListBlade`, `PageDetailsBlade`, `Route`, `Column`)
+- Frontend layout: `pages/frontend/layouts/main-layout.ts` (`MainLayout`, the base of every page). The multi-step
+  checkout steps use the frontend's secure layout and are driven by `CheckoutFlow`; add `secure-layout.ts` when a
+  test needs that layout's own parts.
+- Frontend UI kit: `pages/frontend/ui-kit/` — one file per vc-frontend UI-kit component (`QuantityControl`,
+  `Widget`, `RadioButton`, `DropdownFilter`, `ConfirmationModal`, `chips`, `badgeContent`). The only frontend
+  files with `.vc-*` classes.
+- Frontend components: `pages/frontend/components/` — a file per area (`header.ts`, `checkout.ts`, `coupons.ts`,
+  `wishlist.ts`, `line-item.ts`), a folder once an area grows (`address/`, `catalog/`)
+- Frontend pages: `pages/frontend/pages/<area>/<name>-page.ts` (`site`, `catalog`, `cart`, `checkout`, `account`,
+  `lists`), one page per file
+- Frontend flows: `pages/frontend/flows/` — journeys over several pages (`CheckoutFlow`)
+- Admin UI kit: `pages/backend/vc-shell/` — `blade.ts` (`Blade`, `blades`, `DISABLED_TOOLBAR_BUTTON`),
+  `data-grid.ts`, `card.ts`, `select.ts`, `date-picker.ts`, `switch.ts`, `feedback.ts` (`ConfirmationPopup`,
+  `Notifications`), `app-shell.ts` (`AppMenu`, `UserInfo`). The only backend files with `.vc-*` classes.
+- Page builder: `pages/backend/page-builder/` — `page-builder-shell.ts` (`PageBuilderShell`, the `pageBuilder`
+  fixture), `pages-list-blade.ts`, `page-details-blade.ts`, `routes.ts` (`Route`, `Column`, `DetailsToolbar`),
+  `requests.ts` (response predicates)
 - Shared helpers: `pages/selectors.ts` (`exactText`, `startsWithText`, `attributeSelector`) and `pages/responses.ts`
   (`whenGraphql`, `whenResponse`: run an action and wait for the response it causes)
 
@@ -31,7 +40,7 @@ method.
 ## Step 2: Page
 
 ```ts
-export class CartPage extends FrontendPage {
+export class CartPage extends MainLayout {
   readonly path = "/cart";
   readonly products: Locator;
   readonly lineItems: Locator;
@@ -42,10 +51,10 @@ export class CartPage extends FrontendPage {
   constructor(page: Page, quantityControl: QuantityControlKind) {
     super(page);
     this.#quantityControl = quantityControl;
-    this.products = page.locator("[data-test-id='cart.products-section']");
+    this.products = page.getByTestId("cart.products-section");
     this.lineItems = productItems(this.products);
-    this.clearCartButton = page.locator("[data-test-id='clear-cart-button']");
-    this.clearCartModal = new ConfirmationModal(page.locator("[data-test-id='clear-cart-modal']"), "yes-button");
+    this.clearCartButton = page.getByTestId("clear-cart-button");
+    this.clearCartModal = new ConfirmationModal(page.getByTestId("clear-cart-modal"), "yes-button");
   }
 
   /** @param sku - Product SKU. */
@@ -55,7 +64,7 @@ export class CartPage extends FrontendPage {
 }
 ```
 
-- Frontend pages extend `FrontendPage` and declare a relative `path` (`baseURL` is set by the project);
+- Frontend pages extend `MainLayout` and declare a relative `path` (`baseURL` is set by the project);
   `navigate()` goes there and waits for `load`.
 - A page with a variable path takes it in the constructor (`ContentPage`, `CategoryPage`).
 - Add a factory method to `Frontend` for every new page, passing the settings it needs
@@ -70,7 +79,7 @@ export class ConfirmationModal {
 
   constructor(root: Locator, confirmButtonId: string) {
     this.root = root;
-    this.confirmButton = root.locator(`[data-test-id='${confirmButtonId}']`);
+    this.confirmButton = root.getByTestId(confirmButtonId);
   }
 }
 ```
@@ -105,12 +114,7 @@ JSDoc says what they wait for:
 ```ts
 /** Clicks save and waits for the save response (POST/PUT), whatever its status; assert the outcome after. */
 async save(): Promise<void> {
-  await whenResponse(
-    this.root.page(),
-    (response) =>
-      ["POST", "PUT"].includes(response.request().method()) && new URL(response.url()).pathname.startsWith(SAVE_PATH),
-    () => this.saveButton.click(),
-  );
+  await whenResponse(this.root.page(), isPageSave, () => this.saveButton.click());
 }
 ```
 
@@ -124,12 +128,14 @@ what the frontend sends (the request's `operationName`), not from the mutation f
 ## Locator Conventions
 
 ```ts
-page.locator("[data-test-id='clear-cart-button']")      // first choice
+page.getByTestId("clear-cart-button")                     // first choice; the config sets testIdAttribute to data-test-id
 root.locator(`[data-item-sku='${sku}']`)                  // data attributes for item identity
-root.locator(".vc-blade-header__title")                   // vc-shell / theme classes when there is no test id
+root.locator(".coupon-card")                              // component classes when there is no test id
 locator.filter({ hasText: exactText(name) })              // narrowing by text; exactText when names share prefixes
 ```
 
+- A UI-kit class (`.vc-*`) goes into a wrapper in `frontend/ui-kit/` or `backend/vc-shell/`, never into a
+  component or page.
 - `.first()` / `.nth()` only when the markup repeats an element by design, never to pick a list item by position.
 
 ## Rules

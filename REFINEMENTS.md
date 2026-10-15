@@ -2,15 +2,9 @@
 
 Architecture and design refinements for this project, ordered by value for the effort. Each item says what is
 wrong today, what to change, and roughly how big the change is. When an item is done, remove it from this file.
+No refinement is open right now; what is left is the end of the old suite's migration.
 
-## 1. Kept in view
-
-- **`pages/` structure.** Split into layouts, pages, components and flows (deferred). `components/` keeps growing;
-  coupons added another file.
-- **Coupon UI selectors.** The frontend's coupon section has no `data-test-id`s, so its page objects use CSS
-  classes, as the page builder ones do. Request `data-test-id`s from the frontend team, as for the page builder.
-
-## 2. Left from the migration of the old suite
+## 1. Left from the migration of the old suite
 
 Every test of the old suite is ported, merged or dropped except the four below. The migration map (`TESTS.md`) was
 removed once only these were left; it stays in the git history.

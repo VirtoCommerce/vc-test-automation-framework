@@ -73,7 +73,8 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
   `productPickupLocations`, `lockMemberships`) or `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never
   `waitForTimeout` or `networkidle`.
 - Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
-- Expected errors: `rejects.toBeHttpError(status, "body text")`, `rejects.toBeGraphqlError("CODE")`.
+- Expected errors: `rejects.toBeHttpError(status, "body text")`, `rejects.toBeGraphqlError("CODE")`. A cart's
+  totals adding up: `expect(cart).toHaveConsistentTotals()`.
 - Known defects: add the entry to `dataset/known-issues.ts` and start the test with
   `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test is an expected failure; without one it is skipped
   as `fixme`. Never a bare `test.fail` or `test.fixme`.

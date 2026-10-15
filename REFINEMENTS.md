@@ -3,19 +3,7 @@
 Architecture and design refinements for this project, ordered by value for the effort. Each item says what is
 wrong today, what to change, and roughly how big the change is. When an item is done, remove it from this file.
 
-## 1. Cart totals check as a matcher
-
-**Problem.** "Subtotal − discount + tax + shipping = total" is written out inline in five GraphQL coupon tests.
-
-**Change.** A matcher in `api/api-matchers.ts`, so the rule is in one place and fails with one clear message:
-
-```ts
-expect(cart).toHaveConsistentTotals();
-```
-
-**Size.** Small: the matcher, its unit test, five call sites.
-
-## 2. Register the undo and create in one call in `arrange`
+## 1. Register the undo and create in one call in `arrange`
 
 **Problem.** "Register cleanup before the change" is done by hand about 40 times in `dataset/arrange/`: first
 `cleanup.push(…)`, then the create call. Swapping the two lines would compile and leave data behind when the
@@ -30,14 +18,14 @@ async track<T>(description: string, undo: () => Promise<void>, create: () => Pro
 
 **Size.** Small; it makes the rule hard to get wrong rather than saving lines.
 
-## 3. Kept in view
+## 2. Kept in view
 
 - **`pages/` structure.** Split into layouts, pages, components and flows (deferred). `components/` keeps growing;
   coupons added another file.
 - **Coupon UI selectors.** The frontend's coupon section has no `data-test-id`s, so its page objects use CSS
   classes, as the page builder ones do. Request `data-test-id`s from the frontend team, as for the page builder.
 
-## 4. Left from the migration of the old suite
+## 3. Left from the migration of the old suite
 
 Every test of the old suite is ported, merged or dropped except the four below. The migration map (`TESTS.md`) was
 removed once only these were left; it stays in the git history.
@@ -123,4 +111,4 @@ frontend shows no error.
 
 ## Suggested order
 
-1 and 2 are small tidy-ups, each best done in passing when that code is touched next.
+1 is a small tidy-up, best done in passing when `arrange` is touched next.

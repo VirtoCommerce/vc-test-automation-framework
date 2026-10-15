@@ -318,7 +318,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │
 ├── api/                     Talking to the platform
 │   ├── api-session.ts       `ApiSession`: one user's REST + GraphQL clients (the `api` fixture)
-│   ├── api-matchers.ts      `toBeHttpError`, `toBeGraphqlError`
+│   ├── api-matchers.ts      `toBeHttpError`, `toBeGraphqlError`, `toHaveConsistentTotals`
 │   ├── mailbox.ts           Reads sent e-mails from the platform's notification journal
 │   ├── auth/                Token endpoint, token cache, browser sign-in state (cookie / local storage)
 │   ├── http/                `HttpClient`, `HttpResponse`, `HttpError`, deadlock retry

@@ -104,6 +104,9 @@ await expect(api.graphql.execute(CategoriesDocument, variables)).rejects.toBeGra
 
 Use `executeRaw` only to read partial data or several errors: `{ operationName, status, data, errors }`.
 
+**Cart totals.** To check that a cart's total is its subtotal minus discounts plus tax and shipping (after a coupon,
+a promotion or a shipment), use `expect(cart).toHaveConsistentTotals()` rather than writing the sum out.
+
 **Index-backed reads** (search, pickup locations, memberships, addresses). Wait in `arrange`
 (`arrange.pickup.pickupLocations`, `cartPickupLocations`, `productPickupLocations`,
 `arrange.customers.searchableMemberships`, `lockMemberships`) or poll with `INDEX_LAG_TIMEOUT_MS` from `@core/poll`.

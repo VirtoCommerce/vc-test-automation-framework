@@ -65,13 +65,7 @@ test.describe("cart coupons (anonymous)", () => {
         expect.objectContaining({ code: PERCENTAGE_COUPON, isAppliedSuccessfully: true }),
       ]);
       expect(switched.discountTotal.amount).toBeGreaterThan(0);
-      expect(switched.total.amount).toBeCloseTo(
-        switched.subTotal.amount -
-          switched.discountTotal.amount +
-          switched.taxTotal.amount +
-          switched.shippingTotal.amount,
-        2,
-      );
+      expect(switched).toHaveConsistentTotals();
     });
   });
 
@@ -102,13 +96,7 @@ test.describe("cart coupons (anonymous)", () => {
       ]);
       expect(couponDiscount).toBeCloseTo((salePrice * SALE_QUANTITY * PERCENTAGE) / 100, 1);
       expect(couponDiscount).toBeLessThan((listPrice * SALE_QUANTITY * PERCENTAGE) / 100);
-      expect(discounted.total.amount).toBeCloseTo(
-        discounted.subTotal.amount -
-          discounted.discountTotal.amount +
-          discounted.taxTotal.amount +
-          discounted.shippingTotal.amount,
-        2,
-      );
+      expect(discounted).toHaveConsistentTotals();
     });
   });
 
@@ -132,13 +120,7 @@ test.describe("cart coupons (anonymous)", () => {
         expect.objectContaining({ code: FIXED_COUPON, isAppliedSuccessfully: true }),
       ]);
       expect(discounted.discountTotal.amount - cart.discountTotal.amount).toBeCloseTo(FIXED_AMOUNT, 2);
-      expect(discounted.total.amount).toBeCloseTo(
-        discounted.subTotal.amount -
-          discounted.discountTotal.amount +
-          discounted.taxTotal.amount +
-          discounted.shippingTotal.amount,
-        2,
-      );
+      expect(discounted).toHaveConsistentTotals();
     });
   });
 
@@ -162,13 +144,7 @@ test.describe("cart coupons (anonymous)", () => {
         expect.objectContaining({ code: UNMET_CONDITION_COUPON, isAppliedSuccessfully: false }),
       ]);
       expect(recorded.discountTotal.amount).toBe(cart.discountTotal.amount);
-      expect(recorded.total.amount).toBeCloseTo(
-        recorded.subTotal.amount -
-          recorded.discountTotal.amount +
-          recorded.taxTotal.amount +
-          recorded.shippingTotal.amount,
-        2,
-      );
+      expect(recorded).toHaveConsistentTotals();
     });
   });
 

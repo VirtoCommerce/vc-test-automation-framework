@@ -432,7 +432,8 @@ Methods named `…Later` create nothing: they register the removal of something 
 - Waits for search-index reads live in `arrange` (or poll with `INDEX_LAG_TIMEOUT_MS`), never as sleeps.
 - A UI test checks the UI; data rules (search semantics, prices, validation) are checked once through the API.
 - A test that needs an optional platform module (one not every deployment installs: `VirtoCommerce.Quote`,
-  `VirtoCommerce.XPickup`, `VirtoCommerce.WhiteLabeling`, `VirtoCommerce.PageBuilderModule`) declares it with
+  `VirtoCommerce.XPickup`, `VirtoCommerce.WhiteLabeling`, `VirtoCommerce.PageBuilderModule`,
+  `VirtoCommerce.MarketingExperienceApi`) declares it with
   `test.use({ requiresModules: [MODULES.x] })` on its `describe`; it is skipped where the module is missing or
   outside its version range. Keep fields of such modules out of shared GraphQL fragments: a field the schema lacks
   fails the whole query.

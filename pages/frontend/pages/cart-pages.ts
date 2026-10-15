@@ -4,6 +4,7 @@ import type { QuantityControlKind } from "../components/controls";
 
 import { PaymentDetailsSection, ShippingDetailsSection } from "../components/checkout";
 import { ConfirmationModal } from "../components/controls";
+import { CartCouponSection } from "../components/coupons";
 import { LineItem, productItem, productItems } from "../components/product";
 import { FrontendPage } from "./layout";
 import { CheckoutCompletedPage } from "./site-pages";
@@ -21,6 +22,9 @@ export class CartPage extends FrontendPage {
   readonly clearCartModal: ConfirmationModal;
   /** Leads to the shipping page in multi-step checkout mode; prefer {@link CheckoutFlow.start}. */
   readonly checkoutButton: Locator;
+  readonly couponSection: CartCouponSection;
+  /** Grand total of the order summary, as shown; read it as a number with {@link totalAmount}. */
+  readonly totalLabel: Locator;
   readonly #quantityControl: QuantityControlKind;
 
   constructor(page: Page, quantityControl: QuantityControlKind) {
@@ -31,6 +35,13 @@ export class CartPage extends FrontendPage {
     this.clearCartButton = page.locator("[data-test-id='clear-cart-button']");
     this.clearCartModal = new ConfirmationModal(page.locator("[data-test-id='clear-cart-modal']"), "yes-button");
     this.checkoutButton = page.locator("[data-test-id='checkout-button']");
+    this.couponSection = new CartCouponSection(page.locator(".coupons-section"));
+    this.totalLabel = page.locator("[data-test-id='cart-total-label']");
+  }
+
+  /** The grand total as a number, read from {@link totalLabel} without currency sign and thousands separators. */
+  async totalAmount(): Promise<number> {
+    return Number((await this.totalLabel.innerText()).replace(/[^\d.-]/g, ""));
   }
 
   /**

@@ -19,7 +19,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("organization search (customer of their own)", () => {
-  test.use({ requiresModules: [MODULES.contactOrganizations] });
+  test.use({ requiresModules: [MODULES.xProfile] });
 
   for (const { term, description } of SPECIAL_CHARACTER_TERMS) {
     test(`search organizations by a term with ${description}`, async ({ arrange }) => {

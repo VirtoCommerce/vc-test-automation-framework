@@ -776,6 +776,8 @@ export type CartWithListFragment = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -915,6 +917,8 @@ export type CartWithListFragment = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -1056,6 +1060,8 @@ export type CartFragment = {
   total: { amount: number; formattedAmount: string };
   subTotal: { amount: number; formattedAmount: string };
   subTotalDiscount: { amount: number; formattedAmount: string };
+  discountTotal: { amount: number; formattedAmount: string };
+  taxTotal: { amount: number; formattedAmount: string };
   shippingTotal: { amount: number; formattedAmount: string };
   items: Array<{
     id: string;
@@ -1595,6 +1601,15 @@ export type ProductFragment = {
   price: { list: { amount: number; formattedAmount: string }; actual: { amount: number; formattedAmount: string } };
 };
 
+export type PromotionCouponFragment = {
+  id: string;
+  couponCode: string | null;
+  name: string | null;
+  label: string | null;
+  description: string | null;
+  endDate: string | null;
+};
+
 export type QuoteAddressFragment = {
   addressType: number | null;
   city: string;
@@ -1798,6 +1813,8 @@ export type AddBulkItemsCartMutation = {
       total: { amount: number; formattedAmount: string };
       subTotal: { amount: number; formattedAmount: string };
       subTotalDiscount: { amount: number; formattedAmount: string };
+      discountTotal: { amount: number; formattedAmount: string };
+      taxTotal: { amount: number; formattedAmount: string };
       shippingTotal: { amount: number; formattedAmount: string };
       items: Array<{
         id: string;
@@ -1946,6 +1963,8 @@ export type AddCouponMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -2092,6 +2111,8 @@ export type AddItemMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -2238,6 +2259,8 @@ export type AddItemsCartMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -2384,6 +2407,8 @@ export type AddOrUpdateCartPaymentMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -2530,6 +2555,8 @@ export type AddOrUpdateCartShipmentMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -2676,6 +2703,8 @@ export type ChangeCartConfiguredItemMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -2822,6 +2851,8 @@ export type ClearCartMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -3100,6 +3131,8 @@ export type GetCartQuery = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -3246,6 +3279,8 @@ export type MergeCartMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -3392,6 +3427,8 @@ export type RemoveCartItemMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -3544,6 +3581,8 @@ export type RemoveCouponMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -3690,6 +3729,8 @@ export type SelectCartItemsMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -3836,6 +3877,8 @@ export type UnSelectAllCartItemsMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -3982,6 +4025,8 @@ export type UnSelectCartItemsMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -4128,6 +4173,8 @@ export type UpdateCartQuantityMutation = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -4257,6 +4304,17 @@ export type UpdateCartQuantityMutation = {
     }>;
   } | null;
 };
+
+export type ValidateCouponQueryVariables = Exact<{
+  storeId: string;
+  userId: string;
+  cartId?: string | null | undefined;
+  currencyCode: string;
+  cultureName?: string | null | undefined;
+  coupon: string;
+}>;
+
+export type ValidateCouponQuery = { validateCoupon: boolean | null };
 
 export type CategoriesQueryVariables = Exact<{
   storeId: string;
@@ -4629,6 +4687,29 @@ export type UpdateMemberAddressesMutation = {
         addressType: number | null;
       } | null> | null;
     } | null;
+  } | null;
+};
+
+export type GetPromotionCouponsQueryVariables = Exact<{
+  storeId: string;
+  userId?: string | null | undefined;
+  cultureName?: string | null | undefined;
+  sort?: string | null | undefined;
+  first?: number | null | undefined;
+  after?: string | null | undefined;
+}>;
+
+export type GetPromotionCouponsQuery = {
+  promotionCoupons: {
+    totalCount: number | null;
+    items: Array<{
+      id: string;
+      couponCode: string | null;
+      name: string | null;
+      label: string | null;
+      description: string | null;
+      endDate: string | null;
+    } | null> | null;
   } | null;
 };
 
@@ -5376,6 +5457,8 @@ export type GetSavedForLaterQuery = {
     total: { amount: number; formattedAmount: string };
     subTotal: { amount: number; formattedAmount: string };
     subTotalDiscount: { amount: number; formattedAmount: string };
+    discountTotal: { amount: number; formattedAmount: string };
+    taxTotal: { amount: number; formattedAmount: string };
     shippingTotal: { amount: number; formattedAmount: string };
     items: Array<{
       id: string;
@@ -5523,6 +5606,8 @@ export type MoveFromSavedForLaterMutation = {
       total: { amount: number; formattedAmount: string };
       subTotal: { amount: number; formattedAmount: string };
       subTotalDiscount: { amount: number; formattedAmount: string };
+      discountTotal: { amount: number; formattedAmount: string };
+      taxTotal: { amount: number; formattedAmount: string };
       shippingTotal: { amount: number; formattedAmount: string };
       items: Array<{
         id: string;
@@ -5662,6 +5747,8 @@ export type MoveFromSavedForLaterMutation = {
       total: { amount: number; formattedAmount: string };
       subTotal: { amount: number; formattedAmount: string };
       subTotalDiscount: { amount: number; formattedAmount: string };
+      discountTotal: { amount: number; formattedAmount: string };
+      taxTotal: { amount: number; formattedAmount: string };
       shippingTotal: { amount: number; formattedAmount: string };
       items: Array<{
         id: string;
@@ -5810,6 +5897,8 @@ export type MoveToSavedForLaterMutation = {
       total: { amount: number; formattedAmount: string };
       subTotal: { amount: number; formattedAmount: string };
       subTotalDiscount: { amount: number; formattedAmount: string };
+      discountTotal: { amount: number; formattedAmount: string };
+      taxTotal: { amount: number; formattedAmount: string };
       shippingTotal: { amount: number; formattedAmount: string };
       items: Array<{
         id: string;
@@ -5949,6 +6038,8 @@ export type MoveToSavedForLaterMutation = {
       total: { amount: number; formattedAmount: string };
       subTotal: { amount: number; formattedAmount: string };
       subTotalDiscount: { amount: number; formattedAmount: string };
+      discountTotal: { amount: number; formattedAmount: string };
+      taxTotal: { amount: number; formattedAmount: string };
       shippingTotal: { amount: number; formattedAmount: string };
       items: Array<{
         id: string;
@@ -6601,6 +6692,12 @@ export const CartFragmentDoc = new TypedDocumentString(
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -6814,6 +6911,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -7658,6 +7761,19 @@ export const ProductPickupLocationFragmentDoc = new TypedDocumentString(
 }`,
   { fragmentName: "ProductPickupLocation" },
 ) as unknown as TypedDocumentString<ProductPickupLocationFragment, unknown>;
+export const PromotionCouponFragmentDoc = new TypedDocumentString(
+  `
+    fragment PromotionCoupon on PromotionCouponType {
+  id
+  couponCode
+  name
+  label
+  description
+  endDate
+}
+    `,
+  { fragmentName: "PromotionCoupon" },
+) as unknown as TypedDocumentString<PromotionCouponFragment, unknown>;
 export const QuoteAddressFragmentDoc = new TypedDocumentString(
   `
     fragment QuoteAddress on QuoteAddressType {
@@ -7939,6 +8055,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -8111,6 +8233,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -8287,6 +8415,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -8459,6 +8593,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -8635,6 +8775,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -8807,6 +8953,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -8983,6 +9135,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -9155,6 +9313,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -9481,6 +9645,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -9655,6 +9825,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -9827,6 +10003,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -10008,6 +10190,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -10180,6 +10368,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -10356,6 +10550,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -10528,6 +10728,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {
@@ -10704,6 +10910,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -10820,6 +11032,18 @@ fragment Shipment on ShipmentType {
     ...CartAddress
   }
 }`) as unknown as TypedDocumentString<UpdateCartQuantityMutation, UpdateCartQuantityMutationVariables>;
+export const ValidateCouponDocument = new TypedDocumentString(`
+    query ValidateCoupon($storeId: String!, $userId: String!, $cartId: String, $currencyCode: String!, $cultureName: String, $coupon: String!) {
+  validateCoupon(
+    storeId: $storeId
+    userId: $userId
+    cartId: $cartId
+    currencyCode: $currencyCode
+    cultureName: $cultureName
+    coupon: $coupon
+  )
+}
+    `) as unknown as TypedDocumentString<ValidateCouponQuery, ValidateCouponQueryVariables>;
 export const CategoriesDocument = new TypedDocumentString(`
     query Categories($storeId: String!, $userId: String, $cultureName: String, $currencyCode: String, $filter: String, $first: Int) {
   categories(
@@ -11267,6 +11491,30 @@ export const UpdateMemberAddressesDocument = new TypedDocumentString(`
   description
   addressType
 }`) as unknown as TypedDocumentString<UpdateMemberAddressesMutation, UpdateMemberAddressesMutationVariables>;
+export const GetPromotionCouponsDocument = new TypedDocumentString(`
+    query GetPromotionCoupons($storeId: String!, $userId: String, $cultureName: String, $sort: String, $first: Int, $after: String) {
+  promotionCoupons(
+    storeId: $storeId
+    userId: $userId
+    cultureName: $cultureName
+    sort: $sort
+    first: $first
+    after: $after
+  ) {
+    totalCount
+    items {
+      ...PromotionCoupon
+    }
+  }
+}
+    fragment PromotionCoupon on PromotionCouponType {
+  id
+  couponCode
+  name
+  label
+  description
+  endDate
+}`) as unknown as TypedDocumentString<GetPromotionCouponsQuery, GetPromotionCouponsQueryVariables>;
 export const OrderDocument = new TypedDocumentString(`
     query Order($number: String, $cultureName: String) {
   order(number: $number, cultureName: $cultureName) {
@@ -12532,6 +12780,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -12714,6 +12968,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }
@@ -12894,6 +13154,12 @@ fragment Cart on CartType {
     ...Money
   }
   subTotalDiscount {
+    ...Money
+  }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
     ...Money
   }
   shippingTotal {

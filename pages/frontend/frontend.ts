@@ -3,7 +3,7 @@ import type { Env } from "@core/env";
 
 import { EditAddressModal, PickupLocationsModal, SelectAddressModal } from "./components/address";
 import { AddToListsModal } from "./components/wishlist";
-import { ListDetailsPage, ListsPage, SharedListPage } from "./pages/account-pages";
+import { CouponsPage, ListDetailsPage, ListsPage, SharedListPage } from "./pages/account-pages";
 import { CartPage, CheckoutFlow, SavedForLaterPage } from "./pages/cart-pages";
 import { CategoryPage, ProductPage } from "./pages/catalog-pages";
 import { ContentPage, HomePage, SignInPage } from "./pages/site-pages";
@@ -40,6 +40,10 @@ export class Frontend {
 
   home(): HomePage {
     return new HomePage(this.page);
+  }
+
+  coupons(): CouponsPage {
+    return new CouponsPage(this.page);
   }
 
   signIn(): SignInPage {

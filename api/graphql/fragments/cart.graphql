@@ -15,6 +15,12 @@ fragment Cart on CartType {
   subTotalDiscount {
     ...Money
   }
+  discountTotal {
+    ...Money
+  }
+  taxTotal {
+    ...Money
+  }
   shippingTotal {
     ...Money
   }

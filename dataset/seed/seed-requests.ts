@@ -64,11 +64,20 @@ function inSeedOrder({ parentField }: CollectionSpec, records: readonly object[]
   );
 }
 
+/**
+ * The find path of one record, with its placeholders filled in; `undefined` when the collection has no `find`.
+ * The seeder uses it to leave stored records out of a `send: "all"` request.
+ */
+export function findPathOf(spec: CollectionSpec, record: object, env: EnvPlaceholders): string | undefined {
+  return spec.find === undefined ? undefined : resolvePath(spec.find, env, record);
+}
+
 function resolvePath(template: string, env: EnvPlaceholders, record: object): string {
   return interpolate(template, { ENV: (key) => env[key], RECORD: (key) => fieldOf(record, key) }, encodeURIComponent);
 }
 
-function labelOf({ keys }: CollectionSpec, record: object, index: number): string {
+/** Names one record for logs and error messages: by id, by its first key, or by its position. */
+export function labelOf({ keys }: CollectionSpec, record: object, index: number): string {
   const id = fieldOf(record, "id");
   if (typeof id === "string") {
     return `record "${id}"`;

@@ -173,7 +173,7 @@ test.describe("user invitation (organization maintainer and store administrator)
 });
 
 test.describe("registration by invitation (organization maintainer and store administrator)", () => {
-  test.use({ requiresModules: [MODULES.organizationInvites] });
+  test.use({ requiresModules: [MODULES.xProfile] });
 
   test("register by invitation", async ({ api, arrange, env }) => {
     await allure.story("Invitation");

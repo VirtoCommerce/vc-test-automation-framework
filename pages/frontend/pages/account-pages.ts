@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 
 import { exactText } from "../../selectors";
 import { ConfirmationModal } from "../components/controls";
+import { CouponCard } from "../components/coupons";
 import { productItems } from "../components/product";
 import { ListCard, ListSettingsModal, ListSharingModal } from "../components/wishlist";
 import { FrontendPage } from "./layout";
@@ -63,5 +64,25 @@ export class SharedListPage extends FrontendPage {
     this.lineItems = productItems(this.root);
     this.addToCartControls = page.locator("[data-test-id='add-to-cart-component']");
     this.notFound = page.getByRole("heading", { name: "404" });
+  }
+}
+
+/** Account coupons page: the store's coupons the signed-in customer can use, each with a copy button. */
+export class CouponsPage extends FrontendPage {
+  readonly path = "/account/coupons";
+  readonly cards: Locator;
+
+  constructor(page: Page) {
+    super(page);
+    this.cards = page.locator(".coupon-item");
+  }
+
+  card(index: number): CouponCard {
+    return new CouponCard(this.cards.nth(index));
+  }
+
+  /** Reads the clipboard; needs the `clipboard-read` permission. */
+  clipboardText(): Promise<string> {
+    return this.page.evaluate(() => navigator.clipboard.readText());
   }
 }

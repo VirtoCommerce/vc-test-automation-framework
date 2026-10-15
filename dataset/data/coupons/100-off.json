@@ -1,4 +1,5 @@
 {
+  "id": "coupon-100-off",
   "code": "COUPON-100-OFF",
   "maxUsesNumber": 1000000,
   "maxUsesPerUser": 1000000,

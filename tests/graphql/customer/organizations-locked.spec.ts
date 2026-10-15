@@ -14,7 +14,7 @@ test.beforeEach(async () => {
 });
 
 test.describe("locked organizations (customer of their own)", () => {
-  test.use({ requiresModules: [MODULES.organizationLocks] });
+  test.use({ requiresModules: [MODULES.xProfile] });
 
   test("a locked organization stays listed, flagged as locked", async ({ arrange }) => {
     await allure.story("Locks");

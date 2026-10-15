@@ -21,13 +21,4 @@ test.describe("MANIFEST", () => {
     expect(COLLECTION_NAMES.indexOf("catalogs")).toBeLessThan(COLLECTION_NAMES.indexOf("products"));
     expect(COLLECTION_NAMES.indexOf("products")).toBeLessThan(COLLECTION_NAMES.indexOf("prices"));
   });
-
-  test("finds existing records only for collections sent one by one", () => {
-    for (const name of COLLECTION_NAMES) {
-      const spec: { readonly find?: string; readonly send: string } = MANIFEST[name];
-      if (spec.find !== undefined) {
-        expect(spec.send, name).toBe("each");
-      }
-    }
-  });
 });

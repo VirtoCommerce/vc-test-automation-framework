@@ -1,0 +1,17 @@
+query ValidateCoupon(
+  $storeId: String!
+  $userId: String!
+  $cartId: String
+  $currencyCode: String!
+  $cultureName: String
+  $coupon: String!
+) {
+  validateCoupon(
+    storeId: $storeId
+    userId: $userId
+    cartId: $cartId
+    currencyCode: $currencyCode
+    cultureName: $cultureName
+    coupon: $coupon
+  )
+}

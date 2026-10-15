@@ -56,6 +56,39 @@ Every old test is migrated, merged, moved or dropped, except four that wait for 
 - Waits for search-index reads use `INDEX_LAG_TIMEOUT_MS` and belong in `arrange`, not in the test.
 - No bare `test.fail` or `test.fixme`: a known defect goes through `knownIssue` and `KNOWN_ISSUES`.
 
+## Ported from PR #187 (VCST-4776, coupons)
+
+The coupon scenarios of the old suite's unmerged PR #187 are ported here; they are not part of the counts above.
+Tests that need the marketing xAPI (`VirtoCommerce.MarketingExperienceApi`) require `MODULES.xMarketing`
+(≥ 3.1003.0). The PR's dataset is ported too: 6 coupons,
+6 promotions, labels and `isPublic` on the 4 existing promotions, and the sale product `product-qa-sale-001`.
+
+| PR #187 test | Now |
+|---|---|
+| graphql `test_cart_coupon` | already covered: graphql/cart/cart-promotions.spec.ts › add and remove a coupon |
+| graphql `test_validate_coupon_valid_and_invalid` | graphql/cart/cart-coupons.spec.ts › validate a valid / an expired / an unknown coupon (table) |
+| graphql `test_cart_coupon_single_slot_last_wins` | graphql/cart/cart-coupons.spec.ts › a coupon applied after another one is the only coupon of the cart |
+| graphql `test_cart_coupon_percentage_on_sale_price` | graphql/cart/cart-coupons.spec.ts › a percentage coupon discounts the sale price, not the list price |
+| graphql `test_cart_coupon_fixed_amount` | graphql/cart/cart-coupons.spec.ts › a fixed-amount coupon takes its amount off the cart |
+| graphql `test_cart_coupon_lowercase_code_roundtrip` | graphql/cart/cart-coupons.spec.ts › a lowercase coupon keeps its case and matches in any case |
+| graphql `test_cart_coupon_unmet_condition_not_applied` | graphql/cart/cart-coupons.spec.ts › a coupon whose condition is not met is recorded but not applied |
+| graphql `test_promotion_coupons_returns_store_coupons` | graphql/marketing/promotion-coupons.spec.ts › list the store's coupons with their labels and end dates |
+| graphql `test_promotion_coupons_pagination_and_sort` | graphql/marketing/promotion-coupons.spec.ts › limit and sort the store's coupons |
+| graphql `test_promotion_coupons_anonymous_denied` | graphql/marketing/promotion-coupons.spec.ts › anonymous visitors cannot list the coupons |
+| e2e `test_cart_coupon_anonymous_custom_code` | e2e/frontend/cart/cart-coupons.spec.ts › enter a coupon code as an anonymous visitor |
+| e2e `test_cart_coupon_presets_render` | e2e/frontend/cart/cart-coupons.spec.ts › preset coupons show their label and promotion name |
+| e2e `test_cart_coupon_preset_apply_and_switch` | e2e/frontend/cart/cart-coupons.spec.ts › apply a preset coupon, then switch to another |
+| e2e `test_cart_coupon_preset_remove_restores_cart` | e2e/frontend/cart/cart-coupons.spec.ts › remove an applied preset coupon |
+| e2e `test_cart_coupon_view_all_navigates` | e2e/frontend/cart/cart-coupons.spec.ts › the view-all link opens the account coupons page |
+| e2e `test_cart_coupon_remove_restores_cart` | e2e/frontend/cart/cart-coupons.spec.ts › remove a coupon entered as a code |
+| e2e `test_cart_coupon_bad_code_rejected` (unknown, expired) | e2e/frontend/cart/cart-coupons.spec.ts › an unknown code / an expired code is rejected without a discount (table) |
+| e2e `test_account_coupons_list_renders` | e2e/frontend/account/coupons.spec.ts › list the store's coupons |
+| e2e `test_account_coupon_copy_to_clipboard` | e2e/frontend/account/coupons.spec.ts › copy a coupon code |
+
+Changed while porting: the e2e tests use a new customer (`shopperKind: "customer"`) instead of the seeded
+`acme_store_employee_1@acme.com`, and open a cart from `arrange.carts.checkoutReadyCart`, which already has the
+shipment and payment the frontend would add, so the page starts no writes of its own and no `networkidle` wait is needed.
+
 ## Known issues
 
 Tests that hit a known defect are marked with `knownIssue(KNOWN_ISSUES.<name>)` (`dataset/known-issues.ts`). Without a tracker key they are skipped as `fixme`; with a key they run as expected failures. Use this table to decide which to restore: add the ticket key, or delete the mark once the defect is fixed.

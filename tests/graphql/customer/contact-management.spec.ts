@@ -45,7 +45,7 @@ test.describe("organization contact roles (organization maintainer)", () => {
 });
 
 test.describe("organization contact locks (organization maintainer)", () => {
-  test.use({ requiresModules: [MODULES.organizationLocks] });
+  test.use({ requiresModules: [MODULES.organizationMemberStatus] });
 
   test("lock and unlock an organization contact", async ({ arrange }) => {
     await allure.story("Locks");

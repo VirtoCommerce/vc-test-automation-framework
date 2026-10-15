@@ -10,6 +10,7 @@ import { unmetReasons } from "@core/modules";
 import { credentialsOf } from "@dataset/users";
 
 import { test as datasetTest } from "./dataset.fixture";
+import { loadInstalledModules } from "./installed-modules";
 
 /** The API identity and session of a test. */
 export interface ApiFixtures {
@@ -40,7 +41,7 @@ export interface ApiFixtures {
 
 interface ApiWorkerFixtures {
   readonly _connection: ApiConnection;
-  /** The installed platform modules, read once per worker as the platform administrator on first call. */
+  /** The installed platform modules the `modules` setup project saved for this run; loaded on first call. */
   readonly _installedModules: () => Promise<InstalledModules>;
 }
 
@@ -69,14 +70,10 @@ export const test = datasetTest.extend<ApiFixtures, ApiWorkerFixtures>({
   ],
 
   _installedModules: [
-    async ({ _connection, dataset, env }, use) => {
+    async ({}, use) => {
       let installed: Promise<InstalledModules> | undefined;
-      async function read(): Promise<InstalledModules> {
-        const admin = await ApiSession.open(_connection, (userName) => credentialsOf(dataset, userName), env.admin);
-        return admin.rest.modules.getInstalled();
-      }
       await use(() => {
-        installed ??= read();
+        installed ??= loadInstalledModules();
         return installed;
       });
     },

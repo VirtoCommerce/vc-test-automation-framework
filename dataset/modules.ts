@@ -26,6 +26,11 @@ export const MODULES = {
   contactOrganizations: { id: "VirtoCommerce.ProfileExperienceApiModule", minVersion: "3.1019.0" },
   /** Profile xAPI: invitations to a given organization, `RegisterByInvitation.organizationId` (VCST-5281). */
   organizationInvites: { id: "VirtoCommerce.ProfileExperienceApiModule", minVersion: "3.1016.0" },
+  /**
+   * Profile xAPI: a member's status and lock per organization, as `lockOrganizationContact`,
+   * `unlockOrganizationContact` and `contact.isLockedInOrganization` work since VCST-5281.
+   */
+  organizationMemberStatus: { id: "VirtoCommerce.ProfileExperienceApiModule", minVersion: "3.1016.0" },
   /** Profile xAPI: company roles configured per store, `ChangeOrganizationContactRole.storeId` (VCST-5450). */
   storeCompanyRoles: { id: "VirtoCommerce.ProfileExperienceApiModule", minVersion: "3.1018.0" },
   /** Profile xAPI: per-user organization locks, `Organization.isLockedForCurrentUser` (VCST-5317). */

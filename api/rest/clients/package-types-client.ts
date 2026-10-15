@@ -1,9 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { PackageType, PackageTypeData } from "../types/core";
 
-import { requireFieldsOfEach } from "@core/required-fields";
-
-import { PACKAGE_TYPE_FIELDS } from "../types/core";
+import { PACKAGE_TYPE } from "../types/core";
 
 const PACKAGE_TYPES_PATH = "/api/packageTypes";
 
@@ -16,7 +14,7 @@ export class PackageTypesClient {
 
   async list(): Promise<PackageType[]> {
     const response = await this.#httpClient.get(PACKAGE_TYPES_PATH);
-    return requireFieldsOfEach(response.json<PackageTypeData[]>(), PACKAGE_TYPE_FIELDS, "Package type");
+    return response.records(PACKAGE_TYPE);
   }
 
   async find(id: string): Promise<PackageType | undefined> {

@@ -1,9 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
-import type { OAuthApp, OAuthAppData, OAuthAppSearchCriteria, OAuthAppSearchResult } from "../types/security";
+import type { OAuthApp, OAuthAppData, OAuthAppSearchCriteria } from "../types/security";
 
-import { requireFields, requireFieldsOfEach } from "@core/required-fields";
-
-import { OAUTH_APP_FIELDS } from "../types/security";
+import { OAUTH_APP } from "../types/security";
 
 const OAUTH_APPS_PATH = "/api/platform/oauthapps";
 
@@ -16,13 +14,12 @@ export class OAuthAppsClient {
 
   async create(app: OAuthAppData): Promise<OAuthApp> {
     const response = await this.#httpClient.post(OAUTH_APPS_PATH, { json: app });
-    return requireFields(response.json<OAuthAppData>(), OAUTH_APP_FIELDS, "Created OAuth app");
+    return response.record(OAUTH_APP);
   }
 
   async search(criteria: OAuthAppSearchCriteria): Promise<OAuthApp[]> {
     const response = await this.#httpClient.post(`${OAUTH_APPS_PATH}/search`, { json: criteria });
-    const { results } = response.json<OAuthAppSearchResult>();
-    return requireFieldsOfEach(results, OAUTH_APP_FIELDS, "Found OAuth app");
+    return response.results(OAUTH_APP);
   }
 
   async delete(clientIds: readonly string[]): Promise<void> {

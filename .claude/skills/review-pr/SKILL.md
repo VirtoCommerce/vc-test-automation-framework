@@ -31,8 +31,8 @@ gh pr checks <number>
 
 **REST clients and types (`api/rest/clients`, `api/rest/types`):**
 - Paths and methods match the Swagger; new clients registered in `api/rest/rest-api.ts`.
-- `json` / `optionalJson` / `expectOk`; results through `requireFields`, `optionalFields`, `requireFieldsOfEach`.
-- Named types follow `X_FIELDS` + `WithRequired`.
+- `expectOk`, or responses checked against a shape: `record`, `optionalRecord`, `records`, `results`.
+- Named types follow a shape plus `Shaped<typeof X>`.
 
 **GraphQL documents (`api/graphql/**/*.graphql`):**
 - Generated files regenerated in the same PR (`npm run codegen:graphql`); no hand edits in `api/*/generated/`.

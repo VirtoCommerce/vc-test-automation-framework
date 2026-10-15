@@ -1,11 +1,14 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceInventoryModuleCoreModelFulfillmentCenter as FulfillmentCenterData,
-  VirtoCommerceInventoryModuleCoreModelInventoryInfo as InventoryInfoData,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { FulfillmentCenterData, InventoryInfoData };
+import { shape } from "@core/record-shape";
 
-const INVENTORY_INFO_FIELDS = ["productId", "fulfillmentCenterId", "inStockQuantity"] as const;
+export type FulfillmentCenterData = Rest.VirtoCommerceInventoryModuleCoreModelFulfillmentCenter;
+export type InventoryInfoData = Rest.VirtoCommerceInventoryModuleCoreModelInventoryInfo;
 
-export type InventoryInfo = WithRequired<InventoryInfoData, (typeof INVENTORY_INFO_FIELDS)[number]>;
+export const INVENTORY_INFO = shape<InventoryInfoData>()("Inventory info", [
+  "productId",
+  "fulfillmentCenterId",
+  "inStockQuantity",
+]);
+export type InventoryInfo = Shaped<typeof INVENTORY_INFO>;

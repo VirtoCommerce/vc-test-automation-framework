@@ -65,9 +65,9 @@ Extend `api/rest/clients/<module>-client.ts` or add a client registered in `api/
 `/create-rest-client`). Specs reach it as `api.rest.<module>`.
 
 - Path constants and methods match the `.rs` file and Swagger.
-- `json()` / `optionalJson()` / `expectOk()`; results through `requireFields`, `optionalFields`,
-  `requireFieldsOfEach`.
-- Named types in `api/rest/types/<module>.ts`: `XData`, `X_FIELDS`, `X = WithRequired<XData, …>`.
+- `expectOk()`, or a response checked against a shape: `record`, `optionalRecord`, `records`, `results`.
+- Named types in `api/rest/types/<module>.ts`: `XData`, a shape `X = shape<XData>()("Label", [...])`, and
+  `type X = Shaped<typeof X>`.
 - A create that returns an empty body: read the record back (by the draft's id, or a unique value).
 
 ---

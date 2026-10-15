@@ -42,7 +42,7 @@ See README.md "Project structure" for the full tree. The short map:
 |---|---|
 | Spec | `tests/restapi/<platform module>/`, `tests/graphql/<area>/`, `tests/e2e/frontend/<area>/`, `tests/e2e/backend/page-builder/`, `tests/isolated/{restapi,graphql}/` |
 | REST call | `api/rest/clients/<module>-client.ts`, wired in `api/rest/rest-api.ts` as `api.rest.<module>.<resource>` |
-| REST type | `api/rest/types/<module>.ts`: `XXX_FIELDS` + `WithRequired<XxxData, (typeof XXX_FIELDS)[number]>` |
+| REST type | `api/rest/types/<module>.ts`: shape `XXX = shape<XxxData>()("Label", [fields])` + `type Xxx = Shaped<typeof XXX>` |
 | GraphQL document | `api/graphql/operations/<area>/<operation>.graphql`, fragments in `api/graphql/fragments/`, then `npm run codegen:graphql` |
 | Page object | `pages/frontend/pages/*-pages.ts`, `pages/frontend/components/*.ts`, built by `pages/frontend/frontend.ts`; admin UI in `pages/backend/` |
 | Draft entity | `dataset/builders/<area>.ts`: `newX()` with a unique name and a client-side `id` |

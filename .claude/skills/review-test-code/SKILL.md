@@ -71,8 +71,8 @@ page object; UI sign-in only when sign-in is under test.
 
 ### Step 6: Infrastructure Files
 
-- [ ] Clients: paths verified against Swagger; results through `requireFields` / `optionalFields` /
-      `requireFieldsOfEach`; `find()` returns `undefined`, `get()` throws; bulk deletes by filter guard against
+- [ ] Clients: paths verified against Swagger; responses checked against a shape
+      (`record` / `optionalRecord` / `records` / `results`); `find()` returns `undefined`, `get()` throws; bulk deletes by filter guard against
       an empty filter.
 - [ ] Page objects: `readonly` locators built in the constructor, `data-test-id` first, settings hidden behind
       methods, no test assertions, no API calls.

@@ -6,12 +6,11 @@ import type {
   TaggedItem,
   TaggedItemData,
   TaggedItemSearchCriteria,
-  TaggedItemSearchResult,
 } from "../types/personalization";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { optionalFields } from "@core/required-fields";
 
-import { OUTLINE_SYNC_NOTIFICATION_FIELDS, TAGGED_ITEM_FIELDS } from "../types/personalization";
+import { OUTLINE_SYNC_NOTIFICATION, TAGGED_ITEM } from "../types/personalization";
 import { findPushNotification } from "./push-notifications";
 
 const PERSONALIZATION_PATH = "/api/personalization";
@@ -26,7 +25,7 @@ class TaggedItemsResource {
 
   async get(entityId: string): Promise<TaggedItem> {
     const response = await this.#httpClient.get(`${TAGGED_ITEM_PATH}/${encodeURIComponent(entityId)}`);
-    return requireFields(response.json<TaggedItemData>(), TAGGED_ITEM_FIELDS, `Tagged item "${entityId}"`);
+    return response.record(TAGGED_ITEM);
   }
 
   async countTags(entityId: string): Promise<number> {
@@ -36,8 +35,7 @@ class TaggedItemsResource {
 
   async search(criteria: TaggedItemSearchCriteria): Promise<TaggedItem[]> {
     const response = await this.#httpClient.post(`${PERSONALIZATION_PATH}/search`, { json: criteria });
-    const { results } = response.json<TaggedItemSearchResult>();
-    return requireFieldsOfEach(results, TAGGED_ITEM_FIELDS, "Found tagged item");
+    return response.results(TAGGED_ITEM);
   }
 
   async setTags(entity: TaggedEntity, tags: readonly string[]): Promise<void> {
@@ -58,18 +56,14 @@ export class PersonalizationClient {
 
   async synchronizeOutlines(): Promise<OutlineSyncNotification> {
     const response = await this.#httpClient.post(`${PERSONALIZATION_PATH}/outlines/synchronize`, { json: {} });
-    return requireFields(
-      response.json<OutlineSyncNotificationData>(),
-      OUTLINE_SYNC_NOTIFICATION_FIELDS,
-      "Outline synchronization",
-    );
+    return response.record(OUTLINE_SYNC_NOTIFICATION);
   }
 
   async findSynchronization(notificationId: string): Promise<OutlineSyncNotification | undefined> {
     const synchronization = await findPushNotification<OutlineSyncNotificationData>(this.#httpClient, notificationId);
     return optionalFields(
       synchronization,
-      OUTLINE_SYNC_NOTIFICATION_FIELDS,
+      OUTLINE_SYNC_NOTIFICATION.fields,
       `Outline synchronization "${notificationId}"`,
     );
   }

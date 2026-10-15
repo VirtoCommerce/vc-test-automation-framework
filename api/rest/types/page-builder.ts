@@ -1,14 +1,15 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommercePageBuilderModuleCoreModelsCreateGroupedPageRequest as CreateGroupedPageRequest,
-  VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPage as GroupedPageData,
-  VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPageSearchResult as GroupedPageSearchResult,
-  VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageSearchCriteria as PageSearchCriteria,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { CreateGroupedPageRequest, GroupedPageData, GroupedPageSearchResult, PageSearchCriteria };
+import { shape } from "@core/record-shape";
 
-export const GROUPED_PAGE_FIELDS = ["id", "name", "permalink"] as const;
+export type CreateGroupedPageRequest = Rest.VirtoCommercePageBuilderModuleCoreModelsCreateGroupedPageRequest;
+export type GroupedPageData = Rest.VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPage;
+export type GroupedPageSearchResult = Rest.VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPageSearchResult;
+export type PageSearchCriteria = Rest.VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageSearchCriteria;
+
+export const GROUPED_PAGE = shape<GroupedPageData>()("Grouped page", ["id", "name", "permalink"]);
+export type GroupedPage = Shaped<typeof GROUPED_PAGE>;
 
 export const PAGE_STATUSES = ["Draft", "Published", "Archived"] as const;
 
@@ -19,5 +20,3 @@ export interface PagePublishStatus {
   readonly published: boolean;
   readonly hasChanges: boolean;
 }
-
-export type GroupedPage = WithRequired<GroupedPageData, (typeof GROUPED_PAGE_FIELDS)[number]>;

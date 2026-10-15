@@ -1,9 +1,9 @@
 import type { HttpClient } from "../../http/http-client";
-import type { Store, StoreData, StoreSearchCriteria, StoreSearchResult } from "../types/store";
+import type { Store, StoreData, StoreSearchCriteria } from "../types/store";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { requireFields } from "@core/required-fields";
 
-import { STORE_FIELDS } from "../types/store";
+import { STORE } from "../types/store";
 
 const STORES_PATH = "/api/stores";
 
@@ -15,17 +15,17 @@ export class StoresClient {
   }
 
   async get(id: string): Promise<Store> {
-    return requireFields(await this.find(id), STORE_FIELDS, `Store "${id}"`);
+    return requireFields(await this.find(id), STORE.fields, `Store "${id}"`);
   }
 
   async find(id: string): Promise<Store | undefined> {
     const response = await this.#httpClient.get(`${STORES_PATH}/${encodeURIComponent(id)}`);
-    return optionalFields(response.optionalJson<StoreData>(), STORE_FIELDS, `Store "${id}"`);
+    return response.optionalRecord(STORE);
   }
 
   async create(store: StoreData): Promise<Store> {
     const response = await this.#httpClient.post(STORES_PATH, { json: store });
-    return requireFields(response.json<StoreData>(), STORE_FIELDS, "Created store");
+    return response.record(STORE);
   }
 
   async update(store: StoreData): Promise<void> {
@@ -34,13 +34,12 @@ export class StoresClient {
 
   async search(criteria: StoreSearchCriteria): Promise<Store[]> {
     const response = await this.#httpClient.post(`${STORES_PATH}/search`, { json: criteria });
-    const { results } = response.json<StoreSearchResult>();
-    return requireFieldsOfEach(results, STORE_FIELDS, "Found store");
+    return response.results(STORE);
   }
 
   async listAllowed(userId: string): Promise<Store[]> {
     const response = await this.#httpClient.get(`${STORES_PATH}/allowed/${encodeURIComponent(userId)}`);
-    return requireFieldsOfEach(response.json<StoreData[]>(), STORE_FIELDS, "Allowed store");
+    return response.records(STORE);
   }
 
   async delete(ids: readonly string[]): Promise<void> {

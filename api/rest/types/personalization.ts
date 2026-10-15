@@ -1,21 +1,21 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceCatalogPersonalizationModuleCoreModelTaggedItemOutlineSyncPushNotification as OutlineSyncNotificationData,
-  VirtoCommerceCatalogPersonalizationModuleCoreModelTaggedItem as TaggedItemData,
-  VirtoCommerceCatalogPersonalizationModuleCoreModelSearchTaggedItemSearchCriteria as TaggedItemSearchCriteria,
-  VirtoCommerceCatalogPersonalizationModuleCoreModelSearchTaggedItemSearchResult as TaggedItemSearchResult,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { OutlineSyncNotificationData, TaggedItemData, TaggedItemSearchCriteria, TaggedItemSearchResult };
+import { shape } from "@core/record-shape";
 
-export const TAGGED_ITEM_FIELDS = ["entityId", "tags"] as const;
-export const OUTLINE_SYNC_NOTIFICATION_FIELDS = ["id"] as const;
+export type OutlineSyncNotificationData =
+  Rest.VirtoCommerceCatalogPersonalizationModuleCoreModelTaggedItemOutlineSyncPushNotification;
+export type TaggedItemData = Rest.VirtoCommerceCatalogPersonalizationModuleCoreModelTaggedItem;
+export type TaggedItemSearchCriteria =
+  Rest.VirtoCommerceCatalogPersonalizationModuleCoreModelSearchTaggedItemSearchCriteria;
+export type TaggedItemSearchResult =
+  Rest.VirtoCommerceCatalogPersonalizationModuleCoreModelSearchTaggedItemSearchResult;
 
-export type TaggedItem = WithRequired<TaggedItemData, (typeof TAGGED_ITEM_FIELDS)[number]>;
-export type OutlineSyncNotification = WithRequired<
-  OutlineSyncNotificationData,
-  (typeof OUTLINE_SYNC_NOTIFICATION_FIELDS)[number]
->;
+export const TAGGED_ITEM = shape<TaggedItemData>()("Tagged item", ["entityId", "tags"]);
+export type TaggedItem = Shaped<typeof TAGGED_ITEM>;
+
+export const OUTLINE_SYNC_NOTIFICATION = shape<OutlineSyncNotificationData>()("Outline sync notification", ["id"]);
+export type OutlineSyncNotification = Shaped<typeof OUTLINE_SYNC_NOTIFICATION>;
 
 type TaggedEntityType = "Product" | "Category";
 

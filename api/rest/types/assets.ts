@@ -1,13 +1,13 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceAssetsModuleCoreAssetsBlobEntry as BlobEntryData,
-  VirtoCommerceAssetsModuleCoreAssetsBlobEntrySearchResult as BlobEntrySearchResult,
-  VirtoCommerceAssetsModuleCoreAssetsBlobInfo as BlobInfoData,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { BlobEntryData, BlobEntrySearchResult, BlobInfoData };
+import { shape } from "@core/record-shape";
 
-export const BLOB_FIELDS = ["name", "url"] as const;
+export type BlobEntryData = Rest.VirtoCommerceAssetsModuleCoreAssetsBlobEntry;
+export type BlobEntrySearchResult = Rest.VirtoCommerceAssetsModuleCoreAssetsBlobEntrySearchResult;
+export type BlobInfoData = Rest.VirtoCommerceAssetsModuleCoreAssetsBlobInfo;
 
-export type BlobEntry = WithRequired<BlobEntryData, (typeof BLOB_FIELDS)[number]>;
-export type BlobInfo = WithRequired<BlobInfoData, (typeof BLOB_FIELDS)[number]>;
+export const BLOB_ENTRY = shape<BlobEntryData>()("Blob entry", ["name", "url"]);
+export type BlobEntry = Shaped<typeof BLOB_ENTRY>;
+export const BLOB_INFO = shape<BlobInfoData>()("Blob info", ["name", "url"]);
+export type BlobInfo = Shaped<typeof BLOB_INFO>;

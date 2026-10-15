@@ -90,8 +90,8 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 
 ### REST Clients, Types and Dataset Code
 
-- [ ] Client methods call `expectOk()` or parse through `requireFields` / `optionalFields` / `requireFieldsOfEach`; `find(id)` returns `undefined`, `get(id)` throws
-- [ ] Named types in `api/rest/types/` as `WithRequired<XxxData, (typeof XXX_FIELDS)[number]>`; generated code untouched
+- [ ] Client methods call `expectOk()` or check responses against a shape (`record` / `optionalRecord` / `records` / `results`, or `requireFields` with `X.fields`); `find(id)` returns `undefined`, `get(id)` throws
+- [ ] Named types in `api/rest/types/` as a shape plus `Shaped<typeof XXX>`; generated code untouched
 - [ ] Builders `newX()` are pure and set a client-side `id`; `arrange` methods register their own cleanup and tolerate a missing record
 - [ ] No duplicate of an existing `arrange` method, builder, client method or page object
 

@@ -5,12 +5,11 @@ import type {
   IndexProgressNotification,
   IndexProgressNotificationData,
   IndexState,
-  IndexStateData,
 } from "../types/search";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { optionalFields, requireFields } from "@core/required-fields";
 
-import { INDEX_PROGRESS_NOTIFICATION_FIELDS, INDEX_STATE_FIELDS } from "../types/search";
+import { INDEX_PROGRESS_NOTIFICATION, INDEX_STATE } from "../types/search";
 import { findPushNotification } from "./push-notifications";
 
 const INDEXES_PATH = "/api/search/indexes";
@@ -24,7 +23,7 @@ export class SearchIndexesClient {
 
   async list(): Promise<IndexState[]> {
     const response = await this.#httpClient.get(INDEXES_PATH);
-    return requireFieldsOfEach(response.json<IndexStateData[]>(), INDEX_STATE_FIELDS, "Index state");
+    return response.records(INDEX_STATE);
   }
 
   async getDocuments(documentType: string, documentId: string): Promise<IndexedDocument[]> {
@@ -34,11 +33,7 @@ export class SearchIndexesClient {
 
   async startIndexation(options: readonly IndexingOptions[]): Promise<IndexProgressNotification> {
     const response = await this.#httpClient.post(`${INDEXES_PATH}/index`, { json: options });
-    return requireFields(
-      response.json<IndexProgressNotificationData>(),
-      INDEX_PROGRESS_NOTIFICATION_FIELDS,
-      "Indexation notification",
-    );
+    return response.record(INDEX_PROGRESS_NOTIFICATION);
   }
 
   async cancelIndexation(jobId: string): Promise<void> {
@@ -48,13 +43,13 @@ export class SearchIndexesClient {
   async getProgress(notificationId: string): Promise<IndexProgressNotification> {
     return requireFields(
       await this.findProgress(notificationId),
-      INDEX_PROGRESS_NOTIFICATION_FIELDS,
+      INDEX_PROGRESS_NOTIFICATION.fields,
       `Indexation progress "${notificationId}"`,
     );
   }
 
   async findProgress(notificationId: string): Promise<IndexProgressNotification | undefined> {
     const progress = await findPushNotification<IndexProgressNotificationData>(this.#httpClient, notificationId);
-    return optionalFields(progress, INDEX_PROGRESS_NOTIFICATION_FIELDS, `Indexation progress "${notificationId}"`);
+    return optionalFields(progress, INDEX_PROGRESS_NOTIFICATION.fields, `Indexation progress "${notificationId}"`);
   }
 }

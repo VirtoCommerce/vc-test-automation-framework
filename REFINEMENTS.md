@@ -3,39 +3,7 @@
 Architecture and design refinements for this project, ordered by value for the effort. Each item says what is
 wrong today, what to change, and roughly how big the change is. When an item is done, remove it from this file.
 
-## 1. Less boilerplate in the REST clients
-
-**Problem.** The REST client layer repeats the same plumbing in every client:
-
-| Pattern | Count |
-|---|---|
-| `requireFields` / `optionalFields` / `requireFieldsOfEach` calls in clients, each with a fields constant and a label | 176 |
-| `*_FIELDS` constants plus a matching `WithRequired<…>` type | 46 + 46 |
-| type files that import generated names and then re-export them in a second list | 22 |
-
-**Change.**
-- **Record shapes.** One object per model holds its required fields and its label, and `HttpResponse` applies
-  it:
-  ```ts
-  export const PRICELIST = shape<PricelistData>()("Pricelist", ["id", "name", "currency"]);
-  export type Pricelist = Shaped<typeof PRICELIST>;
-
-  async create(pricelist: PricelistData): Promise<Pricelist> {
-    return (await this.#httpClient.post(PRICELISTS_PATH, { json: pricelist })).record(PRICELIST);
-  }
-  async search(query: PricelistQuery): Promise<Pricelist[]> {
-    return (await this.#httpClient.get(PRICELISTS_PATH, { query })).results(PRICELIST);
-  }
-  ```
-  Most client methods drop to one line, and errors name the request (`POST /api/pricing/pricelists`) instead of
-  a hand-written label.
-- **Type files.** A single `export type { VirtoCommerce…Catalog as CatalogData, … } from "../generated/rest-api"`
-  instead of an import list plus an export list.
-
-**Size.** About a quarter of `api/rest` goes away, with no change in behaviour. It is mechanical and can be done
-one client at a time, with the type check as the safety net. Start with a small client such as pricing.
-
-## 2. One helper for GraphQL waits in page objects
+## 1. One helper for GraphQL waits in page objects
 
 **Problem.** Page objects that wait for an API response each carry their own helper: the cart coupon section
 (`pages/frontend/components/coupons.ts`) and the page builder shell (`pages/backend/page-builder/page-builder.ts`).
@@ -52,7 +20,7 @@ touched.
 
 **Size.** Small.
 
-## 3. Cart totals check as a matcher
+## 2. Cart totals check as a matcher
 
 **Problem.** "Subtotal − discount + tax + shipping = total" is written out inline in five GraphQL coupon tests.
 
@@ -64,7 +32,7 @@ expect(cart).toHaveConsistentTotals();
 
 **Size.** Small: the matcher, its unit test, five call sites.
 
-## 4. Register the undo and create in one call in `arrange`
+## 3. Register the undo and create in one call in `arrange`
 
 **Problem.** "Register cleanup before the change" is done by hand about 40 times in `dataset/arrange/`: first
 `cleanup.push(…)`, then the create call. Swapping the two lines would compile and leave data behind when the
@@ -79,14 +47,14 @@ async track<T>(description: string, undo: () => Promise<void>, create: () => Pro
 
 **Size.** Small; it makes the rule hard to get wrong rather than saving lines.
 
-## 5. Kept in view
+## 4. Kept in view
 
 - **`pages/` structure.** Split into layouts, pages, components and flows (deferred). `components/` keeps growing;
   coupons added another file.
 - **Coupon UI selectors.** The frontend's coupon section has no `data-test-id`s, so its page objects use CSS
   classes, as the page builder ones do. Request `data-test-id`s from the frontend team, as for the page builder.
 
-## 6. Left from the migration of the old suite
+## 5. Left from the migration of the old suite
 
 Every test of the old suite is ported, merged or dropped except the four below. The migration map (`TESTS.md`) was
 removed once only these were left; it stays in the git history.
@@ -172,5 +140,4 @@ frontend shows no error.
 
 ## Suggested order
 
-1 first, as a separate mechanical PR. Then 2 to 4 as small tidy-ups, each in passing when that code is touched
-next.
+1 to 3 are small tidy-ups, each best done in passing when that code is touched next.

@@ -1,13 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
-import type {
-  NotificationJournalPage,
-  NotificationMessage,
-  NotificationMessageSearchCriteria,
-} from "../types/notifications";
+import type { NotificationMessage, NotificationMessageSearchCriteria } from "../types/notifications";
 
-import { requireFieldsOfEach } from "@core/required-fields";
-
-import { NOTIFICATION_MESSAGE_FIELDS } from "../types/notifications";
+import { NOTIFICATION_MESSAGE } from "../types/notifications";
 
 const NOTIFICATION_JOURNAL_PATH = "/api/notifications/journal";
 
@@ -20,8 +14,7 @@ class JournalResource {
 
   async search(criteria: NotificationMessageSearchCriteria): Promise<NotificationMessage[]> {
     const response = await this.#httpClient.post(NOTIFICATION_JOURNAL_PATH, { json: criteria });
-    const { results } = response.json<NotificationJournalPage>();
-    return requireFieldsOfEach(results, NOTIFICATION_MESSAGE_FIELDS, "Journal notification");
+    return response.results(NOTIFICATION_MESSAGE);
   }
 }
 

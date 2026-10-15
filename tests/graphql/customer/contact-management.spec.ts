@@ -7,6 +7,7 @@ import {
   LockOrganizationContactDocument,
   UnlockOrganizationContactDocument,
 } from "@api/graphql/generated/graphql";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const MAINTAINER_ROLE = "role-org-maintainer";
@@ -17,7 +18,9 @@ test.beforeEach(async () => {
   await allure.feature("Customer / Contact Management");
 });
 
-test.describe("organization contact management (organization maintainer)", () => {
+test.describe("organization contact roles (organization maintainer)", () => {
+  test.use({ requiresModules: [MODULES.storeCompanyRoles] });
+
   test("change the role of an organization contact", async ({ arrange, env }) => {
     await allure.story("Roles");
     await allure.description("An organization's maintainer gives an employee of the organization another role.");
@@ -39,6 +42,10 @@ test.describe("organization contact management (organization maintainer)", () =>
       expect(contact?.rolesInOrganization?.map((role) => role?.id)).toContain(TARGET_ROLE);
     });
   });
+});
+
+test.describe("organization contact locks (organization maintainer)", () => {
+  test.use({ requiresModules: [MODULES.organizationLocks] });
 
   test("lock and unlock an organization contact", async ({ arrange }) => {
     await allure.story("Locks");

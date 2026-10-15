@@ -1,6 +1,7 @@
 import * as allure from "allure-js-commons";
 
 import { GetOrganizationsDocument } from "@api/graphql/generated/graphql";
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const ORGANIZATIONS_PAGE_SIZE = 200;
@@ -13,6 +14,8 @@ test.beforeEach(async () => {
 });
 
 test.describe("locked organizations (customer of their own)", () => {
+  test.use({ requiresModules: [MODULES.organizationLocks] });
+
   test("a locked organization stays listed, flagged as locked", async ({ arrange }) => {
     await allure.story("Locks");
     await allure.description(
@@ -23,7 +26,9 @@ test.describe("locked organizations (customer of their own)", () => {
     const membership = await test.step("arrange: the customer's membership in the second organization", () =>
       arrange.customers.membership(customer, organizationId));
     await test.step("assert: the second organization is listed as not locked", async () => {
-      const { me } = await customer.api.graphql.execute(GetOrganizationsDocument, { first: ORGANIZATIONS_PAGE_SIZE });
+      const { me } = await customer.api.graphql.execute(GetOrganizationsDocument, {
+        first: ORGANIZATIONS_PAGE_SIZE,
+      });
       expect(
         me?.contact?.organizations?.items?.find((item) => item?.id === organizationId)?.isLockedForCurrentUser,
       ).toBe(false);
@@ -45,7 +50,9 @@ test.describe("locked organizations (customer of their own)", () => {
           { timeout: LOCK_VISIBLE_TIMEOUT_MS },
         )
         .toBe(true);
-      const { me } = await customer.api.graphql.execute(GetOrganizationsDocument, { first: ORGANIZATIONS_PAGE_SIZE });
+      const { me } = await customer.api.graphql.execute(GetOrganizationsDocument, {
+        first: ORGANIZATIONS_PAGE_SIZE,
+      });
       expect(me?.contact?.organizations?.totalCount).toBe(me?.contact?.organizations?.items?.length);
     });
   });
@@ -64,7 +71,9 @@ test.describe("locked organizations (customer of their own)", () => {
     await test.step("act: lock the customer until yesterday", () =>
       arrange.admin.rest.organizationMemberships.lock(membership.id, new Date(Date.now() - DAY_MS)));
     await test.step("assert: the organization is listed as not locked", async () => {
-      const { me } = await customer.api.graphql.execute(GetOrganizationsDocument, { first: ORGANIZATIONS_PAGE_SIZE });
+      const { me } = await customer.api.graphql.execute(GetOrganizationsDocument, {
+        first: ORGANIZATIONS_PAGE_SIZE,
+      });
       expect(
         me?.contact?.organizations?.items?.find((item) => item?.id === organizationId)?.isLockedForCurrentUser,
       ).toBe(false);
@@ -118,7 +127,9 @@ test.describe("locked organizations (customer of their own)", () => {
         .toBe(true);
     });
     await test.step("assert: the colleague sees it as not locked", async () => {
-      const { me } = await colleague.api.graphql.execute(GetOrganizationsDocument, { first: ORGANIZATIONS_PAGE_SIZE });
+      const { me } = await colleague.api.graphql.execute(GetOrganizationsDocument, {
+        first: ORGANIZATIONS_PAGE_SIZE,
+      });
       expect(
         me?.contact?.organizations?.items?.find((item) => item?.id === organizationId)?.isLockedForCurrentUser,
       ).toBe(false);

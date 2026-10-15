@@ -1,8 +1,10 @@
 import * as allure from "allure-js-commons";
 
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
-const PLATFORM_HEALTH_CHECKS = ["Background jobs", "Background jobs store", "Modules health", "Cache health"];
+const PLATFORM_HEALTH_CHECKS = ["Modules health", "Cache health"];
+const BACKGROUND_JOBS_HEALTH_CHECKS = ["Background jobs", "Background jobs store"];
 const DATABASE_HEALTH_CHECK = /^(postgre ?sql|sql ?server|my ?sql) health$/i;
 
 test.beforeEach(async () => {
@@ -35,6 +37,21 @@ test.describe("health check (anonymous)", () => {
           .filter(([, check]) => check.Status === "Unhealthy")
           .map(([name, check]) => `${name}: ${check.Description}`),
       ).toEqual([]);
+    });
+  });
+});
+
+test.describe("background jobs health (anonymous)", () => {
+  test.use({ requiresModules: [MODULES.backgroundJobs] });
+
+  test("report the background jobs engine and its store", async ({ api }) => {
+    await allure.story("Health");
+    await allure.description("The background jobs module adds its engine and shared store to the health report.");
+
+    const report = await test.step("act: get the health report", () => api.rest.health.getReport());
+
+    await test.step("assert: the background jobs checks are reported", () => {
+      expect(Object.keys(report)).toEqual(expect.arrayContaining(BACKGROUND_JOBS_HEALTH_CHECKS));
     });
   });
 });

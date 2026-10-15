@@ -84,7 +84,7 @@ Copy the shape of README.md "A REST test", "A GraphQL test" and "An e2e test", o
 
 1. No conditionals, no `as` casts, no helper functions in specs. No raw selectors in specs: add locators to `pages/`.
 2. Read seeded data from `dataset` (a dataset id may be a module constant). Create what the test changes with `arrange`. A test that changes a customer's own state creates its own customer.
-3. Register cleanup before the change. `arrange` does it for you; with `cleanup.push`, push before the create when the id is known, right after it when the platform assigns the id.
+3. Register cleanup before the change. `arrange` does it for you; with `cleanup.push`, push before the create when the id is known (`cleanup.track(description, undo, create)` when the create follows right away), right after it when the platform assigns the id.
 4. Prove a deletion by id: `expect(await client.find(id)).toBeUndefined()` or `rejects.toBeHttpError(404)`.
 5. Index-backed reads wait in `arrange` (`searchableMemberships`, `pickupLocations`, `cartPickupLocations`, `productPickupLocations`, `lockMemberships`) or with `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never `waitForTimeout` or `networkidle`.
 6. Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""`, `?? []`, `?? 0`.

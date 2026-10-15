@@ -45,8 +45,11 @@ export class ContentArrange {
   async assetFolder(): Promise<string> {
     const { folders } = this.#admin.rest.assets;
     const folderName = uniqueId("test-folder");
-    this.#cleanup.push(`delete asset folder ${folderName}`, () => folders.delete(folderName));
-    await folders.create(folderName);
+    await this.#cleanup.track(
+      `delete asset folder ${folderName}`,
+      () => folders.delete(folderName),
+      () => folders.create(folderName),
+    );
     return folderName;
   }
 
@@ -65,8 +68,11 @@ export class ContentArrange {
   async contentFolder(contentType: ContentType): Promise<string> {
     const { folders } = this.#admin.rest.content;
     const folderName = uniqueId("test-folder");
-    this.#cleanup.push(`delete ${contentType} folder ${folderName}`, () => folders.delete(contentType, folderName));
-    await folders.create(contentType, folderName);
+    await this.#cleanup.track(
+      `delete ${contentType} folder ${folderName}`,
+      () => folders.delete(contentType, folderName),
+      () => folders.create(contentType, folderName),
+    );
     return folderName;
   }
 
@@ -87,8 +93,11 @@ export class ContentArrange {
   async menuLinkList(): Promise<MenuLinkListDraft> {
     const list = newMenuLinkList(this.#store.id, this.#store.defaultLanguage);
     const { menuLinkLists } = this.#admin.rest;
-    this.#cleanup.push(`delete menu link list ${list.name}`, () => menuLinkLists.delete([list.id]));
-    await menuLinkLists.save(list);
+    await this.#cleanup.track(
+      `delete menu link list ${list.name}`,
+      () => menuLinkLists.delete([list.id]),
+      () => menuLinkLists.save(list),
+    );
     return list;
   }
 

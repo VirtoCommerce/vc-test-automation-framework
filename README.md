@@ -617,7 +617,8 @@ Rules for undo actions:
 - **Push before the change.** If the change fails halfway, or the assertion after it fails, the undo still runs.
   For that the id must be known up front: builders set `id: randomUUID()`, which the platform keeps for most
   entities. Where the platform assigns the id (page builder pages, GraphQL carts and lists), push right after the
-  create, before any assertion.
+  create, before any assertion. When the change follows right away, as in `arrange`, register both in one call so
+  the order cannot be swapped: `return cleanup.track(description, undo, () => client.create(draft))`.
 - **Make the undo tolerant.** It may run when the change never happened or the test already deleted the record:
   most platform deletes by id ignore a missing id; where one does not, check first, as the shopping list undo does.
 - **Undo what was changed, not just what was created.** A changed setting is restored to its old value

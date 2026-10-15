@@ -52,6 +52,42 @@ test.describe("CleanupStack", () => {
     await expect(stack.unwind()).rejects.toThrow(`sign out: refused ${MASK}`);
   });
 
+  test("track runs the change and returns its result, then the undo on unwind", async () => {
+    const stack = new CleanupStack();
+    const order: string[] = [];
+
+    const created = await stack.track(
+      "delete catalog",
+      async () => order.push("undo"),
+      async () => {
+        order.push("change");
+        return "catalog-1";
+      },
+    );
+    await stack.unwind();
+
+    expect(created).toBe("catalog-1");
+    expect(order).toEqual(["change", "undo"]);
+  });
+
+  test("track keeps the undo when the change fails", async () => {
+    const stack = new CleanupStack();
+    const ran: string[] = [];
+
+    await expect(
+      stack.track(
+        "delete catalog",
+        async () => ran.push("undo"),
+        async () => {
+          throw new Error("platform answered 500");
+        },
+      ),
+    ).rejects.toThrow("platform answered 500");
+    await stack.unwind();
+
+    expect(ran).toEqual(["undo"]);
+  });
+
   test("is empty after unwinding", async () => {
     const stack = new CleanupStack();
     let runs = 0;

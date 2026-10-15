@@ -3,29 +3,14 @@
 Architecture and design refinements for this project, ordered by value for the effort. Each item says what is
 wrong today, what to change, and roughly how big the change is. When an item is done, remove it from this file.
 
-## 1. Register the undo and create in one call in `arrange`
-
-**Problem.** "Register cleanup before the change" is done by hand about 40 times in `dataset/arrange/`: first
-`cleanup.push(…)`, then the create call. Swapping the two lines would compile and leave data behind when the
-create fails.
-
-**Change.**
-
-```ts
-/** Registers `undo`, then runs `create`; the undo is in place even when `create` fails half-way. */
-async track<T>(description: string, undo: () => Promise<void>, create: () => Promise<T>): Promise<T>
-```
-
-**Size.** Small; it makes the rule hard to get wrong rather than saving lines.
-
-## 2. Kept in view
+## 1. Kept in view
 
 - **`pages/` structure.** Split into layouts, pages, components and flows (deferred). `components/` keeps growing;
   coupons added another file.
 - **Coupon UI selectors.** The frontend's coupon section has no `data-test-id`s, so its page objects use CSS
   classes, as the page builder ones do. Request `data-test-id`s from the frontend team, as for the page builder.
 
-## 3. Left from the migration of the old suite
+## 2. Left from the migration of the old suite
 
 Every test of the old suite is ported, merged or dropped except the four below. The migration map (`TESTS.md`) was
 removed once only these were left; it stays in the git history.
@@ -108,7 +93,3 @@ address was picked, until a reload. Test customers were named like `Customer-14f
 saves the pick, refuses names with digits or dashes, so the pick was never saved. Contacts now get letter-only
 names (`uniqueName`) and the known issue is gone. A UX note for the frontend team: when `updateContact` fails, the
 frontend shows no error.
-
-## Suggested order
-
-1 is a small tidy-up, best done in passing when `arrange` is touched next.

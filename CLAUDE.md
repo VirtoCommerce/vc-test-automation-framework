@@ -67,7 +67,7 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
 - A UI test checks the UI; data rules (search semantics, prices, scopes, validation) are checked once through the API.
 - A test that leaves data it cannot remove says why in a `leaves data` annotation.
 - Register cleanup before the change. Builders give drafts a client-side `id` the platform keeps, so the undo
-  can be pushed first.
+  can be pushed first; `cleanup.track(description, undo, change)` registers the undo and runs the change in one call.
 - Prove a deletion by reading the record by id (`find(id)` is `undefined`), not by a search.
 - Index-backed reads lag: wait in `arrange` (`searchableMemberships`, `pickupLocations`, `cartPickupLocations`,
   `productPickupLocations`, `lockMemberships`) or `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never

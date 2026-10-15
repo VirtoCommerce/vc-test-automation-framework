@@ -1,6 +1,6 @@
 ---
 name: migrate-katalon-module
-description: "Migrate a Katalon REST API test module from vc-quality-gate-katalon into this Playwright project — inventory, verified endpoints, api.rest clients, builders and arrange methods, specs, TESTS.md rows and a CI-verified PR"
+description: "Migrate a Katalon REST API test module from vc-quality-gate-katalon into this Playwright project — inventory, verified endpoints, api.rest clients, builders and arrange methods, specs, a script-to-test mapping in the PR and a CI-verified PR"
 argument-hint: "<KatalonModule> [jira-ticket]"
 user-invocable: true
 ---
@@ -28,8 +28,8 @@ Mark each script:
 - `DRAFT`, `DEPRECATED`: skip.
 - `TEMPLATE` (`_suiteTemplate`, `z_snippet_*`), `UTILITY` (called by other scripts): skip.
 
-Count the REAL scripts; that is the target. Then check TESTS.md and the existing specs: the old suite may
-already cover a script, so its row becomes a merge, not a new test.
+Count the REAL scripts; that is the target. Then check the existing specs: they may already cover a script, so its
+row becomes a merge, not a new test.
 
 ---
 
@@ -126,8 +126,8 @@ Build the table `Katalon script → test title → status` and check:
 - 0 missing;
 - skipped = DRAFT + DEPRECATED + TEMPLATE + UTILITY.
 
-Add the mapping to TESTS.md as a section for the module, in the same columns as the other suites (ID, file, test,
-what it checks, kind, runs as / data, decision, status), and update its Summary table.
+Put the mapping in the PR description, one row per REAL script: Katalon script, test (or the existing test it merges
+into), what it checks, and the decision (migrate, parameterize, merge, isolate, or drop with a reason).
 
 ---
 
@@ -143,7 +143,7 @@ what it checks, kind, runs as / data, decision, status), and update its Summary 
 
 ## Checklist
 
-- [ ] All Katalon scripts inventoried; overlaps with TESTS.md found
+- [ ] All Katalon scripts inventoried; overlaps with existing specs found
 - [ ] All endpoints verified from `.rs` files and Swagger
 - [ ] Client methods registered on `api.rest`, named types added
 - [ ] Builders and arrange methods register cleanup before the change
@@ -151,5 +151,5 @@ what it checks, kind, runs as / data, decision, status), and update its Summary 
 - [ ] Platform-wide changes in `tests/isolated/`; defects through `knownIssue`
 - [ ] Tables where Katalon repeats one pattern
 - [ ] `npm run typecheck`, `npm run check`, `--list` and the local run are green
-- [ ] Mapping: 0 missing; TESTS.md updated
+- [ ] Mapping: 0 missing; in the PR description
 - [ ] CI run green

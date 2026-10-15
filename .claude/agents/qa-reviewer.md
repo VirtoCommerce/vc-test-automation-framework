@@ -19,7 +19,6 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 - Review pull requests: diffs, commit quality, CI result, coverage
 - Find flaky patterns, missing cleanup, shared-state races and vacuous assertions
 - Check layer boundaries and reuse of existing code
-- Check that TESTS.md is updated when a test of the old suite moved, merged or was dropped
 - Flag security issues: credentials in code, secrets in logs or reports
 
 ## When to Use Skills
@@ -103,7 +102,6 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 - [ ] No fallbacks that hide missing data (`?? ""`, `?? []`, `?? 0`); `requireFields` instead
 - [ ] No code comments; JSDoc only where the signature cannot say it
 - [ ] Terminology: frontend (not storefront), platform, platform admin
-- [ ] TESTS.md updated when an old-suite test moved, merged or was dropped
 
 ## Common Anti-Patterns
 

@@ -367,7 +367,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 ├── playwright.config.ts     Projects, timeouts, reporters
 ├── codegen-graphql.ts, codegen-rest.mts   Code generation
 ├── backend-packages.json    Platform and module versions CI deploys
-├── TESTS.md                 Every test of the old suite and where it went
+├── REFINEMENTS.md           Planned refinements and what is left of the old suite's migration
 └── .github/workflows/       CI
 ```
 

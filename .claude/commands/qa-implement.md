@@ -33,7 +33,6 @@ Spawn the `qa-automation-expert` agent and execute the plan in order:
 - REST specs → `/write-rest-api-test`
 - GraphQL specs → `/write-graphql-test`
 - e2e specs (frontend or page builder) → `/write-e2e-test`
-- TESTS.md, when a test of the old suite moved, merged or was dropped
 
 ### 3. Verify
 

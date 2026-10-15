@@ -152,7 +152,6 @@ Quality and flakiness:
 - Do assertions verify outcomes and fail when the behavior breaks (no vacuous checks)?
 - Do assertions target the test's own data, so parallel tests cannot break them?
 - Are async operations awaited?
-- Is TESTS.md updated when an old-suite test moved, merged or was dropped?
 
 Report issues with specific suggestions. If tests are well-balanced, report "Test coverage is appropriate and behavior-focused."
 ```

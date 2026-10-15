@@ -54,7 +54,6 @@ Before adding a file, search for:
 6. dataset/known-issues.ts entries
 7. fixtures (only when no arrange method or option fits)
 8. specs: restapi, graphql, e2e; isolated ones last
-9. TESTS.md rows when tests of the old suite move, merge or drop
 ```
 
 ## Output Format

@@ -3,7 +3,7 @@
 Automated tests for the Virto Commerce **platform** (REST API and xAPI GraphQL), the **frontend** (vc-frontend) and
 the **page builder** app of the platform admin. TypeScript on Playwright Test, Allure reports, Biome for lint and
 format. [README.md](README.md) is the full guide; this file is the short version for working in the code.
-[TESTS.md](TESTS.md) maps every test of the old suite to where it lives now.
+[REFINEMENTS.md](REFINEMENTS.md) lists planned refinements and what is left of the old suite's migration.
 
 ## Commands
 
@@ -61,6 +61,11 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
   whose rows may hold small lambdas. No raw selectors in specs: add them to `pages/`.
 - Read seeded data from `dataset` (a spec may name a dataset id as a constant). Create what the test changes with
   `arrange`. A test that changes a customer's own state (cart, lists, addresses, locks) creates its own customer.
+- REST administration tests run as the dataset store administrator; a test that locks, deletes or changes the
+  password of the acting user creates its own with `arrange.security.platformUser()`.
+- Find records by search criteria, never by "is listed in the first N" windows.
+- A UI test checks the UI; data rules (search semantics, prices, scopes, validation) are checked once through the API.
+- A test that leaves data it cannot remove says why in a `leaves data` annotation.
 - Register cleanup before the change. Builders give drafts a client-side `id` the platform keeps, so the undo
   can be pushed first.
 - Prove a deletion by reading the record by id (`find(id)` is `undefined`), not by a search.
@@ -95,4 +100,3 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
 1. `npm run typecheck` and `npm run check` are clean.
 2. `npx playwright test --list` loads every spec.
 3. The changed specs pass against a seeded platform, and `npm run test:unit` passes when framework code changed.
-4. TESTS.md is updated when a test of the old suite moved, merged or was dropped.

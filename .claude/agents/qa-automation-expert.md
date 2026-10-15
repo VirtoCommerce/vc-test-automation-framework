@@ -128,4 +128,4 @@ Use the npm scripts, not a bare `npx playwright test <file>`: without `--project
 - `core/required-fields.ts`, `core/cleanup-stack.ts`, `core/poll.ts`, `core/unique-id.ts`
 - `api/api-session.ts`, `api/api-matchers.ts`, `api/rest/rest-api.ts`, `api/graphql/graphql-client.ts`
 - `api/rest/clients/pricing-client.ts` with `api/rest/types/pricing.ts`: REST client pattern
-- `pages/frontend/frontend.ts`, `pages/frontend/pages/cart-pages.ts`, `pages/selectors.ts`
+- `pages/frontend/frontend.ts`, `pages/frontend/pages/cart-pages.ts`, `pages/selectors.ts`, `pages/responses.ts`

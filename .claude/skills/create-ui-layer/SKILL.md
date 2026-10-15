@@ -20,7 +20,8 @@ user actions, no API calls, no test data. Specs hold no selectors, so every loca
   `DatePicker`, `Card`, `AppMenu`, `Notifications`, `ConfirmationPopup`)
 - Page builder: `pages/backend/page-builder/page-builder.ts` (`PageBuilderShell`, the `pageBuilder` fixture;
   `PagesListBlade`, `PageDetailsBlade`, `Route`, `Column`)
-- Shared helpers: `pages/selectors.ts` (`isGraphqlOperation`, `exactText`, `startsWithText`, `attributeSelector`)
+- Shared helpers: `pages/selectors.ts` (`exactText`, `startsWithText`, `attributeSelector`) and `pages/responses.ts`
+  (`whenGraphql`, `whenResponse`: run an action and wait for the response it causes)
 
 ## Step 1: Check What Exists
 
@@ -104,18 +105,17 @@ JSDoc says what they wait for:
 ```ts
 /** Clicks save and waits for the save response (POST/PUT), whatever its status; assert the outcome after. */
 async save(): Promise<void> {
-  await Promise.all([
-    this.root
-      .page()
-      .waitForResponse(
-        (response) =>
-          ["POST", "PUT"].includes(response.request().method()) &&
-          new URL(response.url()).pathname.startsWith(SAVE_PATH),
-      ),
-    this.saveButton.click(),
-  ]);
+  await whenResponse(
+    this.root.page(),
+    (response) =>
+      ["POST", "PUT"].includes(response.request().method()) && new URL(response.url()).pathname.startsWith(SAVE_PATH),
+    () => this.saveButton.click(),
+  );
 }
 ```
+
+For a GraphQL operation, `whenGraphql(page, "AddCoupon", () => button.click())`; take the operation name from
+what the frontend sends (the request's `operationName`), not from the mutation field.
 
 - An action that can open a new tab returns the `Page` the user ends up on (`ProductCard#openConfigurations`).
 - `expect` from `@playwright/test` may be used inside an action to wait for a state (`expect.poll`, `toPass`);

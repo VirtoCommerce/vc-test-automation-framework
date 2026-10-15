@@ -77,7 +77,7 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 
 - [ ] Page objects from the `frontend` or `pageBuilder` fixture; navigation through `navigate()`
 - [ ] Web-first assertions (`await expect(locator)…`); no `isVisible()` inside `expect`
-- [ ] Waits for the GraphQL call an action triggers when the next step depends on it (`page.waitForResponse(isGraphqlOperation("X"))`)
+- [ ] Waits for the GraphQL call an action triggers when the next step depends on it (`whenGraphql(page, "X", action)` from `@pages/responses`)
 - [ ] Browser state arranged through `shopper.api` and `shopperKind`, not the UI, unless the UI flow is under test
 - [ ] No branching on frontend configuration in the spec; page objects handle `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE`, `CHECKOUT_MODE`
 - [ ] The test checks the UI; data rules are left to the API tests

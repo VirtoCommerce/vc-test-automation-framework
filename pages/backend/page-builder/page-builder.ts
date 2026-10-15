@@ -3,6 +3,7 @@ import type { Card, DatePicker, Select } from "../shell/controls";
 
 import { expect } from "@playwright/test";
 
+import { whenResponse } from "../../responses";
 import { AppMenu, Blade, ConfirmationPopup, DISABLED_TOOLBAR_BUTTON, GridRow, Notifications } from "../shell/controls";
 
 /** Page list routes of the page builder shell, one per status; pass to {@link PageBuilderShell.open}. */
@@ -90,10 +91,11 @@ export class PagesListBlade extends Blade {
     if ((await this.searchInput.inputValue()) === term) {
       return;
     }
-    const [response] = await Promise.all([
-      this.root.page().waitForResponse((candidate) => isPagesSearch(candidate, term)),
-      this.searchInput.fill(term),
-    ]);
+    const response = await whenResponse(
+      this.root.page(),
+      (candidate) => isPagesSearch(candidate, term),
+      () => this.searchInput.fill(term),
+    );
     const body: unknown = await response.json();
     const totalCount = typeof body === "object" && body !== null ? Reflect.get(body, "totalCount") : undefined;
     if (typeof totalCount !== "number") {
@@ -187,16 +189,12 @@ export class PageDetailsBlade extends Blade {
 
   /** Clicks save and waits for the save response (POST/PUT), whatever its status; assert the outcome after. */
   async save(): Promise<void> {
-    await Promise.all([
-      this.root
-        .page()
-        .waitForResponse(
-          (response) =>
-            ["POST", "PUT"].includes(response.request().method()) &&
-            new URL(response.url()).pathname.startsWith(SAVE_PATH),
-        ),
-      this.saveButton.click(),
-    ]);
+    await whenResponse(
+      this.root.page(),
+      (response) =>
+        ["POST", "PUT"].includes(response.request().method()) && new URL(response.url()).pathname.startsWith(SAVE_PATH),
+      () => this.saveButton.click(),
+    );
   }
 
   /** Waits for the publish button to be enabled, clicks it and waits for a successful publishing response. */
@@ -212,12 +210,11 @@ export class PageDetailsBlade extends Blade {
   async #changeStatus(itemId: string): Promise<void> {
     const button = this.toolbarButton(itemId);
     await expect(button).not.toHaveClass(DISABLED_TOOLBAR_BUTTON);
-    await Promise.all([
-      this.root
-        .page()
-        .waitForResponse((response) => new URL(response.url()).pathname.startsWith(PUBLISHING_PATH) && response.ok()),
-      button.click(),
-    ]);
+    await whenResponse(
+      this.root.page(),
+      (response) => new URL(response.url()).pathname.startsWith(PUBLISHING_PATH) && response.ok(),
+      () => button.click(),
+    );
   }
 
   /** Clicks archive and confirms the popup; waits for the popup to close, not for a response. */
@@ -277,7 +274,11 @@ export class PageBuilderShell {
   async open(route: PageBuilderRoute = Route.all): Promise<void> {
     const path = this.#options.path.endsWith("/") ? this.#options.path : `${this.#options.path}/`;
     const url = `${path}?storeId=${encodeURIComponent(this.#options.storeId)}&reload=${Date.now()}#/${route}`;
-    await Promise.all([this.page.waitForResponse((response) => isPagesSearch(response)), this.page.goto(url)]);
+    await whenResponse(
+      this.page,
+      (response) => isPagesSearch(response),
+      () => this.page.goto(url),
+    );
     await this.listBlade.root.waitFor({ state: "visible" });
   }
 

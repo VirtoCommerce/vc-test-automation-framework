@@ -46,7 +46,7 @@ test.describe("organizations menu (customer of their own)", () => {
 });
 
 test.describe("organizations menu search (customer of their own)", () => {
-  test.use({ shopperKind: "customer", requiresModules: [MODULES.contactOrganizations] });
+  test.use({ shopperKind: "customer", requiresModules: [MODULES.xProfile] });
 
   test("search organizations by part of their name", async ({ frontend, shopper, arrange }) => {
     await allure.story("Search organizations");
@@ -105,7 +105,7 @@ test.describe("organizations menu search (customer of their own)", () => {
 });
 
 test.describe("organizations menu with locked memberships (anonymous, then signing in)", () => {
-  test.use({ requiresModules: [MODULES.organizationLocks] });
+  test.use({ requiresModules: [MODULES.xProfile] });
 
   test("a locked organization stays listed but cannot be selected", async ({ frontend, page, arrange }) => {
     await allure.story("Locked membership");

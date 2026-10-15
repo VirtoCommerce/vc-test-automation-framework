@@ -18,8 +18,8 @@ test.beforeEach(async () => {
   await allure.feature("Customer / Contact Management");
 });
 
-test.describe("organization contact roles (organization maintainer)", () => {
-  test.use({ requiresModules: [MODULES.storeCompanyRoles] });
+test.describe("organization contact management (organization maintainer)", () => {
+  test.use({ requiresModules: [MODULES.xProfile] });
 
   test("change the role of an organization contact", async ({ arrange, env }) => {
     await allure.story("Roles");
@@ -42,10 +42,6 @@ test.describe("organization contact roles (organization maintainer)", () => {
       expect(contact?.rolesInOrganization?.map((role) => role?.id)).toContain(TARGET_ROLE);
     });
   });
-});
-
-test.describe("organization contact locks (organization maintainer)", () => {
-  test.use({ requiresModules: [MODULES.organizationMemberStatus] });
 
   test("lock and unlock an organization contact", async ({ arrange }) => {
     await allure.story("Locks");

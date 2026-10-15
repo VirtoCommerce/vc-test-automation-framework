@@ -16,7 +16,7 @@ type Documents = {
   "fragment CartAddress on CartAddressType {\n  id\n  key\n  city\n  countryCode\n  countryName\n  email\n  firstName\n  middleName\n  lastName\n  line1\n  line2\n  name\n  organization\n  phone\n  postalCode\n  regionId\n  regionName\n  zip\n  outerId\n  description\n  addressType\n}": typeof types.CartAddressFragmentDoc;
   "fragment CartConfigurationItem on CartConfigurationItemType {\n  id\n  sectionId\n  type\n  productId\n  name\n  sku\n  imageUrl\n  quantity\n  customText\n  selectedForCheckout\n}": typeof types.CartConfigurationItemFragmentDoc;
   "fragment CartWithList on CartWithListType {\n  cart {\n    ...Cart\n  }\n  list {\n    ...Cart\n  }\n}": typeof types.CartWithListFragmentDoc;
-  "fragment Cart on CartType {\n  id\n  storeId\n  isAnonymous\n  hasPhysicalProducts\n  customerId\n  itemsCount\n  itemsQuantity\n  total {\n    ...Money\n  }\n  subTotal {\n    ...Money\n  }\n  subTotalDiscount {\n    ...Money\n  }\n  shippingTotal {\n    ...Money\n  }\n  items {\n    ...LineItem\n  }\n  payments {\n    ...Payment\n  }\n  shipments {\n    ...Shipment\n  }\n  coupons {\n    ...Coupon\n  }\n  gifts {\n    ...GiftItem\n  }\n  addresses {\n    ...CartAddress\n  }\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n}": typeof types.CartFragmentDoc;
+  "fragment Cart on CartType {\n  id\n  storeId\n  isAnonymous\n  hasPhysicalProducts\n  customerId\n  itemsCount\n  itemsQuantity\n  total {\n    ...Money\n  }\n  subTotal {\n    ...Money\n  }\n  subTotalDiscount {\n    ...Money\n  }\n  discountTotal {\n    ...Money\n  }\n  taxTotal {\n    ...Money\n  }\n  shippingTotal {\n    ...Money\n  }\n  items {\n    ...LineItem\n  }\n  payments {\n    ...Payment\n  }\n  shipments {\n    ...Shipment\n  }\n  coupons {\n    ...Coupon\n  }\n  gifts {\n    ...GiftItem\n  }\n  addresses {\n    ...CartAddress\n  }\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n}": typeof types.CartFragmentDoc;
   "fragment Category on Category {\n  id\n  code\n  name\n  outline\n  slug\n}": typeof types.CategoryFragmentDoc;
   "fragment ConfigurationLineItem on ConfigurationLineItemType {\n  id\n  text\n  quantity\n  product {\n    ...Product\n  }\n  listPrice {\n    ...Money\n  }\n  salePrice {\n    ...Money\n  }\n  extendedPrice {\n    ...Money\n  }\n  discountAmount {\n    ...Money\n  }\n}": typeof types.ConfigurationLineItemFragmentDoc;
   "fragment Contact on ContactType {\n  id\n  firstName\n  lastName\n  fullName\n  status\n  organizationId\n  organizationsIds\n  securityAccounts {\n    ...User\n  }\n}": typeof types.ContactFragmentDoc;
@@ -42,6 +42,7 @@ type Documents = {
   "fragment ProductPickupLocation on ProductPickupLocation {\n  id\n  isActive\n  name\n  description\n  contactEmail\n  contactPhone\n  workingHours\n  deliveryDays\n  storageDays\n  geoLocation\n  address {\n    ...PickupLocationAddress\n  }\n  availabilityType\n  availabilityNote\n  availableQuantity\n}": typeof types.ProductPickupLocationFragmentDoc;
   "fragment ProductPrice on PriceType {\n  list {\n    ...Money\n  }\n  actual {\n    ...Money\n  }\n}": typeof types.ProductPriceFragmentDoc;
   "fragment Product on Product {\n  id\n  code\n  productType\n  isConfigurable\n  name\n  vendor {\n    ...Vendor\n  }\n  price {\n    ...ProductPrice\n  }\n}": typeof types.ProductFragmentDoc;
+  "fragment PromotionCoupon on PromotionCouponType {\n  id\n  couponCode\n  name\n  label\n  description\n  endDate\n}": typeof types.PromotionCouponFragmentDoc;
   "fragment QuoteAddress on QuoteAddressType {\n  addressType\n  city\n  countryCode\n  countryName\n  line1\n  postalCode\n  regionId\n  regionName\n}": typeof types.QuoteAddressFragmentDoc;
   "fragment QuoteItem on QuoteItemType {\n  id\n  name\n  sku\n  productId\n  quantity\n  listPrice {\n    ...Money\n  }\n  salePrice {\n    ...Money\n  }\n  proposalPrices {\n    quantity\n    price {\n      ...Money\n    }\n  }\n}": typeof types.QuoteItemFragmentDoc;
   "fragment QuoteTotals on QuoteTotalsType {\n  originalSubTotalExlTax {\n    ...Money\n  }\n  subTotalExlTax {\n    ...Money\n  }\n  shippingTotal {\n    ...Money\n  }\n  discountTotal {\n    ...Money\n  }\n  taxTotal {\n    ...Money\n  }\n  grandTotalExlTax {\n    ...Money\n  }\n  grandTotalInclTax {\n    ...Money\n  }\n}": typeof types.QuoteTotalsFragmentDoc;
@@ -78,6 +79,7 @@ type Documents = {
   "mutation UnSelectAllCartItems($command: InputChangeAllCartItemsSelectedType!) {\n  unSelectAllCartItems(command: $command) {\n    ...Cart\n  }\n}": typeof types.UnSelectAllCartItemsDocument;
   "mutation UnSelectCartItems($command: InputChangeCartItemsSelectedType!) {\n  unSelectCartItems(command: $command) {\n    ...Cart\n  }\n}": typeof types.UnSelectCartItemsDocument;
   "mutation UpdateCartQuantity($command: InputUpdateCartQuantity!) {\n  updateCartQuantity(command: $command) {\n    ...Cart\n  }\n}": typeof types.UpdateCartQuantityDocument;
+  "query ValidateCoupon($storeId: String!, $userId: String!, $cartId: String, $currencyCode: String!, $cultureName: String, $coupon: String!) {\n  validateCoupon(\n    storeId: $storeId\n    userId: $userId\n    cartId: $cartId\n    currencyCode: $currencyCode\n    cultureName: $cultureName\n    coupon: $coupon\n  )\n}": typeof types.ValidateCouponDocument;
   "query Categories($storeId: String!, $userId: String, $cultureName: String, $currencyCode: String, $filter: String, $first: Int) {\n  categories(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n    filter: $filter\n    first: $first\n  ) {\n    totalCount\n    items {\n      ...Category\n    }\n  }\n}": typeof types.CategoriesDocument;
   "query Category($id: String!, $storeId: String!, $userId: String, $cultureName: String, $currencyCode: String) {\n  category(\n    id: $id\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n  ) {\n    ...Category\n  }\n}": typeof types.CategoryDocument;
   "mutation AddAddressToFavorites($command: AddAddressToFavoritesCommandType!) {\n  addAddressToFavorites(command: $command)\n}": typeof types.AddAddressToFavoritesDocument;
@@ -95,6 +97,7 @@ type Documents = {
   "mutation RequestRegistration($command: InputRequestRegistrationType!) {\n  requestRegistration(command: $command) {\n    contact {\n      id\n      firstName\n      lastName\n      status\n    }\n    organization {\n      id\n      name\n      status\n      ownerId\n    }\n    account {\n      id\n      username\n      email\n      status\n    }\n    result {\n      succeeded\n      requireEmailVerification\n    }\n  }\n}": typeof types.RequestRegistrationDocument;
   "mutation UnlockOrganizationContact($command: InputLockUnlockOrganizationContactType!) {\n  unlockOrganizationContact(command: $command) {\n    ...Contact\n  }\n}": typeof types.UnlockOrganizationContactDocument;
   "mutation UpdateMemberAddresses($command: InputUpdateMemberAddressType!) {\n  updateMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}": typeof types.UpdateMemberAddressesDocument;
+  "query GetPromotionCoupons($storeId: String!, $userId: String, $cultureName: String, $sort: String, $first: Int, $after: String) {\n  promotionCoupons(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    sort: $sort\n    first: $first\n    after: $after\n  ) {\n    totalCount\n    items {\n      ...PromotionCoupon\n    }\n  }\n}": typeof types.GetPromotionCouponsDocument;
   "query Order($number: String, $cultureName: String) {\n  order(number: $number, cultureName: $cultureName) {\n    ...Order\n  }\n}": typeof types.OrderDocument;
   "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}": typeof types.OrganizationOrdersDocument;
   "query PageContextWhiteLabeling($storeId: String, $userId: String, $cultureName: String, $organizationId: String) {\n  pageContext(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    organizationId: $organizationId\n  ) {\n    whiteLabelingSettings {\n      ...WhiteLabelingSettings\n    }\n  }\n}": typeof types.PageContextWhiteLabelingDocument;
@@ -140,7 +143,7 @@ const documents: Documents = {
     types.CartConfigurationItemFragmentDoc,
   "fragment CartWithList on CartWithListType {\n  cart {\n    ...Cart\n  }\n  list {\n    ...Cart\n  }\n}":
     types.CartWithListFragmentDoc,
-  "fragment Cart on CartType {\n  id\n  storeId\n  isAnonymous\n  hasPhysicalProducts\n  customerId\n  itemsCount\n  itemsQuantity\n  total {\n    ...Money\n  }\n  subTotal {\n    ...Money\n  }\n  subTotalDiscount {\n    ...Money\n  }\n  shippingTotal {\n    ...Money\n  }\n  items {\n    ...LineItem\n  }\n  payments {\n    ...Payment\n  }\n  shipments {\n    ...Shipment\n  }\n  coupons {\n    ...Coupon\n  }\n  gifts {\n    ...GiftItem\n  }\n  addresses {\n    ...CartAddress\n  }\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n}":
+  "fragment Cart on CartType {\n  id\n  storeId\n  isAnonymous\n  hasPhysicalProducts\n  customerId\n  itemsCount\n  itemsQuantity\n  total {\n    ...Money\n  }\n  subTotal {\n    ...Money\n  }\n  subTotalDiscount {\n    ...Money\n  }\n  discountTotal {\n    ...Money\n  }\n  taxTotal {\n    ...Money\n  }\n  shippingTotal {\n    ...Money\n  }\n  items {\n    ...LineItem\n  }\n  payments {\n    ...Payment\n  }\n  shipments {\n    ...Shipment\n  }\n  coupons {\n    ...Coupon\n  }\n  gifts {\n    ...GiftItem\n  }\n  addresses {\n    ...CartAddress\n  }\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n}":
     types.CartFragmentDoc,
   "fragment Category on Category {\n  id\n  code\n  name\n  outline\n  slug\n}": types.CategoryFragmentDoc,
   "fragment ConfigurationLineItem on ConfigurationLineItemType {\n  id\n  text\n  quantity\n  product {\n    ...Product\n  }\n  listPrice {\n    ...Money\n  }\n  salePrice {\n    ...Money\n  }\n  extendedPrice {\n    ...Money\n  }\n  discountAmount {\n    ...Money\n  }\n}":
@@ -186,6 +189,8 @@ const documents: Documents = {
     types.ProductPriceFragmentDoc,
   "fragment Product on Product {\n  id\n  code\n  productType\n  isConfigurable\n  name\n  vendor {\n    ...Vendor\n  }\n  price {\n    ...ProductPrice\n  }\n}":
     types.ProductFragmentDoc,
+  "fragment PromotionCoupon on PromotionCouponType {\n  id\n  couponCode\n  name\n  label\n  description\n  endDate\n}":
+    types.PromotionCouponFragmentDoc,
   "fragment QuoteAddress on QuoteAddressType {\n  addressType\n  city\n  countryCode\n  countryName\n  line1\n  postalCode\n  regionId\n  regionName\n}":
     types.QuoteAddressFragmentDoc,
   "fragment QuoteItem on QuoteItemType {\n  id\n  name\n  sku\n  productId\n  quantity\n  listPrice {\n    ...Money\n  }\n  salePrice {\n    ...Money\n  }\n  proposalPrices {\n    quantity\n    price {\n      ...Money\n    }\n  }\n}":
@@ -255,6 +260,8 @@ const documents: Documents = {
     types.UnSelectCartItemsDocument,
   "mutation UpdateCartQuantity($command: InputUpdateCartQuantity!) {\n  updateCartQuantity(command: $command) {\n    ...Cart\n  }\n}":
     types.UpdateCartQuantityDocument,
+  "query ValidateCoupon($storeId: String!, $userId: String!, $cartId: String, $currencyCode: String!, $cultureName: String, $coupon: String!) {\n  validateCoupon(\n    storeId: $storeId\n    userId: $userId\n    cartId: $cartId\n    currencyCode: $currencyCode\n    cultureName: $cultureName\n    coupon: $coupon\n  )\n}":
+    types.ValidateCouponDocument,
   "query Categories($storeId: String!, $userId: String, $cultureName: String, $currencyCode: String, $filter: String, $first: Int) {\n  categories(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n    filter: $filter\n    first: $first\n  ) {\n    totalCount\n    items {\n      ...Category\n    }\n  }\n}":
     types.CategoriesDocument,
   "query Category($id: String!, $storeId: String!, $userId: String, $cultureName: String, $currencyCode: String) {\n  category(\n    id: $id\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n  ) {\n    ...Category\n  }\n}":
@@ -289,6 +296,8 @@ const documents: Documents = {
     types.UnlockOrganizationContactDocument,
   "mutation UpdateMemberAddresses($command: InputUpdateMemberAddressType!) {\n  updateMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}":
     types.UpdateMemberAddressesDocument,
+  "query GetPromotionCoupons($storeId: String!, $userId: String, $cultureName: String, $sort: String, $first: Int, $after: String) {\n  promotionCoupons(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    sort: $sort\n    first: $first\n    after: $after\n  ) {\n    totalCount\n    items {\n      ...PromotionCoupon\n    }\n  }\n}":
+    types.GetPromotionCouponsDocument,
   "query Order($number: String, $cultureName: String) {\n  order(number: $number, cultureName: $cultureName) {\n    ...Order\n  }\n}":
     types.OrderDocument,
   "query OrganizationOrders($organizationId: String, $filter: String, $sort: String, $cultureName: String, $first: Int, $after: String) {\n  organizationOrders(\n    organizationId: $organizationId\n    filter: $filter\n    sort: $sort\n    cultureName: $cultureName\n    first: $first\n    after: $after\n  ) {\n    items {\n      ...Order\n    }\n  }\n}":
@@ -386,7 +395,7 @@ export function graphql(
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(
-  source: "fragment Cart on CartType {\n  id\n  storeId\n  isAnonymous\n  hasPhysicalProducts\n  customerId\n  itemsCount\n  itemsQuantity\n  total {\n    ...Money\n  }\n  subTotal {\n    ...Money\n  }\n  subTotalDiscount {\n    ...Money\n  }\n  shippingTotal {\n    ...Money\n  }\n  items {\n    ...LineItem\n  }\n  payments {\n    ...Payment\n  }\n  shipments {\n    ...Shipment\n  }\n  coupons {\n    ...Coupon\n  }\n  gifts {\n    ...GiftItem\n  }\n  addresses {\n    ...CartAddress\n  }\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n}",
+  source: "fragment Cart on CartType {\n  id\n  storeId\n  isAnonymous\n  hasPhysicalProducts\n  customerId\n  itemsCount\n  itemsQuantity\n  total {\n    ...Money\n  }\n  subTotal {\n    ...Money\n  }\n  subTotalDiscount {\n    ...Money\n  }\n  discountTotal {\n    ...Money\n  }\n  taxTotal {\n    ...Money\n  }\n  shippingTotal {\n    ...Money\n  }\n  items {\n    ...LineItem\n  }\n  payments {\n    ...Payment\n  }\n  shipments {\n    ...Shipment\n  }\n  coupons {\n    ...Coupon\n  }\n  gifts {\n    ...GiftItem\n  }\n  addresses {\n    ...CartAddress\n  }\n  validationErrors {\n    errorCode\n    errorMessage\n    errorParameters {\n      key\n      value\n    }\n    objectType\n    objectId\n  }\n}",
 ): typeof import("./graphql").CartFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
@@ -538,6 +547,12 @@ export function graphql(
 export function graphql(
   source: "fragment Product on Product {\n  id\n  code\n  productType\n  isConfigurable\n  name\n  vendor {\n    ...Vendor\n  }\n  price {\n    ...ProductPrice\n  }\n}",
 ): typeof import("./graphql").ProductFragmentDoc;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(
+  source: "fragment PromotionCoupon on PromotionCouponType {\n  id\n  couponCode\n  name\n  label\n  description\n  endDate\n}",
+): typeof import("./graphql").PromotionCouponFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -758,6 +773,12 @@ export function graphql(
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(
+  source: "query ValidateCoupon($storeId: String!, $userId: String!, $cartId: String, $currencyCode: String!, $cultureName: String, $coupon: String!) {\n  validateCoupon(\n    storeId: $storeId\n    userId: $userId\n    cartId: $cartId\n    currencyCode: $currencyCode\n    cultureName: $cultureName\n    coupon: $coupon\n  )\n}",
+): typeof import("./graphql").ValidateCouponDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(
   source: "query Categories($storeId: String!, $userId: String, $cultureName: String, $currencyCode: String, $filter: String, $first: Int) {\n  categories(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    currencyCode: $currencyCode\n    filter: $filter\n    first: $first\n  ) {\n    totalCount\n    items {\n      ...Category\n    }\n  }\n}",
 ): typeof import("./graphql").CategoriesDocument;
 /**
@@ -856,6 +877,12 @@ export function graphql(
 export function graphql(
   source: "mutation UpdateMemberAddresses($command: InputUpdateMemberAddressType!) {\n  updateMemberAddresses(command: $command) {\n    addresses {\n      items {\n        ...MemberAddress\n      }\n    }\n  }\n}",
 ): typeof import("./graphql").UpdateMemberAddressesDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(
+  source: "query GetPromotionCoupons($storeId: String!, $userId: String, $cultureName: String, $sort: String, $first: Int, $after: String) {\n  promotionCoupons(\n    storeId: $storeId\n    userId: $userId\n    cultureName: $cultureName\n    sort: $sort\n    first: $first\n    after: $after\n  ) {\n    totalCount\n    items {\n      ...PromotionCoupon\n    }\n  }\n}",
+): typeof import("./graphql").GetPromotionCouponsDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

@@ -118,7 +118,7 @@ test.describe("sign-in (store administrator)", () => {
 });
 
 test.describe("sign-in with locked organizations (store administrator)", () => {
-  test.use({ user: ADMINISTRATOR, requiresModules: [MODULES.organizationLocks] });
+  test.use({ user: ADMINISTRATOR, requiresModules: [MODULES.xProfile] });
 
   test("VCST-5317: sign in with a stale organization once every organization is locked", async ({ api, arrange }) => {
     await allure.story("Organization fallback");

@@ -6,6 +6,8 @@ import type { ArrangeContext } from "./context";
 import {
   AddItemsCartDocument,
   AddItemsToShoppingListDocument,
+  AddOrUpdateCartPaymentDocument,
+  AddOrUpdateCartShipmentDocument,
   ChangeShoppingListDocument,
   CreateShoppingListDocument,
   DeleteShoppingListDocument,
@@ -107,6 +109,23 @@ export class CartArrange {
       command: { ...(await shopper.storeContext()), cartItems: [...items] },
     });
     return requireFields(addItemsCart, ["id"], "Default cart");
+  }
+
+  /**
+   * Like {@link CartArrange#defaultCart}, plus the empty shipment and payment the frontend adds on its first visit
+   * to the cart page. The page then starts no writes of its own, so a test can act on it right after it loads;
+   * use this for tests that change the cart in the browser, such as applying a coupon.
+   */
+  async checkoutReadyCart(shopper: ApiSession, items: readonly ItemToAdd[]): Promise<ArrangedCart> {
+    const cart = await this.defaultCart(shopper, items);
+    const context = await shopper.storeContext();
+    await shopper.graphql.execute(AddOrUpdateCartShipmentDocument, {
+      command: { ...context, cartId: cart.id, shipment: {} },
+    });
+    const { addOrUpdateCartPayment } = await shopper.graphql.execute(AddOrUpdateCartPaymentDocument, {
+      command: { ...context, cartId: cart.id, payment: {} },
+    });
+    return requireFields(addOrUpdateCartPayment, ["id"], "Checkout-ready cart");
   }
 
   /** Removes the shopper's default cart after the test, if it exists then; for carts the frontend creates. */

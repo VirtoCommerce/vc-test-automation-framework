@@ -1879,6 +1879,19 @@ type DiscountType {
   promotionId: String
 }
 
+type DynamicContentItemType {
+  contentType: String!
+  description: String!
+
+  """
+  Dynamic content dynamic property values
+  """
+  dynamicProperties: [DynamicPropertyValueType]
+  id: String!
+  name: String!
+  priority: Int!
+}
+
 """
 A connection from an object to a list of objects of type `DynamicProperty`.
 """
@@ -2050,6 +2063,11 @@ type ErrorParameterType {
   Value
   """
   value: String!
+}
+
+type EvaluateDynamicContentResultType {
+  items: [DynamicContentItemType]
+  totalCount: Int!
 }
 
 interface Facet {
@@ -7928,6 +7946,68 @@ type Promotion {
 }
 
 """
+A connection from an object to a list of objects of type `PromotionCoupon`.
+"""
+type PromotionCouponConnection {
+  """
+  A list of all of the edges returned in the connection.
+  """
+  edges: [PromotionCouponEdge]
+
+  """
+  A list of all of the objects returned in the connection. This is a convenience field provided for quickly exploring the API; rather than querying for "{ edges { node } }" when no edge data is needed, this field can be used instead. Note that when clients like Relay need to fetch the "cursor" field on the edge to enable efficient pagination, this shortcut cannot be used, and the full "{ edges { node } } " version should be used instead.
+  """
+  items: [PromotionCouponType]
+
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+
+  """
+  A count of the total number of objects in this connection, ignoring pagination. This allows a client to fetch the first five objects by passing "5" as the argument to `first`, then fetch the total count so it could display "5 of 83", for example. In cases where we employ infinite scrolling or don't have an exact count of entries, this field will return `null`.
+  """
+  totalCount: Int
+}
+
+"""
+An edge in a connection from an object to another object of type `PromotionCoupon`.
+"""
+type PromotionCouponEdge {
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+
+  """
+  The item at the end of the edge
+  """
+  node: PromotionCouponType
+}
+
+type PromotionCouponType {
+  couponCode: String
+
+  """
+  Localized description of the promotion.
+  """
+  description: String
+  endDate: DateTime
+  id: String!
+
+  """
+  Localized label of the promotion.
+  """
+  label: String
+
+  """
+  Localized name of the promotion.
+  """
+  name: String
+  systemName: String
+}
+
+"""
 Products attributes.
 """
 type Property {
@@ -8548,6 +8628,16 @@ type Query {
     """
     objectType: String
   ): DynamicPropertyType
+  evaluateDynamicContent(
+    categoryId: String
+    cultureName: String
+    placeName: String
+    productId: String
+    storeId: String
+    tags: [String]
+    toDate: DateTime
+    userGroups: [String]
+  ): EvaluateDynamicContentResultType
   fileUploadOptions(scope: String): FileUploadScopeOptionsType
   fulfillmentCenter(
     """
@@ -9030,6 +9120,23 @@ type Query {
     """
     userId: String
   ): ProductConnection
+  promotionCoupons(
+    """
+    Only return edges after the specified cursor.
+    """
+    after: String
+    cultureName: String
+    currencyCode: String
+
+    """
+    Specifies the maximum number of edges to return, starting after the cursor specified by 'after', or the first number of edges if 'after' is not specified.
+    """
+    first: Int
+    keyword: String
+    sort: String
+    storeId: String!
+    userId: String
+  ): PromotionCouponConnection
   properties(
     """
     Only return edges after the specified cursor.

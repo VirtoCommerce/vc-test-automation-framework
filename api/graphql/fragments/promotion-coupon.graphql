@@ -1,0 +1,8 @@
+fragment PromotionCoupon on PromotionCouponType {
+  id
+  couponCode
+  name
+  label
+  description
+  endDate
+}

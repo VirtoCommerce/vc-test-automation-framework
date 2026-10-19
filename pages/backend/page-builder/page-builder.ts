@@ -28,11 +28,19 @@ const MenuItem: Readonly<Record<PageBuilderRoute, string>> = {
 /** Column ids (`data-column-id`) of the page list grid. */
 export const Column = {
   name: "name",
-  language: "cultureName",
   permalink: "permalink",
   modified: "modifiedDate",
   modifiedBy: "modifiedBy",
   status: "status",
+} as const;
+
+/**
+ * Column ids of the page language: one language per row, or language pills in Page Builder versions with
+ * Multilanguage Pages.
+ */
+const LanguageColumn = {
+  single: "cultureName",
+  pills: "languages",
 } as const;
 
 /** Toolbar item ids of the page details blade; archive's id is `delete`. */
@@ -44,17 +52,18 @@ export const DetailsToolbar = {
   unpublish: "unpublishPage",
 } as const;
 
-const SEARCH_PATH = "/api/page-builder-pages/search";
+const SEARCH_PATHS: ReadonlySet<string> = new Set(["/api/page-builder-pages/search", "/api/page-builder-pages/list"]);
 const SAVE_PATH = "/api/page-builder-pages/grouped";
 const PUBLISHING_PATH = "/api/page-builder-pages/grouped/publishing/";
 const ROWS_TIMEOUT_MS = 10_000;
 
 /**
- * Whether a response answers the page search (`POST /api/page-builder-pages/search`).
+ * Whether a response answers the page search: `POST /api/page-builder-pages/search`, or `/list` in Page Builder
+ * versions that list a Multilanguage Page as one row.
  * @param keyword - Required search keyword (`""` matches a search without one); omit to match any search.
  */
 function isPagesSearch(response: Response, keyword?: string): boolean {
-  if (response.request().method() !== "POST" || new URL(response.url()).pathname !== SEARCH_PATH) {
+  if (response.request().method() !== "POST" || !SEARCH_PATHS.has(new URL(response.url()).pathname)) {
     return false;
   }
   const criteria: unknown = response.request().postDataJSON();
@@ -65,10 +74,15 @@ function isPagesSearch(response: Response, keyword?: string): boolean {
 /** Blade listing pages, with a search box. */
 export class PagesListBlade extends Blade {
   readonly searchInput: Locator;
+  /** Header of the language column, whichever of its two forms the grid has. */
+  readonly languageColumnHeader: Locator;
 
   constructor(root: Locator) {
     super(root);
     this.searchInput = root.locator(".vc-input input[placeholder='Search...']");
+    this.languageColumnHeader = this.grid
+      .columnHeader(LanguageColumn.single)
+      .or(this.grid.columnHeader(LanguageColumn.pills));
   }
 
   /** Rows whose name cell equals `name` exactly, among the rows shown. */
@@ -79,6 +93,22 @@ export class PagesListBlade extends Blade {
   /** First row named `name`; use {@link reveal} first if the page may not be on the first grid page. */
   pageRow(name: string): GridRow {
     return new GridRow(this.pageRows(name).first());
+  }
+
+  /**
+   * Reads the languages of the first row named `name` right now (no waiting): the language column, or the language
+   * pills of Page Builder versions with Multilanguage Pages.
+   */
+  async pageLanguages(name: string): Promise<string[]> {
+    const row = this.pageRow(name);
+    const pills = row.cell(LanguageColumn.pills).locator(".language-pills__pill");
+    if ((await pills.count()) === 0) {
+      return [await row.value(LanguageColumn.single)];
+    }
+    const titles = await pills.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("title") ?? ""),
+    );
+    return titles.map((title) => title.split(":")[0]?.trim() ?? "");
   }
 
   /**
@@ -296,10 +326,18 @@ export class PageBuilderShell {
     return this.detailsBlade;
   }
 
-  /** Loads the draft list, clicks add and returns the empty details blade of a new, unsaved page. */
+  /**
+   * Loads the draft list, clicks add and returns the empty details blade of a new, unsaved page. Where add asks for
+   * the page type (a store with several languages), picks a Landing Page.
+   */
   async addPage(): Promise<PageDetailsBlade> {
     await this.open(Route.draft);
     await this.listBlade.toolbarButton("add").click();
+    const landingPage = this.page.locator(".add-page-popup__option", { hasText: "Landing Page" });
+    await this.detailsBlade.nameInput.or(landingPage).waitFor({ state: "visible" });
+    if (await landingPage.isVisible()) {
+      await landingPage.click();
+    }
     await this.detailsBlade.nameInput.waitFor({ state: "visible" });
     return this.detailsBlade;
   }

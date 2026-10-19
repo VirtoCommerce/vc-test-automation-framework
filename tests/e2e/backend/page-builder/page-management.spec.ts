@@ -37,7 +37,7 @@ test.describe("page management (platform admin)", () => {
     await test.step("assert: the draft list shows the page with its values", async () => {
       expect(await pageBuilder.isListed(Route.draft, name)).toBe(true);
       await expect(row.cell(Column.permalink)).toHaveText(`/${name}`);
-      await expect(row.cell(Column.language)).toHaveText(store.defaultLanguage);
+      expect(await pageBuilder.listBlade.pageLanguages(name)).toEqual([store.defaultLanguage]);
       await expect(row.cell(Column.status)).toHaveText("Draft");
     });
     await test.step("assert: the draft counter matches the draft list", async () => {

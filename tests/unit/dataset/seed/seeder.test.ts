@@ -174,6 +174,51 @@ test.describe("seedDataset", () => {
     expect(summary).toMatchObject({ sent: 1, existing: 1 });
   });
 
+  test("sends a method with the id of its stored copy, skipping registered-only methods and other codes", async () => {
+    const methods = DATASET.shippingMethods.all();
+    const code = String(methods[0]?.code);
+    const http = fakeHttp({
+      "/api/shipping/search": {
+        status: 200,
+        body: {
+          results: [
+            { code, id: null },
+            { code: "OtherMethod", id: "id-of-other-method" },
+            { code, id: "id-of-stored-method" },
+          ],
+        },
+      },
+    });
+
+    await seedDataset({
+      http,
+      dataset: DATASET,
+      placeholders: PLACEHOLDERS,
+      logger: capture().logger,
+      scope: scope(["shippingMethods"]),
+    });
+
+    expect(http.bodies[0]).toMatchObject({ storeId: PLACEHOLDERS.STORE_ID, codes: [code], withoutTransient: true });
+    expect(http.bodies[methods.length]).toMatchObject({ code, id: "id-of-stored-method" });
+  });
+
+  test("sends a method without an id when no stored copy is found", async () => {
+    const methods = DATASET.shippingMethods.all();
+    const http = fakeHttp({
+      "/api/shipping/search": { status: 200, body: { results: [{ code: "OtherMethod", id: "x" }] } },
+    });
+
+    await seedDataset({
+      http,
+      dataset: DATASET,
+      placeholders: PLACEHOLDERS,
+      logger: capture().logger,
+      scope: scope(["shippingMethods"]),
+    });
+
+    expect(http.bodies.slice(methods.length)).toEqual(methods);
+  });
+
   test("sends nothing for a batch collection whose records are all stored", async () => {
     const coupons = DATASET.coupons.all();
     const http = fakeHttp(

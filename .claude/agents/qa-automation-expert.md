@@ -20,7 +20,6 @@ You are a QA automation expert for the VirtoCommerce e-commerce platform. You wr
 - Update tests when the platform, xAPI or frontend changes
 - Remove flakiness: wrong waits, shared data, order dependence, leaked entities
 - Investigate failures from the list reporter, Allure, traces and screenshots
-- Keep TESTS.md current when a test of the old suite moves, merges or is dropped
 
 ## When to Use Skills
 
@@ -43,9 +42,9 @@ See README.md "Project structure" for the full tree. The short map:
 |---|---|
 | Spec | `tests/restapi/<platform module>/`, `tests/graphql/<area>/`, `tests/e2e/frontend/<area>/`, `tests/e2e/backend/page-builder/`, `tests/isolated/{restapi,graphql}/` |
 | REST call | `api/rest/clients/<module>-client.ts`, wired in `api/rest/rest-api.ts` as `api.rest.<module>.<resource>` |
-| REST type | `api/rest/types/<module>.ts`: `XXX_FIELDS` + `WithRequired<XxxData, (typeof XXX_FIELDS)[number]>` |
+| REST type | `api/rest/types/<module>.ts`: shape `XXX = shape<XxxData>()("Label", [fields])` + `type Xxx = Shaped<typeof XXX>` |
 | GraphQL document | `api/graphql/operations/<area>/<operation>.graphql`, fragments in `api/graphql/fragments/`, then `npm run codegen:graphql` |
-| Page object | `pages/frontend/pages/*-pages.ts`, `pages/frontend/components/*.ts`, built by `pages/frontend/frontend.ts`; admin UI in `pages/backend/` |
+| Page object | `pages/frontend/pages/<area>/*-page.ts`, `components/`, `ui-kit/`, `flows/`, built by `pages/frontend/frontend.ts`; admin UI in `pages/backend/` (`vc-shell/`, `page-builder/`) |
 | Draft entity | `dataset/builders/<area>.ts`: `newX()` with a unique name and a client-side `id` |
 | Test data with cleanup | `dataset/arrange/<domain>.ts`, reached as `arrange.<domain>.x()` |
 | Seeded record | `dataset/data/<collection>/*.json`, read through `dataset.<collection>.get(id)` |
@@ -85,7 +84,7 @@ Copy the shape of README.md "A REST test", "A GraphQL test" and "An e2e test", o
 
 1. No conditionals, no `as` casts, no helper functions in specs. No raw selectors in specs: add locators to `pages/`.
 2. Read seeded data from `dataset` (a dataset id may be a module constant). Create what the test changes with `arrange`. A test that changes a customer's own state creates its own customer.
-3. Register cleanup before the change. `arrange` does it for you; with `cleanup.push`, push before the create when the id is known, right after it when the platform assigns the id.
+3. Register cleanup before the change. `arrange` does it for you; with `cleanup.push`, push before the create when the id is known (`cleanup.track(description, undo, create)` when the create follows right away), right after it when the platform assigns the id.
 4. Prove a deletion by id: `expect(await client.find(id)).toBeUndefined()` or `rejects.toBeHttpError(404)`.
 5. Index-backed reads wait in `arrange` (`searchableMemberships`, `pickupLocations`, `cartPickupLocations`, `productPickupLocations`, `lockMemberships`) or with `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never `waitForTimeout` or `networkidle`.
 6. Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""`, `?? []`, `?? 0`.
@@ -129,4 +128,4 @@ Use the npm scripts, not a bare `npx playwright test <file>`: without `--project
 - `core/required-fields.ts`, `core/cleanup-stack.ts`, `core/poll.ts`, `core/unique-id.ts`
 - `api/api-session.ts`, `api/api-matchers.ts`, `api/rest/rest-api.ts`, `api/graphql/graphql-client.ts`
 - `api/rest/clients/pricing-client.ts` with `api/rest/types/pricing.ts`: REST client pattern
-- `pages/frontend/frontend.ts`, `pages/frontend/pages/cart-pages.ts`, `pages/selectors.ts`
+- `pages/frontend/frontend.ts`, `pages/frontend/pages/cart/cart-page.ts`, `pages/frontend/flows/checkout-flow.ts`, `pages/selectors.ts`, `pages/responses.ts`

@@ -4,7 +4,7 @@ import type { ModuleDescriptorData } from "../types/modules";
 
 import { requireFields } from "@core/required-fields";
 
-import { MODULE_DESCRIPTOR_FIELDS } from "../types/modules";
+import { MODULE_DESCRIPTOR } from "../types/modules";
 
 const MODULES_PATH = "/api/platform/modules";
 
@@ -21,7 +21,7 @@ export class ModulesClient {
     return new Map(
       modules
         .filter((module) => module.isInstalled)
-        .map((module) => requireFields(module, MODULE_DESCRIPTOR_FIELDS, "Installed module"))
+        .map((module) => requireFields(module, MODULE_DESCRIPTOR.fields, "Installed module"))
         .map(({ id, version }) => [id, version]),
     );
   }

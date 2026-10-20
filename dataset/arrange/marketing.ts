@@ -20,8 +20,11 @@ export class MarketingArrange {
   async promotion(): Promise<Promotion> {
     const { promotions } = this.#admin.rest;
     const draft = newPromotion();
-    this.#cleanup.push(`delete promotion ${draft.name}`, () => promotions.delete([draft.id]));
-    return promotions.create(draft);
+    return this.#cleanup.track(
+      `delete promotion ${draft.name}`,
+      () => promotions.delete([draft.id]),
+      () => promotions.create(draft),
+    );
   }
 
   /**
@@ -33,7 +36,10 @@ export class MarketingArrange {
   async dynamicContent(kind: DynamicContentKind): Promise<NamedEntity<NamedEntityData>> {
     const resource = this.#admin.rest.dynamicContent[kind];
     const draft = newDynamicContent(kind);
-    this.#cleanup.push(`delete dynamic content ${draft.name}`, () => resource.delete([draft.id]));
-    return resource.create(draft);
+    return this.#cleanup.track(
+      `delete dynamic content ${draft.name}`,
+      () => resource.delete([draft.id]),
+      () => resource.create(draft),
+    );
   }
 }

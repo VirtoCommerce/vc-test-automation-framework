@@ -43,9 +43,12 @@ export class SecurityArrange {
   async platformUser(overrides: Parameters<typeof newPlatformUser>[1] = {}): Promise<PlatformAccount> {
     const draft = newPlatformUser(this.#store.id, overrides);
     const { users } = this.#admin.rest;
-    this.#cleanup.push(`delete user ${draft.userName}`, () => users.delete([draft.userName]));
     expectSucceeded(
-      await users.create({ ...draft, password: draft.password.reveal() }),
+      await this.#cleanup.track(
+        `delete user ${draft.userName}`,
+        () => users.delete([draft.userName]),
+        () => users.create({ ...draft, password: draft.password.reveal() }),
+      ),
       `Creating user ${draft.userName}`,
     );
     return {
@@ -113,8 +116,11 @@ export class SecurityArrange {
   async oauthApp(): Promise<OAuthApp> {
     const { oauthApps } = this.#admin.rest;
     const draft = newOAuthApp();
-    this.#cleanup.push(`delete OAuth app ${draft.clientId}`, () => oauthApps.delete([draft.clientId]));
-    return oauthApps.create(draft);
+    return this.#cleanup.track(
+      `delete OAuth app ${draft.clientId}`,
+      () => oauthApps.delete([draft.clientId]),
+      () => oauthApps.create(draft),
+    );
   }
 
   /**

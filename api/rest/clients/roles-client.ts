@@ -8,9 +8,9 @@ import type {
   SecurityResult,
 } from "../types/security";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { requireFields, requireFieldsOfEach } from "@core/required-fields";
 
-import { ROLE_FIELDS } from "../types/security";
+import { ROLE } from "../types/security";
 
 const SECURITY_PATH = "/api/platform/security";
 const ROLES_PATH = `${SECURITY_PATH}/roles`;
@@ -43,18 +43,18 @@ export class RolesClient {
   }
 
   async get(name: string): Promise<Role> {
-    return requireFields(await this.find(name), ROLE_FIELDS, `Role "${name}"`);
+    return requireFields(await this.find(name), ROLE.fields, `Role "${name}"`);
   }
 
   async find(name: string): Promise<Role | undefined> {
     const response = await this.#httpClient.get(`${ROLES_PATH}/${encodeURIComponent(name)}`);
-    return optionalFields(response.optionalJson<RoleData>(), ROLE_FIELDS, `Role "${name}"`);
+    return response.optionalRecord(ROLE);
   }
 
   async search(criteria: RoleSearchCriteria): Promise<Role[]> {
     const response = await this.#httpClient.post(`${ROLES_PATH}/search`, { json: criteria });
     const { roles } = response.json<RoleSearchResult>();
-    return requireFieldsOfEach(roles, ROLE_FIELDS, "Found role");
+    return requireFieldsOfEach(roles, ROLE.fields, "Found role");
   }
 
   async delete(ids: readonly string[]): Promise<void> {

@@ -76,10 +76,10 @@ test.describe("cart (customer of their own)", () => {
 - `frontend` builds page objects for the configured frontend. `setQuantity` works for either `QUANTITY_CONTROL`;
   `frontend.checkout()` walks the single-page or multi-step checkout. Specs never read `env.quantityControl`,
   `env.rangeFilterType` or `env.checkoutMode`, and never skip on them.
-- To wait for what a click sends, use a predicate from `@pages/selectors`:
+- To wait for what a click sends, use `whenGraphql` (or `whenResponse` for REST) from `@pages/responses`:
 
 ```ts
-await Promise.all([page.waitForResponse(isGraphqlOperation("ClearCart")), cart.clearCartModal.confirmButton.click()]);
+await whenGraphql(page, "ClearCart", () => cart.clearCartModal.confirmButton.click());
 ```
 
 - Shared setup for a group of tests: a `beforeEach` with `arrange:` steps, or `test.extend` with a fixture that
@@ -88,7 +88,7 @@ await Promise.all([page.waitForResponse(isGraphqlOperation("ClearCart")), cart.c
 ## Step 3: Page Builder Tests
 
 ```ts
-import { Column, Route } from "@pages/backend/page-builder/page-builder";
+import { Column, Route } from "@pages/backend/page-builder/routes";
 
 test.describe("status transitions (platform admin)", () => {
   test("publishing a draft moves it to the active list", async ({ pageBuilder, arrange }) => {

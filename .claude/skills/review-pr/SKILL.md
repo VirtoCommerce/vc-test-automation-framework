@@ -31,8 +31,8 @@ gh pr checks <number>
 
 **REST clients and types (`api/rest/clients`, `api/rest/types`):**
 - Paths and methods match the Swagger; new clients registered in `api/rest/rest-api.ts`.
-- `json` / `optionalJson` / `expectOk`; results through `requireFields`, `optionalFields`, `requireFieldsOfEach`.
-- Named types follow `X_FIELDS` + `WithRequired`.
+- `expectOk`, or responses checked against a shape: `record`, `optionalRecord`, `records`, `results`.
+- Named types follow a shape plus `Shaped<typeof X>`.
 
 **GraphQL documents (`api/graphql/**/*.graphql`):**
 - Generated files regenerated in the same PR (`npm run codegen:graphql`); no hand edits in `api/*/generated/`.
@@ -67,8 +67,8 @@ gh pr checks <number>
 - **Duplication:** new methods do not duplicate existing ones.
 - **Coverage:** the PR tests what it adds; a bug fix has a test that fails without it; framework changes have
   unit tests in `tests/unit/`.
-- **Docs:** README and CLAUDE.md updated when conventions, options or scripts change; TESTS.md updated when tests
-  of the old suite moved, merged or were dropped.
+- **Docs:** README and CLAUDE.md updated when conventions, options or scripts change; REFINEMENTS.md updated when
+  the PR does or adds a refinement, or ports an old-suite test listed there.
 
 ### Step 5: Review Commit Quality
 

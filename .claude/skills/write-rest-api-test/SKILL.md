@@ -156,4 +156,3 @@ npm run typecheck && npm run check
 npm run test:restapi -- tests/restapi/<platform-module>/<topic>.spec.ts
 ```
 
-Update TESTS.md when the test replaces, merges or drops a test of the old suite.

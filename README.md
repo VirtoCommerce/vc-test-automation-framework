@@ -111,9 +111,12 @@ $env:VERIFY_SSL = "false"; npm run test:e2e:frontend; Remove-Item Env:VERIFY_SSL
 npm run seed
 ```
 
-The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: records
-the platform already has are left as they are, dataset users get the current `USERS_PASSWORD`, and pages get their
-dataset status. A collection whose module is not installed, or not in the version range the suite needs
+The seeder writes every dataset collection to the platform as the administrator. It is safe to repeat: each
+collection declares in `dataset/manifest.ts` how a repeat avoids duplicates (`repeat`). Most replace the stored
+record by its id or key (`upsert`), so dataset changes reach the platform; a few whose endpoints refuse a record
+twice (users, organization memberships, coupons, orders) look it up and leave it as it is (`find`). Shipping and
+payment methods, whose ids the platform assigns, are found by store and code and updated in place. Dataset users
+get the current `USERS_PASSWORD`, and pages get their dataset status. A collection whose module is not installed, or not in the version range the suite needs
 (`dataset/modules.ts`), is skipped with a warning, such as
 `[seed] WARN pages: VirtoCommerce.PageBuilderModule 3.1012.1 is older than 3.1034.0, skipped`.
 
@@ -195,9 +198,10 @@ after another.
   statistic. This orders tests within the file only; other files still run alongside.
 - The page builder's page list is shared, so `e2e-backend` runs with one worker.
 
-**Retries.** On CI a failed test is retried once (`retries: 1`) in a fresh worker; one that passes on the retry is
-reported as flaky. Locally there are no retries, so a flaky test shows up at once; use `--repeat-each=5` on a file
-to hunt for it.
+**No retries.** A failed test is not retried, on CI or locally, and neither is a failed request (a database
+deadlock included): an intermittent failure fails the run, so its cause gets found instead of hidden. The one
+exception is the sign-in: `TokenClient` repeats a `/connect/token` 500, which the platform answers to concurrent
+sign-ins of one user. To hunt for a flaky test, use `--repeat-each=5` on its file.
 
 ### 5. Read the report
 
@@ -255,8 +259,7 @@ search engine in its matrix it:
 5. uploads the JUnit, JSON and Allure reports as artifacts.
 
 Inputs: the frontend build (`frontendZipUrl`), the suites (`all` = `graphql`, `restapi`, `e2e`; or one of them;
-`isolated` also needs `RUN_DESTRUCTIVE_TESTS=true` in the secret), an optional `--grep` and `--workers`. CI retries
-a failed test once.
+`isolated` also needs `RUN_DESTRUCTIVE_TESTS=true` in the secret), an optional `--grep` and `--workers`.
 
 To test new module versions, update `backend-packages.json`.
 
@@ -315,10 +318,10 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │
 ├── api/                     Talking to the platform
 │   ├── api-session.ts       `ApiSession`: one user's REST + GraphQL clients (the `api` fixture)
-│   ├── api-matchers.ts      `toBeHttpError`, `toBeGraphqlError`
+│   ├── api-matchers.ts      `toBeHttpError`, `toBeGraphqlError`, `toHaveConsistentTotals`
 │   ├── mailbox.ts           Reads sent e-mails from the platform's notification journal
 │   ├── auth/                Token endpoint, token cache, browser sign-in state (cookie / local storage)
-│   ├── http/                `HttpClient`, `HttpResponse`, `HttpError`, deadlock retry
+│   ├── http/                `HttpClient`, `HttpResponse`, `HttpError`
 │   ├── rest/
 │   │   ├── rest-api.ts      `RestApi`: every REST client, e.g. `api.rest.catalog.products`
 │   │   ├── clients/         One client per platform module
@@ -341,9 +344,17 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   └── users.ts, stock.ts, store-under-test.ts   Dataset lookups: credentials, fulfillment centers, the store
 │
 ├── pages/                   Page objects (depend on `core` only)
-│   ├── selectors.ts         Shared selector helpers
-│   ├── frontend/            vc-frontend: `Frontend` factory (the `frontend` fixture), pages and components
-│   └── backend/             Admin UI: shell controls (blades, grids, selects) and the page builder app
+│   ├── selectors.ts         Shared selector helpers; `responses.ts`: wait for the response an action causes
+│   ├── frontend/            vc-frontend
+│   │   ├── frontend.ts      `Frontend` factory (the `frontend` fixture)
+│   │   ├── layouts/         `MainLayout`: top header and cart badge, the base of every page
+│   │   ├── ui-kit/          Wrappers of the vc-frontend UI kit (quantity control, widget, dropdown filter, …)
+│   │   ├── components/      Parts of pages, one area per file or folder (header, address, catalog, checkout, …)
+│   │   ├── pages/           One page per file, by area (site, catalog, cart, checkout, account, lists)
+│   │   └── flows/           Journeys over several pages (`CheckoutFlow`)
+│   └── backend/             Admin UI
+│       ├── vc-shell/        Wrappers of the vc-shell UI kit (blade, data grid, select, date picker, switch, …)
+│       └── page-builder/    The page builder app: routes, list and details blades, `PageBuilderShell`
 │
 ├── fixtures/                Playwright fixtures; specs import `test`, `expect` and `knownIssue` from `@fixtures`
 │   ├── env.fixture.ts       `env`
@@ -367,7 +378,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 ├── playwright.config.ts     Projects, timeouts, reporters
 ├── codegen-graphql.ts, codegen-rest.mts   Code generation
 ├── backend-packages.json    Platform and module versions CI deploys
-├── TESTS.md                 Every test of the old suite and where it went
+├── REFINEMENTS.md           Planned refinements and what is left of the old suite's migration
 └── .github/workflows/       CI
 ```
 
@@ -377,7 +388,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 |---|---|---|
 | `unit` | `tests/unit` | No platform needed |
 | `modules` | `tests/setup` | Reads the platform's installed modules once per run, for `requiresModules` and the seed; every project but `unit` depends on it |
-| `seed` | `tests/setup` | Seeds the dataset; never retried |
+| `seed` | `tests/setup` | Seeds the dataset |
 | `restapi` | `tests/restapi` | `API_WORKERS` workers, 90 s per test |
 | `graphql` | `tests/graphql` | `API_WORKERS` workers, 90 s per test |
 | `e2e-frontend` | `tests/e2e/frontend` | Chrome 1920×1080, `FRONTEND_WORKERS` workers, 120 s per test |
@@ -577,6 +588,10 @@ test.describe("cart (customer of their own)", () => {
   input as `QUANTITY_CONTROL` says, and `frontend.checkout()` walks the single-page or multi-step checkout.
 - Specs hold no selectors. Add locators and multi-step actions to `pages/`; a page object exposes `Locator`s for
   assertions and methods that wait for what they trigger.
+- UI-kit classes (`.vc-*`) appear only in `frontend/ui-kit/` and `backend/vc-shell/`, so a change in either kit is
+  fixed in one place. Components and pages use `data-test-id`s and these wrappers.
+- Locate by test id with `getByTestId("…")`: the config sets `testIdAttribute` to the frontend's `data-test-id`
+  (Playwright's default is `data-testid`). A prefix match takes a pattern: `getByTestId(/^filter-price-/)`.
 - Page builder tests use the `pageBuilder` fixture; the browser is signed in to the admin UI as the administrator.
 
 ### Cleaning up
@@ -614,7 +629,8 @@ Rules for undo actions:
 - **Push before the change.** If the change fails halfway, or the assertion after it fails, the undo still runs.
   For that the id must be known up front: builders set `id: randomUUID()`, which the platform keeps for most
   entities. Where the platform assigns the id (page builder pages, GraphQL carts and lists), push right after the
-  create, before any assertion.
+  create, before any assertion. When the change follows right away, as in `arrange`, register both in one call so
+  the order cannot be swapped: `return cleanup.track(description, undo, () => client.create(draft))`.
 - **Make the undo tolerant.** It may run when the change never happened or the test already deleted the record:
   most platform deletes by id ignore a missing id; where one does not, check first, as the shopping list undo does.
 - **Undo what was changed, not just what was created.** A changed setting is restored to its old value
@@ -625,7 +641,10 @@ Rules for undo actions:
 ### Adding seed data
 
 Add a JSON file to the collection's folder in `dataset/data/` (ids are prefixed with the collection, e.g.
-`product-…`), reference it from tests by id, and run `npm run seed`. `${ENV:NAME}` placeholders take values from
+`product-…`), reference it from tests by id, and run `npm run seed`. A new collection in `dataset/manifest.ts`
+must say how a repeated seed avoids duplicates: `repeat: "upsert"` when its endpoint replaces a record by id or key
+(prove it by seeding twice), or `repeat: "find"` with a `find` path when the endpoint refuses a record twice; for
+records whose id the platform assigns, `storedIdFrom` finds the stored one by a search. `${ENV:NAME}` placeholders take values from
 `.env`. Tests read seeded records through `dataset`, so data and expectations never drift apart.
 
 ## Scripts

@@ -4,7 +4,7 @@ import * as allure from "allure-js-commons";
 
 import { GetShoppingListDocument } from "@api/graphql/generated/graphql";
 import { expect, test } from "@fixtures";
-import { isGraphqlOperation } from "@pages/selectors";
+import { whenGraphql } from "@pages/responses";
 
 const SMARTPHONES = "smartphones";
 const PRODUCT = { id: "product-smartphone-samsung-galaxy-a57-5g", sku: "smartphone-samsung-galaxy-a57-5g" } as const;
@@ -67,7 +67,7 @@ test.describe("list items (customer of their own)", () => {
 
       await test.step("act: tick the list and save", async () => {
         await modal.listCheckbox(list.id).click();
-        await Promise.all([page.waitForResponse(isGraphqlOperation("AddWishlistBulkItem")), modal.saveButton.click()]);
+        await whenGraphql(page, "AddWishlistBulkItem", () => modal.saveButton.click());
       });
 
       await test.step(`assert: the list holds ${sku}`, async () => {
@@ -94,7 +94,7 @@ test.describe("list items (customer of their own)", () => {
 
     await test.step("act: untick the list and save", async () => {
       await modal.listWithProductCheckbox(list.id).click();
-      await Promise.all([page.waitForResponse(isGraphqlOperation("DeleteWishlistItem")), modal.saveButton.click()]);
+      await whenGraphql(page, "DeleteWishlistItem", () => modal.saveButton.click());
     });
 
     await test.step("assert: the list is empty", async () => {
@@ -121,7 +121,7 @@ test.describe("list items (customer of their own)", () => {
     });
 
     await test.step("act: add all products to the cart", () =>
-      Promise.all([page.waitForResponse(isGraphqlOperation("AddItemsCart")), listPage.addAllToCartButton.click()]));
+      whenGraphql(page, "AddItemsCart", () => listPage.addAllToCartButton.click()));
 
     await test.step("assert: the cart holds both products", async () => {
       await expect(listPage.cartQuantityLabel).toHaveText("2");

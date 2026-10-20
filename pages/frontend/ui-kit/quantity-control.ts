@@ -37,8 +37,8 @@ export class QuantityControl {
     this.root = root;
     this.#kind = kind;
     this.#commit = commit;
-    this.stepper = root.locator("[data-test-id='quantity-stepper']");
-    const addToCart = root.locator("[data-test-id='add-to-cart-button']");
+    this.stepper = root.getByTestId("quantity-stepper");
+    const addToCart = root.getByTestId("add-to-cart-button");
     this.#buttons = addToCart.locator(".vc-add-to-cart__text-button, .vc-add-to-cart__icon-button");
     this.#incrementButton = this.stepper.locator(".vc-quantity-stepper__increment");
     this.#decrementButton = this.stepper.locator(".vc-quantity-stepper__decrement");
@@ -65,43 +65,5 @@ export class QuantityControl {
     } else {
       await this.input.blur();
     }
-  }
-}
-
-/** Frontend modal that asks to confirm an action, such as clearing the cart. */
-export class ConfirmationModal {
-  readonly root: Locator;
-  readonly confirmButton: Locator;
-
-  /** @param confirmButtonId - `data-test-id` of the confirm button, such as `yes-button`. */
-  constructor(root: Locator, confirmButtonId: string) {
-    this.root = root;
-    this.confirmButton = root.locator(`[data-test-id='${confirmButtonId}']`);
-  }
-}
-
-/** Popover filter with a list of values, such as the country filter of an address list. */
-export class DropdownFilter {
-  readonly root: Locator;
-  readonly button: Locator;
-  readonly list: Locator;
-
-  constructor(root: Locator) {
-    this.root = root;
-    this.button = root.locator(".vc-popover__trigger");
-    this.list = root.locator(".vc-popover__content");
-  }
-
-  /**
-   * Opens the list, picks a value and waits until the list is closed.
-   * @param name - Value as its `title` attribute shows it, such as `Canada`.
-   */
-  async apply(name: string): Promise<void> {
-    await this.button.click();
-    await this.list.locator(`[title=${JSON.stringify(name)}]`).click();
-    if (await this.list.isVisible()) {
-      await this.button.click();
-    }
-    await this.list.waitFor({ state: "hidden" });
   }
 }

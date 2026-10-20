@@ -1,3 +1,4 @@
+import type { RecordShape } from "@core/record-shape";
 import type { HttpClient } from "../../http/http-client";
 import type {
   DynamicContentFolderData,
@@ -11,9 +12,10 @@ import type {
   NamedEntityData,
 } from "../types/marketing";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { shape } from "@core/record-shape";
+import { requireFields } from "@core/required-fields";
 
-import { NAMED_ENTITY_FIELDS } from "../types/marketing";
+import { NAMED_ENTITY } from "../types/marketing";
 
 const MARKETING_PATH = "/api/marketing";
 const CONTENT_FOLDERS_PATH = `${MARKETING_PATH}/contentfolders`;
@@ -25,30 +27,28 @@ export class DynamicContentResource<Data extends NamedEntityData, Criteria = nev
   readonly #httpClient: HttpClient;
   readonly #path: string;
   readonly #label: string;
+  readonly #shape: RecordShape<Data, (typeof NAMED_ENTITY.fields)[number]>;
 
   constructor(httpClient: HttpClient, path: string, label: string) {
     this.#httpClient = httpClient;
     this.#path = path;
     this.#label = label;
+    this.#shape = shape<Data>()(label, NAMED_ENTITY.fields);
   }
 
   async get(id: string): Promise<NamedEntity<Data>> {
-    return requireFields(await this.find(id), NAMED_ENTITY_FIELDS, `${this.#label} "${id}"`);
+    return requireFields(await this.find(id), NAMED_ENTITY.fields, `${this.#label} "${id}"`);
   }
 
   /** Finds a record; `undefined` when missing (the platform answers 404, not 200 with `null`). */
   async find(id: string): Promise<NamedEntity<Data> | undefined> {
     const response = await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`);
-    return optionalFields(
-      response.optionalJson<Data>({ allow404: true }),
-      NAMED_ENTITY_FIELDS,
-      `${this.#label} "${id}"`,
-    );
+    return response.optionalRecord(this.#shape, { allow404: true });
   }
 
   async create(entity: Data): Promise<NamedEntity<Data>> {
     const response = await this.#httpClient.post(this.#path, { json: entity });
-    return requireFields(response.json<Data>(), NAMED_ENTITY_FIELDS, `Created ${this.#label}`);
+    return response.record(this.#shape);
   }
 
   async update(entity: Data): Promise<void> {
@@ -57,8 +57,7 @@ export class DynamicContentResource<Data extends NamedEntityData, Criteria = nev
 
   async search(criteria: Criteria): Promise<NamedEntity<Data>[]> {
     const response = await this.#httpClient.post(`${this.#path}/search`, { json: criteria });
-    const { results } = response.json<{ results?: Data[] | null }>();
-    return requireFieldsOfEach(results, NAMED_ENTITY_FIELDS, `Found ${this.#label}`);
+    return response.results(this.#shape);
   }
 
   async delete(ids: readonly string[]): Promise<void> {

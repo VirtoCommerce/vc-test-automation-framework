@@ -1,11 +1,14 @@
-import type { WithRequired } from "@core/required-fields";
-import type { VirtoCommercePlatformCoreSettingsObjectSettingEntry as ObjectSettingEntryData } from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
+
+import { shape } from "@core/record-shape";
+
+type ObjectSettingEntryData = Rest.VirtoCommercePlatformCoreSettingsObjectSettingEntry;
+
+export const SETTING_ENTRY = shape<SettingEntryData>()("Setting entry", ["name"]);
+export type SettingEntry = Shaped<typeof SETTING_ENTRY>;
 
 export type SettingEntryData = Omit<ObjectSettingEntryData, "allowedValues" | "value"> & {
   allowedValues?: unknown[] | null;
   value?: unknown;
 };
-
-export const SETTING_FIELDS = ["name"] as const;
-
-export type SettingEntry = WithRequired<SettingEntryData, (typeof SETTING_FIELDS)[number]>;

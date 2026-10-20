@@ -3,7 +3,7 @@
 Automated tests for the Virto Commerce **platform** (REST API and xAPI GraphQL), the **frontend** (vc-frontend) and
 the **page builder** app of the platform admin. TypeScript on Playwright Test, Allure reports, Biome for lint and
 format. [README.md](README.md) is the full guide; this file is the short version for working in the code.
-[TESTS.md](TESTS.md) maps every test of the old suite to where it lives now.
+[REFINEMENTS.md](REFINEMENTS.md) lists planned refinements and what is left of the old suite's migration.
 
 ## Commands
 
@@ -30,7 +30,7 @@ Each folder imports only the folders before it; `biome/layers.json` enforces it.
 |---|---|---|
 | `core/` | env, `Secret`, `CleanupStack`, `pollUntil` / `INDEX_LAG_TIMEOUT_MS`, `requireFields`, `uniqueId`, logger | nothing |
 | `api/` | `ApiSession`, `HttpClient`, auth, REST clients + types, GraphQL client + `.graphql` documents, `Mailbox`, matchers | `core` |
-| `pages/` | page objects: locators and UI actions | `core` |
+| `pages/` | page objects: `frontend/` (layouts, ui-kit, components, pages, flows), `backend/` (vc-shell, page-builder) | `core` |
 | `dataset/` | seed data (`data/`, `manifest.ts`, `seed/`), typed access (`dataset.ts`), builders (`newX()`), `arrange/`, `known-issues.ts` | `api`, `core` |
 | `fixtures/` | Playwright fixtures, exported from `fixtures/index.ts` with `knownIssue` | all but `tests` |
 | `tests/` | `restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/`, `isolated/`, `setup/`, `unit/` | all; Playwright only through `@fixtures` (except `unit/`) |
@@ -61,14 +61,20 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
   whose rows may hold small lambdas. No raw selectors in specs: add them to `pages/`.
 - Read seeded data from `dataset` (a spec may name a dataset id as a constant). Create what the test changes with
   `arrange`. A test that changes a customer's own state (cart, lists, addresses, locks) creates its own customer.
+- REST administration tests run as the dataset store administrator; a test that locks, deletes or changes the
+  password of the acting user creates its own with `arrange.security.platformUser()`.
+- Find records by search criteria, never by "is listed in the first N" windows.
+- A UI test checks the UI; data rules (search semantics, prices, scopes, validation) are checked once through the API.
+- A test that leaves data it cannot remove says why in a `leaves data` annotation.
 - Register cleanup before the change. Builders give drafts a client-side `id` the platform keeps, so the undo
-  can be pushed first.
+  can be pushed first; `cleanup.track(description, undo, change)` registers the undo and runs the change in one call.
 - Prove a deletion by reading the record by id (`find(id)` is `undefined`), not by a search.
 - Index-backed reads lag: wait in `arrange` (`searchableMemberships`, `pickupLocations`, `cartPickupLocations`,
   `productPickupLocations`, `lockMemberships`) or `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never
   `waitForTimeout` or `networkidle`.
 - Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
-- Expected errors: `rejects.toBeHttpError(status, "body text")`, `rejects.toBeGraphqlError("CODE")`.
+- Expected errors: `rejects.toBeHttpError(status, "body text")`, `rejects.toBeGraphqlError("CODE")`. A cart's
+  totals adding up: `expect(cart).toHaveConsistentTotals()`.
 - Known defects: add the entry to `dataset/known-issues.ts` and start the test with
   `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test is an expected failure; without one it is skipped
   as `fixme`. Never a bare `test.fail` or `test.fixme`.
@@ -95,4 +101,3 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
 1. `npm run typecheck` and `npm run check` are clean.
 2. `npx playwright test --list` loads every spec.
 3. The changed specs pass against a seeded platform, and `npm run test:unit` passes when framework code changed.
-4. TESTS.md is updated when a test of the old suite moved, merged or was dropped.

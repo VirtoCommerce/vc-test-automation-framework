@@ -45,10 +45,6 @@ Bare `test.fail`, `test.fixme` or `test.skip` in a spec break the project rules;
 
 For each known-issue test: project, file, test title, the `KNOWN_ISSUES` name, its tracker key (or "none") and summary.
 
-### 2e. Migration Status from TESTS.md
-
-TESTS.md maps every test of the old suite to where it lives now. Count the Status marks per suite table (REST API, GraphQL, End-to-end and setup): ⬜ to migrate, ✅ migrated, 🔶 waiting for a run, 🔀 merged, ❌ dropped, ➡️ moved. Count `## Katalon: …` sections too, if any exist.
-
 ## Step 3: Collect Previous Period Metrics
 
 Read the most recent report in `project-progress-report/` (create the folder if this is the first report). Its "Current State" section is the baseline. If there is no previous report, reconstruct the baseline by checking out the last commit before the current period start into a temporary worktree (`git worktree add`), copying `.env` there without printing it, running `npm ci` and repeating Step 2. Remove the worktree afterwards.
@@ -57,12 +53,11 @@ Commits before the layer rebuild used other projects, fixtures and markers (`@de
 
 ## Step 4: Analyze Git History
 
-Use `git log --since=<start> --until=<end> --stat -- tests pages dataset api fixtures core TESTS.md` to find:
+Use `git log --since=<start> --until=<end> --stat -- tests pages dataset api fixtures core` to find:
 - New and modified spec files
 - New tests (titles added), tests removed
 - `knownIssue` marks added and removed, `KNOWN_ISSUES` entries added, removed or given a tracker key
 - New page objects, REST clients, GraphQL documents, builders, `arrange` methods, dataset records
-- TESTS.md status changes
 - Main feature areas covered
 
 ## Step 5: Calculate Derived Metrics
@@ -130,14 +125,6 @@ Framework unit tests: {UNIT_TESTS} in {UNIT_FILES} files.
 
 ---
 
-## Migration Status (TESTS.md)
-
-| Suite | ⬜ | ✅ | 🔶 | 🔀 | ❌ | ➡️ |
-|---|---|---|---|---|---|---|
-{rows}
-
----
-
 ## What Changed
 
 ### New Spec Files
@@ -180,7 +167,7 @@ Framework unit tests: {UNIT_TESTS} in {UNIT_FILES} files.
 ---
 
 *Report generated on {REPORT_DATE}*
-*Data sources: `npx playwright test --list`, `dataset/known-issues.ts`, TESTS.md, git history*
+*Data sources: `npx playwright test --list`, `dataset/known-issues.ts`, git history*
 ```
 
 ## Step 8: Generate HTML Presentation
@@ -195,9 +182,8 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-presentation.htm
 6. **Distribution**: doughnut chart by project
 7. **REST, GraphQL and isolated detail**: bar charts
 8. **e2e detail**: bar charts for e2e-frontend and e2e-backend
-9. **Migration status**: TESTS.md marks per suite
-10. **What changed**: cards
-11. **Recommendations**: list
+9. **What changed**: cards
+10. **Recommendations**: list
 
 ## Step 9: Summary
 

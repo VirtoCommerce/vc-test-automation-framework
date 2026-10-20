@@ -23,7 +23,7 @@ gh api "repos/VirtoCommerce/vc-quality-gate-katalon/contents/Scripts/API%20Cover
 ```
 List sub-scripts of each folder. Classify each: REAL / DRAFT / DEPRECATED / TEMPLATE / UTILITY. Count REAL scripts.
 
-Then check what this repo already covers: search `tests/restapi/`, `tests/graphql/`, `tests/isolated/` and TESTS.md for the same behavior. A REAL script that an existing test already covers is mapped to that test, not ported again.
+Then check what this repo already covers: search `tests/restapi/`, `tests/graphql/` and `tests/isolated/` for the same behavior. A REAL script that an existing test already covers is mapped to that test, not ported again.
 
 ### Step 3: ENDPOINTS (from Object Repository)
 Read every `.rs` file before writing code:
@@ -66,12 +66,12 @@ Cross-reference every endpoint the new client calls against the `.rs` map: norma
 ### Step 9: 1-TO-1 MAPPING
 Print a table mapping every REAL Katalon script to a test title (or a row of a table-driven test), or to the existing test that already covers it. **0 MISSING required.**
 
-### Step 10: TESTS.md
-Add a section `## Katalon: <KatalonModule>` to TESTS.md with the mapping, in the columns the other tables use: ID (`K-<module>-NN`), Katalon script, Test, What it checks, Decision (Migrate / Parameterize / Merge → existing test / Isolate / Drop with reason), Status. Leave the old-suite Summary table as it is.
+### Step 10: MAPPING IN THE PR
+Put the Step 9 mapping in the PR description, one row per REAL Katalon script: Katalon script, test (or the existing test it merges into), what it checks, and the decision (Migrate / Parameterize / Merge → existing test / Isolate / Drop with reason).
 
 ### Step 11: COMMIT + PUSH
 ```bash
-git add api dataset tests TESTS.md && git commit && git push -u origin <branch>
+git add api dataset tests && git commit && git push -u origin <branch>
 ```
 
 ### Step 12: PR

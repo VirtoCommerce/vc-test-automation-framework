@@ -1,8 +1,9 @@
-import type { WithRequired } from "@core/required-fields";
-import type { VirtoCommercePlatformWebModularityModuleDescriptor as ModuleDescriptorData } from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { ModuleDescriptorData };
+import { shape } from "@core/record-shape";
 
-export const MODULE_DESCRIPTOR_FIELDS = ["id", "version"] as const;
+export type ModuleDescriptorData = Rest.VirtoCommercePlatformWebModularityModuleDescriptor;
 
-export type ModuleDescriptor = WithRequired<ModuleDescriptorData, (typeof MODULE_DESCRIPTOR_FIELDS)[number]>;
+export const MODULE_DESCRIPTOR = shape<ModuleDescriptorData>()("Module descriptor", ["id", "version"]);
+export type ModuleDescriptor = Shaped<typeof MODULE_DESCRIPTOR>;

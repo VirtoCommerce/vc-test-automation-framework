@@ -18,19 +18,24 @@ export const TRACKER_URL = "https://virtocommerce.atlassian.net/browse/";
  */
 export const KNOWN_ISSUES = {
   channelSearchIgnoresFilters: {
+    key: "VCST-6441",
     summary:
       "POST /api/completeness/channels/search ignores objectIds and keyword and returns every completeness channel",
   },
   contentStatisticNotCounted: {
+    key: "VCST-6444",
     summary: "GET /api/content/{storeId}/stats returns -1 for pagesCount, blogsCount and themesCount",
   },
   duplicatePermalinkAccepted: {
+    key: "VCST-6442",
     summary: "The page builder accepts a second page whose permalink already exists in the same store and language",
   },
   oauthAppSearchIgnoresFilters: {
-    summary: "GET /api/platform/oauthapps ignores keyword and objectIds and returns every OAuth app",
+    key: "VCST-6440",
+    summary: "POST /api/platform/oauthapps/search ignores keyword and objectIds and returns every OAuth app",
   },
   permalinkStoredVerbatim: {
+    key: "VCST-6443",
     summary:
       "The page builder stores permalinks as sent: whitespace and the characters & ? # are neither rejected nor removed",
   },

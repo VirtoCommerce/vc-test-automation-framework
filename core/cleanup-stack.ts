@@ -13,23 +13,35 @@ interface CleanupEntry {
 
 /**
  * Undo actions of a test, run in reverse order so dependants (a membership, a contact's user) go first.
- * Push the undo right before the change: if the change fails halfway, its undo still runs.
- * Tests get one as the `cleanup` fixture; `arrange` registers its own undos there.
+ * Register the undo before the change, with {@link CleanupStack#track}: if the change fails halfway, its undo
+ * still runs. Tests get one as the `cleanup` fixture; `arrange` registers its own undos there.
  *
  * @example
- * cleanup.push(`delete organization ${organization.id}`, () => organizations.delete([organization.id]));
- * await organizations.create(organization);
+ * await cleanup.track(`delete organization ${organization.id}`, () => organizations.delete([organization.id]), () =>
+ *   organizations.create(organization),
+ * );
  */
 export class CleanupStack {
   readonly #entries: CleanupEntry[] = [];
 
   /**
-   * Registers an undo action.
+   * Registers an undo action; prefer {@link CleanupStack#track} when the change follows right away.
    *
    * @param description - What it undoes; shown as the report step name and in failure messages.
    */
   push(description: string, action: CleanupAction): void {
     this.#entries.push({ description, action });
+  }
+
+  /**
+   * Registers `undo`, then runs `change`; the undo is in place even when `change` fails half-way. Use
+   * {@link CleanupStack#push} alone when the undo needs what `change` returns, such as a platform-assigned id.
+   *
+   * @returns What `change` returns.
+   */
+  track<T>(description: string, undo: CleanupAction, change: () => Promise<T>): Promise<T> {
+    this.push(description, undo);
+    return change();
   }
 
   /**

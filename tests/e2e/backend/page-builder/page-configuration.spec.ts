@@ -1,10 +1,10 @@
-import type { PageDetailsBlade } from "@pages/backend/page-builder/page-builder";
+import type { PageDetailsBlade } from "@pages/backend/page-builder/page-details-blade";
 
 import * as allure from "allure-js-commons";
 
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
-import { Route } from "@pages/backend/page-builder/page-builder";
+import { Route } from "@pages/backend/page-builder/routes";
 
 const DAY_MS = 86_400_000;
 const START_IN_DAYS = 3;

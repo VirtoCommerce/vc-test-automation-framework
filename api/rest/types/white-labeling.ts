@@ -1,11 +1,9 @@
-import type { WithRequired } from "@core/required-fields";
-import type { VirtoCommerceWhiteLabelingCoreModelsWhiteLabelingSetting as WhiteLabelingSettingData } from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { WhiteLabelingSettingData };
+import { shape } from "@core/record-shape";
 
-export const WHITE_LABELING_SETTING_FIELDS = ["id"] as const;
+export type WhiteLabelingSettingData = Rest.VirtoCommerceWhiteLabelingCoreModelsWhiteLabelingSetting;
 
-export type WhiteLabelingSetting = WithRequired<
-  WhiteLabelingSettingData,
-  (typeof WHITE_LABELING_SETTING_FIELDS)[number]
->;
+export const WHITE_LABELING_SETTING = shape<WhiteLabelingSettingData>()("White labeling setting", ["id"]);
+export type WhiteLabelingSetting = Shaped<typeof WHITE_LABELING_SETTING>;

@@ -25,7 +25,7 @@ If `$ARGUMENTS` is a file path or pattern:
 
 If no arguments:
 - Collect changed files: `git diff --name-only dev...HEAD` plus uncommitted changes (`git status --short`)
-- Keep TypeScript and GraphQL files under `tests/`, `fixtures/`, `dataset/`, `pages/`, `api/`, `core/` (skip `api/*/generated/`), plus `TESTS.md` and `dataset/data/**` JSON
+- Keep TypeScript and GraphQL files under `tests/`, `fixtures/`, `dataset/`, `pages/`, `api/`, `core/` (skip `api/*/generated/`), plus `REFINEMENTS.md` and `dataset/data/**` JSON
 - Spawn the `qa-reviewer` agent with `/review-test-code` on those files
 
 ### 2. Review

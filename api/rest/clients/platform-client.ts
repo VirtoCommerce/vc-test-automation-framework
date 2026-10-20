@@ -1,28 +1,19 @@
 import type { HttpClient } from "../../http/http-client";
-import type { ModuleDescriptor, ModuleDescriptorData } from "../types/modules";
+import type { ModuleDescriptor } from "../types/modules";
 import type {
   AppDescriptor,
-  AppDescriptorData,
   ChangeLogSearchCriteria,
-  ChangeLogSearchResult,
   LastModifiedResponse,
   OperationLog,
   PushNotificationPage,
   PushNotificationSearchCriteria,
-  PushNotificationSearchResult,
   SystemInfo,
-  SystemInfoData,
 } from "../types/platform";
 
-import { requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { requireFields } from "@core/required-fields";
 
-import { MODULE_DESCRIPTOR_FIELDS } from "../types/modules";
-import {
-  APP_DESCRIPTOR_FIELDS,
-  OPERATION_LOG_FIELDS,
-  PUSH_NOTIFICATION_PAGE_FIELDS,
-  SYSTEM_INFO_FIELDS,
-} from "../types/platform";
+import { MODULE_DESCRIPTOR } from "../types/modules";
+import { APP_DESCRIPTOR, OPERATION_LOG, PUSH_NOTIFICATION_PAGE, SYSTEM_INFO } from "../types/platform";
 import { PUSH_NOTIFICATIONS_PATH } from "./push-notifications";
 
 const PLATFORM_PATH = "/api/platform";
@@ -40,7 +31,7 @@ class AppsResource {
 
   async list(): Promise<AppDescriptor[]> {
     const response = await this.#httpClient.get(APPS_PATH);
-    return requireFieldsOfEach(response.json<AppDescriptorData[]>(), APP_DESCRIPTOR_FIELDS, "Platform app");
+    return response.records(APP_DESCRIPTOR);
   }
 }
 
@@ -53,8 +44,7 @@ class ChangeLogResource {
 
   async search(criteria: ChangeLogSearchCriteria): Promise<OperationLog[]> {
     const response = await this.#httpClient.post(CHANGE_LOG_SEARCH_PATH, { json: criteria });
-    const { results } = response.json<ChangeLogSearchResult>();
-    return requireFieldsOfEach(results, OPERATION_LOG_FIELDS, "Change log entry");
+    return response.results(OPERATION_LOG);
   }
 }
 
@@ -67,11 +57,7 @@ class PushNotificationsResource {
 
   async search(criteria: PushNotificationSearchCriteria): Promise<PushNotificationPage> {
     const response = await this.#httpClient.post(PUSH_NOTIFICATIONS_PATH, { json: criteria });
-    return requireFields(
-      response.json<PushNotificationSearchResult>(),
-      PUSH_NOTIFICATION_PAGE_FIELDS,
-      "Push notification page",
-    );
+    return response.record(PUSH_NOTIFICATION_PAGE);
   }
 
   async markAllAsRead(): Promise<void> {
@@ -94,12 +80,12 @@ export class PlatformClient {
 
   async getSystemInfo(): Promise<SystemInfo> {
     const response = await this.#httpClient.get(`${DIAGNOSTICS_PATH}/systeminfo`);
-    return requireFields(response.json<SystemInfoData>(), SYSTEM_INFO_FIELDS, "System info");
+    return response.record(SYSTEM_INFO);
   }
 
   async listModulesWithErrors(): Promise<ModuleDescriptor[]> {
     const response = await this.#httpClient.get(`${DIAGNOSTICS_PATH}/errors`);
-    return requireFieldsOfEach(response.json<ModuleDescriptorData[]>(), MODULE_DESCRIPTOR_FIELDS, "Module with errors");
+    return response.records(MODULE_DESCRIPTOR);
   }
 
   async getLastModifiedDate(): Promise<string> {

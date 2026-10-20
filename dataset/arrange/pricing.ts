@@ -26,8 +26,11 @@ export class PricingArrange {
   async pricelist(): Promise<Pricelist> {
     const { pricelists } = this.#admin.rest.pricing;
     const draft = newPricelist(this.#store.defaultCurrency);
-    this.#cleanup.push(`delete pricelist ${draft.name}`, () => pricelists.delete([draft.id]));
-    return pricelists.create(draft);
+    return this.#cleanup.track(
+      `delete pricelist ${draft.name}`,
+      () => pricelists.delete([draft.id]),
+      () => pricelists.create(draft),
+    );
   }
 
   /**
@@ -42,7 +45,10 @@ export class PricingArrange {
   async pricelistAssignment(pricelistId: string): Promise<PricelistAssignment> {
     const { assignments } = this.#admin.rest.pricing;
     const draft = newPricelistAssignment(pricelistId, this.#store.catalog);
-    this.#cleanup.push(`delete pricelist assignment ${draft.name}`, () => assignments.delete([draft.id]));
-    return assignments.create(draft);
+    return this.#cleanup.track(
+      `delete pricelist assignment ${draft.name}`,
+      () => assignments.delete([draft.id]),
+      () => assignments.create(draft),
+    );
   }
 }

@@ -3,7 +3,7 @@ import type { BlobEntry, BlobEntrySearchResult, BlobInfo, BlobInfoData } from ".
 
 import { requireFields, requireFieldsOfEach } from "@core/required-fields";
 
-import { BLOB_FIELDS } from "../types/assets";
+import { BLOB_ENTRY, BLOB_INFO } from "../types/assets";
 
 const ASSETS_PATH = "/api/assets";
 
@@ -40,7 +40,7 @@ export class AssetsClient {
   async list(folderUrl = ""): Promise<BlobEntry[]> {
     const response = await this.#httpClient.get(ASSETS_PATH, { query: { folderUrl } });
     const { results } = response.json<BlobEntrySearchResult>();
-    return requireFieldsOfEach(results, BLOB_FIELDS, `Asset entry in "${folderUrl}"`);
+    return requireFieldsOfEach(results, BLOB_ENTRY.fields, `Asset entry in "${folderUrl}"`);
   }
 
   async find(name: string, folderUrl = ""): Promise<BlobEntry | undefined> {
@@ -50,19 +50,19 @@ export class AssetsClient {
   async uploadFromUrl(folderUrl: string, url: string): Promise<BlobInfo> {
     const response = await this.#httpClient.post(ASSETS_PATH, { query: { folderUrl, url } });
     const [file] = response.json<BlobInfoData[]>();
-    return requireFields(file, BLOB_FIELDS, `File uploaded from ${url}`);
+    return requireFields(file, BLOB_INFO.fields, `File uploaded from ${url}`);
   }
 
   async upload(folderUrl: string, file: MultipartFile): Promise<BlobInfo> {
     const response = await this.#httpClient.post(ASSETS_PATH, { query: { folderUrl }, multipart: { file } });
     const [uploaded] = response.json<BlobInfoData[]>();
-    return requireFields(uploaded, BLOB_FIELDS, `File ${file.name} uploaded to "${folderUrl}"`);
+    return requireFields(uploaded, BLOB_INFO.fields, `File ${file.name} uploaded to "${folderUrl}"`);
   }
 
   async uploadToLocalStorage(file: MultipartFile): Promise<BlobInfo> {
     const response = await this.#httpClient.post(`${ASSETS_PATH}/localstorage`, { multipart: { file } });
     const [uploaded] = response.json<BlobInfoData[]>();
-    return requireFields(uploaded, BLOB_FIELDS, `File ${file.name} uploaded to local storage`);
+    return requireFields(uploaded, BLOB_INFO.fields, `File ${file.name} uploaded to local storage`);
   }
 
   async download(url: string): Promise<string> {

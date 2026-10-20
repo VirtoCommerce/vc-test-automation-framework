@@ -3,7 +3,7 @@ import * as allure from "allure-js-commons";
 import { GetShoppingListDocument, GetShoppingListsDocument } from "@api/graphql/generated/graphql";
 import { uniqueId } from "@core/unique-id";
 import { expect, test } from "@fixtures";
-import { isGraphqlOperation } from "@pages/selectors";
+import { whenGraphql } from "@pages/responses";
 
 const SHARING_OPTIONS = [
   { scope: "Organization", option: "My organization" },
@@ -34,10 +34,7 @@ test.describe("list management (customer of their own)", () => {
     await test.step(`act: create ${name}`, async () => {
       await listsPage.settingsModal.nameInput.fill(name);
       await listsPage.settingsModal.descriptionInput.fill("Created by an automated test");
-      await Promise.all([
-        page.waitForResponse(isGraphqlOperation("AddWishlist")),
-        listsPage.settingsModal.saveButton.click(),
-      ]);
+      await whenGraphql(page, "AddWishlist", () => listsPage.settingsModal.saveButton.click());
     });
 
     await test.step(`assert: ${name} is listed and stored as private`, async () => {
@@ -72,10 +69,7 @@ test.describe("list management (customer of their own)", () => {
 
       await test.step(`act: choose "${option}" and save`, async () => {
         await listsPage.sharingModal.option(scope).click();
-        await Promise.all([
-          page.waitForResponse(isGraphqlOperation("ChangeWishlist")),
-          listsPage.sharingModal.saveButton.click(),
-        ]);
+        await whenGraphql(page, "ChangeWishlist", () => listsPage.sharingModal.saveButton.click());
       });
 
       await test.step(`assert: the list is stored with the ${scope} scope`, async () => {
@@ -111,10 +105,7 @@ test.describe("list management (customer of their own)", () => {
     await test.step("act: choose Private, save and confirm to stop sharing", async () => {
       await listsPage.sharingModal.option("Private").click();
       await listsPage.sharingModal.saveButton.click();
-      await Promise.all([
-        page.waitForResponse(isGraphqlOperation("ChangeWishlist")),
-        listsPage.sharingModal.stopSharingButton.click(),
-      ]);
+      await whenGraphql(page, "ChangeWishlist", () => listsPage.sharingModal.stopSharingButton.click());
     });
 
     await test.step("assert: the list is stored as private", async () => {
@@ -145,10 +136,7 @@ test.describe("list management (customer of their own)", () => {
       await card.menuButton.click();
       await card.editMenuItem.click();
       await listsPage.settingsModal.nameInput.fill(renamed);
-      await Promise.all([
-        page.waitForResponse(isGraphqlOperation("ChangeWishlist")),
-        listsPage.settingsModal.saveButton.click(),
-      ]);
+      await whenGraphql(page, "ChangeWishlist", () => listsPage.settingsModal.saveButton.click());
     });
     await test.step("assert: the list has the new name", async () => {
       await expect(listsPage.card(renamed).root).toBeVisible();
@@ -160,10 +148,7 @@ test.describe("list management (customer of their own)", () => {
       const card = listsPage.card(renamed);
       await card.menuButton.click();
       await card.removeMenuItem.click();
-      await Promise.all([
-        page.waitForResponse(isGraphqlOperation("DeleteWishlist")),
-        listsPage.deleteModal.confirmButton.click(),
-      ]);
+      await whenGraphql(page, "DeleteWishlist", () => listsPage.deleteModal.confirmButton.click());
     });
     await test.step("assert: the list is gone", async () => {
       await expect(listsPage.card(renamed).root).toBeHidden();

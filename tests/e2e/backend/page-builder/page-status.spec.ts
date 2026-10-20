@@ -4,8 +4,8 @@ import * as allure from "allure-js-commons";
 
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
-import { Column, Route } from "@pages/backend/page-builder/page-builder";
-import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/controls";
+import { Column, Route } from "@pages/backend/page-builder/routes";
+import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade";
 
 const DAY_MS = 86_400_000;
 const PENDING_IN_DAYS = 7;

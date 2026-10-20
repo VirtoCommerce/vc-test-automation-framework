@@ -27,60 +27,21 @@ contact id) of any user in the same organization through the GraphQL `user` quer
 platform answers `Forbidden`. If that is intended, add a positive "a colleague's account is readable" test; if not,
 add a test expecting `Forbidden`, marked as a known issue.
 
-**Known issues already in hand.** 8 REST tests are skipped through `dataset/known-issues.ts`. Each was checked
-against the module's source (`dev` branch) and runs against platform 3.1078.0 (Content 3.1006.0,
-CatalogPublishing 3.1007.0, PageBuilderModule 3.1034.0) in October 2026, so none is a test mistake:
+**Known issues, tracked in Jira.** 8 REST tests carry a `knownIssue` mark with a tracker key, so they run as
+expected failures linked to the ticket. When a ticket is fixed the test passes, the run reports it, and the entry in
+`dataset/known-issues.ts` goes. When a ticket is closed as intended, rewrite or delete the test and drop the entry.
 
-| # | Behaviour | Owner | Skipped tests | Decision needed |
-|---|---|---|---|---|
-| 1 | OAuth app search ignores `keyword` and `objectIds` | Platform | 1 | Bug or "not supported"? |
-| 2 | Completeness channel search ignores `keyword` and `objectIds` | CatalogPublishing | 1 | Bug or "not supported"? |
-| 3 | A second page with an existing permalink is accepted | PageBuilder | 1 | Should permalinks be unique? |
-| 4 | Permalinks with spaces or `& ? #` are stored as sent | PageBuilder | 2 | Should permalinks be validated? |
-| 5 | Content statistics return `-1` | Content (by design) | 3 | Devops: enable the setting in CI |
+| Ticket | Behaviour | Owner | Tests |
+|---|---|---|---|
+| [VCST-6440](https://virtocommerce.atlassian.net/browse/VCST-6440) | OAuth app search ignores `keyword` and `objectIds` | Platform | 1 |
+| [VCST-6441](https://virtocommerce.atlassian.net/browse/VCST-6441) | Completeness channel search ignores `keyword` and `objectIds` | CatalogPublishing | 1 |
+| [VCST-6442](https://virtocommerce.atlassian.net/browse/VCST-6442) | A second page with an existing permalink is accepted | PageBuilder | 1 |
+| [VCST-6443](https://virtocommerce.atlassian.net/browse/VCST-6443) | Permalinks with spaces or `& ? #` are stored as sent | PageBuilder | 2 |
+| [VCST-6444](https://virtocommerce.atlassian.net/browse/VCST-6444) | Content statistics return `-1`: enable `Content:StatisticEnabled` in CI | DevOps | 3 |
 
-For 1 to 4: if the team calls it a bug, add the tracker key to the entry, and the test runs as an expected failure
-that reports when the bug is fixed. If it is intended, delete or rewrite the test and drop the entry.
-
-1. **OAuth app search ignores its filters (platform).**
-   - `POST /api/platform/oauthapps/search` with `{ "keyword": "<clientId>" }` or `objectIds` returns every OAuth
-     app, not the matching one.
-   - `OAuthAppSearchCriteria` is an empty subclass of `SearchCriteriaBase`, so `keyword` and `objectIds` are
-     accepted and appear in Swagger. `OAuthAppsController.SearchAsync` applies only sorting, `Skip` and `Take`.
-     [OAuthAppsController.cs](https://github.com/VirtoCommerce/vc-platform/blob/dev/src/VirtoCommerce.Platform.Web/Controllers/Api/OAuthAppsController.cs)
-   - Test: `restapi/security/oauth-apps.spec.ts` › search OAuth apps by client id.
-2. **Completeness channel search ignores its filters (CatalogPublishing).**
-   - `POST /api/completeness/channels/search` with `{ "objectIds": ["<id>"] }` or `keyword` returns every
-     channel.
-   - The same pattern: `CompletenessChannelSearchCriteria` adds only `CatalogIds`, and
-     `CompletenessServiceImpl.SearchChannelsAsync` filters only by `CatalogIds`.
-     [CompletenessServiceImpl.cs](https://github.com/VirtoCommerce/vc-module-catalog-publishing/blob/dev/src/VirtoCommerce.CatalogPublishingModule.Data/Services/CompletenessServiceImpl.cs)
-   - Test: `restapi/catalog-publishing/channels.spec.ts` › search channels by id.
-3. **Duplicate permalinks are accepted (PageBuilder).**
-   - `POST /api/page-builder-pages/create-group-page` twice with the same permalink, store and language
-     creates both pages.
-   - Nothing checks uniqueness at any layer: `PageBuilderPageController.CreateGroupPage` copies `model.Permalink`
-     as sent, `GroupedPageService` has no check, `PageBuilderModuleDbContext` has no unique index on `Permalink`,
-     and the admin app's permalink field has only `rules="required"`.
-     [PageBuilderPageController.cs](https://github.com/VirtoCommerce/vc-module-pagebuilder/blob/dev/src/VirtoCommerce.PageBuilderModule.Web/Controllers/Api/PageBuilderPageController.cs)
-   - Risk: for one permalink the frontend has two candidate pages, so which one it serves is undefined.
-   - Test: `restapi/page-builder/pages.spec.ts` › a second page with an existing permalink is rejected.
-4. **Permalinks are not validated (PageBuilder).**
-   - The same endpoint stores a permalink with spaces, `&`, `?` or `#` exactly as sent.
-   - The same code paths as 3: no format rule in the API, the service or the admin app.
-   - Risk: the page's URL cannot be reached as written, since `?` and `#` start the query and the fragment.
-   - Tests: `restapi/page-builder/pages.spec.ts` › a permalink with spaces / with reserved characters is rejected.
-5. **Content statistics return `-1` (by design, needs a setting).**
-   - `GET /api/content/{storeId}/stats` answers `-1` for `pagesCount`, `blogsCount` and `themesCount`.
-   - Intended: the endpoint counts only when `Content:StatisticEnabled=true`, and the default is `false`.
-     [ContentController.cs](https://github.com/VirtoCommerce/vc-module-content/blob/dev/src/VirtoCommerce.ContentModule.Web/Controllers/Api/ContentController.cs),
-     [ConfigurationExtensions.cs](https://github.com/VirtoCommerce/vc-module-content/blob/dev/src/VirtoCommerce.ContentModule.Core/Extensions/ConfigurationExtensions.cs)
-   - Ask for devops: add `- Content:StatisticEnabled=true` to the `vc-platform-web` environment in
-     `VirtoCommerce/.github` → `actions/docker-env-full/docker-compose.yml`, next to
-     `Search:PickupLocationFullTextSearchEnabled=true`, and release a new tag. Then bump the tag in our workflow
-     and remove `contentStatisticNotCounted` in the same commit. Locally, add the same line to the platform
-     service of the compose file.
-   - Tests: `restapi/content/files.spec.ts` › count a page / a blog / a theme in the content statistic.
+For VCST-6444, once devops releases the new `docker-env-full` tag, bump it in our workflow and remove
+`contentStatisticNotCounted` in the same commit. Locally, add `- Content:StatisticEnabled=true` to the platform
+service of the compose file.
 
 **Resolved: "ship-to label not refreshed" was our test data.** The header kept "Select address" after a saved
 address was picked, until a reload. Test customers were named like `Customer-14f6af4e`, and `updateContact`, which

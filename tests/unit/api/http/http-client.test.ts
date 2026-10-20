@@ -334,12 +334,12 @@ test.describe("HttpClient", () => {
     });
   });
 
-  test("repeats a request the platform aborted as a deadlock", async () => {
+  test("returns a deadlock answer as it is, without repeating the request", async () => {
     const path = uniquePath("deadlock-once");
 
     const response = await client().post(path, { json: {} });
 
-    expect(response.status).toBe(200);
-    expect(calls.get(path)).toBe(2);
+    expect(response.status).toBe(500);
+    expect(calls.get(path)).toBe(1);
   });
 });

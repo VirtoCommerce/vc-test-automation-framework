@@ -198,9 +198,10 @@ after another.
   statistic. This orders tests within the file only; other files still run alongside.
 - The page builder's page list is shared, so `e2e-backend` runs with one worker.
 
-**Retries.** On CI a failed test is retried once (`retries: 1`) in a fresh worker; one that passes on the retry is
-reported as flaky. Locally there are no retries, so a flaky test shows up at once; use `--repeat-each=5` on a file
-to hunt for it.
+**No retries.** A failed test is not retried, on CI or locally, and neither is a failed request (a database
+deadlock included): an intermittent failure fails the run, so its cause gets found instead of hidden. The one
+exception is the sign-in: `TokenClient` repeats a `/connect/token` 500, which the platform answers to concurrent
+sign-ins of one user. To hunt for a flaky test, use `--repeat-each=5` on its file.
 
 ### 5. Read the report
 
@@ -258,8 +259,7 @@ search engine in its matrix it:
 5. uploads the JUnit, JSON and Allure reports as artifacts.
 
 Inputs: the frontend build (`frontendZipUrl`), the suites (`all` = `graphql`, `restapi`, `e2e`; or one of them;
-`isolated` also needs `RUN_DESTRUCTIVE_TESTS=true` in the secret), an optional `--grep` and `--workers`. CI retries
-a failed test once.
+`isolated` also needs `RUN_DESTRUCTIVE_TESTS=true` in the secret), an optional `--grep` and `--workers`.
 
 To test new module versions, update `backend-packages.json`.
 
@@ -321,7 +321,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   ├── api-matchers.ts      `toBeHttpError`, `toBeGraphqlError`, `toHaveConsistentTotals`
 │   ├── mailbox.ts           Reads sent e-mails from the platform's notification journal
 │   ├── auth/                Token endpoint, token cache, browser sign-in state (cookie / local storage)
-│   ├── http/                `HttpClient`, `HttpResponse`, `HttpError`, deadlock retry
+│   ├── http/                `HttpClient`, `HttpResponse`, `HttpError`
 │   ├── rest/
 │   │   ├── rest-api.ts      `RestApi`: every REST client, e.g. `api.rest.catalog.products`
 │   │   ├── clients/         One client per platform module
@@ -388,7 +388,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 |---|---|---|
 | `unit` | `tests/unit` | No platform needed |
 | `modules` | `tests/setup` | Reads the platform's installed modules once per run, for `requiresModules` and the seed; every project but `unit` depends on it |
-| `seed` | `tests/setup` | Seeds the dataset; never retried |
+| `seed` | `tests/setup` | Seeds the dataset |
 | `restapi` | `tests/restapi` | `API_WORKERS` workers, 90 s per test |
 | `graphql` | `tests/graphql` | `API_WORKERS` workers, 90 s per test |
 | `e2e-frontend` | `tests/e2e/frontend` | Chrome 1920×1080, `FRONTEND_WORKERS` workers, 120 s per test |

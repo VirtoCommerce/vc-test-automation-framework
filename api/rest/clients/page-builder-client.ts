@@ -7,6 +7,7 @@ import type {
   PagePublishStatus,
   PageSearchCriteria,
   PageStatus,
+  PermalinkUsage,
 } from "../types/page-builder";
 
 import { requireFields, requireFieldsOfEach } from "@core/required-fields";
@@ -44,6 +45,22 @@ class PagesResource {
         (await this.#httpClient.post(`${PAGES_PATH}/grouped/archive`, { query: { ids: [groupId] } })).expectOk();
         return;
     }
+  }
+
+  /**
+   * Publishes the page's draft. Rejected with 409 while another published page has its permalink for the same
+   * visitors, unless `unpublishConflicting` unpublishes those pages in the same save.
+   */
+  async publish(groupId: string, options: { readonly unpublishConflicting: boolean }): Promise<void> {
+    const path = `${PAGES_PATH}/grouped/publishing/${encodeURIComponent(groupId)}`;
+    const query = { publish: true, unpublishConflicting: options.unpublishConflicting };
+    (await this.#httpClient.post(path, { query })).expectOk();
+  }
+
+  /** Lists the other pages of the store that use the permalink of `page` as given, with their conflicts. */
+  async permalinkUsages(page: GroupedPageData): Promise<PermalinkUsage[]> {
+    const response = await this.#httpClient.post(`${PAGES_PATH}/grouped/permalink-usages`, { json: page });
+    return response.json<PermalinkUsage[]>();
   }
 
   /** Reads whether the page is published and whether a saved draft differs from it. */

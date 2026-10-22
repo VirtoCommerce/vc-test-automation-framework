@@ -10,15 +10,23 @@ export const TEST_PAGE_PREFIX = "test-page";
 export type PageDraft = WithRequired<CreateGroupedPageRequest, "storeId" | "name" | "permalink" | "cultureName">;
 
 /**
- * Builds a visible page with permalink `/<name>` and one text block per text.
+ * Builds a page with permalink `/<name>` and one text block per text, visible to everyone by default.
  *
  * @param options.name - Unique `test-page-…` by default.
  * @param options.permalink - `/<name>` by default.
+ * @param options.visibility - `false` shows the page to signed-in users only.
+ * @param options.userGroups - Comma-separated user groups the page is for; every user group by default.
  */
 export function newPage(
   storeId: string,
   cultureName: string,
-  options: { readonly name?: string; readonly permalink?: string; readonly texts?: readonly string[] } = {},
+  options: {
+    readonly name?: string;
+    readonly permalink?: string;
+    readonly texts?: readonly string[];
+    readonly visibility?: boolean;
+    readonly userGroups?: string;
+  } = {},
 ): PageDraft {
   const name = options.name ?? uniqueId(TEST_PAGE_PREFIX);
   const permalink = options.permalink ?? `/${name}`;
@@ -27,7 +35,8 @@ export function newPage(
     name,
     permalink,
     cultureName,
-    visibility: true,
+    visibility: options.visibility ?? true,
+    userGroups: options.userGroups ?? null,
     content: JSON.stringify({
       settings: { cultureName, header: name, name, permalink, seoInfo: { pageTitle: name } },
       content: (options.texts ?? []).map((text, index) => ({

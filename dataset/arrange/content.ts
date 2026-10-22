@@ -96,7 +96,7 @@ export class ContentArrange {
    * Creates a draft page builder page in the store's default language and deletes it after the test.
    * Use {@link ContentArrange#publishedPage} when the frontend must show it.
    *
-   * @param options - Name (unique by default) and texts; see {@link newPage}.
+   * @param options - Name (unique by default), permalink, texts and audience; see {@link newPage}.
    */
   async page(options: Parameters<typeof newPage>[2] = {}): Promise<GroupedPage> {
     const { pages } = this.#admin.rest.pageBuilder;
@@ -108,7 +108,7 @@ export class ContentArrange {
   /**
    * Creates a page via {@link ContentArrange#page} and publishes it; deleted after the test.
    *
-   * @param options - Name (unique by default) and texts; see {@link newPage}.
+   * @param options - Name (unique by default), permalink, texts and audience; see {@link newPage}.
    * @returns The page as created, before publishing.
    */
   async publishedPage(options: Parameters<typeof newPage>[2] = {}): Promise<GroupedPage> {

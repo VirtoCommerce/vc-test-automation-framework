@@ -40,6 +40,14 @@ const SPECIAL_PERMALINKS = [
     stored: [],
   },
   {
+    title: "an invisible character outside the BMP",
+    permalink: `/page${String.fromCodePoint(0xe0041)}test`,
+    outcome: "rejected with a validation error",
+    issue: undefined,
+    created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
+    stored: [],
+  },
+  {
     title: "angle brackets",
     permalink: "/page<test>",
     outcome: "rejected with a validation error",

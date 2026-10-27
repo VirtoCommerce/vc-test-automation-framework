@@ -9,7 +9,14 @@
       "Name": "AzureBlob",
       "Container": "packages",
       "ServiceUri": "https://vc3prerelease.blob.core.windows.net",
-      "Modules": []
+      "Modules": [
+        {
+          "BlobName": "VirtoCommerce.PageBuilderModule_3.1039.0-pr-179-8042.zip"
+        },
+        {
+          "BlobName": "VirtoCommerce.Pages_3.1011.0-pr-24-f27a.zip"
+        }
+      ]
     },
     {
       "Name": "GithubReleases",
@@ -228,10 +235,6 @@
           "Version": "3.1002.0"
         },
         {
-          "Id": "VirtoCommerce.Pages",
-          "Version": "3.1010.0"
-        },
-        {
           "Id": "VirtoCommerce.CustomerReviews",
           "Version": "3.1007.0"
         },
@@ -338,10 +341,6 @@
         {
           "Id": "VirtoCommerce.BuilderIO",
           "Version": "3.1005.0"
-        },
-        {
-          "Id": "VirtoCommerce.PageBuilderModule",
-          "Version": "3.1035.0"
         },
         {
           "Id": "VirtoCommerce.Notifications",

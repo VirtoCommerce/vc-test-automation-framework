@@ -27,8 +27,4 @@ export const KNOWN_ISSUES = {
   oauthAppSearchIgnoresFilters: {
     summary: "GET /api/platform/oauthapps ignores keyword and objectIds and returns every OAuth app",
   },
-  permalinkStoredVerbatim: {
-    summary:
-      "The page builder stores permalinks as sent: whitespace and the characters & ? # are neither rejected nor removed",
-  },
 } as const satisfies Readonly<Record<string, KnownIssue>>;

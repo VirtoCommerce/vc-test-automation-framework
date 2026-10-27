@@ -1,7 +1,6 @@
 import * as allure from "allure-js-commons";
 
 import { newPage } from "@dataset/builders/page-builder";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
 import { MODULES } from "@dataset/modules";
 import { expect, knownIssue, test } from "@fixtures";
 
@@ -11,7 +10,7 @@ const SPECIAL_PERMALINKS = [
     title: "spaces",
     permalink: "/my page test",
     outcome: "rejected with a validation error",
-    issue: KNOWN_ISSUES.permalinkStoredVerbatim,
+    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -19,7 +18,47 @@ const SPECIAL_PERMALINKS = [
     title: "reserved characters",
     permalink: "/page&test?q=1#anchor",
     outcome: "rejected with a validation error",
-    issue: KNOWN_ISSUES.permalinkStoredVerbatim,
+    issue: undefined,
+    created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
+    stored: [],
+  },
+  {
+    title: "a percent-encoded space",
+    permalink: "/my%20page%20test",
+    outcome: "rejected with a validation error",
+    issue: undefined,
+    created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
+    stored: [],
+  },
+  {
+    title: "a zero-width space",
+    permalink: `/page${String.fromCharCode(0x200b)}test`,
+    outcome: "rejected with a validation error",
+    issue: undefined,
+    created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
+    stored: [],
+  },
+  {
+    title: "an invisible character outside the BMP",
+    permalink: `/page${String.fromCodePoint(0xe0041)}test`,
+    outcome: "rejected with a validation error",
+    issue: undefined,
+    created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
+    stored: [],
+  },
+  {
+    title: "angle brackets",
+    permalink: "/page<test>",
+    outcome: "rejected with a validation error",
+    issue: undefined,
+    created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
+    stored: [],
+  },
+  {
+    title: "more than 2048 characters",
+    permalink: `/${"a".repeat(2048)}`,
+    outcome: "rejected with a validation error",
+    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },

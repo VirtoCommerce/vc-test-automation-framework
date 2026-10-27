@@ -22,20 +22,23 @@ export interface PagePublishStatus {
 
 export type GroupedPage = WithRequired<GroupedPageData, (typeof GROUPED_PAGE_FIELDS)[number]>;
 
-export const PERMALINK_CONFLICTS = ["None", "Possible", "Certain"] as const;
-
 /**
- * What publishing a page does to another published page with its permalink: `Certain` when the frontend offers
- * both to the same visitors, `Possible` when only a visitor in both pages' user groups gets both.
+ * What publishing a page does to another published page with its permalink: `Certain` when the page replaces it for
+ * all its visitors and dates, `Possible` when they meet for some visitors or dates only, `None` when the frontend
+ * tells them apart.
  */
-export type PermalinkConflict = (typeof PERMALINK_CONFLICTS)[number];
+export type PermalinkConflict = "None" | "Possible" | "Certain";
 
 /** Another page of the store with the same permalink, as `POST grouped/permalink-usages` lists it. */
-export interface PermalinkUsage {
-  readonly groupId: string;
-  readonly name: string;
-  readonly permalink: string;
-  readonly status: string;
-  readonly conflict: PermalinkConflict;
-  readonly canUnpublish: boolean;
+export interface PermalinkUsageData {
+  readonly groupId?: string | null;
+  readonly name?: string | null;
+  readonly permalink?: string | null;
+  readonly status?: PageStatus | null;
+  readonly conflict?: PermalinkConflict;
+  readonly canUnpublish?: boolean;
 }
+
+export const PERMALINK_USAGE_FIELDS = ["groupId", "conflict"] as const;
+
+export type PermalinkUsage = WithRequired<PermalinkUsageData, (typeof PERMALINK_USAGE_FIELDS)[number]>;

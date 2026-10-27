@@ -159,8 +159,8 @@ test.describe("page builder pages (store administrator)", () => {
     const page = await test.step(`arrange: a draft with the permalink ${existing.permalink}`, () =>
       arrange.content.page({ permalink: existing.permalink }));
 
-    await test.step(`assert: publishing ${page.name} is rejected`, () =>
-      expect(pages.publish(page.id, { unpublishConflicting: false })).rejects.toBeHttpError(409));
+    await test.step(`assert: publishing ${page.name} is rejected naming ${existing.name}`, () =>
+      expect(pages.publish(page.id, { unpublishConflicting: false })).rejects.toBeHttpError(409, existing.name));
 
     await test.step(`assert: ${existing.name} is still published and ${page.name} is not`, async () => {
       expect(await pages.publishStatus(existing.id)).toMatchObject({ published: true });
@@ -202,6 +202,12 @@ test.describe("page builder pages (store administrator)", () => {
       arrange.content.publishedPage({ visibility: false, userGroups: "qa-group-a" }));
     const page = await test.step(`arrange: a draft with the permalink ${existing.permalink} for qa-group-b`, () =>
       arrange.content.page({ permalink: existing.permalink, visibility: false, userGroups: "qa-group-b" }));
+
+    await test.step(`assert: ${existing.name} is listed as a possible conflict`, async () => {
+      expect(await pages.permalinkUsages(page)).toContainEqual(
+        expect.objectContaining({ groupId: existing.id, conflict: "Possible" }),
+      );
+    });
 
     await test.step(`act: publish ${page.name}`, () => pages.publish(page.id, { unpublishConflicting: false }));
 

@@ -8,11 +8,12 @@ import type {
   PageSearchCriteria,
   PageStatus,
   PermalinkUsage,
+  PermalinkUsageData,
 } from "../types/page-builder";
 
 import { requireFields, requireFieldsOfEach } from "@core/required-fields";
 
-import { GROUPED_PAGE_FIELDS } from "../types/page-builder";
+import { GROUPED_PAGE_FIELDS, PERMALINK_USAGE_FIELDS } from "../types/page-builder";
 
 const PAGES_PATH = "/api/page-builder-pages";
 
@@ -39,7 +40,7 @@ class PagesResource {
     switch (status) {
       case "Published":
       case "Draft":
-        await this.#setPublished(groupId, status === "Published");
+        await this.#setPublished(groupId, { publish: status === "Published", unpublishConflicting: false });
         return;
       case "Archived":
         (await this.#httpClient.post(`${PAGES_PATH}/grouped/archive`, { query: { ids: [groupId] } })).expectOk();
@@ -48,19 +49,17 @@ class PagesResource {
   }
 
   /**
-   * Publishes the page's draft. Rejected with 409 while another published page has its permalink for the same
-   * visitors, unless `unpublishConflicting` unpublishes those pages in the same save.
+   * Publishes the page's draft. Rejected with 409 when it would replace another published page with its permalink
+   * for all that page's visitors and dates, unless `unpublishConflicting` unpublishes those pages in the same save.
    */
   async publish(groupId: string, options: { readonly unpublishConflicting: boolean }): Promise<void> {
-    const path = `${PAGES_PATH}/grouped/publishing/${encodeURIComponent(groupId)}`;
-    const query = { publish: true, unpublishConflicting: options.unpublishConflicting };
-    (await this.#httpClient.post(path, { query })).expectOk();
+    await this.#setPublished(groupId, { publish: true, unpublishConflicting: options.unpublishConflicting });
   }
 
   /** Lists the other pages of the store that use the permalink of `page` as given, with their conflicts. */
   async permalinkUsages(page: GroupedPageData): Promise<PermalinkUsage[]> {
     const response = await this.#httpClient.post(`${PAGES_PATH}/grouped/permalink-usages`, { json: page });
-    return response.json<PermalinkUsage[]>();
+    return requireFieldsOfEach(response.json<PermalinkUsageData[]>(), PERMALINK_USAGE_FIELDS, "Permalink usage");
   }
 
   /** Reads whether the page is published and whether a saved draft differs from it. */
@@ -73,9 +72,12 @@ class PagesResource {
     (await this.#httpClient.delete(`${PAGES_PATH}/grouped/${encodeURIComponent(groupId)}`)).expectOk();
   }
 
-  async #setPublished(groupId: string, publish: boolean): Promise<void> {
+  async #setPublished(
+    groupId: string,
+    query: { readonly publish: boolean; readonly unpublishConflicting: boolean },
+  ): Promise<void> {
     const path = `${PAGES_PATH}/grouped/publishing/${encodeURIComponent(groupId)}`;
-    (await this.#httpClient.post(path, { query: { publish } })).expectOk();
+    (await this.#httpClient.post(path, { query })).expectOk();
   }
 }
 

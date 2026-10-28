@@ -181,7 +181,7 @@
         },
         {
           "Id": "VirtoCommerce.XCMS",
-          "Version": "3.1008.0"
+          "Version": "3.1009.0"
         },
         {
           "Id": "VirtoCommerce.MarketingExperienceApi",
@@ -229,7 +229,7 @@
         },
         {
           "Id": "VirtoCommerce.Pages",
-          "Version": "3.1010.0"
+          "Version": "3.1012.0"
         },
         {
           "Id": "VirtoCommerce.CustomerReviews",
@@ -341,7 +341,7 @@
         },
         {
           "Id": "VirtoCommerce.PageBuilderModule",
-          "Version": "3.1035.0"
+          "Version": "3.1040.0"
         },
         {
           "Id": "VirtoCommerce.Notifications",

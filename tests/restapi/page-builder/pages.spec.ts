@@ -1,7 +1,6 @@
 import * as allure from "allure-js-commons";
 
 import { newPage } from "@dataset/builders/page-builder";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
 import { MODULES } from "@dataset/modules";
 import { expect, knownIssue, test } from "@fixtures";
 
@@ -104,24 +103,117 @@ test.describe("page builder pages (store administrator)", () => {
     });
   });
 
-  test("a second page with an existing permalink is rejected", async ({ api, arrange, store }) => {
-    await knownIssue(KNOWN_ISSUES.duplicatePermalinkAccepted);
+  test("a second page with an existing permalink is created", async ({ api, arrange, store }) => {
     await allure.story("Permalinks");
     await allure.description(
-      "Creating a page whose permalink another page of the store already has in the same language is rejected " +
-        "with a validation error, and no page is created.",
+      "A page may use the permalink of a published page of the store, for example for another audience or " +
+        "period; whether both may be published is checked when the second one is published.",
     );
     const { pages } = api.rest.pageBuilder;
-    const existing = await test.step("arrange: a page", () => arrange.content.page());
+    const existing = await test.step("arrange: a published page", () => arrange.content.publishedPage());
     const draft = newPage(store.id, store.defaultLanguage, { permalink: existing.permalink });
     arrange.content.deletePagesLater(draft.name);
 
-    await test.step(`assert: creating ${draft.name} with the permalink ${existing.permalink} is rejected`, () =>
-      expect(pages.createGroup(draft)).rejects.toBeHttpError(400));
+    const created = await test.step(`act: create ${draft.name} with the permalink ${existing.permalink}`, () =>
+      pages.createGroup(draft));
 
-    await test.step(`assert: no page named ${draft.name} exists`, async () => {
-      const found = await pages.search({ storeId: store.id, keyword: draft.name, take: SEARCH_PAGE_SIZE });
-      expect(found.filter(({ name }) => name === draft.name)).toEqual([]);
+    await test.step("assert: the page is created with that permalink", () => {
+      expect(created.permalink).toBe(existing.permalink);
+    });
+  });
+
+  test("the permalink usages of a page list a published page with that permalink as a conflict", async ({
+    api,
+    arrange,
+  }) => {
+    await allure.story("Permalinks");
+    await allure.description(
+      "The permalink usages of a draft list a published page with the same permalink for the same visitors as a " +
+        "certain conflict that can be resolved by unpublishing it.",
+    );
+    const { pages } = api.rest.pageBuilder;
+    const existing = await test.step("arrange: a published page", () => arrange.content.publishedPage());
+    const page = await test.step(`arrange: a draft with the permalink ${existing.permalink}`, () =>
+      arrange.content.page({ permalink: existing.permalink }));
+
+    const usages = await test.step(`act: read the permalink usages of ${page.name}`, () => pages.permalinkUsages(page));
+
+    await test.step(`assert: ${existing.name} is listed as a certain conflict`, () => {
+      expect(usages).toContainEqual(
+        expect.objectContaining({ groupId: existing.id, conflict: "Certain", canUnpublish: true }),
+      );
+    });
+  });
+
+  test("publishing a page with the permalink of a published page for the same visitors is rejected", async ({
+    api,
+    arrange,
+  }) => {
+    await allure.story("Permalinks");
+    await allure.description(
+      "Publishing a page is rejected with a conflict while another published page of the store has its " +
+        "permalink for the same visitors, and neither page changes.",
+    );
+    const { pages } = api.rest.pageBuilder;
+    const existing = await test.step("arrange: a published page", () => arrange.content.publishedPage());
+    const page = await test.step(`arrange: a draft with the permalink ${existing.permalink}`, () =>
+      arrange.content.page({ permalink: existing.permalink }));
+
+    await test.step(`assert: publishing ${page.name} is rejected naming ${existing.name}`, () =>
+      expect(pages.publish(page.id, { unpublishConflicting: false })).rejects.toBeHttpError(409, existing.name));
+
+    await test.step(`assert: ${existing.name} is still published and ${page.name} is not`, async () => {
+      expect(await pages.publishStatus(existing.id)).toMatchObject({ published: true });
+      expect(await pages.publishStatus(page.id)).toMatchObject({ published: false });
+    });
+  });
+
+  test("publishing with unpublishConflicting unpublishes the page with the same permalink", async ({
+    api,
+    arrange,
+  }) => {
+    await allure.story("Permalinks");
+    await allure.description(
+      "Publishing a page with unpublishConflicting unpublishes the published page that has its permalink for the " +
+        "same visitors, in the same save.",
+    );
+    const { pages } = api.rest.pageBuilder;
+    const existing = await test.step("arrange: a published page", () => arrange.content.publishedPage());
+    const page = await test.step(`arrange: a draft with the permalink ${existing.permalink}`, () =>
+      arrange.content.page({ permalink: existing.permalink }));
+
+    await test.step(`act: publish ${page.name} and unpublish the conflicting page`, () =>
+      pages.publish(page.id, { unpublishConflicting: true }));
+
+    await test.step(`assert: ${page.name} is published and ${existing.name} is not`, async () => {
+      expect(await pages.publishStatus(page.id)).toMatchObject({ published: true });
+      expect(await pages.publishStatus(existing.id)).toMatchObject({ published: false });
+    });
+  });
+
+  test("a page with the permalink of a published page for other user groups is published", async ({ api, arrange }) => {
+    await allure.story("Permalinks");
+    await allure.description(
+      "Pages for signed-in users of different user groups may both be published with the same permalink: only a " +
+        "user in both groups could get either of them.",
+    );
+    const { pages } = api.rest.pageBuilder;
+    const existing = await test.step("arrange: a published page for the user group qa-group-a", () =>
+      arrange.content.publishedPage({ visibility: false, userGroups: "qa-group-a" }));
+    const page = await test.step(`arrange: a draft with the permalink ${existing.permalink} for qa-group-b`, () =>
+      arrange.content.page({ permalink: existing.permalink, visibility: false, userGroups: "qa-group-b" }));
+
+    await test.step(`assert: ${existing.name} is listed as a possible conflict`, async () => {
+      expect(await pages.permalinkUsages(page)).toContainEqual(
+        expect.objectContaining({ groupId: existing.id, conflict: "Possible" }),
+      );
+    });
+
+    await test.step(`act: publish ${page.name}`, () => pages.publish(page.id, { unpublishConflicting: false }));
+
+    await test.step("assert: both pages are published", async () => {
+      expect(await pages.publishStatus(page.id)).toMatchObject({ published: true });
+      expect(await pages.publishStatus(existing.id)).toMatchObject({ published: true });
     });
   });
 

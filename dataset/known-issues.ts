@@ -24,9 +24,6 @@ export const KNOWN_ISSUES = {
   contentStatisticNotCounted: {
     summary: "GET /api/content/{storeId}/stats returns -1 for pagesCount, blogsCount and themesCount",
   },
-  duplicatePermalinkAccepted: {
-    summary: "The page builder accepts a second page whose permalink already exists in the same store and language",
-  },
   oauthAppSearchIgnoresFilters: {
     summary: "GET /api/platform/oauthapps ignores keyword and objectIds and returns every OAuth app",
   },

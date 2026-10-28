@@ -27,6 +27,7 @@ test.describe("page builder shell (platform admin)", () => {
       for (const column of Object.values(Column)) {
         await expect(pageBuilder.listBlade.grid.columnHeader(column)).toBeVisible();
       }
+      await expect(pageBuilder.listBlade.languageColumnHeader).toBeVisible();
       await expect(pageBuilder.listBlade.grid.rows.first()).toBeVisible();
     });
 

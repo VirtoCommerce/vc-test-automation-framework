@@ -1,9 +1,11 @@
 import * as allure from "allure-js-commons";
 
+import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 
 const CATALOG_MODULE_ID = "VirtoCommerce.Catalog";
-const REQUIRED_APP_IDS = ["platform", "page-builder-shell"];
+const PAGE_BUILDER_SHELL_APP_ID = "page-builder-shell";
+const BACK_OFFICE_APP_ID = "platform";
 const PLATFORM_VERSION = /^\d+\.\d+\.\d+/;
 
 test.beforeEach(async () => {
@@ -16,12 +18,12 @@ test.describe("platform system (store administrator)", () => {
 
   test("list the installed apps", async ({ api }) => {
     await allure.story("Apps");
-    await allure.description("The back office and the page builder shell are installed.");
+    await allure.description("The page builder shell is installed.");
 
     const apps = await test.step("act: list the apps", () => api.rest.platform.apps.list());
 
-    await test.step(`assert: ${REQUIRED_APP_IDS.join(" and ")} are installed`, () => {
-      expect(apps.map(({ id }) => id)).toEqual(expect.arrayContaining(REQUIRED_APP_IDS));
+    await test.step(`assert: ${PAGE_BUILDER_SHELL_APP_ID} is installed`, () => {
+      expect(apps.map(({ id }) => id)).toContain(PAGE_BUILDER_SHELL_APP_ID);
     });
   });
 
@@ -59,6 +61,22 @@ test.describe("platform system (store administrator)", () => {
 
     await test.step(`assert: ${CATALOG_MODULE_ID} is installed`, () => {
       expect([...modules.keys()]).toContain(CATALOG_MODULE_ID);
+    });
+  });
+});
+
+// The platform is API only from 3.1093.0: the back office app comes with the AngularJS admin module (VCST-6338)
+test.describe("platform system with the AngularJS admin (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com", requiresModules: [MODULES.adminAngularJs] });
+
+  test("list the back office among the apps", async ({ api }) => {
+    await allure.story("Apps");
+    await allure.description("The AngularJS admin module brings the back office app, Commerce Manager.");
+
+    const apps = await test.step("act: list the apps", () => api.rest.platform.apps.list());
+
+    await test.step(`assert: ${BACK_OFFICE_APP_ID} is installed`, () => {
+      expect(apps.map(({ id }) => id)).toContain(BACK_OFFICE_APP_ID);
     });
   });
 });

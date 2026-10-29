@@ -8,6 +8,11 @@ import type { ModuleRequirement } from "@core/modules";
  * the suite uses, and its JSDoc says which feature needs which version.
  */
 export const MODULES = {
+  /**
+   * The AngularJS back office (Commerce Manager): the `platform` app. Part of the platform up to 3.1092.0, a module
+   * from 3.1093.0 (VCST-6338).
+   */
+  adminAngularJs: { id: "VirtoCommerce.AdminAngularJs" },
   backgroundJobs: { id: "VirtoCommerce.BackgroundJobs" },
   core: { id: "VirtoCommerce.Core" },
   catalog: { id: "VirtoCommerce.Catalog" },

@@ -27,7 +27,7 @@ contact id) of any user in the same organization through the GraphQL `user` quer
 platform answers `Forbidden`. If that is intended, add a positive "a colleague's account is readable" test; if not,
 add a test expecting `Forbidden`, marked as a known issue.
 
-**Known issues, tracked in Jira.** 8 REST tests carry a `knownIssue` mark with a tracker key, so they run as
+**Known issues, tracked in Jira.** 6 REST tests carry a `knownIssue` mark with a tracker key, so they run as
 expected failures linked to the ticket. When a ticket is fixed the test passes, the run reports it, and the entry in
 `dataset/known-issues.ts` goes. When a ticket is closed as intended, rewrite or delete the test and drop the entry.
 
@@ -36,7 +36,6 @@ expected failures linked to the ticket. When a ticket is fixed the test passes, 
 | [VCST-6440](https://virtocommerce.atlassian.net/browse/VCST-6440) | OAuth app search ignores `keyword` and `objectIds` | Platform | 1 |
 | [VCST-6441](https://virtocommerce.atlassian.net/browse/VCST-6441) | Completeness channel search ignores `keyword` and `objectIds` | CatalogPublishing | 1 |
 | [VCST-6442](https://virtocommerce.atlassian.net/browse/VCST-6442) | A second page with an existing permalink is accepted | PageBuilder | 1 |
-| [VCST-6443](https://virtocommerce.atlassian.net/browse/VCST-6443) | Permalinks with spaces or `& ? #` are stored as sent | PageBuilder | 2 |
 | [VCST-6444](https://virtocommerce.atlassian.net/browse/VCST-6444) | Content statistics return `-1`: enable `Content:StatisticEnabled` in CI | DevOps | 3 |
 
 For VCST-6444, once devops releases the new `docker-env-full` tag, bump it in our workflow and remove

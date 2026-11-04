@@ -34,9 +34,4 @@ export const KNOWN_ISSUES = {
     key: "VCST-6440",
     summary: "POST /api/platform/oauthapps/search ignores keyword and objectIds and returns every OAuth app",
   },
-  permalinkStoredVerbatim: {
-    key: "VCST-6443",
-    summary:
-      "The page builder stores permalinks as sent: whitespace and the characters & ? # are neither rejected nor removed",
-  },
 } as const satisfies Readonly<Record<string, KnownIssue>>;

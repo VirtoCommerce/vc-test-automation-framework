@@ -5,7 +5,7 @@ import { textFile } from "@dataset/builders/files";
 import { expect, test } from "@fixtures";
 
 const PINNED_REPOSITORY_URL =
-  "https://raw.githubusercontent.com/VirtoCommerce/vc-testing-module/08b9d932b5c988d23b551ba8da1e4e2a0ad0b498";
+  "https://raw.githubusercontent.com/VirtoCommerce/vc-test-automation-framework/08b9d932b5c988d23b551ba8da1e4e2a0ad0b498";
 const REMOTE_FILES = [
   { title: "a markdown file", name: "README.md", url: `${PINNED_REPOSITORY_URL}/README.md` },
   { title: "a dotfile", name: ".gitignore", url: `${PINNED_REPOSITORY_URL}/.gitignore` },

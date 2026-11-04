@@ -1,4 +1,4 @@
-# vc-testing-module
+# vc-test-automation-framework
 
 Automated tests for the Virto Commerce **platform** (REST API and xAPI GraphQL), the **frontend** (vc-frontend) and
 the **page builder** app of the platform admin. TypeScript on Playwright Test, Allure reports, Biome for lint and

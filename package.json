@@ -1,5 +1,5 @@
 {
-  "name": "vc-testing-module",
+  "name": "vc-test-automation-framework",
   "version": "1.0.0",
   "private": true,
   "description": "Playwright tests of the Virto Commerce platform: REST, GraphQL (xAPI), frontend and page builder e2e",

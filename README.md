@@ -1,4 +1,4 @@
-# vc-testing-module
+# vc-test-automation-framework
 
 Automated tests of the [Virto Commerce](https://virtocommerce.com) platform: the REST API, the xAPI (GraphQL), the
 frontend (vc-frontend) and the page builder app of the admin UI. Built on Playwright and TypeScript.
@@ -49,8 +49,8 @@ frontend (vc-frontend) and the page builder app of the admin UI. Built on Playwr
 Bash:
 
 ```bash
-git clone https://github.com/VirtoCommerce/vc-testing-module.git
-cd vc-testing-module
+git clone https://github.com/VirtoCommerce/vc-test-automation-framework.git
+cd vc-test-automation-framework
 npm ci
 npm run install:browsers
 cp .env.example .env
@@ -59,8 +59,8 @@ cp .env.example .env
 PowerShell:
 
 ```powershell
-git clone https://github.com/VirtoCommerce/vc-testing-module.git
-Set-Location vc-testing-module
+git clone https://github.com/VirtoCommerce/vc-test-automation-framework.git
+Set-Location vc-test-automation-framework
 npm ci
 npm run install:browsers
 Copy-Item .env.example .env

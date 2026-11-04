@@ -1378,7 +1378,7 @@ export type PageContextFragment = {
   slugInfo: {
     redirectUrl: string | null;
     entityInfo: {
-      id: string;
+      id: string | null;
       name: string | null;
       semanticUrl: string;
       outline: string | null;
@@ -1387,8 +1387,8 @@ export type PageContextFragment = {
       imageAltDescription: string | null;
       metaKeywords: string | null;
       storeId: string | null;
-      objectId: string;
-      objectType: string;
+      objectId: string | null;
+      objectType: string | null;
       isActive: boolean;
       languageCode: string | null;
     } | null;
@@ -1675,7 +1675,7 @@ export type QuoteFragment = {
 export type RoleFragment = { id: string; name: string; normalizedName: string };
 
 export type SeoInfoFragment = {
-  id: string;
+  id: string | null;
   name: string | null;
   semanticUrl: string;
   outline: string | null;
@@ -1684,8 +1684,8 @@ export type SeoInfoFragment = {
   imageAltDescription: string | null;
   metaKeywords: string | null;
   storeId: string | null;
-  objectId: string;
-  objectType: string;
+  objectId: string | null;
+  objectType: string | null;
   isActive: boolean;
   languageCode: string | null;
 };
@@ -1738,7 +1738,7 @@ export type ShoppingListFragment = {
 export type SlugInfoFragment = {
   redirectUrl: string | null;
   entityInfo: {
-    id: string;
+    id: string | null;
     name: string | null;
     semanticUrl: string;
     outline: string | null;
@@ -1747,8 +1747,8 @@ export type SlugInfoFragment = {
     imageAltDescription: string | null;
     metaKeywords: string | null;
     storeId: string | null;
-    objectId: string;
-    objectType: string;
+    objectId: string | null;
+    objectType: string | null;
     isActive: boolean;
     languageCode: string | null;
   } | null;
@@ -4830,7 +4830,7 @@ export type PageContextQuery = {
     slugInfo: {
       redirectUrl: string | null;
       entityInfo: {
-        id: string;
+        id: string | null;
         name: string | null;
         semanticUrl: string;
         outline: string | null;
@@ -4839,8 +4839,8 @@ export type PageContextQuery = {
         imageAltDescription: string | null;
         metaKeywords: string | null;
         storeId: string | null;
-        objectId: string;
-        objectType: string;
+        objectId: string | null;
+        objectType: string | null;
         isActive: boolean;
         languageCode: string | null;
       } | null;
@@ -6183,7 +6183,7 @@ export type SlugInfoQuery = {
   slugInfo: {
     redirectUrl: string | null;
     entityInfo: {
-      id: string;
+      id: string | null;
       name: string | null;
       semanticUrl: string;
       outline: string | null;
@@ -6192,8 +6192,8 @@ export type SlugInfoQuery = {
       imageAltDescription: string | null;
       metaKeywords: string | null;
       storeId: string | null;
-      objectId: string;
-      objectType: string;
+      objectId: string | null;
+      objectType: string | null;
       isActive: boolean;
       languageCode: string | null;
     } | null;

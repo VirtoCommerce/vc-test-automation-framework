@@ -3,6 +3,19 @@ import type { ModuleRequirement } from "@core/modules";
 
 import { MODULES } from "./modules";
 
+/**
+ * A search that finds the stored copy of a record whose id the platform assigns, matched by one field; see
+ * {@link CollectionSpec.storedIdFrom}.
+ */
+export interface StoredIdLookup {
+  /** The search path; may contain `${ENV:…}` and `${RECORD:field}`. */
+  readonly search: `/${string}`;
+  /** The search criteria; its strings may contain `${ENV:…}` and `${RECORD:field}`. */
+  readonly criteria: Readonly<Record<string, unknown>>;
+  /** The field a stored record must share with the dataset record, such as `code`. */
+  readonly match: string;
+}
+
 /** How the records of one collection are sent to the platform. */
 export interface CollectionSpec {
   /** The module, and its version range, the collection needs; without it the collection is skipped. */
@@ -33,6 +46,17 @@ export interface CollectionSpec {
   readonly ifMatchFrom?: `/${string}`;
   /** `each`: one request per record; `all`: one request with every record. */
   readonly send: "each" | "all";
+  /**
+   * How a repeated seed avoids duplicates. `find`: a stored record is looked up by `find` and left as it is, so
+   * dataset changes to it are not sent. `upsert`: the record is sent again and the endpoint replaces the stored
+   * one by its identity (id, key, or the id found by `storedIdFrom`), so dataset changes reach the platform.
+   */
+  readonly repeat: "find" | "upsert";
+  /**
+   * For records whose id the platform assigns and that have no lookup by key: finds the stored record by a search
+   * and sends the dataset record with that id, so the endpoint updates it instead of adding another.
+   */
+  readonly storedIdFrom?: StoredIdLookup;
   /** The field that references a parent record in the same collection; parents are sent first. */
   readonly parentField?: string;
 }
@@ -47,6 +71,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/platform/settings/v2/global/values",
     send: "each",
+    repeat: "upsert",
   },
   platformSettings: {
     module: MODULES.core,
@@ -55,6 +80,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/platform/settings",
     send: "all",
+    repeat: "upsert",
   },
   currencies: {
     module: MODULES.core,
@@ -62,6 +88,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/currencies",
     send: "each",
+    repeat: "upsert",
   },
   measures: {
     module: MODULES.catalog,
@@ -70,6 +97,7 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/catalog/measures",
     send: "each",
+    repeat: "upsert",
   },
   fulfillmentCenters: {
     module: MODULES.inventory,
@@ -77,6 +105,7 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/inventory/fulfillmentcenters",
     send: "each",
+    repeat: "upsert",
   },
   pricelists: {
     module: MODULES.pricing,
@@ -84,6 +113,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/pricing/pricelists",
     send: "each",
+    repeat: "upsert",
   },
   catalogs: {
     module: MODULES.catalog,
@@ -91,6 +121,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/catalog/catalogs",
     send: "each",
+    repeat: "upsert",
   },
   pricelistAssignments: {
     module: MODULES.pricing,
@@ -98,6 +129,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/pricing/assignments",
     send: "each",
+    repeat: "upsert",
   },
   catalogPropertyGroups: {
     module: MODULES.catalog,
@@ -105,12 +137,14 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/catalog/propertygroups",
     send: "each",
+    repeat: "upsert",
   },
   stores: {
     module: MODULES.store,
     method: "POST",
     endpoint: "/api/stores",
     send: "each",
+    repeat: "upsert",
   },
   categories: {
     module: MODULES.catalog,
@@ -119,6 +153,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/catalog/categories",
     send: "each",
+    repeat: "upsert",
     parentField: "parentId",
   },
   catalogProperties: {
@@ -127,6 +162,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/catalog/properties?id=${RECORD:id}",
     send: "each",
+    repeat: "upsert",
   },
   products: {
     module: MODULES.catalog,
@@ -135,6 +171,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/catalog/products",
     send: "each",
+    repeat: "upsert",
     parentField: "mainProductId",
   },
   aggregationProperties: {
@@ -143,6 +180,7 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/catalog/aggregationproperties/${ENV:STORE_ID}/properties",
     send: "all",
+    repeat: "upsert",
   },
   productInventories: {
     module: MODULES.inventory,
@@ -150,6 +188,7 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/inventory/products/${RECORD:productId}",
     send: "each",
+    repeat: "upsert",
   },
   productConfigurations: {
     module: MODULES.catalog,
@@ -158,6 +197,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/catalog/products/configurations",
     send: "each",
+    repeat: "upsert",
   },
   prices: {
     module: MODULES.pricing,
@@ -165,6 +205,7 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/products/${RECORD:productId}/prices",
     send: "each",
+    repeat: "upsert",
   },
   promotions: {
     module: MODULES.marketing,
@@ -172,6 +213,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/marketing/promotions",
     send: "each",
+    repeat: "upsert",
   },
   coupons: {
     module: MODULES.marketing,
@@ -181,6 +223,7 @@ export const MANIFEST = {
     endpoint: "/api/marketing/promotions/coupons/add",
     find: "/api/marketing/promotions/coupons/${RECORD:id}",
     send: "all",
+    repeat: "find",
   },
   roles: {
     module: MODULES.core,
@@ -189,6 +232,7 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/platform/security/roles",
     send: "each",
+    repeat: "upsert",
   },
   organizations: {
     module: MODULES.customer,
@@ -196,6 +240,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/members",
     send: "each",
+    repeat: "upsert",
   },
   contacts: {
     module: MODULES.customer,
@@ -203,6 +248,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/members",
     send: "each",
+    repeat: "upsert",
   },
   users: {
     module: MODULES.core,
@@ -212,6 +258,7 @@ export const MANIFEST = {
     endpoint: "/api/platform/security/users/create",
     find: "/api/platform/security/users/${RECORD:userName}",
     send: "each",
+    repeat: "find",
   },
   organizationMemberships: {
     module: MODULES.customer,
@@ -220,6 +267,7 @@ export const MANIFEST = {
     endpoint: "/api/customer/organization-memberships",
     find: "/api/customer/organization-memberships/user/${RECORD:userId}/org/${RECORD:organizationId}",
     send: "each",
+    repeat: "find",
   },
   pickupLocations: {
     module: MODULES.pickup,
@@ -227,6 +275,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/shipping/pickup-locations",
     send: "each",
+    repeat: "upsert",
   },
   orders: {
     module: MODULES.orders,
@@ -236,6 +285,7 @@ export const MANIFEST = {
     endpoint: "/api/order/customerOrders",
     find: "/api/order/customerOrders/${RECORD:id}",
     send: "each",
+    repeat: "find",
   },
   notifications: {
     module: MODULES.notifications,
@@ -243,6 +293,7 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/notifications/${RECORD:type}",
     send: "each",
+    repeat: "upsert",
   },
   shippingMethods: {
     module: MODULES.shipping,
@@ -250,6 +301,12 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/shipping",
     send: "each",
+    repeat: "upsert",
+    storedIdFrom: {
+      search: "/api/shipping/search",
+      criteria: { storeId: "${ENV:STORE_ID}", codes: ["${RECORD:code}"], withoutTransient: true },
+      match: "code",
+    },
   },
   paymentMethods: {
     module: MODULES.payment,
@@ -257,6 +314,12 @@ export const MANIFEST = {
     method: "PUT",
     endpoint: "/api/payment",
     send: "each",
+    repeat: "upsert",
+    storedIdFrom: {
+      search: "/api/payment/search",
+      criteria: { storeId: "${ENV:STORE_ID}", codes: ["${RECORD:code}"], withoutTransient: true },
+      match: "code",
+    },
   },
   pages: {
     module: MODULES.pageBuilder,
@@ -264,6 +327,7 @@ export const MANIFEST = {
     method: "POST",
     endpoint: "/api/page-builder-pages/grouped",
     send: "each",
+    repeat: "upsert",
   },
   pagesContent: {
     module: MODULES.pageBuilder,
@@ -272,6 +336,7 @@ export const MANIFEST = {
     endpoint: "/api/page-builder-pages/grouped/${RECORD:pageId}/content",
     ifMatchFrom: "/api/page-builder-pages/grouped/${RECORD:pageId}/content",
     send: "each",
+    repeat: "upsert",
   },
 } as const satisfies Readonly<Record<string, CollectionSpec>>;
 

@@ -37,8 +37,11 @@ export class CatalogArrange {
   async catalog(overrides: Partial<Omit<CatalogData, "id">> = {}): Promise<Catalog> {
     const { catalogs } = this.#admin.rest.catalog;
     const draft = { ...newCatalog(this.#store.defaultLanguage), ...overrides };
-    this.#cleanup.push(`delete catalog ${draft.name}`, () => catalogs.delete(draft.id));
-    return catalogs.create(draft);
+    return this.#cleanup.track(
+      `delete catalog ${draft.name}`,
+      () => catalogs.delete(draft.id),
+      () => catalogs.create(draft),
+    );
   }
 
   /**
@@ -79,8 +82,11 @@ export class CatalogArrange {
   /** Sets personalization tags on a product or category and clears all its tags after the test. */
   async tags(entity: TaggedEntity, tags: readonly string[]): Promise<void> {
     const { taggedItems } = this.#admin.rest.personalization;
-    this.#cleanup.push(`clear the tags of ${entity.label}`, () => taggedItems.setTags(entity, []));
-    await taggedItems.setTags(entity, tags);
+    await this.#cleanup.track(
+      `clear the tags of ${entity.label}`,
+      () => taggedItems.setTags(entity, []),
+      () => taggedItems.setTags(entity, tags),
+    );
   }
 
   /**
@@ -99,7 +105,10 @@ export class CatalogArrange {
   async completenessChannel(): Promise<CompletenessChannel> {
     const { channels } = this.#admin.rest.completeness;
     const draft = newCompletenessChannel(this.#store, this.#dataset.catalogs.get(this.#store.catalog));
-    this.#cleanup.push(`delete completeness channel ${draft.name}`, () => channels.delete([draft.id]));
-    return channels.create(draft);
+    return this.#cleanup.track(
+      `delete completeness channel ${draft.name}`,
+      () => channels.delete([draft.id]),
+      () => channels.create(draft),
+    );
   }
 }

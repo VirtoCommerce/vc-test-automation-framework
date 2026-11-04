@@ -19,7 +19,6 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 - Review pull requests: diffs, commit quality, CI result, coverage
 - Find flaky patterns, missing cleanup, shared-state races and vacuous assertions
 - Check layer boundaries and reuse of existing code
-- Check that TESTS.md is updated when a test of the old suite moved, merged or was dropped
 - Flag security issues: credentials in code, secrets in logs or reports
 
 ## When to Use Skills
@@ -78,7 +77,7 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 
 - [ ] Page objects from the `frontend` or `pageBuilder` fixture; navigation through `navigate()`
 - [ ] Web-first assertions (`await expect(locator)…`); no `isVisible()` inside `expect`
-- [ ] Waits for the GraphQL call an action triggers when the next step depends on it (`page.waitForResponse(isGraphqlOperation("X"))`)
+- [ ] Waits for the GraphQL call an action triggers when the next step depends on it (`whenGraphql(page, "X", action)` from `@pages/responses`)
 - [ ] Browser state arranged through `shopper.api` and `shopperKind`, not the UI, unless the UI flow is under test
 - [ ] No branching on frontend configuration in the spec; page objects handle `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE`, `CHECKOUT_MODE`
 - [ ] The test checks the UI; data rules are left to the API tests
@@ -91,8 +90,8 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 
 ### REST Clients, Types and Dataset Code
 
-- [ ] Client methods call `expectOk()` or parse through `requireFields` / `optionalFields` / `requireFieldsOfEach`; `find(id)` returns `undefined`, `get(id)` throws
-- [ ] Named types in `api/rest/types/` as `WithRequired<XxxData, (typeof XXX_FIELDS)[number]>`; generated code untouched
+- [ ] Client methods call `expectOk()` or check responses against a shape (`record` / `optionalRecord` / `records` / `results`, or `requireFields` with `X.fields`); `find(id)` returns `undefined`, `get(id)` throws
+- [ ] Named types in `api/rest/types/` as a shape plus `Shaped<typeof XXX>`; generated code untouched
 - [ ] Builders `newX()` are pure and set a client-side `id`; `arrange` methods register their own cleanup and tolerate a missing record
 - [ ] No duplicate of an existing `arrange` method, builder, client method or page object
 
@@ -103,7 +102,6 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 - [ ] No fallbacks that hide missing data (`?? ""`, `?? []`, `?? 0`); `requireFields` instead
 - [ ] No code comments; JSDoc only where the signature cannot say it
 - [ ] Terminology: frontend (not storefront), platform, platform admin
-- [ ] TESTS.md updated when an old-suite test moved, merged or was dropped
 
 ## Common Anti-Patterns
 

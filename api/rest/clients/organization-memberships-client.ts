@@ -1,9 +1,9 @@
 import type { HttpClient } from "../../http/http-client";
 import type { LockMembershipRequest, OrganizationMembership, OrganizationMembershipData } from "../types/memberships";
 
-import { optionalFields, requireFields } from "@core/required-fields";
+import { optionalFields } from "@core/required-fields";
 
-import { ORGANIZATION_MEMBERSHIP_FIELDS } from "../types/memberships";
+import { ORGANIZATION_MEMBERSHIP } from "../types/memberships";
 
 const MEMBERSHIPS_PATH = "/api/customer/organization-memberships";
 
@@ -21,29 +21,21 @@ export class OrganizationMembershipsClient {
     const membership = response.optionalJson<OrganizationMembershipData>({ allow404: true });
     return optionalFields(
       membership,
-      ORGANIZATION_MEMBERSHIP_FIELDS,
+      ORGANIZATION_MEMBERSHIP.fields,
       `Membership of "${userId}" in "${organizationId}"`,
     );
   }
 
   async create(membership: OrganizationMembershipData): Promise<OrganizationMembership> {
     const response = await this.#httpClient.post(MEMBERSHIPS_PATH, { json: membership });
-    return requireFields(
-      response.json<OrganizationMembershipData>(),
-      ORGANIZATION_MEMBERSHIP_FIELDS,
-      "Created membership",
-    );
+    return response.record(ORGANIZATION_MEMBERSHIP);
   }
 
   async lock(id: string, lockoutEnd?: Date): Promise<OrganizationMembership> {
     const path = `${MEMBERSHIPS_PATH}/${encodeURIComponent(id)}/lock`;
     const request: LockMembershipRequest = lockoutEnd === undefined ? {} : { lockoutEnd: lockoutEnd.toISOString() };
     const response = await this.#httpClient.post(path, { json: request });
-    return requireFields(
-      response.json<OrganizationMembershipData>(),
-      ORGANIZATION_MEMBERSHIP_FIELDS,
-      `Locked membership "${id}"`,
-    );
+    return response.record(ORGANIZATION_MEMBERSHIP);
   }
 
   async delete(ids: readonly string[]): Promise<void> {

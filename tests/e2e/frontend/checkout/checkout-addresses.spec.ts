@@ -1,5 +1,5 @@
+import type { CheckoutFlow } from "@pages/frontend/flows/checkout-flow";
 import type { Frontend } from "@pages/frontend/frontend";
-import type { CheckoutFlow } from "@pages/frontend/pages/cart-pages";
 
 import * as allure from "allure-js-commons";
 

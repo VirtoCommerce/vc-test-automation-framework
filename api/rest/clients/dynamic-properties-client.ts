@@ -1,14 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
-import type {
-  DynamicProperty,
-  DynamicPropertyData,
-  DynamicPropertySearchCriteria,
-  DynamicPropertySearchResult,
-} from "../types/platform";
+import type { DynamicProperty, DynamicPropertyData, DynamicPropertySearchCriteria } from "../types/platform";
 
-import { requireFields, requireFieldsOfEach } from "@core/required-fields";
-
-import { DYNAMIC_PROPERTY_FIELDS } from "../types/platform";
+import { DYNAMIC_PROPERTY } from "../types/platform";
 
 const DYNAMIC_PATH = "/api/platform/dynamic";
 const PROPERTIES_PATH = `${DYNAMIC_PATH}/properties`;
@@ -26,13 +19,12 @@ export class DynamicPropertiesClient {
 
   async create(property: DynamicPropertyData): Promise<DynamicProperty> {
     const response = await this.#httpClient.post(PROPERTIES_PATH, { json: property });
-    return requireFields(response.json<DynamicPropertyData>(), DYNAMIC_PROPERTY_FIELDS, "Created property");
+    return response.record(DYNAMIC_PROPERTY);
   }
 
   async search(criteria: DynamicPropertySearchCriteria): Promise<DynamicProperty[]> {
     const response = await this.#httpClient.post(`${PROPERTIES_PATH}/search`, { json: criteria });
-    const { results } = response.json<DynamicPropertySearchResult>();
-    return requireFieldsOfEach(results, DYNAMIC_PROPERTY_FIELDS, "Found property");
+    return response.results(DYNAMIC_PROPERTY);
   }
 
   async delete(ids: readonly string[]): Promise<void> {

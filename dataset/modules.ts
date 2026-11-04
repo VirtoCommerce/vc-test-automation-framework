@@ -21,7 +21,8 @@ export const MODULES = {
   marketing: { id: "VirtoCommerce.Marketing" },
   notifications: { id: "VirtoCommerce.Notifications" },
   orders: { id: "VirtoCommerce.Orders" },
-  pageBuilder: { id: "VirtoCommerce.PageBuilderModule", minVersion: "3.1034.0" },
+  /** Page builder: the shell queries its page lists with `POST /api/page-builder-pages/list` (3.1039.0). */
+  pageBuilder: { id: "VirtoCommerce.PageBuilderModule", minVersion: "3.1039.0" },
   payment: { id: "VirtoCommerce.Payment" },
   pickup: { id: "VirtoCommerce.XPickup" },
   pricing: { id: "VirtoCommerce.Pricing" },

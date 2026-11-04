@@ -999,6 +999,165 @@ export interface TaxStore {
   timeZone?: string | null;
 }
 
+export interface VirtoCommerceAdminShellCoreModelsBranding {
+  companyName?: string | null;
+  faviconUrl?: string | null;
+  home?: VirtoCommerceAdminShellCoreModelsBrandingHome | null;
+  links?: VirtoCommerceAdminShellCoreModelsBrandingLinks | null;
+  logoDarkUrl?: string | null;
+  logoUrl?: string | null;
+  markUrl?: string | null;
+  signIn?: VirtoCommerceAdminShellCoreModelsBrandingSignIn | null;
+  theme?: VirtoCommerceAdminShellCoreModelsBrandingTheme | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsBrandingHome {
+  welcome?: any;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsBrandingLinks {
+  help?: string | null;
+  privacy?: string | null;
+  support?: string | null;
+  terms?: string | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsBrandingSignIn {
+  showcase?: string | null;
+  slides?: any;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsBrandingTheme {
+  appearance?: string | null;
+  custom?: VirtoCommerceAdminShellCoreModelsCustomTheme[] | null;
+  default?: string | null;
+  userChoice?: boolean;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsCustomTheme {
+  base?: string | null;
+  dark?: Record<string, string | null>;
+  id?: string | null;
+  light?: Record<string, string | null>;
+  name?: string | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsEffectiveMenu {
+  hidden?: string[] | null;
+  personalization?: VirtoCommerceAdminShellCoreModelsMenuPersonalization | null;
+  pinned?: VirtoCommerceAdminShellCoreModelsMenuItem[] | null;
+  recent?: VirtoCommerceAdminShellCoreModelsMenuItem[] | null;
+  sections?: VirtoCommerceAdminShellCoreModelsMenuSection[] | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsItemPatch {
+  group?: string | null;
+  hidden?: boolean | null;
+  icon?: string | null;
+  /** @format int32 */
+  priority?: number | null;
+  sectionId?: string | null;
+  title?: string | null;
+  titles?: Record<string, string | null>;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuDocument {
+  sections?: VirtoCommerceAdminShellCoreModelsMenuSection[] | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuEditorRequest {
+  discovered?: VirtoCommerceAdminShellCoreModelsMenuItem[] | null;
+  patch?: VirtoCommerceAdminShellCoreModelsMenuPatch | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuGroup {
+  id?: string | null;
+  items?: string[] | null;
+  title?: string | null;
+  titleKey?: string | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuItem {
+  aliases?: string[] | null;
+  children?: VirtoCommerceAdminShellCoreModelsMenuItem[] | null;
+  fallback?: VirtoCommerceAdminShellCoreModelsMenuTarget | null;
+  group?: string | null;
+  hidden?: boolean | null;
+  icon?: string | null;
+  iconUrl?: string | null;
+  id?: string | null;
+  moduleId?: string | null;
+  permission?: string | null;
+  /** @format int32 */
+  priority?: number;
+  replaces?: string | null;
+  route?: string | null;
+  sectionId?: string | null;
+  source?: string | null;
+  target?: VirtoCommerceAdminShellCoreModelsMenuTarget | null;
+  title?: string | null;
+  titleKey?: string | null;
+  titles?: Record<string, string | null>;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuPatch {
+  addItems?: VirtoCommerceAdminShellCoreModelsMenuItem[] | null;
+  addSections?: VirtoCommerceAdminShellCoreModelsMenuSection[] | null;
+  items?: Record<string, VirtoCommerceAdminShellCoreModelsItemPatch> | null;
+  sections?: Record<
+    string,
+    VirtoCommerceAdminShellCoreModelsSectionPatch
+  > | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuPersonalization {
+  allowHide?: boolean;
+  allowPin?: boolean;
+  allowReorder?: boolean;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuRequest {
+  discovered?: VirtoCommerceAdminShellCoreModelsMenuItem[] | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuSection {
+  groups?: VirtoCommerceAdminShellCoreModelsMenuGroup[] | null;
+  hidden?: boolean | null;
+  icon?: string | null;
+  id?: string | null;
+  items?: VirtoCommerceAdminShellCoreModelsMenuItem[] | null;
+  permission?: string | null;
+  /** @format int32 */
+  priority?: number;
+  source?: string | null;
+  title?: string | null;
+  titleKey?: string | null;
+  titles?: Record<string, string | null>;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsMenuTarget {
+  appId?: string | null;
+  legacyUrl?: string | null;
+  route?: string | null;
+  type?: string | null;
+  url?: string | null;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsSectionPatch {
+  hidden?: boolean | null;
+  icon?: string | null;
+  /** @format int32 */
+  priority?: number | null;
+  title?: string | null;
+  titles?: Record<string, string | null>;
+}
+
+export interface VirtoCommerceAdminShellCoreModelsUserMenuPrefs {
+  hidden?: string[] | null;
+  order?: Record<string, string[] | null>;
+  pinned?: string[] | null;
+}
+
 export interface VirtoCommerceAssetsModuleCoreAssetsAssetEntry {
   blobInfo?: VirtoCommerceAssetsModuleCoreAssetsBlobInfo | null;
   /**
@@ -1340,6 +1499,7 @@ export interface VirtoCommerceCartModuleCoreModelSearchShoppingCartSearchCriteri
   isAnonymous?: boolean | null;
   keyword?: string | null;
   languageCode?: string | null;
+  lineItemIds?: string[] | null;
   /** @format date-time */
   modifiedEndDate?: string | null;
   /** @format date-time */
@@ -3646,7 +3806,7 @@ export interface VirtoCommerceCustomerModuleCoreModelContact {
   dynamicProperties?:
     | VirtoCommercePlatformCoreDynamicPropertiesDynamicObjectProperty[]
     | null;
-  dynamicPropertyAccessor?: any | null;
+  dynamicPropertyAccessor?: any;
   emails?: string[] | null;
   firstName?: string | null;
   fullName?: string | null;
@@ -3759,7 +3919,7 @@ export interface VirtoCommerceCustomerModuleCoreModelEmployee {
   dynamicProperties?:
     | VirtoCommercePlatformCoreDynamicPropertiesDynamicObjectProperty[]
     | null;
-  dynamicPropertyAccessor?: any | null;
+  dynamicPropertyAccessor?: any;
   emails?: string[] | null;
   employeeType?: string | null;
   firstName?: string | null;
@@ -3836,7 +3996,7 @@ export interface VirtoCommerceCustomerModuleCoreModelMember {
   dynamicProperties?:
     | VirtoCommercePlatformCoreDynamicPropertiesDynamicObjectProperty[]
     | null;
-  dynamicPropertyAccessor?: any | null;
+  dynamicPropertyAccessor?: any;
   emails?: string[] | null;
   groups?: string[] | null;
   iconUrl?: string | null;
@@ -3897,7 +4057,7 @@ export interface VirtoCommerceCustomerModuleCoreModelOrganization {
   dynamicProperties?:
     | VirtoCommercePlatformCoreDynamicPropertiesDynamicObjectProperty[]
     | null;
-  dynamicPropertyAccessor?: any | null;
+  dynamicPropertyAccessor?: any;
   emails?: string[] | null;
   groups?: string[] | null;
   iconUrl?: string | null;
@@ -4062,7 +4222,7 @@ export interface VirtoCommerceCustomerModuleCoreModelVendor {
   dynamicProperties?:
     | VirtoCommercePlatformCoreDynamicPropertiesDynamicObjectProperty[]
     | null;
-  dynamicPropertyAccessor?: any | null;
+  dynamicPropertyAccessor?: any;
   emails?: string[] | null;
   groupName?: string | null;
   groups?: string[] | null;
@@ -6586,10 +6746,14 @@ export interface VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPage 
   modifiedBy?: string | null;
   /** @format date-time */
   modifiedDate?: string | null;
+  multilanguagePageId?: string | null;
   name?: string | null;
   organizationId?: string | null;
+  overriddenFields?: string | null;
   pages?: VirtoCommercePageBuilderModuleCoreModelsPageBuilderPage[] | null;
   permalink?: string | null;
+  /** @format date-time */
+  sourceRevisionDate?: string | null;
   /** @format date-time */
   startDate?: string | null;
   readonly status?: string | null;
@@ -6602,6 +6766,80 @@ export interface VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPageS
   results?:
     | VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPage[]
     | null;
+  /** @format int32 */
+  totalCount?: number;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsMultilanguagePage {
+  /**
+   * @minLength 0
+   * @maxLength 64
+   */
+  createdBy?: string | null;
+  /** @format date-time */
+  createdDate?: string;
+  defaultCultureName?: string | null;
+  /** @format date-time */
+  endDate?: string | null;
+  id?: string | null;
+  /**
+   * @minLength 0
+   * @maxLength 64
+   */
+  modifiedBy?: string | null;
+  /** @format date-time */
+  modifiedDate?: string | null;
+  name?: string | null;
+  organizationId?: string | null;
+  permalink?: string | null;
+  /** @format date-time */
+  startDate?: string | null;
+  storeId?: string | null;
+  userGroups?: string | null;
+  visibility?: boolean;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsMultilanguagePageBatchResult {
+  processedCultureNames?: string[] | null;
+  skipped?:
+    | VirtoCommercePageBuilderModuleCoreModelsMultilanguagePageBatchSkip[]
+    | null;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsMultilanguagePageBatchSkip {
+  cultureName?: string | null;
+  reason?: string | null;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsMultilanguagePageLanguage {
+  cultureName?: string | null;
+  hasChanges?: boolean;
+  isDefault?: boolean;
+  isOutdated?: boolean;
+  isStoreLanguage?: boolean;
+  page?: VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPage | null;
+  status?: string | null;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsMultilanguagePageSearchCriteria {
+  keyword?: string | null;
+  languageCode?: string | null;
+  objectIds?: string[] | null;
+  objectType?: string | null;
+  objectTypes?: string[] | null;
+  responseGroup?: string | null;
+  searchPhrase?: string | null;
+  /** @format int32 */
+  skip?: number;
+  sort?: string | null;
+  readonly sortInfos?: VirtoCommercePlatformCoreCommonSortInfo[] | null;
+  storeId?: string | null;
+  /** @format int32 */
+  take?: number;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsMultilanguagePageSearchResult {
+  results?: VirtoCommercePageBuilderModuleCoreModelsMultilanguagePage[] | null;
   /** @format int32 */
   totalCount?: number;
 }
@@ -6665,6 +6903,36 @@ export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderAssetReferen
   totalCount?: number;
 }
 
+export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderAssetSearchCriteria {
+  acceptedTypes?: string[] | null;
+  exactName?: string | null;
+  folderUrl?: string | null;
+  keyword?: string | null;
+  languageCode?: string | null;
+  objectIds?: string[] | null;
+  objectType?: string | null;
+  objectTypes?: string[] | null;
+  preferredAssetUrl?: string | null;
+  responseGroup?: string | null;
+  searchPhrase?: string | null;
+  /** @format int32 */
+  skip?: number;
+  sort?: string | null;
+  readonly sortInfos?: VirtoCommercePlatformCoreCommonSortInfo[] | null;
+  /** @format int32 */
+  take?: number;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderAssetSearchResult {
+  /** @format int32 */
+  fileCount?: number;
+  results?: VirtoCommerceAssetsModuleCoreAssetsBlobEntry[] | null;
+  /** @format int32 */
+  skip?: number;
+  /** @format int32 */
+  totalCount?: number;
+}
+
 export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderPage {
   content?: string | null;
   /**
@@ -6687,6 +6955,30 @@ export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderPage {
   storeId?: string | null;
 }
 
+export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageListItem {
+  /** @format date-time */
+  createdDate?: string;
+  id?: string | null;
+  languages?:
+    | VirtoCommercePageBuilderModuleCoreModelsMultilanguagePageLanguage[]
+    | null;
+  /** @format date-time */
+  modifiedDate?: string | null;
+  multilanguagePage?: VirtoCommercePageBuilderModuleCoreModelsMultilanguagePage | null;
+  name?: string | null;
+  page?: VirtoCommercePageBuilderModuleCoreModelsGroupedPageBuilderPage | null;
+  permalink?: string | null;
+  type?: string | null;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageListSearchResult {
+  results?:
+    | VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageListItem[]
+    | null;
+  /** @format int32 */
+  totalCount?: number;
+}
+
 export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageSearchCriteria {
   /** @format date-time */
   activeOn?: string | null;
@@ -6697,9 +6989,11 @@ export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageSearchCr
   modifiedBefore?: string | null;
   /** @format date-time */
   modifiedSince?: string | null;
+  multilanguagePageId?: string | null;
   objectIds?: string[] | null;
   objectType?: string | null;
   objectTypes?: string[] | null;
+  pageType?: string | null;
   responseGroup?: string | null;
   searchPhrase?: string | null;
   /** @format int32 */
@@ -6710,6 +7004,7 @@ export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderPageSearchCr
   storeId?: string | null;
   /** @format int32 */
   take?: number;
+  translationStatus?: string | null;
 }
 
 export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderSharedComponent {
@@ -6770,6 +7065,26 @@ export interface VirtoCommercePageBuilderModuleCoreModelsPageBuilderSharedCompon
   status?: string | null;
 }
 
+export interface VirtoCommercePageBuilderModuleCoreModelsPageCopyName {
+  name?: string | null;
+  permalink?: string | null;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsPermalinkUsage {
+  cultureName?: string | null;
+  groupId?: string | null;
+  multilanguagePageId?: string | null;
+  name?: string | null;
+}
+
+export interface VirtoCommercePageBuilderModuleCoreModelsPermalinkUsageRequest {
+  cultureNames?: string[] | null;
+  excludeGroupIds?: string[] | null;
+  excludeMultilanguagePageId?: string | null;
+  permalink?: string | null;
+  storeId?: string | null;
+}
+
 export interface VirtoCommercePageBuilderModuleCoreModelsUpdatePageContentRequest {
   content?: string | null;
   eTag?: string | null;
@@ -6785,7 +7100,7 @@ export interface VirtoCommercePageBuilderModuleWebModelsLegacyDraftsDeleteReques
 }
 
 export interface VirtoCommercePageBuilderModuleWebModelsPageBuilderSharedComponentCreateModel {
-  content?: any | null;
+  content?: any;
   name?: string | null;
   storeId?: string | null;
 }
@@ -6818,6 +7133,7 @@ export interface VirtoCommercePagesCoreModelsPageDocument {
   status?: VirtoCommercePagesCoreModelsPageDocumentStatus;
   storeId?: string | null;
   title?: string | null;
+  translationGroupId?: string | null;
   userGroups?: string[] | null;
   visibility?: VirtoCommercePagesCoreModelsPageDocumentVisibility;
 }
@@ -6842,6 +7158,7 @@ export interface VirtoCommercePagesCoreModelsPageDocumentSearchCriteria {
   storeId?: string | null;
   /** @format int32 */
   take?: number;
+  translationGroupIds?: string[] | null;
   userGroups?: string[] | null;
   visibility?: VirtoCommercePagesCoreModelsPageDocumentVisibility;
 }
@@ -7577,6 +7894,7 @@ export interface VirtoCommercePlatformCoreSecuritySignInLogUserSignInLog {
 }
 
 export interface VirtoCommercePlatformCoreSecuritySignInLogUserSignInLogSearchCriteria {
+  awaitingSecondFactor?: boolean | null;
   /** @format date-time */
   endDate?: string | null;
   failureReasons?: string[] | null;
@@ -7663,6 +7981,33 @@ export interface VirtoCommercePlatformCoreSecuritySignInLogUserSignInLogTimeline
   succeededCount?: number;
   /** @format date-time */
   timestamp?: string;
+}
+
+export interface VirtoCommercePlatformCoreSecuritySignInMethodsSignInKey {
+  /** @format date-time */
+  createdDate?: string | null;
+  id?: string | null;
+  /** @format date-time */
+  modifiedDate?: string | null;
+  name?: string | null;
+  state?: string | null;
+}
+
+export interface VirtoCommercePlatformCoreSecuritySignInMethodsSignInKeyRenameRequest {
+  name?: string | null;
+}
+
+export interface VirtoCommercePlatformCoreSecuritySignInMethodsSignInMethod {
+  canCreateKey?: boolean;
+  canDeleteKey?: boolean;
+  canRenameKey?: boolean;
+  displayName?: string | null;
+  keys?: VirtoCommercePlatformCoreSecuritySignInMethodsSignInKey[] | null;
+  kind?: string | null;
+  logoUrl?: string | null;
+  name?: string | null;
+  /** @format int32 */
+  priority?: number;
 }
 
 export interface VirtoCommercePlatformCoreSecurityUserApiKey {
@@ -7808,6 +8153,34 @@ export type VirtoCommercePlatformCoreSettingsSettingValueType =
   | "Json"
   | "PositiveInteger"
   | "Cron";
+
+export interface VirtoCommercePlatformSecurityOpenIddictTokenResponse {
+  accessToken?: string | null;
+  code?: string | null;
+  /** @format int32 */
+  readonly count?: number;
+  deviceCode?: string | null;
+  error?: string | null;
+  errorDescription?: string | null;
+  errorUri?: string | null;
+  readonly errors?: MicrosoftAspNetCoreIdentityIdentityError[] | null;
+  /** @format int64 */
+  expiresIn?: number | null;
+  idToken?: string | null;
+  iss?: string | null;
+  issuedTokenType?: string | null;
+  /** @format int32 */
+  lockoutSecondsRemaining?: number | null;
+  refreshToken?: string | null;
+  requestUri?: string | null;
+  scope?: string | null;
+  state?: string | null;
+  tokenType?: string | null;
+  userCode?: string | null;
+  userId?: string | null;
+  verificationUri?: string | null;
+  verificationUriComplete?: string | null;
+}
 
 export interface VirtoCommercePlatformWebLicensingLicense {
   customerEmail?: string | null;
@@ -7991,14 +8364,6 @@ export interface VirtoCommercePlatformWebModelSecurityLoginRequest {
   userName?: string | null;
 }
 
-export interface VirtoCommercePlatformWebModelSecurityLoginType {
-  authenticationType?: string | null;
-  enabled?: boolean;
-  hasLoginForm?: boolean;
-  /** @format int32 */
-  priority?: number;
-}
-
 export interface VirtoCommercePlatformWebModelSecurityOAuthAppSearchCriteria {
   keyword?: string | null;
   languageCode?: string | null;
@@ -8038,7 +8403,9 @@ export interface VirtoCommercePlatformWebModelSecurityUserDetail {
   daysTillPasswordExpiry?: number;
   id?: string | null;
   isAdministrator?: boolean;
-  isSsoAuthenticationMethod?: boolean;
+  isPasswordSignIn?: boolean;
+  /** @deprecated */
+  readonly isSsoAuthenticationMethod?: boolean;
   memberId?: string | null;
   passwordExpired?: boolean;
   permissions?: string[] | null;

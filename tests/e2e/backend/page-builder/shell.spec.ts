@@ -2,7 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
-import { Column, Route } from "@pages/backend/page-builder/page-builder";
+import { Column, Route } from "@pages/backend/page-builder/routes";
 
 const ADMINISTRATOR_ROLE = "Administrator";
 
@@ -27,7 +27,6 @@ test.describe("page builder shell (platform admin)", () => {
       for (const column of Object.values(Column)) {
         await expect(pageBuilder.listBlade.grid.columnHeader(column)).toBeVisible();
       }
-      await expect(pageBuilder.listBlade.languageColumnHeader).toBeVisible();
       await expect(pageBuilder.listBlade.grid.rows.first()).toBeVisible();
     });
 

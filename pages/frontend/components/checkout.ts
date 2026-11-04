@@ -14,14 +14,14 @@ export class ShippingDetailsSection {
 
   constructor(root: Locator) {
     this.root = root;
-    this.pickupSwitcher = root.locator("[data-test-id='pickup-switcher']");
-    this.shippingSwitcher = root.locator("[data-test-id='shipping-switcher']");
-    this.shippingAddressSection = root.locator("[data-test-id='shipping-address-section']");
-    this.shippingAddressButton = this.shippingAddressSection.locator("[data-test-id='select-address-button']");
-    this.shippingAddressLabel = this.shippingAddressSection.locator("[data-test-id='selected-address-label']");
-    this.pickupLocationSection = root.locator("[data-test-id='pickup-location-section']");
-    this.pickupLocationButton = this.pickupLocationSection.locator("[data-test-id='select-address-button']");
-    this.shippingMethodSelector = root.locator("[data-test-id='shipping-method-selector']");
+    this.pickupSwitcher = root.getByTestId("pickup-switcher");
+    this.shippingSwitcher = root.getByTestId("shipping-switcher");
+    this.shippingAddressSection = root.getByTestId("shipping-address-section");
+    this.shippingAddressButton = this.shippingAddressSection.getByTestId("select-address-button");
+    this.shippingAddressLabel = this.shippingAddressSection.getByTestId("selected-address-label");
+    this.pickupLocationSection = root.getByTestId("pickup-location-section");
+    this.pickupLocationButton = this.pickupLocationSection.getByTestId("select-address-button");
+    this.shippingMethodSelector = root.getByTestId("shipping-method-selector");
   }
 
   /**
@@ -52,10 +52,10 @@ export class PaymentDetailsSection {
 
   constructor(root: Locator) {
     this.root = root;
-    this.billingEqualsShippingCheckbox = root.locator("[data-test-id='billing-address-equals-shipping-checkbox']");
-    this.selectAddressButton = root.locator("[data-test-id='select-address-button']");
-    this.selectedAddressLabel = root.locator("[data-test-id='selected-address-label']");
-    this.paymentMethodSelector = root.locator("[data-test-id='payment-method-selector']");
+    this.billingEqualsShippingCheckbox = root.getByTestId("billing-address-equals-shipping-checkbox");
+    this.selectAddressButton = root.getByTestId("select-address-button");
+    this.selectedAddressLabel = root.getByTestId("selected-address-label");
+    this.paymentMethodSelector = root.getByTestId("payment-method-selector");
   }
 
   /** Unticks "same as shipping" and waits until it is unchecked, so a billing address can be selected. */

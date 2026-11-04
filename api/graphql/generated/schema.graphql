@@ -3676,6 +3676,11 @@ input InputDeleteMemberAddressType {
   memberId: String!
 }
 
+input InputDeleteSignInKeyType {
+  keyId: String!
+  signInMethodName: String!
+}
+
 input InputDeleteUserType {
   userNames: [String]!
 }
@@ -4467,6 +4472,12 @@ input InputRemoveWishlistType {
   List ID
   """
   listId: String!
+}
+
+input InputRenameSignInKeyType {
+  keyId: String!
+  name: String
+  signInMethodName: String!
 }
 
 input InputRequestRegistrationType {
@@ -5813,6 +5824,7 @@ type Mutations {
   deleteFile(command: DeleteFileCommandType!): Boolean
   deleteMemberAddresses(command: InputDeleteMemberAddressType!): MemberType
   deleteQuoteAttachments(command: DeleteQuoteAttachmentsCommandType!): QuoteType
+  deleteSignInKey(command: InputDeleteSignInKeyType!): IdentityResultType
   deleteUsers(command: InputDeleteUserType!): IdentityResultType
   initializeCartPayment(command: InputInitializeCartPaymentType!): InitializeCartPaymentResultType
   initializePayment(command: InputInitializePaymentType!): InitializePaymentResultType
@@ -5840,6 +5852,7 @@ type Mutations {
   removeWishlist(command: InputRemoveWishlistType!): Boolean
   removeWishlistItem(command: InputRemoveWishlistItemType!): WishlistType
   removeWishlistItems(command: InputRemoveWishlistItemsType!): WishlistType
+  renameSignInKey(command: InputRenameSignInKeyType!): IdentityResultType
   requestRegistration(command: InputRequestRegistrationType!): RequestRegistrationType
   resendOrganizationInvite(command: InputResendOrganizationInviteType!): CustomIdentityResultType
   resetPasswordByToken(command: InputResetPasswordByTokenType): CustomIdentityResultType
@@ -6604,6 +6617,23 @@ type PageContextResponseType {
   whiteLabelingSettings: WhiteLabelingSettingsType
 }
 
+type PageDocumentAlternateType {
+  """
+  Language of the translation
+  """
+  cultureName: String!
+
+  """
+  Page document id of the translation
+  """
+  id: String!
+
+  """
+  Permalink of the translation
+  """
+  permalink: String!
+}
+
 """
 A connection from an object to a list of objects of type `PageDocument`.
 """
@@ -6645,7 +6675,16 @@ type PageDocumentEdge {
 }
 
 type PageDocumentType {
+  """
+  Published versions of the page in the store languages, one per language. Each page runs its own search: do not select it in page lists
+  """
+  alternates: [PageDocumentAlternateType!]!
   content: String!
+
+  """
+  Page language
+  """
+  cultureName: String
   id: String!
 
   """
@@ -9208,6 +9247,7 @@ type Query {
     sharingKey: String!
   ): WishlistType
   shipmentStatuses(cultureName: String): LocalizedSettingResponseType
+  signInMethods: [SignInMethodType!]
   slugInfo(cultureName: String, permalink: String, slug: String, storeId: String, userId: String): SlugInfoResponseType
   store(
     cultureName: String
@@ -9802,15 +9842,15 @@ input SendPasswordResetEmailCommandType {
 }
 
 type SeoInfo {
-  id: String!
+  id: String
   imageAltDescription: String
   isActive: Boolean!
   languageCode: String
   metaDescription: String
   metaKeywords: String
   name: String
-  objectId: String!
-  objectType: String!
+  objectId: String
+  objectType: String
   outline: String
   pageTitle: String
   semanticUrl: String!
@@ -10097,6 +10137,24 @@ type ShippingMethodType {
   Total with tax
   """
   totalWithTax: MoneyType!
+}
+
+type SignInKeyType {
+  createdDate: DateTime
+  id: String!
+  modifiedDate: DateTime
+  name: String
+  state: String
+}
+
+type SignInMethodType {
+  canCreateKey: Boolean!
+  canDeleteKey: Boolean!
+  canRenameKey: Boolean!
+  displayName: String
+  keys: [SignInKeyType!]
+  kind: String!
+  name: String!
 }
 
 type SlugInfoResponseType {

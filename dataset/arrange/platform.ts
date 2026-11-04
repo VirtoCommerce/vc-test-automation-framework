@@ -32,8 +32,11 @@ export class PlatformArrange {
   async store(): Promise<Store> {
     const { stores } = this.#admin.rest;
     const draft = newStore(this.#store.catalog);
-    this.#cleanup.push(`delete store ${draft.id}`, () => stores.delete([draft.id]));
-    return stores.create(draft);
+    return this.#cleanup.track(
+      `delete store ${draft.id}`,
+      () => stores.delete([draft.id]),
+      () => stores.create(draft),
+    );
   }
 
   /**
@@ -62,11 +65,14 @@ export class PlatformArrange {
         ...store,
         settings: settings.map((setting) => (setting.name === name ? { ...setting, value: settingValue } : setting)),
       });
-    this.#cleanup.push(`restore store setting ${name}`, async () => {
-      await withValue(original.value ?? original.defaultValue);
-      await restored();
-    });
-    await withValue(value);
+    await this.#cleanup.track(
+      `restore store setting ${name}`,
+      async () => {
+        await withValue(original.value ?? original.defaultValue);
+        await restored();
+      },
+      () => withValue(value),
+    );
   }
 
   /**
@@ -133,8 +139,11 @@ export class PlatformArrange {
    * @param keyed - Entry and key from a builder such as `newCurrency()`.
    */
   async dictionaryEntry(dictionary: Dictionary, keyed: DictionaryEntry): Promise<DictionaryEntry> {
-    this.#cleanup.push(`delete dictionary entry ${keyed.key}`, () => dictionary.delete([keyed.key]));
-    await dictionary.create(keyed.entry);
+    await this.#cleanup.track(
+      `delete dictionary entry ${keyed.key}`,
+      () => dictionary.delete([keyed.key]),
+      () => dictionary.create(keyed.entry),
+    );
     return keyed;
   }
 
@@ -156,8 +165,11 @@ export class PlatformArrange {
       valueType: "ShortText",
       ...overrides,
     };
-    this.#cleanup.push(`delete dynamic property ${draft.name}`, () => dynamicProperties.delete([draft.id]));
-    return dynamicProperties.create(draft);
+    return this.#cleanup.track(
+      `delete dynamic property ${draft.name}`,
+      () => dynamicProperties.delete([draft.id]),
+      () => dynamicProperties.create(draft),
+    );
   }
 
   /**

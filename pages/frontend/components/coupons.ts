@@ -1,4 +1,6 @@
-import type { Locator, Response } from "@playwright/test";
+import type { Locator } from "@playwright/test";
+
+import { whenGraphql } from "../../responses";
 
 /**
  * Coupon section of the cart page: preset coupon cards of the store's public promotions (signed-in shoppers with
@@ -41,7 +43,7 @@ export class CartCouponSection {
   /** Types a code into the custom-code card and applies it; waits for the `addCoupon` response. */
   async applyCode(code: string): Promise<void> {
     await this.customCodeInput.fill(code);
-    await this.#withResponse("addCoupon", () => this.applyButton.click());
+    await whenGraphql(this.root.page(), "AddCoupon", () => this.applyButton.click());
   }
 
   /** Types a code and clicks apply without waiting: for codes the frontend rejects before adding them to the cart. */
@@ -53,16 +55,12 @@ export class CartCouponSection {
   /** Clicks the preset card of `code`; waits for the `addCoupon` response. */
   async applyPreset(code: string): Promise<void> {
     const button = this.root.getByRole("button", { name: new RegExp(`Apply coupon\\s+${code}\\b`, "i") }).first();
-    await this.#withResponse("addCoupon", () => button.click());
+    await whenGraphql(this.root.page(), "AddCoupon", () => button.click());
   }
 
   /** Removes the applied coupon; waits for the `removeCoupon` response. */
   async remove(): Promise<void> {
-    await this.#withResponse("removeCoupon", () => this.removeButton.click());
-  }
-
-  async #withResponse(mutation: string, action: () => Promise<void>): Promise<void> {
-    await Promise.all([this.root.page().waitForResponse((response) => isMutation(response, mutation)), action()]);
+    await whenGraphql(this.root.page(), "RemoveCoupon", () => this.removeButton.click());
   }
 }
 
@@ -78,8 +76,4 @@ export class CouponCard {
     this.codeButton = root.locator(".coupon-item__code-button");
     this.code = root.locator(".coupon-item__code-value");
   }
-}
-
-function isMutation(response: Response, field: string): boolean {
-  return response.url().includes("/graphql") && (response.request().postData() ?? "").includes(field);
 }

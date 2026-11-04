@@ -4,8 +4,8 @@ import { uniqueId } from "@core/unique-id";
 import { TEST_PAGE_PREFIX } from "@dataset/builders/page-builder";
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
-import { Column, DetailsToolbar, Route } from "@pages/backend/page-builder/page-builder";
-import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/controls";
+import { Column, DetailsToolbar, PageType, Route } from "@pages/backend/page-builder/routes";
+import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade";
 
 const DESIGNER_APP = "page-builder-designer";
 
@@ -37,7 +37,8 @@ test.describe("page management (platform admin)", () => {
     await test.step("assert: the draft list shows the page with its values", async () => {
       expect(await pageBuilder.isListed(Route.draft, name)).toBe(true);
       await expect(row.cell(Column.permalink)).toHaveText(`/${name}`);
-      expect(await pageBuilder.listBlade.pageLanguages(name)).toEqual([store.defaultLanguage]);
+      await expect(row.cell(Column.type)).toHaveText(PageType.landing);
+      await expect(row.cell(Column.languages)).toHaveText(store.defaultLanguage);
       await expect(row.cell(Column.status)).toHaveText("Draft");
     });
     await test.step("assert: the draft counter matches the draft list", async () => {

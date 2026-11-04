@@ -1,3 +1,4 @@
+import type { RecordShape } from "@core/record-shape";
 import type { HttpClient } from "../../http/http-client";
 import type {
   ContactData,
@@ -12,9 +13,10 @@ import type {
   VendorSearchResult,
 } from "../types/customers";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { shape } from "@core/record-shape";
+import { requireFields, requireFieldsOfEach } from "@core/required-fields";
 
-import { MEMBER_FIELDS } from "../types/customers";
+import { MEMBER } from "../types/customers";
 
 const MEMBERS_PATH = "/api/members";
 const CONTACTS_PATH = "/api/contacts";
@@ -27,30 +29,32 @@ export class MemberResource<Data extends MemberBaseData> {
   readonly #httpClient: HttpClient;
   readonly #path: string;
   readonly #label: string;
+  readonly #shape: RecordShape<Data, (typeof MEMBER.fields)[number]>;
 
   constructor(httpClient: HttpClient, path: string, label: string) {
     this.#httpClient = httpClient;
     this.#path = path;
     this.#label = label;
+    this.#shape = shape<Data>()(label, MEMBER.fields);
   }
 
   async get(id: string): Promise<Member<Data>> {
-    return requireFields(await this.find(id), MEMBER_FIELDS, `${this.#label} "${id}"`);
+    return requireFields(await this.find(id), MEMBER.fields, `${this.#label} "${id}"`);
   }
 
   async find(id: string): Promise<Member<Data> | undefined> {
     const response = await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`);
-    return optionalFields(response.optionalJson<Data>(), MEMBER_FIELDS, `${this.#label} "${id}"`);
+    return response.optionalRecord(this.#shape);
   }
 
   async getMany(ids: readonly string[]): Promise<Member<Data>[]> {
     const response = await this.#httpClient.get(this.#path, { query: { ids } });
-    return requireFieldsOfEach(response.json<Data[]>(), MEMBER_FIELDS, this.#label);
+    return response.records(this.#shape);
   }
 
   async create(member: Data): Promise<Member<Data>> {
     const response = await this.#httpClient.post(this.#path, { json: member });
-    return requireFields(response.json<Data>(), MEMBER_FIELDS, `Created ${this.#label}`);
+    return response.record(this.#shape);
   }
 
   async createMany(members: readonly Data[]): Promise<void> {
@@ -67,8 +71,7 @@ export class MemberResource<Data extends MemberBaseData> {
 
   async search(criteria: MembersSearchCriteria): Promise<Member<Data>[]> {
     const response = await this.#httpClient.post(`${this.#path}/search`, { json: criteria });
-    const { results } = response.json<{ results?: Data[] | null }>();
-    return requireFieldsOfEach(results, MEMBER_FIELDS, `Found ${this.#label}`);
+    return response.results(this.#shape);
   }
 
   async delete(ids: readonly string[]): Promise<void> {
@@ -85,7 +88,7 @@ class EmployeesResource {
 
   async getMany(ids: readonly string[]): Promise<Member<EmployeeData>[]> {
     const response = await this.#httpClient.get(EMPLOYEES_PATH, { query: { ids } });
-    return requireFieldsOfEach(response.json<EmployeeData[]>(), MEMBER_FIELDS, "Employee");
+    return requireFieldsOfEach(response.json<EmployeeData[]>(), MEMBER.fields, "Employee");
   }
 }
 
@@ -99,7 +102,7 @@ class VendorsResource {
   async search(criteria: MembersSearchCriteria): Promise<Member<VendorData>[]> {
     const response = await this.#httpClient.post(`${VENDORS_PATH}/search`, { json: criteria });
     const { results } = response.json<VendorSearchResult>();
-    return requireFieldsOfEach(results, MEMBER_FIELDS, "Found vendor");
+    return requireFieldsOfEach(results, MEMBER.fields, "Found vendor");
   }
 }
 
@@ -122,12 +125,12 @@ export class CustomersClient {
 
   async listOrganizationsOf(memberId: string): Promise<Member<OrganizationData>[]> {
     const response = await this.#httpClient.get(`${MEMBERS_PATH}/${encodeURIComponent(memberId)}/organizations`);
-    return requireFieldsOfEach(response.json<OrganizationData[]>(), MEMBER_FIELDS, `Organization of "${memberId}"`);
+    return requireFieldsOfEach(response.json<OrganizationData[]>(), MEMBER.fields, `Organization of "${memberId}"`);
   }
 
   async listOrganizations(): Promise<Member<OrganizationData>[]> {
     const response = await this.#httpClient.get(`${MEMBERS_PATH}/organizations`);
-    return requireFieldsOfEach(response.json<OrganizationData[]>(), MEMBER_FIELDS, "Organization");
+    return requireFieldsOfEach(response.json<OrganizationData[]>(), MEMBER.fields, "Organization");
   }
 
   /**

@@ -1,6 +1,6 @@
 ---
 name: create-rest-client
-description: "Add platform REST client methods, resources, clients and named types — paths checked against swagger, json/optionalJson/expectOk, requireFields/optionalFields/requireFieldsOfEach over generated models, wired into RestApi as api.rest.<module>"
+description: "Add platform REST client methods, resources, clients and named types — paths checked against swagger, record shapes over generated models with record/optionalRecord/records/results, wired into RestApi as api.rest.<module>"
 argument-hint: "<platform-module> <endpoint-or-method>"
 ---
 
@@ -30,17 +30,15 @@ of the same shape.
 ## Step 2: Named Types
 
 ```ts
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommercePricingModuleCoreModelPricelist as PricelistData,
-  VirtoCommercePricingModuleCoreModelSearchPricelistSearchResult as PricelistSearchResult,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { PricelistData, PricelistSearchResult };
+import { shape } from "@core/record-shape";
 
-export const PRICELIST_FIELDS = ["id", "name", "currency"] as const;
+export type PricelistData = Rest.VirtoCommercePricingModuleCoreModelPricelist;
 
-export type Pricelist = WithRequired<PricelistData, (typeof PRICELIST_FIELDS)[number]>;
+export const PRICELIST = shape<PricelistData>()("Pricelist", ["id", "name", "currency"]);
+export type Pricelist = Shaped<typeof PRICELIST>;
 
 export type PricelistQuery = {
   readonly keyword?: string;
@@ -49,8 +47,11 @@ export type PricelistQuery = {
 };
 ```
 
-- Re-export generated models under short names: `XData`, `XSearchCriteria`, `XSearchResult`.
-- `X_FIELDS` lists the fields tests rely on; `X` makes them required and read-only.
+- Name generated models with one line each: `export type XData = Rest.<GeneratedName>;` (`XSearchCriteria`, …).
+- The shape `X` names the model for errors and lists the fields tests rely on; the type `X` makes them required
+  and read-only. One shape per data type; a field list shared by two types becomes two shapes.
+- A resource generic over its data type builds its own shape in the constructor:
+  `shape<Data>()(label, MEMBER.fields)` (see `MemberResource`).
 - Query types for GET searches are hand-written, all fields `readonly` and optional.
 - Export only what clients, builders or specs use.
 
@@ -67,17 +68,15 @@ class PricelistsResource {
   }
 
   async get(id: string): Promise<Pricelist> {
-    return requireFields(await this.find(id), PRICELIST_FIELDS, `Pricelist "${id}"`);
+    return requireFields(await this.find(id), PRICELIST.fields, `Pricelist "${id}"`);
   }
 
   async find(id: string): Promise<Pricelist | undefined> {
-    const response = await this.#httpClient.get(`${PRICELISTS_PATH}/${encodeURIComponent(id)}`);
-    return optionalFields(response.optionalJson<PricelistData>(), PRICELIST_FIELDS, `Pricelist "${id}"`);
+    return (await this.#httpClient.get(`${PRICELISTS_PATH}/${encodeURIComponent(id)}`)).optionalRecord(PRICELIST);
   }
 
   async create(pricelist: PricelistData): Promise<Pricelist> {
-    const response = await this.#httpClient.post(PRICELISTS_PATH, { json: pricelist });
-    return requireFields(response.json<PricelistData>(), PRICELIST_FIELDS, "Created pricelist");
+    return (await this.#httpClient.post(PRICELISTS_PATH, { json: pricelist })).record(PRICELIST);
   }
 
   async update(pricelist: PricelistData): Promise<void> {
@@ -85,8 +84,7 @@ class PricelistsResource {
   }
 
   async search(query: PricelistQuery): Promise<Pricelist[]> {
-    const { results } = (await this.#httpClient.get(PRICELISTS_PATH, { query })).json<PricelistSearchResult>();
-    return requireFieldsOfEach(results, PRICELIST_FIELDS, "Found pricelist");
+    return (await this.#httpClient.get(PRICELISTS_PATH, { query })).results(PRICELIST);
   }
 
   async delete(ids: readonly string[]): Promise<void> {
@@ -108,9 +106,13 @@ export class PricingClient {
   `HttpError` with method, URL, status and the start of the body.
 - `optionalJson<T>()` for "not found": an empty or `null` body gives `undefined`. Pass `{ allow404: true }` only
   for endpoints that answer a missing record with 404.
-- `json<T>()` is an unchecked type; `requireFields`, `optionalFields`, `requireFieldsOfEach` check the fields the
-  named type requires. A list the platform sends as `null` for "none": `requireFieldsOfEach(list ?? [], …)` with
-  a short JSDoc saying so.
+- Check responses against the shape: `record(X)` for one record, `optionalRecord(X)` for a lookup (`undefined`
+  when nothing is found; `{ allow404: true }` as for `optionalJson`), `records(X)` for a JSON array, `results(X)`
+  for a search result's `results`. Errors name the shape and the request, such as
+  `Pricelist from POST /api/pricing/pricelists has no id`.
+- For a value computed first (an item picked from a list, a nested field), use
+  `requireFields(value, X.fields, label)` with a label that says where it came from. A list the platform sends
+  as `null` for "none": `requireFieldsOfEach(list ?? [], X.fields, …)` with a short JSDoc saying so.
 - `parse(schema)` with a zod schema when the whole shape must be validated (see `HealthClient`).
 - Path segments go through `encodeURIComponent`; query parameters through `query` (arrays repeat the key).
 
@@ -137,8 +139,8 @@ Setup that several specs share goes into `dataset/arrange/<domain>.ts` on top of
 
 1. Paths and methods verified against Swagger; path constants at the top of the file.
 2. State in `readonly #httpClient`; methods `async` with explicit return types.
-3. Results checked with `requireFields` / `optionalFields` / `requireFieldsOfEach`; no `?? []` that hides a
-   missing response.
+3. Results checked against a shape (`record`, `optionalRecord`, `records`, `results`, or `requireFields` with
+   `X.fields`); no `?? []` that hides a missing response.
 4. Named types in `api/rest/types/`; never edit `api/rest/generated/`.
 5. No test logic, assertions or cleanup in clients.
 6. JSDoc only for what the signature cannot say (side effects, guards, which method to use when); no comments.

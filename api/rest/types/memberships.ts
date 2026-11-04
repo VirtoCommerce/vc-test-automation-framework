@@ -1,14 +1,14 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceCustomerModuleCoreModelLockMembershipRequest as LockMembershipRequest,
-  VirtoCommerceCustomerModuleCoreModelOrganizationMembership as OrganizationMembershipData,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { LockMembershipRequest, OrganizationMembershipData };
+import { shape } from "@core/record-shape";
 
-export const ORGANIZATION_MEMBERSHIP_FIELDS = ["id", "userId", "organizationId"] as const;
+export type LockMembershipRequest = Rest.VirtoCommerceCustomerModuleCoreModelLockMembershipRequest;
+export type OrganizationMembershipData = Rest.VirtoCommerceCustomerModuleCoreModelOrganizationMembership;
 
-export type OrganizationMembership = WithRequired<
-  OrganizationMembershipData,
-  (typeof ORGANIZATION_MEMBERSHIP_FIELDS)[number]
->;
+export const ORGANIZATION_MEMBERSHIP = shape<OrganizationMembershipData>()("Organization membership", [
+  "id",
+  "userId",
+  "organizationId",
+]);
+export type OrganizationMembership = Shaped<typeof ORGANIZATION_MEMBERSHIP>;

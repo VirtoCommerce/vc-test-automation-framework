@@ -3,20 +3,15 @@ import type {
   CompletenessChannel,
   CompletenessChannelData,
   CompletenessChannelSearchCriteria,
-  CompletenessChannelSearchResult,
   CompletenessEntry,
   CompletenessEntryData,
   EvaluateCompletenessNotification,
   EvaluateCompletenessNotificationData,
 } from "../types/completeness";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { optionalFields, requireFields } from "@core/required-fields";
 
-import {
-  COMPLETENESS_CHANNEL_FIELDS,
-  COMPLETENESS_ENTRY_FIELDS,
-  EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS,
-} from "../types/completeness";
+import { COMPLETENESS_CHANNEL, COMPLETENESS_ENTRY, EVALUATE_COMPLETENESS_NOTIFICATION } from "../types/completeness";
 import { findPushNotification } from "./push-notifications";
 
 const COMPLETENESS_PATH = "/api/completeness";
@@ -30,19 +25,19 @@ class ChannelsResource {
   }
 
   async get(id: string): Promise<CompletenessChannel> {
-    return requireFields(await this.find(id), COMPLETENESS_CHANNEL_FIELDS, `Channel "${id}"`);
+    return requireFields(await this.find(id), COMPLETENESS_CHANNEL.fields, `Channel "${id}"`);
   }
 
   /** Finds a channel; `undefined` when missing (the platform answers 404, not 200 with `null`). */
   async find(id: string): Promise<CompletenessChannel | undefined> {
     const response = await this.#httpClient.get(`${CHANNELS_PATH}/${encodeURIComponent(id)}`);
     const channel = response.optionalJson<CompletenessChannelData>({ allow404: true });
-    return optionalFields(channel, COMPLETENESS_CHANNEL_FIELDS, `Channel "${id}"`);
+    return optionalFields(channel, COMPLETENESS_CHANNEL.fields, `Channel "${id}"`);
   }
 
   async create(channel: CompletenessChannelData): Promise<CompletenessChannel> {
     const response = await this.#httpClient.post(CHANNELS_PATH, { json: channel });
-    return requireFields(response.json<CompletenessChannelData>(), COMPLETENESS_CHANNEL_FIELDS, "Created channel");
+    return response.record(COMPLETENESS_CHANNEL);
   }
 
   async update(channel: CompletenessChannelData): Promise<void> {
@@ -51,8 +46,7 @@ class ChannelsResource {
 
   async search(criteria: CompletenessChannelSearchCriteria): Promise<CompletenessChannel[]> {
     const response = await this.#httpClient.post(`${CHANNELS_PATH}/search`, { json: criteria });
-    const { results } = response.json<CompletenessChannelSearchResult>();
-    return requireFieldsOfEach(results, COMPLETENESS_CHANNEL_FIELDS, "Found channel");
+    return response.results(COMPLETENESS_CHANNEL);
   }
 
   async delete(ids: readonly string[]): Promise<void> {
@@ -61,21 +55,13 @@ class ChannelsResource {
 
   async evaluate(id: string): Promise<EvaluateCompletenessNotification> {
     const response = await this.#httpClient.post(`${CHANNELS_PATH}/${encodeURIComponent(id)}/evaluate`);
-    return requireFields(
-      response.json<EvaluateCompletenessNotificationData>(),
-      EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS,
-      `Evaluation of channel "${id}"`,
-    );
+    return response.record(EVALUATE_COMPLETENESS_NOTIFICATION);
   }
 
   async evaluateProducts(channelId: string, productIds: readonly string[]): Promise<CompletenessEntry[]> {
     const path = `${CHANNELS_PATH}/${encodeURIComponent(channelId)}/products/evaluate`;
     const response = await this.#httpClient.post(path, { json: productIds });
-    return requireFieldsOfEach(
-      response.json<CompletenessEntryData[]>(),
-      COMPLETENESS_ENTRY_FIELDS,
-      "Evaluated completeness entry",
-    );
+    return response.records(COMPLETENESS_ENTRY);
   }
 }
 
@@ -113,7 +99,7 @@ export class CompletenessClient {
     );
     return optionalFields(
       evaluation,
-      EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS,
+      EVALUATE_COMPLETENESS_NOTIFICATION.fields,
       `Completeness evaluation "${notificationId}"`,
     );
   }

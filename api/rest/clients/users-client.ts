@@ -7,15 +7,14 @@ import type {
   UserApiKey,
   UserApiKeyData,
   UserDetail,
-  UserDetailData,
   UserSearchCriteria,
   UserSearchResult,
 } from "../types/security";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { requireFields, requireFieldsOfEach } from "@core/required-fields";
 import { Secret } from "@core/secret";
 
-import { APPLICATION_USER_FIELDS, USER_API_KEY_FIELDS, USER_DETAIL_FIELDS } from "../types/security";
+import { APPLICATION_USER, USER_API_KEY, USER_DETAIL } from "../types/security";
 
 const SECURITY_PATH = "/api/platform/security";
 const USERS_PATH = `${SECURITY_PATH}/users`;
@@ -30,7 +29,7 @@ class ApiKeysResource {
 
   async list(userId: string): Promise<UserApiKey[]> {
     const response = await this.#httpClient.get(`${USERS_PATH}/${encodeURIComponent(userId)}/apikeys`);
-    return requireFieldsOfEach(response.json<UserApiKeyData[]>(), USER_API_KEY_FIELDS, `API key of "${userId}"`);
+    return response.records(USER_API_KEY);
   }
 
   async create(apiKey: UserApiKeyData): Promise<void> {
@@ -64,22 +63,22 @@ export class UsersClient {
   }
 
   async get(userName: string): Promise<ApplicationUser> {
-    return requireFields(await this.find(userName), APPLICATION_USER_FIELDS, `User "${userName}"`);
+    return requireFields(await this.find(userName), APPLICATION_USER.fields, `User "${userName}"`);
   }
 
   async find(userName: string): Promise<ApplicationUser | undefined> {
-    return this.#fetch(`${USERS_PATH}/${encodeURIComponent(userName)}`, `User "${userName}"`);
+    return this.#fetch(`${USERS_PATH}/${encodeURIComponent(userName)}`);
   }
 
   async getById(id: string): Promise<ApplicationUser> {
-    const user = await this.#fetch(`${USERS_PATH}/id/${encodeURIComponent(id)}`, `User "${id}"`);
-    return requireFields(user, APPLICATION_USER_FIELDS, `User "${id}"`);
+    const user = await this.#fetch(`${USERS_PATH}/id/${encodeURIComponent(id)}`);
+    return requireFields(user, APPLICATION_USER.fields, `User "${id}"`);
   }
 
   async search(criteria: UserSearchCriteria): Promise<ApplicationUser[]> {
     const response = await this.#httpClient.post(`${USERS_PATH}/search`, { json: criteria });
     const { users } = response.json<UserSearchResult>();
-    return requireFieldsOfEach(users, APPLICATION_USER_FIELDS, "Found user");
+    return requireFieldsOfEach(users, APPLICATION_USER.fields, "Found user");
   }
 
   async update(user: ApplicationUserData): Promise<SecurityResult> {
@@ -132,11 +131,11 @@ export class UsersClient {
 
   async getCurrent(): Promise<UserDetail> {
     const response = await this.#httpClient.get(`${SECURITY_PATH}/currentuser`);
-    return requireFields(response.json<UserDetailData>(), USER_DETAIL_FIELDS, "Current user");
+    return response.record(USER_DETAIL);
   }
 
-  async #fetch(path: string, label: string): Promise<ApplicationUser | undefined> {
+  async #fetch(path: string): Promise<ApplicationUser | undefined> {
     const response = await this.#httpClient.get(path);
-    return optionalFields(response.optionalJson<ApplicationUserData>(), APPLICATION_USER_FIELDS, label);
+    return response.optionalRecord(APPLICATION_USER);
   }
 }

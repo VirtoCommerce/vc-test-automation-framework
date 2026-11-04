@@ -28,7 +28,7 @@ tests/graphql/<area>/*.spec.ts
 tests/e2e/frontend/<area>/*.spec.ts
 tests/e2e/backend/page-builder/*.spec.ts
 tests/isolated/**/*.spec.ts
-TESTS.md                                      what the old suite covered and where it went
+REFINEMENTS.md                                planned refinements and old-suite tests still to port
 ```
 
 And the building blocks:

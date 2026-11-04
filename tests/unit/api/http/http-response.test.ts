@@ -5,6 +5,7 @@ import { array, number, object, string } from "zod";
 
 import { HttpError } from "@api/http/http-error";
 import { HttpResponse } from "@api/http/http-response";
+import { shape } from "@core/record-shape";
 import { MASK, Secret } from "@core/secret";
 
 const URL = "http://localhost/api/catalog/products/laptop";
@@ -157,6 +158,55 @@ test.describe("HttpResponse", () => {
 
     test("throws for a body that is not JSON", () => {
       expect(caught(() => response({ text: "not json" }).optionalJson()).message).toContain("not valid JSON");
+    });
+  });
+
+  test.describe("record shapes", () => {
+    const PRODUCT = shape<{ id?: string | null; name?: string | null; code?: string }>()("Product", ["id", "name"]);
+
+    test("record returns a record with the shape's fields", () => {
+      expect(response({ text: '{"id":"laptop","name":"Laptop"}' }).record(PRODUCT)).toEqual({
+        id: "laptop",
+        name: "Laptop",
+      });
+    });
+
+    test("record names the shape and the request when a field is missing", () => {
+      expect(() => response({ method: "POST", text: '{"id":"laptop"}' }).record(PRODUCT)).toThrow(
+        "Product from POST /api/catalog/products/laptop has no name",
+      );
+    });
+
+    test("record throws for an empty body", () => {
+      expect(() => response({ text: "null" }).record(PRODUCT)).toThrow(
+        "Product from GET /api/catalog/products/laptop is missing",
+      );
+    });
+
+    test("optionalRecord returns undefined for nothing found, and checks a found record", () => {
+      expect(response({ text: "" }).optionalRecord(PRODUCT)).toBeUndefined();
+      expect(
+        response({ status: 404, statusText: "Not Found" }).optionalRecord(PRODUCT, { allow404: true }),
+      ).toBeUndefined();
+      expect(() => response({ text: '{"name":"Laptop"}' }).optionalRecord(PRODUCT)).toThrow("has no id");
+    });
+
+    test("records checks every item of a JSON array, naming a bad one by position", () => {
+      expect(response({ text: '[{"id":"a","name":"A"}]' }).records(PRODUCT)).toEqual([{ id: "a", name: "A" }]);
+      expect(() => response({ text: '[{"id":"a","name":"A"},{"id":"b"}]' }).records(PRODUCT)).toThrow(
+        "Product from GET /api/catalog/products/laptop #2 has no name",
+      );
+    });
+
+    test("results checks the results of a search result", () => {
+      expect(response({ text: '{"totalCount":1,"results":[{"id":"a","name":"A"}]}' }).results(PRODUCT)).toEqual([
+        { id: "a", name: "A" },
+      ]);
+      expect(() => response({ text: '{"totalCount":0}' }).results(PRODUCT)).toThrow("is missing");
+    });
+
+    test("still requires a 2xx status", () => {
+      expect(caught(() => response(FAILED).record(PRODUCT)).status).toBe(500);
     });
   });
 

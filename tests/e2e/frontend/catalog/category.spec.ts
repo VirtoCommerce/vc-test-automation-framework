@@ -3,7 +3,7 @@ import * as allure from "allure-js-commons";
 import { ProductsDocument } from "@api/graphql/generated/graphql";
 import { requireDefined } from "@core/required-fields";
 import { expect, test } from "@fixtures";
-import { ProductPage } from "@pages/frontend/pages/catalog-pages";
+import { ProductPage } from "@pages/frontend/pages/catalog/product-page";
 
 const SMARTPHONES = { id: "category-acme-electronics-smartphones", path: "smartphones" } as const;
 const LAPTOPS = "laptops";

@@ -1,8 +1,11 @@
 import type { output, ZodType } from "zod";
+import type { RecordShape } from "@core/record-shape";
+import type { WithRequired } from "@core/required-fields";
 import type { HttpMethod } from "./http-method";
 
 import { prettifyError } from "zod";
 
+import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
 import { Secret } from "@core/secret";
 
 import { HttpError } from "./http-error";
@@ -98,6 +101,47 @@ export class HttpResponse implements HttpResponseInit {
   }
 
   /**
+   * {@link HttpResponse#json} checked against a shape: the record has the shape's fields. Errors name the shape and
+   * the request, such as `Pricelist from POST /api/pricing/pricelists has no id`.
+   *
+   * @throws HttpError as {@link HttpResponse#json}; Error when the body is empty or lacks a field.
+   */
+  record<Data extends object, Field extends keyof Data>(shape: RecordShape<Data, Field>): WithRequired<Data, Field> {
+    return requireFields(this.json<Data | null>(), shape.fields, this.#labelOf(shape));
+  }
+
+  /**
+   * {@link HttpResponse#optionalJson} checked against a shape, for lookups: `undefined` when nothing is found.
+   *
+   * @throws HttpError as {@link HttpResponse#optionalJson}; Error when a found record lacks a field.
+   */
+  optionalRecord<Data extends object, Field extends keyof Data>(
+    shape: RecordShape<Data, Field>,
+    options: { readonly allow404?: boolean } = {},
+  ): WithRequired<Data, Field> | undefined {
+    return optionalFields(this.optionalJson<Data>(options), shape.fields, this.#labelOf(shape));
+  }
+
+  /**
+   * A JSON array of records, each checked against a shape; items are reported by position.
+   *
+   * @throws HttpError as {@link HttpResponse#json}; Error when the list or an item is missing or lacks a field.
+   */
+  records<Data extends object, Field extends keyof Data>(shape: RecordShape<Data, Field>): WithRequired<Data, Field>[] {
+    return requireFieldsOfEach(this.json<(Data | null)[] | null>(), shape.fields, this.#labelOf(shape));
+  }
+
+  /**
+   * The `results` of a platform search result (`{ results, totalCount }`), each checked against a shape.
+   *
+   * @throws HttpError as {@link HttpResponse#json}; Error when `results` or an item is missing or lacks a field.
+   */
+  results<Data extends object, Field extends keyof Data>(shape: RecordShape<Data, Field>): WithRequired<Data, Field>[] {
+    const { results } = this.json<{ readonly results?: readonly (Data | null)[] | null }>();
+    return requireFieldsOfEach(results, shape.fields, this.#labelOf(shape));
+  }
+
+  /**
    * Requires a 2xx status and validates the JSON body with a zod schema, applying its defaults and transforms.
    *
    * @throws HttpError when the status is not 2xx, the body is not JSON, or it fails the schema (every issue listed).
@@ -141,6 +185,10 @@ export class HttpResponse implements HttpResponseInit {
     } catch (error) {
       throw this.#error(`response body is not valid JSON (${error instanceof Error ? error.message : String(error)})`);
     }
+  }
+
+  #labelOf({ label }: { readonly label: string }): string {
+    return `${label} from ${this.method} ${URL.parse(this.url)?.pathname ?? this.url}`;
   }
 
   #error(reason?: string): HttpError {

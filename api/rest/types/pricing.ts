@@ -1,34 +1,29 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommercePricingModuleCoreModelPrice as PriceData,
-  VirtoCommercePricingModuleCoreModelPricelistAssignment as PricelistAssignmentData,
-  VirtoCommercePricingModuleCoreModelSearchPricelistAssignmentSearchResult as PricelistAssignmentSearchResult,
-  VirtoCommercePricingModuleCoreModelPricelist as PricelistData,
-  VirtoCommercePricingModuleCoreModelSearchPricelistSearchResult as PricelistSearchResult,
-  VirtoCommercePricingModuleCoreModelSearchPricesSearchCriteria as PricesSearchCriteria,
-  VirtoCommercePricingModuleCoreModelProductPrice as ProductPriceData,
-  VirtoCommercePricingModuleCoreModelSearchProductPriceSearchResult as ProductPriceSearchResult,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type {
-  PriceData,
-  PricelistAssignmentData,
-  PricelistAssignmentSearchResult,
-  PricelistData,
-  PricelistSearchResult,
-  PricesSearchCriteria,
-  ProductPriceData,
-  ProductPriceSearchResult,
-};
+import { shape } from "@core/record-shape";
 
-export const PRODUCT_PRICE_FIELDS = ["productId", "prices"] as const;
-export const PRICELIST_FIELDS = ["id", "name", "currency"] as const;
-export const PRICE_FIELDS = ["id", "pricelistId", "productId", "list", "currency"] as const;
-export const PRICELIST_ASSIGNMENT_FIELDS = ["id", "name", "pricelistId"] as const;
+export type PriceData = Rest.VirtoCommercePricingModuleCoreModelPrice;
+export type PricelistAssignmentData = Rest.VirtoCommercePricingModuleCoreModelPricelistAssignment;
+export type PricelistAssignmentSearchResult =
+  Rest.VirtoCommercePricingModuleCoreModelSearchPricelistAssignmentSearchResult;
+export type PricelistData = Rest.VirtoCommercePricingModuleCoreModelPricelist;
+export type PricelistSearchResult = Rest.VirtoCommercePricingModuleCoreModelSearchPricelistSearchResult;
+export type PricesSearchCriteria = Rest.VirtoCommercePricingModuleCoreModelSearchPricesSearchCriteria;
+export type ProductPriceData = Rest.VirtoCommercePricingModuleCoreModelProductPrice;
+export type ProductPriceSearchResult = Rest.VirtoCommercePricingModuleCoreModelSearchProductPriceSearchResult;
 
-export type Pricelist = WithRequired<PricelistData, (typeof PRICELIST_FIELDS)[number]>;
-export type Price = WithRequired<PriceData, (typeof PRICE_FIELDS)[number]>;
-export type PricelistAssignment = WithRequired<PricelistAssignmentData, (typeof PRICELIST_ASSIGNMENT_FIELDS)[number]>;
+export const PRODUCT_PRICE = shape<ProductPriceData>()("Product price", ["productId", "prices"]);
+export const PRICELIST = shape<PricelistData>()("Pricelist", ["id", "name", "currency"]);
+export type Pricelist = Shaped<typeof PRICELIST>;
+export const PRICE = shape<PriceData>()("Price", ["id", "pricelistId", "productId", "list", "currency"]);
+export type Price = Shaped<typeof PRICE>;
+export const PRICELIST_ASSIGNMENT = shape<PricelistAssignmentData>()("Pricelist assignment", [
+  "id",
+  "name",
+  "pricelistId",
+]);
+export type PricelistAssignment = Shaped<typeof PRICELIST_ASSIGNMENT>;
 
 export type PricelistQuery = {
   readonly keyword?: string;

@@ -3,7 +3,6 @@ import type { HttpMethod } from "./http-method";
 
 import { Secret } from "@core/secret";
 
-import { retryOnDeadlock } from "./deadlock-retry";
 import { HttpResponse } from "./http-response";
 
 /** Query parameter value; numbers and booleans are sent as text. */
@@ -74,8 +73,7 @@ export type RequestOptions = RequestBase & (JsonBody | FormBody | MultipartBody)
  *
  * - Never throws for a status: check with `expectOk()`, `json()`, `parse()` or `errorJson()` on the response.
  * - Throws a plain `Error` (secrets masked) when no response arrives: refused connection, timeout.
- * - Retries database deadlocks ({@link retryOnDeadlock}); with an {@link Authentication}, renews the sign-in
- *   once on 401 and resends.
+ * - Never retries a failed request; with an {@link Authentication}, renews the sign-in once on 401 and resends.
  *
  * @example
  * const client = new HttpClient(context).withHeaders({ "X-Store": "store-acme" });
@@ -161,11 +159,8 @@ export class HttpClient {
     path: string,
     options: RequestOptions,
   ): Promise<{ readonly response: HttpResponse; readonly headers: HttpHeaders }> {
-    let headers: HttpHeaders = {};
-    const response = await retryOnDeadlock(async () => {
-      headers = await this.#headers();
-      return this.#request(method, path, options, headers);
-    });
+    const headers = await this.#headers();
+    const response = await this.#request(method, path, options, headers);
     return { response, headers };
   }
 

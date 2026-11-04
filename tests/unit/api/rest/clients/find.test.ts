@@ -8,18 +8,18 @@ import { expect, test } from "@playwright/test";
 import { HttpClient } from "@api/http/http-client";
 import { HttpError } from "@api/http/http-error";
 import { RestApi } from "@api/rest/rest-api";
-import { CATALOG_PRODUCT_FIELDS } from "@api/rest/types/catalog";
-import { COMPLETENESS_CHANNEL_FIELDS, EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS } from "@api/rest/types/completeness";
-import { MENU_LINK_LIST_FIELDS } from "@api/rest/types/content";
-import { MEMBER_FIELDS } from "@api/rest/types/customers";
-import { COUPON_FIELDS, NAMED_ENTITY_FIELDS, PROMOTION_FIELDS } from "@api/rest/types/marketing";
-import { ORGANIZATION_MEMBERSHIP_FIELDS } from "@api/rest/types/memberships";
-import { CUSTOMER_ORDER_FIELDS } from "@api/rest/types/orders";
-import { OUTLINE_SYNC_NOTIFICATION_FIELDS } from "@api/rest/types/personalization";
-import { PRICELIST_ASSIGNMENT_FIELDS, PRICELIST_FIELDS } from "@api/rest/types/pricing";
-import { INDEX_PROGRESS_NOTIFICATION_FIELDS } from "@api/rest/types/search";
-import { APPLICATION_USER_FIELDS, ROLE_FIELDS } from "@api/rest/types/security";
-import { STORE_FIELDS } from "@api/rest/types/store";
+import { CATALOG_PRODUCT } from "@api/rest/types/catalog";
+import { COMPLETENESS_CHANNEL, EVALUATE_COMPLETENESS_NOTIFICATION } from "@api/rest/types/completeness";
+import { MENU_LINK_LIST } from "@api/rest/types/content";
+import { MEMBER } from "@api/rest/types/customers";
+import { COUPON, NAMED_ENTITY, PROMOTION } from "@api/rest/types/marketing";
+import { ORGANIZATION_MEMBERSHIP } from "@api/rest/types/memberships";
+import { CUSTOMER_ORDER } from "@api/rest/types/orders";
+import { OUTLINE_SYNC_NOTIFICATION } from "@api/rest/types/personalization";
+import { PRICELIST, PRICELIST_ASSIGNMENT } from "@api/rest/types/pricing";
+import { INDEX_PROGRESS_NOTIFICATION } from "@api/rest/types/search";
+import { APPLICATION_USER, ROLE } from "@api/rest/types/security";
+import { STORE } from "@api/rest/types/store";
 
 const ID = "find-test-id";
 
@@ -48,80 +48,80 @@ const FINDERS: readonly Finder[] = [
   {
     name: "catalog.products.find",
     shape: "list",
-    fields: CATALOG_PRODUCT_FIELDS,
+    fields: CATALOG_PRODUCT.fields,
     find: (api) => api.catalog.products.find(ID),
   },
   {
     name: "completeness.channels.find",
     shape: "404",
-    fields: COMPLETENESS_CHANNEL_FIELDS,
+    fields: COMPLETENESS_CHANNEL.fields,
     find: (api) => api.completeness.channels.find(ID),
   },
   {
     name: "completeness.findEvaluation",
     shape: "push",
-    fields: EVALUATE_COMPLETENESS_NOTIFICATION_FIELDS,
+    fields: EVALUATE_COMPLETENESS_NOTIFICATION.fields,
     find: (api) => api.completeness.findEvaluation(ID),
   },
   {
     name: "customers.contacts.find",
     shape: "empty",
-    fields: MEMBER_FIELDS,
+    fields: MEMBER.fields,
     find: (api) => api.customers.contacts.find(ID),
   },
   {
     name: "dynamicContent.items.find",
     shape: "404",
-    fields: NAMED_ENTITY_FIELDS,
+    fields: NAMED_ENTITY.fields,
     find: (api) => api.dynamicContent.items.find(ID),
   },
   {
     name: "menuLinkLists.find",
     shape: "empty",
-    fields: MENU_LINK_LIST_FIELDS,
+    fields: MENU_LINK_LIST.fields,
     find: (api) => api.menuLinkLists.find(ID),
   },
-  { name: "orders.find", shape: "404", fields: CUSTOMER_ORDER_FIELDS, find: (api) => api.orders.find(ID) },
+  { name: "orders.find", shape: "404", fields: CUSTOMER_ORDER.fields, find: (api) => api.orders.find(ID) },
   {
     name: "organizationMemberships.find",
     shape: "404",
-    fields: ORGANIZATION_MEMBERSHIP_FIELDS,
+    fields: ORGANIZATION_MEMBERSHIP.fields,
     find: (api) => api.organizationMemberships.find(ID, "organization"),
   },
   {
     name: "personalization.findSynchronization",
     shape: "push",
-    fields: OUTLINE_SYNC_NOTIFICATION_FIELDS,
+    fields: OUTLINE_SYNC_NOTIFICATION.fields,
     find: (api) => api.personalization.findSynchronization(ID),
   },
   {
     name: "pricing.pricelists.find",
     shape: "empty",
-    fields: PRICELIST_FIELDS,
+    fields: PRICELIST.fields,
     find: (api) => api.pricing.pricelists.find(ID),
   },
   {
     name: "pricing.assignments.find",
     shape: "empty",
-    fields: PRICELIST_ASSIGNMENT_FIELDS,
+    fields: PRICELIST_ASSIGNMENT.fields,
     find: (api) => api.pricing.assignments.find(ID),
   },
-  { name: "promotions.find", shape: "404", fields: PROMOTION_FIELDS, find: (api) => api.promotions.find(ID) },
+  { name: "promotions.find", shape: "404", fields: PROMOTION.fields, find: (api) => api.promotions.find(ID) },
   {
     name: "promotions.coupons.find",
     shape: "empty",
-    fields: COUPON_FIELDS,
+    fields: COUPON.fields,
     find: (api) => api.promotions.coupons.find(ID),
   },
-  { name: "roles.find", shape: "empty", fields: ROLE_FIELDS, find: (api) => api.roles.find(ID) },
+  { name: "roles.find", shape: "empty", fields: ROLE.fields, find: (api) => api.roles.find(ID) },
   {
     name: "searchIndexes.findProgress",
     shape: "push",
-    fields: INDEX_PROGRESS_NOTIFICATION_FIELDS,
+    fields: INDEX_PROGRESS_NOTIFICATION.fields,
     find: (api) => api.searchIndexes.findProgress(ID),
   },
-  { name: "stores.find", shape: "empty", fields: STORE_FIELDS, find: (api) => api.stores.find(ID) },
-  { name: "users.find", shape: "empty", fields: APPLICATION_USER_FIELDS, find: (api) => api.users.find(ID) },
+  { name: "stores.find", shape: "empty", fields: STORE.fields, find: (api) => api.stores.find(ID) },
+  { name: "users.find", shape: "empty", fields: APPLICATION_USER.fields, find: (api) => api.users.find(ID) },
 ];
 
 let server: Server;

@@ -1,38 +1,25 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceCatalogModuleCoreModelCatalog as CatalogData,
-  VirtoCommerceCatalogModuleCoreModelCatalogLanguage as CatalogLanguage,
-  VirtoCommerceCatalogModuleCoreModelCatalogProduct as CatalogProductData,
-  VirtoCommerceCatalogModuleCoreModelSearchCatalogSearchCriteria as CatalogSearchCriteria,
-  VirtoCommerceCatalogModuleCoreModelSearchCatalogSearchResult as CatalogSearchResult,
-  VirtoCommerceCatalogModuleCoreModelCategory as CategoryData,
-  VirtoCommerceCatalogModuleCoreModelListEntriesMoveRequest as ListEntriesMoveRequest,
-  VirtoCommerceCatalogModuleCoreModelListEntryListEntryBase as ListEntryData,
-  VirtoCommerceCatalogModuleCoreModelSearchCatalogListEntrySearchCriteria as ListEntrySearchCriteria,
-  VirtoCommerceCatalogModuleCoreModelSearchListEntrySearchResult as ListEntrySearchResult,
-  VirtoCommerceCatalogModuleCoreModelImage as ProductImage,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type {
-  CatalogData,
-  CatalogLanguage,
-  CatalogProductData,
-  CatalogSearchCriteria,
-  CatalogSearchResult,
-  CategoryData,
-  ListEntriesMoveRequest,
-  ListEntryData,
-  ListEntrySearchCriteria,
-  ListEntrySearchResult,
-  ProductImage,
-};
+import { shape } from "@core/record-shape";
 
-export const CATALOG_FIELDS = ["id", "name"] as const;
-export const CATEGORY_FIELDS = ["id", "code", "name", "catalogId"] as const;
-export const CATALOG_PRODUCT_FIELDS = ["id", "code", "name", "catalogId"] as const;
-export const LIST_ENTRY_FIELDS = ["id", "name"] as const;
+export type CatalogData = Rest.VirtoCommerceCatalogModuleCoreModelCatalog;
+export type CatalogLanguage = Rest.VirtoCommerceCatalogModuleCoreModelCatalogLanguage;
+export type CatalogProductData = Rest.VirtoCommerceCatalogModuleCoreModelCatalogProduct;
+export type CatalogSearchCriteria = Rest.VirtoCommerceCatalogModuleCoreModelSearchCatalogSearchCriteria;
+export type CatalogSearchResult = Rest.VirtoCommerceCatalogModuleCoreModelSearchCatalogSearchResult;
+export type CategoryData = Rest.VirtoCommerceCatalogModuleCoreModelCategory;
+export type ListEntriesMoveRequest = Rest.VirtoCommerceCatalogModuleCoreModelListEntriesMoveRequest;
+export type ListEntryData = Rest.VirtoCommerceCatalogModuleCoreModelListEntryListEntryBase;
+export type ListEntrySearchCriteria = Rest.VirtoCommerceCatalogModuleCoreModelSearchCatalogListEntrySearchCriteria;
+export type ListEntrySearchResult = Rest.VirtoCommerceCatalogModuleCoreModelSearchListEntrySearchResult;
+export type ProductImage = Rest.VirtoCommerceCatalogModuleCoreModelImage;
 
-export type Catalog = WithRequired<CatalogData, (typeof CATALOG_FIELDS)[number]>;
-export type Category = WithRequired<CategoryData, (typeof CATEGORY_FIELDS)[number]>;
-export type CatalogProduct = WithRequired<CatalogProductData, (typeof CATALOG_PRODUCT_FIELDS)[number]>;
-export type ListEntry = WithRequired<ListEntryData, (typeof LIST_ENTRY_FIELDS)[number]>;
+export const CATALOG = shape<CatalogData>()("Catalog", ["id", "name"]);
+export type Catalog = Shaped<typeof CATALOG>;
+export const CATEGORY = shape<CategoryData>()("Category", ["id", "code", "name", "catalogId"]);
+export type Category = Shaped<typeof CATEGORY>;
+export const CATALOG_PRODUCT = shape<CatalogProductData>()("Catalog product", ["id", "code", "name", "catalogId"]);
+export type CatalogProduct = Shaped<typeof CATALOG_PRODUCT>;
+export const LIST_ENTRY = shape<ListEntryData>()("List entry", ["id", "name"]);
+export type ListEntry = Shaped<typeof LIST_ENTRY>;

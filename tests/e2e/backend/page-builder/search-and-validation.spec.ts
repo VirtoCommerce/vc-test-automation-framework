@@ -3,8 +3,8 @@ import * as allure from "allure-js-commons";
 import { uniqueId } from "@core/unique-id";
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
-import { Route } from "@pages/backend/page-builder/page-builder";
-import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/shell/controls";
+import { Route } from "@pages/backend/page-builder/routes";
+import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade";
 
 const SEARCH_MARKER = "searchable";
 const NO_MATCH = "&";

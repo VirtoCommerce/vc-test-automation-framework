@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { CleanupStack } from "@core/cleanup-stack";
+import { CleanupError, CleanupStack } from "@core/cleanup-stack";
 import { MASK, Secret } from "@core/secret";
 
 test.describe("CleanupStack", () => {
@@ -42,6 +42,19 @@ test.describe("CleanupStack", () => {
     expect(ran).toEqual(["last", "first"]);
   });
 
+  test("throws a CleanupError with one line per failed action", async () => {
+    const stack = new CleanupStack();
+    stack.push("delete contact", async () => {
+      throw new Error("platform answered 500");
+    });
+    stack.push("delete user", async () => undefined);
+
+    const error = await stack.unwind().catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(CleanupError);
+    expect(error).toMatchObject({ failures: ["delete contact: platform answered 500"] });
+  });
+
   test("masks secrets in the failures", async () => {
     const stack = new CleanupStack();
     const password = new Secret("cleanup-password-1");
@@ -50,6 +63,42 @@ test.describe("CleanupStack", () => {
     });
 
     await expect(stack.unwind()).rejects.toThrow(`sign out: refused ${MASK}`);
+  });
+
+  test("track runs the change and returns its result, then the undo on unwind", async () => {
+    const stack = new CleanupStack();
+    const order: string[] = [];
+
+    const created = await stack.track(
+      "delete catalog",
+      async () => order.push("undo"),
+      async () => {
+        order.push("change");
+        return "catalog-1";
+      },
+    );
+    await stack.unwind();
+
+    expect(created).toBe("catalog-1");
+    expect(order).toEqual(["change", "undo"]);
+  });
+
+  test("track keeps the undo when the change fails", async () => {
+    const stack = new CleanupStack();
+    const ran: string[] = [];
+
+    await expect(
+      stack.track(
+        "delete catalog",
+        async () => ran.push("undo"),
+        async () => {
+          throw new Error("platform answered 500");
+        },
+      ),
+    ).rejects.toThrow("platform answered 500");
+    await stack.unwind();
+
+    expect(ran).toEqual(["undo"]);
   });
 
   test("is empty after unwinding", async () => {

@@ -2,7 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { configuredSku } from "@dataset/builders/product-configuration";
 import { expect, test } from "@fixtures";
-import { isGraphqlOperation } from "@pages/selectors";
+import { whenGraphql } from "@pages/responses";
 
 const PRODUCT = {
   code: "laptop-acer-predator-helios-neo-16-ai",
@@ -117,10 +117,7 @@ test.describe("configurable product (anonymous)", () => {
     await test.step(`act: switch to ${OTHER_MEMORY_OPTION} and update the cart`, async () => {
       await memory.select(OTHER_MEMORY_OPTION);
       await expect(memory.selectedOptionLabel).toHaveText(OTHER_MEMORY_OPTION);
-      await Promise.all([
-        page.waitForResponse(isGraphqlOperation("ChangeCartConfiguredItem")),
-        product.updateCartButton.click(),
-      ]);
+      await whenGraphql(page, "ChangeCartConfiguredItem", () => product.updateCartButton.click());
     });
     await test.step(`assert: the cart has one configured line item with ${OTHER_MEMORY_OPTION}`, async () => {
       await cart.navigate();

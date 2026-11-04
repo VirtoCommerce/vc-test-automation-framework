@@ -101,3 +101,36 @@ test.describe("toBeGraphqlError", () => {
     );
   });
 });
+
+test.describe("toHaveConsistentTotals", () => {
+  function cart(total: number): Record<string, { amount: number }> {
+    return {
+      total: { amount: total },
+      subTotal: { amount: 300 },
+      discountTotal: { amount: 30 },
+      taxTotal: { amount: 27 },
+      shippingTotal: { amount: 15 },
+    };
+  }
+
+  test("passes for a total of subtotal minus discount plus tax and shipping", () => {
+    expect(cart(312)).toHaveConsistentTotals();
+    expect(cart(312.004)).toHaveConsistentTotals();
+  });
+
+  test("fails for a total a cent off, spelling out the sum", () => {
+    expect(() => expect(cart(312.01)).toHaveConsistentTotals()).toThrow(
+      "Expected the total 312.01 to be subTotal 300 - discountTotal 30 + taxTotal 27 + shippingTotal 15 = 312",
+    );
+  });
+
+  test("fails for a value without the money fields", () => {
+    expect(() => expect({ total: { amount: 1 } }).toHaveConsistentTotals()).toThrow(
+      "Expected a cart with total, subTotal, discountTotal, taxTotal and shippingTotal amounts",
+    );
+  });
+
+  test("works with .not", () => {
+    expect(cart(1)).not.toHaveConsistentTotals();
+  });
+});

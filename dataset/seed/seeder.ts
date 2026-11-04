@@ -1,16 +1,20 @@
 import type { HttpClient } from "@api/http/http-client";
 import type { Logger } from "@core/logger";
 import type { Dataset } from "../dataset";
-import type { CollectionName } from "../manifest";
+import type { CollectionName, CollectionSpec } from "../manifest";
 import type { EnvPlaceholders } from "../placeholders";
 import type { SeedScope } from "./seed-scope";
+
+import { array, looseObject, object, string } from "zod";
 
 import { Secret } from "@core/secret";
 
 import { MANIFEST } from "../manifest";
-import { findPathOf, labelOf, seedRequests } from "./seed-requests";
+import { findPathOf, labelOf, seedRequests, storedIdSearchOf } from "./seed-requests";
 
 /** What the seeder sends requests with: an HTTP client signed in as a platform administrator. */
+
+const StoredSearchSchema = object({ results: array(looseObject({ id: string().nullish() })).default([]) });
 export type SeedHttp = Pick<HttpClient, "get" | "send">;
 
 /** Work that must follow the seeding of a collection, such as setting the status of the pages just seeded. */
@@ -92,20 +96,20 @@ async function seedCollection(
   const spec = MANIFEST[name];
   let sent = 0;
   let existing = 0;
-  const missing: object[] = [];
+  const toSend: object[] = [];
   for (const [index, record] of records.entries()) {
     const findPath = spec.send === "all" ? findPathOf(spec, record, placeholders) : undefined;
     try {
       if (findPath !== undefined && (await isStored(http, findPath))) {
         existing += 1;
       } else {
-        missing.push(record);
+        toSend.push(await withStoredId(http, spec, record, placeholders));
       }
     } catch (error) {
       throw failure(name, labelOf(spec, record, index), error);
     }
   }
-  for (const request of seedRequests(spec, missing, placeholders)) {
+  for (const request of seedRequests(spec, toSend, placeholders)) {
     try {
       if (request.findPath !== undefined && (await isStored(http, request.findPath))) {
         existing += 1;
@@ -124,6 +128,27 @@ async function seedCollection(
 
 async function currentETag(http: SeedHttp, path: string): Promise<string | undefined> {
   return (await http.get(path)).expectOk().headers["etag"];
+}
+
+/**
+ * Gives a record the id of its stored copy, for collections whose ids the platform assigns (`storedIdFrom`), so
+ * sending it updates that copy. The search may also answer methods that are only registered, without an id; they
+ * are skipped. A record with no stored copy is returned as it is.
+ */
+async function withStoredId(
+  http: SeedHttp,
+  spec: CollectionSpec,
+  record: object,
+  placeholders: EnvPlaceholders,
+): Promise<object> {
+  const search = storedIdSearchOf(spec, record, placeholders);
+  if (search === undefined) {
+    return record;
+  }
+  const { results } = (await http.send("POST", search.path, { json: search.criteria })).parse(StoredSearchSchema);
+  const wanted = Reflect.get(record, search.match);
+  const stored = results.find((result) => typeof result.id === "string" && result[search.match] === wanted);
+  return stored === undefined ? record : { ...record, id: stored.id };
 }
 
 async function isStored(http: SeedHttp, findPath: string): Promise<boolean> {

@@ -1,19 +1,19 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceSearchModuleCoreModelIndexingOptions as IndexingOptions,
-  VirtoCommerceSearchModuleCoreModelIndexProgressPushNotification as IndexProgressNotificationData,
-  VirtoCommerceSearchModuleCoreModelIndexState as IndexStateData,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { IndexingOptions, IndexProgressNotificationData, IndexStateData };
+import { shape } from "@core/record-shape";
 
-export const INDEX_STATE_FIELDS = ["provider", "scope", "documentType"] as const;
-export const INDEX_PROGRESS_NOTIFICATION_FIELDS = ["id", "jobId"] as const;
+export type IndexingOptions = Rest.VirtoCommerceSearchModuleCoreModelIndexingOptions;
+export type IndexProgressNotificationData = Rest.VirtoCommerceSearchModuleCoreModelIndexProgressPushNotification;
+export type IndexStateData = Rest.VirtoCommerceSearchModuleCoreModelIndexState;
 
-export type IndexState = WithRequired<IndexStateData, (typeof INDEX_STATE_FIELDS)[number]>;
-export type IndexProgressNotification = WithRequired<
-  IndexProgressNotificationData,
-  (typeof INDEX_PROGRESS_NOTIFICATION_FIELDS)[number]
->;
+export const INDEX_STATE = shape<IndexStateData>()("Index state", ["provider", "scope", "documentType"]);
+export type IndexState = Shaped<typeof INDEX_STATE>;
+
+export const INDEX_PROGRESS_NOTIFICATION = shape<IndexProgressNotificationData>()("Index progress notification", [
+  "id",
+  "jobId",
+]);
+export type IndexProgressNotification = Shaped<typeof INDEX_PROGRESS_NOTIFICATION>;
 
 export type IndexedDocument = Readonly<Record<string, unknown>>;

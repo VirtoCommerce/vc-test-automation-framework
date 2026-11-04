@@ -1,45 +1,39 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommercePlatformWebModelModularityAppDescriptor as AppDescriptorData,
-  VirtoCommercePlatformCoreChangeLogChangeLogSearchCriteria as ChangeLogSearchCriteria,
-  VirtoCommercePlatformCoreChangeLogChangeLogSearchResult as ChangeLogSearchResult,
-  VirtoCommercePlatformCoreDynamicPropertiesDynamicProperty as DynamicPropertyData,
-  VirtoCommercePlatformCoreDynamicPropertiesDynamicPropertySearchCriteria as DynamicPropertySearchCriteria,
-  VirtoCommercePlatformCoreDynamicPropertiesDynamicPropertySearchResult as DynamicPropertySearchResult,
-  VirtoCommercePlatformWebModelLastModifiedResponse as LastModifiedResponse,
-  VirtoCommercePlatformCoreChangeLogOperationLog as OperationLogData,
-  VirtoCommercePlatformCorePushNotificationsPushNotificationSearchCriteria as PushNotificationSearchCriteria,
-  VirtoCommercePlatformCorePushNotificationsPushNotificationSearchResult as PushNotificationSearchResult,
-  VirtoCommercePlatformWebModelDiagnosticsSystemInfo as SystemInfoData,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type {
-  AppDescriptorData,
-  ChangeLogSearchCriteria,
-  ChangeLogSearchResult,
-  DynamicPropertyData,
-  DynamicPropertySearchCriteria,
-  DynamicPropertySearchResult,
-  LastModifiedResponse,
-  OperationLogData,
-  PushNotificationSearchCriteria,
-  PushNotificationSearchResult,
-  SystemInfoData,
-};
+import { shape } from "@core/record-shape";
 
-export const APP_DESCRIPTOR_FIELDS = ["id", "title"] as const;
-export const DYNAMIC_PROPERTY_FIELDS = ["id", "name", "objectType", "valueType"] as const;
+export type AppDescriptorData = Rest.VirtoCommercePlatformWebModelModularityAppDescriptor;
+export type ChangeLogSearchCriteria = Rest.VirtoCommercePlatformCoreChangeLogChangeLogSearchCriteria;
+export type ChangeLogSearchResult = Rest.VirtoCommercePlatformCoreChangeLogChangeLogSearchResult;
+export type DynamicPropertyData = Rest.VirtoCommercePlatformCoreDynamicPropertiesDynamicProperty;
+export type DynamicPropertySearchCriteria =
+  Rest.VirtoCommercePlatformCoreDynamicPropertiesDynamicPropertySearchCriteria;
+export type DynamicPropertySearchResult = Rest.VirtoCommercePlatformCoreDynamicPropertiesDynamicPropertySearchResult;
+export type LastModifiedResponse = Rest.VirtoCommercePlatformWebModelLastModifiedResponse;
+export type OperationLogData = Rest.VirtoCommercePlatformCoreChangeLogOperationLog;
+export type PushNotificationSearchCriteria =
+  Rest.VirtoCommercePlatformCorePushNotificationsPushNotificationSearchCriteria;
+export type PushNotificationSearchResult = Rest.VirtoCommercePlatformCorePushNotificationsPushNotificationSearchResult;
+export type SystemInfoData = Rest.VirtoCommercePlatformWebModelDiagnosticsSystemInfo;
 
-export type AppDescriptor = WithRequired<AppDescriptorData, (typeof APP_DESCRIPTOR_FIELDS)[number]>;
-export type DynamicProperty = WithRequired<DynamicPropertyData, (typeof DYNAMIC_PROPERTY_FIELDS)[number]>;
+export const APP_DESCRIPTOR = shape<AppDescriptorData>()("App descriptor", ["id", "title"]);
+export type AppDescriptor = Shaped<typeof APP_DESCRIPTOR>;
+export const DYNAMIC_PROPERTY = shape<DynamicPropertyData>()("Dynamic property", [
+  "id",
+  "name",
+  "objectType",
+  "valueType",
+]);
+export type DynamicProperty = Shaped<typeof DYNAMIC_PROPERTY>;
+export const OPERATION_LOG = shape<OperationLogData>()("Operation log", ["objectType", "objectId", "operationType"]);
+export type OperationLog = Shaped<typeof OPERATION_LOG>;
+export const SYSTEM_INFO = shape<SystemInfoData>()("System info", ["platformVersion"]);
+export type SystemInfo = Shaped<typeof SYSTEM_INFO>;
 
-export const OPERATION_LOG_FIELDS = ["objectType", "objectId", "operationType"] as const;
-export const SYSTEM_INFO_FIELDS = ["platformVersion"] as const;
-export const PUSH_NOTIFICATION_PAGE_FIELDS = ["totalCount", "newCount", "notifyEvents"] as const;
-
-export type OperationLog = WithRequired<OperationLogData, (typeof OPERATION_LOG_FIELDS)[number]>;
-export type SystemInfo = WithRequired<SystemInfoData, (typeof SYSTEM_INFO_FIELDS)[number]>;
-export type PushNotificationPage = WithRequired<
-  PushNotificationSearchResult,
-  (typeof PUSH_NOTIFICATION_PAGE_FIELDS)[number]
->;
+export const PUSH_NOTIFICATION_PAGE = shape<PushNotificationSearchResult>()("Push notification page", [
+  "totalCount",
+  "newCount",
+  "notifyEvents",
+]);
+export type PushNotificationPage = Shaped<typeof PUSH_NOTIFICATION_PAGE>;

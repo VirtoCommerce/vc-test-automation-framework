@@ -1,9 +1,7 @@
 import type { HttpClient } from "../../http/http-client";
 import type { PickupLocation, PickupLocationData } from "../types/shipping";
 
-import { requireFields } from "@core/required-fields";
-
-import { PICKUP_LOCATION_FIELDS } from "../types/shipping";
+import { PICKUP_LOCATION } from "../types/shipping";
 
 const PICKUP_LOCATIONS_PATH = "/api/shipping/pickup-locations";
 
@@ -16,7 +14,7 @@ export class PickupLocationsClient {
 
   async create(pickupLocation: PickupLocationData): Promise<PickupLocation> {
     const response = await this.#httpClient.post(PICKUP_LOCATIONS_PATH, { json: pickupLocation });
-    return requireFields(response.json<PickupLocationData>(), PICKUP_LOCATION_FIELDS, "Created pickup location");
+    return response.record(PICKUP_LOCATION);
   }
 
   async update(pickupLocation: PickupLocationData): Promise<void> {

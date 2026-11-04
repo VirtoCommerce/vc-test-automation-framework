@@ -69,8 +69,13 @@ export class PickupArrange {
     const locations: PickupLocation[] = [];
     for (const source of sources) {
       const draft = newPickupLocation(storeId, namePrefix, source);
-      this.#cleanup.push(`delete pickup location ${draft.name}`, () => pickupLocations.delete(storeId, draft.id));
-      locations.push(await pickupLocations.create(draft));
+      locations.push(
+        await this.#cleanup.track(
+          `delete pickup location ${draft.name}`,
+          () => pickupLocations.delete(storeId, draft.id),
+          () => pickupLocations.create(draft),
+        ),
+      );
     }
     const names = locations.map(({ name }) => name);
     await pollUntil(

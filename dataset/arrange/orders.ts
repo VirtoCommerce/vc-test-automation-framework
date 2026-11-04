@@ -55,8 +55,11 @@ export class OrderArrange {
       userName: requireFields(this.#admin.credentials, ["username"], "Administrator credentials").username,
     };
     const draft = newOrder({ id: this.#store.id, currency }, customer, items);
-    this.#cleanup.push(`delete order ${draft.number}`, () => orders.delete([draft.id]));
-    return orders.create(draft);
+    return this.#cleanup.track(
+      `delete order ${draft.number}`,
+      () => orders.delete([draft.id]),
+      () => orders.create(draft),
+    );
   }
 
   /**

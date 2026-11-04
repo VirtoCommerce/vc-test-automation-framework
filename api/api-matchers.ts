@@ -1,17 +1,29 @@
 import type { GraphqlErrorEntry } from "./graphql/graphql-error";
 
 import { expect as baseExpect } from "@playwright/test";
+import { number, object } from "zod";
 
 import { Secret } from "@core/secret";
 
 import { GraphqlError } from "./graphql/graphql-error";
 import { HttpError } from "./http/http-error";
 
+const Money = object({ amount: number() });
+const CartTotalsSchema = object({
+  total: Money,
+  subTotal: Money,
+  discountTotal: Money,
+  taxTotal: Money,
+  shippingTotal: Money,
+});
+const CENT = 0.005;
+
 declare global {
   namespace PlaywrightTest {
     interface Matchers<R, T> {
       toBeHttpError(status: number, detail?: string): R;
       toBeGraphqlError(code?: string): R;
+      toHaveConsistentTotals(): R;
     }
   }
 }
@@ -57,6 +69,38 @@ export const apiExpect = baseExpect.extend({
       expected: code,
       actual: codes,
       message: () => failure(pass, code === undefined ? "GraphqlError" : `GraphqlError with code ${code}`, received),
+    };
+  },
+
+  /**
+   * Passes for a cart whose total is its subtotal minus its discounts plus tax and shipping, to the cent. Works on
+   * any cart with those five money fields, such as the result of `addCoupon`.
+   *
+   * @example
+   * expect(addCoupon).toHaveConsistentTotals();
+   */
+  toHaveConsistentTotals(received: unknown) {
+    const parsed = CartTotalsSchema.safeParse(received);
+    if (!parsed.success) {
+      return {
+        name: "toHaveConsistentTotals",
+        pass: false,
+        message: () =>
+          "Expected a cart with total, subTotal, discountTotal, taxTotal and shippingTotal amounts\n" +
+          `Received: ${describeReceived(JSON.stringify(received))}`,
+      };
+    }
+    const { total, subTotal, discountTotal, taxTotal, shippingTotal } = parsed.data;
+    const expected = subTotal.amount - discountTotal.amount + taxTotal.amount + shippingTotal.amount;
+    const pass = Math.abs(total.amount - expected) < CENT;
+    return {
+      name: "toHaveConsistentTotals",
+      pass,
+      expected,
+      actual: total.amount,
+      message: () =>
+        `Expected the total ${total.amount} ${pass ? "not " : ""}to be subTotal ${subTotal.amount} - discountTotal ` +
+        `${discountTotal.amount} + taxTotal ${taxTotal.amount} + shippingTotal ${shippingTotal.amount} = ${expected}`,
     };
   },
 });

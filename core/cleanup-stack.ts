@@ -11,20 +11,33 @@ interface CleanupEntry {
   readonly action: CleanupAction;
 }
 
+/** Thrown by {@link CleanupStack#unwind}: one `"<description>: <error message>"` per failed undo, secrets masked. */
+export class CleanupError extends Error {
+  override readonly name = "CleanupError";
+  readonly failures: readonly string[];
+
+  constructor(failures: readonly string[]) {
+    const masked = failures.map((failure) => Secret.mask(failure));
+    super(`${masked.length} cleanup action(s) failed:\n${masked.join("\n")}`);
+    this.failures = masked;
+  }
+}
+
 /**
  * Undo actions of a test, run in reverse order so dependants (a membership, a contact's user) go first.
- * Push the undo right before the change: if the change fails halfway, its undo still runs.
- * Tests get one as the `cleanup` fixture; `arrange` registers its own undos there.
+ * Register the undo before the change, with {@link CleanupStack#track}: if the change fails halfway, its undo
+ * still runs. Tests get one as the `cleanup` fixture; `arrange` registers its own undos there.
  *
  * @example
- * cleanup.push(`delete organization ${organization.id}`, () => organizations.delete([organization.id]));
- * await organizations.create(organization);
+ * await cleanup.track(`delete organization ${organization.id}`, () => organizations.delete([organization.id]), () =>
+ *   organizations.create(organization),
+ * );
  */
 export class CleanupStack {
   readonly #entries: CleanupEntry[] = [];
 
   /**
-   * Registers an undo action.
+   * Registers an undo action; prefer {@link CleanupStack#track} when the change follows right away.
    *
    * @param description - What it undoes; shown as the report step name and in failure messages.
    */
@@ -33,10 +46,21 @@ export class CleanupStack {
   }
 
   /**
+   * Registers `undo`, then runs `change`; the undo is in place even when `change` fails half-way. Use
+   * {@link CleanupStack#push} alone when the undo needs what `change` returns, such as a platform-assigned id.
+   *
+   * @returns What `change` returns.
+   */
+  track<T>(description: string, undo: CleanupAction, change: () => Promise<T>): Promise<T> {
+    this.push(description, undo);
+    return change();
+  }
+
+  /**
    * Runs and removes every action, last registered first; a failing action does not stop the rest.
    *
    * @param run - Wraps each action; by default calls it directly.
-   * @throws Error `"<n> cleanup action(s) failed"` listing each failure, with secrets masked.
+   * @throws CleanupError `"<n> cleanup action(s) failed"` listing each failure, with secrets masked.
    */
   async unwind(run: CleanupRunner = (_description, action) => action()): Promise<void> {
     const failures: string[] = [];
@@ -48,7 +72,7 @@ export class CleanupStack {
       }
     }
     if (failures.length > 0) {
-      throw new Error(Secret.mask(`${failures.length} cleanup action(s) failed:\n${failures.join("\n")}`));
+      throw new CleanupError(failures);
     }
   }
 }

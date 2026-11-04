@@ -2,7 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { GetCartDocument } from "@api/graphql/generated/graphql";
 import { expect, test } from "@fixtures";
-import { isGraphqlOperation } from "@pages/selectors";
+import { whenGraphql } from "@pages/responses";
 
 const PRODUCT = { id: "product-smartphone-samsung-galaxy-a57-5g", sku: "smartphone-samsung-galaxy-a57-5g" } as const;
 const QUANTITY = 3;
@@ -28,10 +28,7 @@ test.describe("cart (anonymous)", () => {
 
     await test.step("act: clear the cart and confirm", async () => {
       await cart.clearCartButton.click();
-      await Promise.all([
-        page.waitForResponse(isGraphqlOperation("ClearCart")),
-        cart.clearCartModal.confirmButton.click(),
-      ]);
+      await whenGraphql(page, "ClearCart", () => cart.clearCartModal.confirmButton.click());
     });
 
     await test.step("assert: the modal closes and no line items remain", async () => {

@@ -59,8 +59,11 @@ export class CustomerArrange {
   async organization(name?: string): Promise<string> {
     const { organizations } = this.#admin.rest.customers;
     const organization = name === undefined ? newOrganization() : newOrganization(name);
-    this.#cleanup.push(`delete organization ${organization.name}`, () => organizations.delete([organization.id]));
-    await organizations.create(organization);
+    await this.#cleanup.track(
+      `delete organization ${organization.name}`,
+      () => organizations.delete([organization.id]),
+      () => organizations.create(organization),
+    );
     return organization.id;
   }
 
@@ -76,8 +79,11 @@ export class CustomerArrange {
   ): Promise<Member<MemberData>[]> {
     const { members } = this.#admin.rest.customers;
     const ids = drafts.map(({ id }) => id);
-    this.#cleanup.push(`delete members ${ids.join(", ")}`, () => members.delete(ids));
-    await members.createMany(drafts);
+    await this.#cleanup.track(
+      `delete members ${ids.join(", ")}`,
+      () => members.delete(ids),
+      () => members.createMany(drafts),
+    );
     const created = await members.getMany(ids);
     return ids.map((id) =>
       requireFields(
@@ -111,16 +117,22 @@ export class CustomerArrange {
     const organizationId = options.organizationId ?? (await this.organization());
     const { contacts } = this.#admin.rest.customers;
     const contact = newContact(organizationId);
-    this.#cleanup.push(`delete contact ${contact.name}`, () => contacts.delete([contact.id]));
-    await contacts.create(contact);
+    await this.#cleanup.track(
+      `delete contact ${contact.name}`,
+      () => contacts.delete([contact.id]),
+      () => contacts.create(contact),
+    );
 
     const roleId = options.role ?? DEFAULT_ROLE;
     const role = requireFields(this.#dataset.roles.get(roleId), ["name"], `Dataset role "${roleId}"`);
     const user = newCustomerUser(this.#store.id, contact.id, [{ id: roleId, name: role.name }]);
     const { users } = this.#admin.rest;
-    this.#cleanup.push(`delete user ${user.userName}`, () => users.delete([user.userName]));
     expectSucceeded(
-      await users.create({ ...user, password: user.password.reveal() }),
+      await this.#cleanup.track(
+        `delete user ${user.userName}`,
+        () => users.delete([user.userName]),
+        () => users.create({ ...user, password: user.password.reveal() }),
+      ),
       `Creating user ${user.userName}`,
     );
     const { id: userId } = await users.get(user.userName);

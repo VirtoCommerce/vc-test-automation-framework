@@ -20,9 +20,9 @@ follows, and the order to build them in. Read CLAUDE.md first; it holds the laye
 | Generated GraphQL types | `api/graphql/generated/` (`npm run codegen:graphql`) | never edited |
 | REST client / resource / method | `api/rest/clients/<module>-client.ts`, registered in `api/rest/rest-api.ts` | `api/rest/clients/pricing-client.ts` |
 | REST named type | `api/rest/types/<module>.ts` | `api/rest/types/pricing.ts` |
-| Frontend page | `pages/frontend/pages/<group>-pages.ts` + a `Frontend` factory method | `pages/frontend/pages/cart-pages.ts` |
-| Frontend component | `pages/frontend/components/<component>.ts` | `pages/frontend/components/controls.ts` |
-| Page builder object | `pages/backend/page-builder/page-builder.ts`, `pages/backend/shell/controls.ts` | same files |
+| Frontend page | `pages/frontend/pages/<area>/<name>-page.ts` + a `Frontend` factory method | `pages/frontend/pages/cart/cart-page.ts` |
+| Frontend component | `pages/frontend/components/<area>.ts` or `<area>/<component>.ts`; UI-kit wrappers in `pages/frontend/ui-kit/` | `pages/frontend/components/checkout.ts` |
+| Page builder object | `pages/backend/page-builder/<blade or shell>.ts`; vc-shell wrappers in `pages/backend/vc-shell/` | `pages/backend/page-builder/page-details-blade.ts` |
 | Builder | `dataset/builders/<domain>.ts` | `dataset/builders/pricing.ts` |
 | Arrange method | `dataset/arrange/<domain>.ts` (types exported from `index.ts`) | `dataset/arrange/pricing.ts` |
 | Seed record | `dataset/data/<collection>/*.json` (+ `dataset/manifest.ts` for a new collection) | neighbouring JSON files |
@@ -54,7 +54,6 @@ Before adding a file, search for:
 6. dataset/known-issues.ts entries
 7. fixtures (only when no arrange method or option fits)
 8. specs: restapi, graphql, e2e; isolated ones last
-9. TESTS.md rows when tests of the old suite move, merge or drop
 ```
 
 ## Output Format

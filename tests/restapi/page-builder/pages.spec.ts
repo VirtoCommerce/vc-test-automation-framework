@@ -11,7 +11,6 @@ const SPECIAL_PERMALINKS = [
     title: "spaces",
     permalink: "/my page test",
     outcome: "rejected with a validation error",
-    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -19,7 +18,6 @@ const SPECIAL_PERMALINKS = [
     title: "reserved characters",
     permalink: "/page&test?q=1#anchor",
     outcome: "rejected with a validation error",
-    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -27,7 +25,6 @@ const SPECIAL_PERMALINKS = [
     title: "a percent-encoded space",
     permalink: "/my%20page%20test",
     outcome: "rejected with a validation error",
-    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -35,7 +32,6 @@ const SPECIAL_PERMALINKS = [
     title: "a zero-width space",
     permalink: `/page${String.fromCharCode(0x200b)}test`,
     outcome: "rejected with a validation error",
-    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -43,7 +39,6 @@ const SPECIAL_PERMALINKS = [
     title: "an invisible character outside the BMP",
     permalink: `/page${String.fromCodePoint(0xe0041)}test`,
     outcome: "rejected with a validation error",
-    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -51,7 +46,6 @@ const SPECIAL_PERMALINKS = [
     title: "angle brackets",
     permalink: "/page<test>",
     outcome: "rejected with a validation error",
-    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -59,7 +53,6 @@ const SPECIAL_PERMALINKS = [
     title: "more than 2048 characters",
     permalink: `/${"a".repeat(2048)}`,
     outcome: "rejected with a validation error",
-    issue: undefined,
     created: { status: "rejected", reason: expect.objectContaining({ name: "HttpError", status: 400 }) },
     stored: [],
   },
@@ -67,7 +60,6 @@ const SPECIAL_PERMALINKS = [
     title: "unicode letters",
     permalink: "/страница-тест",
     outcome: "stored as given",
-    issue: undefined,
     created: { status: "fulfilled", value: expect.objectContaining({ permalink: "/страница-тест" }) },
     stored: ["/страница-тест"],
   },
@@ -125,9 +117,8 @@ test.describe("page builder pages (store administrator)", () => {
     });
   });
 
-  for (const { title, permalink, outcome, issue, created, stored } of SPECIAL_PERMALINKS) {
+  for (const { title, permalink, outcome, created, stored } of SPECIAL_PERMALINKS) {
     test(`a permalink with ${title} is ${outcome}`, async ({ api, arrange, store }) => {
-      await knownIssue(issue);
       await allure.story("Permalinks");
       await allure.description(
         `Creating a page with the permalink "${permalink}" is ${outcome}: a permalink is a URL path, so ` +

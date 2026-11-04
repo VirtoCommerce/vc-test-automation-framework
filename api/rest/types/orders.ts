@@ -1,27 +1,27 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderHistorySearchCriteria as CustomerOrderChangesSearchCriteria,
-  VirtoCommerceOrdersModuleCoreModelCustomerOrder as CustomerOrderData,
-  VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderSearchCriteria as CustomerOrderSearchCriteria,
-  VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderSearchResult as CustomerOrderSearchResult,
-  OrderLineItem as OrderLineItemData,
-  OrderShipment as OrderShipmentData,
-  VirtoCommerceOrdersModuleCoreModelPaymentIn as PaymentInData,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type {
-  CustomerOrderChangesSearchCriteria,
-  CustomerOrderData,
-  CustomerOrderSearchCriteria,
-  CustomerOrderSearchResult,
-  OrderLineItemData,
-  OrderShipmentData,
-  PaymentInData,
-};
+import { shape } from "@core/record-shape";
 
-export const CUSTOMER_ORDER_FIELDS = ["id", "number", "status", "storeId", "customerId", "items"] as const;
-export const ORDER_DOCUMENT_FIELDS = ["number"] as const;
+export type CustomerOrderChangesSearchCriteria =
+  Rest.VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderHistorySearchCriteria;
+export type CustomerOrderData = Rest.VirtoCommerceOrdersModuleCoreModelCustomerOrder;
+export type CustomerOrderSearchCriteria = Rest.VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderSearchCriteria;
+export type CustomerOrderSearchResult = Rest.VirtoCommerceOrdersModuleCoreModelSearchCustomerOrderSearchResult;
+export type OrderLineItemData = Rest.OrderLineItem;
+export type OrderShipmentData = Rest.OrderShipment;
+export type PaymentInData = Rest.VirtoCommerceOrdersModuleCoreModelPaymentIn;
 
-export type CustomerOrder = WithRequired<CustomerOrderData, (typeof CUSTOMER_ORDER_FIELDS)[number]>;
-export type PaymentIn = WithRequired<PaymentInData, (typeof ORDER_DOCUMENT_FIELDS)[number]>;
-export type OrderShipment = WithRequired<OrderShipmentData, (typeof ORDER_DOCUMENT_FIELDS)[number]>;
+export const CUSTOMER_ORDER = shape<CustomerOrderData>()("Customer order", [
+  "id",
+  "number",
+  "status",
+  "storeId",
+  "customerId",
+  "items",
+]);
+export type CustomerOrder = Shaped<typeof CUSTOMER_ORDER>;
+export const PAYMENT_IN = shape<PaymentInData>()("Payment in", ["number"]);
+export type PaymentIn = Shaped<typeof PAYMENT_IN>;
+export const ORDER_SHIPMENT = shape<OrderShipmentData>()("Order shipment", ["number"]);
+export type OrderShipment = Shaped<typeof ORDER_SHIPMENT>;

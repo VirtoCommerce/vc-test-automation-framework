@@ -1,27 +1,16 @@
 import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceCustomerModuleCoreModelContact as ContactData,
-  CustomerAddress,
-  VirtoCommerceCustomerModuleCoreModelEmployee as EmployeeData,
-  VirtoCommerceCustomerModuleCoreModelMember as MemberData,
-  VirtoCommerceCustomerModuleCoreModelSearchMembersSearchCriteria as MembersSearchCriteria,
-  VirtoCommerceCustomerModuleCoreModelOrganization as OrganizationData,
-  VirtoCommerceCustomerModuleCoreModelVendor as VendorData,
-  VirtoCommerceCustomerModuleCoreModelSearchVendorSearchResult as VendorSearchResult,
-} from "../generated/rest-api";
+import type * as Rest from "../generated/rest-api";
 
-export type {
-  ContactData,
-  CustomerAddress,
-  EmployeeData,
-  MemberData,
-  MembersSearchCriteria,
-  OrganizationData,
-  VendorData,
-  VendorSearchResult,
-};
+import { shape } from "@core/record-shape";
 
-export const MEMBER_FIELDS = ["id", "name", "memberType"] as const;
+export type ContactData = Rest.VirtoCommerceCustomerModuleCoreModelContact;
+export type CustomerAddress = Rest.CustomerAddress;
+export type EmployeeData = Rest.VirtoCommerceCustomerModuleCoreModelEmployee;
+export type MemberData = Rest.VirtoCommerceCustomerModuleCoreModelMember;
+export type MembersSearchCriteria = Rest.VirtoCommerceCustomerModuleCoreModelSearchMembersSearchCriteria;
+export type OrganizationData = Rest.VirtoCommerceCustomerModuleCoreModelOrganization;
+export type VendorData = Rest.VirtoCommerceCustomerModuleCoreModelVendor;
+export type VendorSearchResult = Rest.VirtoCommerceCustomerModuleCoreModelSearchVendorSearchResult;
 
 export interface MemberBaseData {
   id?: string | null;
@@ -29,4 +18,5 @@ export interface MemberBaseData {
   memberType?: string | null;
 }
 
-export type Member<Data extends MemberBaseData> = WithRequired<Data, (typeof MEMBER_FIELDS)[number]>;
+export const MEMBER = shape<MemberBaseData>()("Member", ["id", "name", "memberType"]);
+export type Member<Data extends MemberBaseData> = WithRequired<Data, (typeof MEMBER.fields)[number]>;

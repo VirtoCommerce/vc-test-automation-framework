@@ -66,13 +66,13 @@ outside e2e.
 
 **E2E:** page objects from the `frontend` / `pageBuilder` fixtures; data arranged through `shopper.api`; no branch
 or skip on `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE`, `CHECKOUT_MODE` (the page object hides them); waits on the
-response an action triggers (`isGraphqlOperation`) when the next step depends on it; new tabs followed through the
+response an action triggers (`whenGraphql` / `whenResponse`) when the next step depends on it; new tabs followed through the
 page object; UI sign-in only when sign-in is under test.
 
 ### Step 6: Infrastructure Files
 
-- [ ] Clients: paths verified against Swagger; results through `requireFields` / `optionalFields` /
-      `requireFieldsOfEach`; `find()` returns `undefined`, `get()` throws; bulk deletes by filter guard against
+- [ ] Clients: paths verified against Swagger; responses checked against a shape
+      (`record` / `optionalRecord` / `records` / `results`); `find()` returns `undefined`, `get()` throws; bulk deletes by filter guard against
       an empty filter.
 - [ ] Page objects: `readonly` locators built in the constructor, `data-test-id` first, settings hidden behind
       methods, no test assertions, no API calls.

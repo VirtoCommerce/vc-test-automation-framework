@@ -19,7 +19,7 @@ You are a QA test planner for the VirtoCommerce e-commerce platform. You analyze
 - Produce coverage strategies: what to test, in which project, with which priority
 - Plan implementation: files to create or change, in what order, which existing code to reuse
 - Plan test data: dataset records read, `arrange` methods used or added, new builders or dataset records
-- Spot coverage gaps in existing specs, and check TESTS.md for tests of the old suite already planned or dropped
+- Spot coverage gaps in existing specs, and check REFINEMENTS.md for old-suite tests still to port
 - Estimate scope and complexity
 
 ## When to Use Skills
@@ -95,5 +95,5 @@ From CLAUDE.md "Writing tests":
 7. **Plan test data**: dataset records read (by id), new dataset records, new builders or `arrange` methods.
 8. **Think about parallelism**: what other tests could touch the same data at the same time; platform-wide changes go to `isolated`.
 9. **Plan known issues**: name the `KNOWN_ISSUES` entry and its tracker key, if any.
-10. **Plan in dependency order**: `.graphql` documents and codegen, REST clients and types, page objects, builders, `arrange` methods, known issues, then specs, then TESTS.md if an old-suite test is affected.
+10. **Plan in dependency order**: `.graphql` documents and codegen, REST clients and types, page objects, builders, `arrange` methods, known issues, then specs, then REFINEMENTS.md if the work does or adds a refinement.
 11. **Plan verification**: `npm run typecheck`, `npm run check`, `npx playwright test --list`, `npm run test:<project> -- <specs>`, and `npm run test:unit` when framework code changes.

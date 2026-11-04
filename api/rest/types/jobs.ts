@@ -1,8 +1,9 @@
-import type { WithRequired } from "@core/required-fields";
-import type { VirtoCommercePlatformCoreJobsJob as JobData } from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 
-export type { JobData };
+import { shape } from "@core/record-shape";
 
-export const JOB_FIELDS = ["id", "state", "completed"] as const;
+export type JobData = Rest.VirtoCommercePlatformCoreJobsJob;
 
-export type Job = WithRequired<JobData, (typeof JOB_FIELDS)[number]>;
+export const JOB = shape<JobData>()("Job", ["id", "state", "completed"]);
+export type Job = Shaped<typeof JOB>;

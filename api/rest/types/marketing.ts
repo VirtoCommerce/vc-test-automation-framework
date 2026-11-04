@@ -1,51 +1,38 @@
+import type { Shaped } from "@core/record-shape";
 import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceCoreModuleCoreConditionsIConditionTree as ConditionTree,
-  VirtoCommerceMarketingModuleCoreModelPromotionsCoupon as CouponData,
-  VirtoCommerceMarketingModuleCoreModelPromotionsSearchCouponSearchCriteria as CouponSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelPromotionsSearchCouponSearchResult as CouponSearchResult,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentDynamicContentConditionTree as DynamicContentConditionTree,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentFolder as DynamicContentFolderData,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentItem as DynamicContentItemData,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentItemSearchCriteria as DynamicContentItemSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentPlace as DynamicContentPlaceData,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentPlaceSearchCriteria as DynamicContentPlaceSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentPublication as DynamicContentPublicationData,
-  VirtoCommerceMarketingModuleCoreModelDynamicContentPublicationSearchCriteria as DynamicContentPublicationSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelPromotionsPromotion as PromotionData,
-  VirtoCommerceMarketingModuleCoreModelPromotionsSearchPromotionSearchCriteria as PromotionSearchCriteria,
-  VirtoCommerceMarketingModuleCoreModelPromotionsSearchPromotionSearchResult as PromotionSearchResult,
-} from "../generated/rest-api";
+import type * as Rest from "../generated/rest-api";
 
-export type {
-  ConditionTree,
-  CouponData,
-  CouponSearchCriteria,
-  CouponSearchResult,
-  DynamicContentConditionTree,
-  DynamicContentFolderData,
-  DynamicContentItemData,
-  DynamicContentItemSearchCriteria,
-  DynamicContentPlaceData,
-  DynamicContentPlaceSearchCriteria,
-  DynamicContentPublicationData,
-  DynamicContentPublicationSearchCriteria,
-  PromotionData,
-  PromotionSearchCriteria,
-  PromotionSearchResult,
-};
+import { shape } from "@core/record-shape";
 
-export const PROMOTION_FIELDS = ["id", "name"] as const;
-export const COUPON_FIELDS = ["id", "code", "promotionId"] as const;
+export type ConditionTree = Rest.VirtoCommerceCoreModuleCoreConditionsIConditionTree;
+export type CouponData = Rest.VirtoCommerceMarketingModuleCoreModelPromotionsCoupon;
+export type CouponSearchCriteria = Rest.VirtoCommerceMarketingModuleCoreModelPromotionsSearchCouponSearchCriteria;
+export type CouponSearchResult = Rest.VirtoCommerceMarketingModuleCoreModelPromotionsSearchCouponSearchResult;
+export type DynamicContentConditionTree =
+  Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentDynamicContentConditionTree;
+export type DynamicContentFolderData = Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentFolder;
+export type DynamicContentItemData = Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentItem;
+export type DynamicContentItemSearchCriteria =
+  Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentItemSearchCriteria;
+export type DynamicContentPlaceData = Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentPlace;
+export type DynamicContentPlaceSearchCriteria =
+  Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentPlaceSearchCriteria;
+export type DynamicContentPublicationData = Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentPublication;
+export type DynamicContentPublicationSearchCriteria =
+  Rest.VirtoCommerceMarketingModuleCoreModelDynamicContentPublicationSearchCriteria;
+export type PromotionData = Rest.VirtoCommerceMarketingModuleCoreModelPromotionsPromotion;
+export type PromotionSearchCriteria = Rest.VirtoCommerceMarketingModuleCoreModelPromotionsSearchPromotionSearchCriteria;
+export type PromotionSearchResult = Rest.VirtoCommerceMarketingModuleCoreModelPromotionsSearchPromotionSearchResult;
 
-export type Promotion = WithRequired<PromotionData, (typeof PROMOTION_FIELDS)[number]>;
-export type Coupon = WithRequired<CouponData, (typeof COUPON_FIELDS)[number]>;
-
-export const NAMED_ENTITY_FIELDS = ["id", "name"] as const;
+export const PROMOTION = shape<PromotionData>()("Promotion", ["id", "name"]);
+export type Promotion = Shaped<typeof PROMOTION>;
+export const COUPON = shape<CouponData>()("Coupon", ["id", "code", "promotionId"]);
+export type Coupon = Shaped<typeof COUPON>;
 
 export interface NamedEntityData {
   id?: string | null;
   name?: string | null;
 }
 
-export type NamedEntity<Data extends NamedEntityData> = WithRequired<Data, (typeof NAMED_ENTITY_FIELDS)[number]>;
+export const NAMED_ENTITY = shape<NamedEntityData>()("Named entity", ["id", "name"]);
+export type NamedEntity<Data extends NamedEntityData> = WithRequired<Data, (typeof NAMED_ENTITY.fields)[number]>;

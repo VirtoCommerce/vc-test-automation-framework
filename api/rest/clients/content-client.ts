@@ -1,15 +1,9 @@
 import type { HttpClient, MultipartFile } from "../../http/http-client";
-import type {
-  ContentItem,
-  ContentItemData,
-  ContentStatistic,
-  ContentStatisticData,
-  ContentType,
-} from "../types/content";
+import type { ContentItem, ContentStatistic, ContentType } from "../types/content";
 
-import { requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { requireFields } from "@core/required-fields";
 
-import { CONTENT_ITEM_FIELDS, CONTENT_STATISTIC_FIELDS } from "../types/content";
+import { CONTENT_ITEM, CONTENT_STATISTIC } from "../types/content";
 
 function contentPath(contentType: ContentType, storeId: string): string {
   return `/api/content/${contentType}/${encodeURIComponent(storeId)}`;
@@ -29,20 +23,20 @@ class ItemsResource {
       query: { folderUrl },
       multipart: { file },
     });
-    return requireFieldsOfEach(response.json<ContentItemData[]>(), CONTENT_ITEM_FIELDS, `Uploaded ${contentType} item`);
+    return response.records(CONTENT_ITEM);
   }
 
   async search(contentType: ContentType, keyword: string): Promise<ContentItem[]> {
     const response = await this.#httpClient.get(`${contentPath(contentType, this.#storeId)}/search`, {
       query: { keyword },
     });
-    return requireFieldsOfEach(response.json<ContentItemData[]>(), CONTENT_ITEM_FIELDS, `Found ${contentType} item`);
+    return response.records(CONTENT_ITEM);
   }
 
   async getByName(contentType: ContentType, name: string): Promise<ContentItem> {
     return requireFields(
       await this.findByName(contentType, name),
-      CONTENT_ITEM_FIELDS,
+      CONTENT_ITEM.fields,
       `${contentType} item "${name}"`,
     );
   }
@@ -108,10 +102,6 @@ export class ContentClient {
 
   async getStatistic(): Promise<ContentStatistic> {
     const response = await this.#httpClient.get(`/api/content/${encodeURIComponent(this.#storeId)}/stats`);
-    return requireFields(
-      response.json<ContentStatisticData>(),
-      CONTENT_STATISTIC_FIELDS,
-      `Content statistic of store "${this.#storeId}"`,
-    );
+    return response.record(CONTENT_STATISTIC);
   }
 }

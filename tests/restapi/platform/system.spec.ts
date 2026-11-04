@@ -65,7 +65,6 @@ test.describe("platform system (store administrator)", () => {
   });
 });
 
-// The platform is API only from 3.1093.0: the back office app comes with the AngularJS admin module (VCST-6338)
 test.describe("platform system with the AngularJS admin (store administrator)", () => {
   test.use({ user: "acme_store_administrator@acme.com", requiresModules: [MODULES.adminAngularJs] });
 

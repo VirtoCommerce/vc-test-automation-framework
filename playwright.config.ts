@@ -23,8 +23,8 @@ const BROWSER_USE = {
 export default defineConfig<BrowserOptions>({
   fullyParallel: true,
   forbidOnly: Boolean(process.env["CI"]),
-  retries: process.env["CI"] ? 1 : 0,
   reporter: [["list"], ["allure-playwright", { resultsDir: "allure-results" }]],
+  use: { testIdAttribute: "data-test-id" },
   projects: [
     {
       name: "unit",
@@ -34,7 +34,6 @@ export default defineConfig<BrowserOptions>({
       name: "modules",
       testDir: "tests/setup",
       testMatch: "modules.setup.ts",
-      retries: 0,
       use: { trace: "retain-on-failure" },
     },
     {
@@ -42,7 +41,6 @@ export default defineConfig<BrowserOptions>({
       testDir: "tests/setup",
       testMatch: "seed.setup.ts",
       dependencies: MODULES_SETUP,
-      retries: 0,
       use: { trace: "retain-on-failure" },
     },
     {

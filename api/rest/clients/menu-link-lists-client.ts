@@ -1,9 +1,9 @@
 import type { HttpClient } from "../../http/http-client";
 import type { MenuLinkList, MenuLinkListData } from "../types/content";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { requireFields, requireFieldsOfEach } from "@core/required-fields";
 
-import { MENU_LINK_LIST_FIELDS } from "../types/content";
+import { MENU_LINK_LIST } from "../types/content";
 
 export class MenuLinkListsClient {
   readonly #httpClient: HttpClient;
@@ -18,16 +18,16 @@ export class MenuLinkListsClient {
   async list(): Promise<MenuLinkList[]> {
     const response = await this.#httpClient.get(this.#path);
     const lists = response.optionalJson<MenuLinkListData[]>() ?? [];
-    return requireFieldsOfEach(lists, MENU_LINK_LIST_FIELDS, "Menu link list");
+    return requireFieldsOfEach(lists, MENU_LINK_LIST.fields, "Menu link list");
   }
 
   async get(id: string): Promise<MenuLinkList> {
-    return requireFields(await this.find(id), MENU_LINK_LIST_FIELDS, `Menu link list "${id}"`);
+    return requireFields(await this.find(id), MENU_LINK_LIST.fields, `Menu link list "${id}"`);
   }
 
   async find(id: string): Promise<MenuLinkList | undefined> {
     const response = await this.#httpClient.get(`${this.#path}/${encodeURIComponent(id)}`);
-    return optionalFields(response.optionalJson<MenuLinkListData>(), MENU_LINK_LIST_FIELDS, `Menu link list "${id}"`);
+    return response.optionalRecord(MENU_LINK_LIST);
   }
 
   async save(list: MenuLinkListData): Promise<void> {

@@ -5,18 +5,16 @@ import type {
   CatalogProduct,
   CatalogProductData,
   CatalogSearchCriteria,
-  CatalogSearchResult,
   Category,
   CategoryData,
   ListEntriesMoveRequest,
   ListEntry,
   ListEntrySearchCriteria,
-  ListEntrySearchResult,
 } from "../types/catalog";
 
-import { optionalFields, requireFields, requireFieldsOfEach } from "@core/required-fields";
+import { optionalFields, requireFields } from "@core/required-fields";
 
-import { CATALOG_FIELDS, CATALOG_PRODUCT_FIELDS, CATEGORY_FIELDS, LIST_ENTRY_FIELDS } from "../types/catalog";
+import { CATALOG, CATALOG_PRODUCT, CATEGORY, LIST_ENTRY } from "../types/catalog";
 
 const CATALOG_PATH = "/api/catalog";
 const CATALOGS_PATH = `${CATALOG_PATH}/catalogs`;
@@ -33,7 +31,7 @@ class CatalogsResource {
 
   async create(catalog: CatalogData): Promise<Catalog> {
     const response = await this.#httpClient.post(CATALOGS_PATH, { json: catalog });
-    return requireFields(response.json<CatalogData>(), CATALOG_FIELDS, "Created catalog");
+    return response.record(CATALOG);
   }
 
   async update(catalog: CatalogData): Promise<void> {
@@ -42,8 +40,7 @@ class CatalogsResource {
 
   async search(criteria: CatalogSearchCriteria): Promise<Catalog[]> {
     const response = await this.#httpClient.post(`${CATALOGS_PATH}/search`, { json: criteria });
-    const { results } = response.json<CatalogSearchResult>();
-    return requireFieldsOfEach(results, CATALOG_FIELDS, "Found catalog");
+    return response.results(CATALOG);
   }
 
   async delete(id: string): Promise<void> {
@@ -60,7 +57,7 @@ class CategoriesResource {
 
   async get(id: string): Promise<Category> {
     const response = await this.#httpClient.get(`${CATEGORIES_PATH}/${encodeURIComponent(id)}`);
-    return requireFields(response.json<CategoryData>(), CATEGORY_FIELDS, `Category "${id}"`);
+    return response.record(CATEGORY);
   }
 
   async template(catalogId: string): Promise<CategoryData> {
@@ -72,7 +69,7 @@ class CategoriesResource {
 
   async save(category: CategoryData): Promise<Category> {
     const response = await this.#httpClient.post(CATEGORIES_PATH, { json: category });
-    return requireFields(response.json<CategoryData>(), CATEGORY_FIELDS, "Saved category");
+    return response.record(CATEGORY);
   }
 }
 
@@ -84,14 +81,14 @@ class ProductsResource {
   }
 
   async get(id: string): Promise<CatalogProduct> {
-    return requireFields(await this.find(id), CATALOG_PRODUCT_FIELDS, `Product "${id}"`);
+    return requireFields(await this.find(id), CATALOG_PRODUCT.fields, `Product "${id}"`);
   }
 
   async find(id: string): Promise<CatalogProduct | undefined> {
     const response = await this.#httpClient.get(PRODUCTS_PATH, { query: { ids: id } });
     return optionalFields(
       response.optionalJson<CatalogProductData[]>()?.[0],
-      CATALOG_PRODUCT_FIELDS,
+      CATALOG_PRODUCT.fields,
       `Product "${id}"`,
     );
   }
@@ -104,7 +101,7 @@ class ProductsResource {
 
   async save(product: CatalogProductData): Promise<CatalogProduct> {
     const response = await this.#httpClient.post(PRODUCTS_PATH, { json: product });
-    return requireFields(response.json<CatalogProductData>(), CATALOG_PRODUCT_FIELDS, "Saved product");
+    return response.record(CATALOG_PRODUCT);
   }
 }
 
@@ -117,8 +114,7 @@ class ListEntriesResource {
 
   async search(criteria: ListEntrySearchCriteria): Promise<ListEntry[]> {
     const response = await this.#httpClient.post(LIST_ENTRIES_PATH, { json: criteria });
-    const { results } = response.json<ListEntrySearchResult>();
-    return requireFieldsOfEach(results, LIST_ENTRY_FIELDS, "Found list entry");
+    return response.results(LIST_ENTRY);
   }
 
   async delete(ids: readonly string[]): Promise<void> {

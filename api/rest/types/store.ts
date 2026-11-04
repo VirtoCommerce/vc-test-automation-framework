@@ -1,15 +1,14 @@
-import type { WithRequired } from "@core/required-fields";
-import type {
-  VirtoCommerceStoreModuleCoreModelStore as GeneratedStoreData,
-  VirtoCommerceStoreModuleCoreModelSearchStoreSearchCriteria as StoreSearchCriteria,
-  VirtoCommerceStoreModuleCoreModelSearchStoreSearchResult as StoreSearchResult,
-} from "../generated/rest-api";
+import type { Shaped } from "@core/record-shape";
+import type * as Rest from "../generated/rest-api";
 import type { SettingEntryData } from "./settings";
 
-export type { StoreSearchCriteria, StoreSearchResult };
+import { shape } from "@core/record-shape";
+
+type GeneratedStoreData = Rest.VirtoCommerceStoreModuleCoreModelStore;
+export type StoreSearchCriteria = Rest.VirtoCommerceStoreModuleCoreModelSearchStoreSearchCriteria;
+export type StoreSearchResult = Rest.VirtoCommerceStoreModuleCoreModelSearchStoreSearchResult;
+
+export const STORE = shape<StoreData>()("Store", ["id", "name", "catalog"]);
+export type Store = Shaped<typeof STORE>;
 
 export type StoreData = Omit<GeneratedStoreData, "settings"> & { settings?: SettingEntryData[] | null };
-
-export const STORE_FIELDS = ["id", "name", "catalog"] as const;
-
-export type Store = WithRequired<StoreData, (typeof STORE_FIELDS)[number]>;

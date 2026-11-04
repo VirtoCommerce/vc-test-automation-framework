@@ -11,6 +11,18 @@ interface CleanupEntry {
   readonly action: CleanupAction;
 }
 
+/** Thrown by {@link CleanupStack#unwind}: one `"<description>: <error message>"` per failed undo, secrets masked. */
+export class CleanupError extends Error {
+  override readonly name = "CleanupError";
+  readonly failures: readonly string[];
+
+  constructor(failures: readonly string[]) {
+    const masked = failures.map((failure) => Secret.mask(failure));
+    super(`${masked.length} cleanup action(s) failed:\n${masked.join("\n")}`);
+    this.failures = masked;
+  }
+}
+
 /**
  * Undo actions of a test, run in reverse order so dependants (a membership, a contact's user) go first.
  * Register the undo before the change, with {@link CleanupStack#track}: if the change fails halfway, its undo
@@ -48,7 +60,7 @@ export class CleanupStack {
    * Runs and removes every action, last registered first; a failing action does not stop the rest.
    *
    * @param run - Wraps each action; by default calls it directly.
-   * @throws Error `"<n> cleanup action(s) failed"` listing each failure, with secrets masked.
+   * @throws CleanupError `"<n> cleanup action(s) failed"` listing each failure, with secrets masked.
    */
   async unwind(run: CleanupRunner = (_description, action) => action()): Promise<void> {
     const failures: string[] = [];
@@ -60,7 +72,7 @@ export class CleanupStack {
       }
     }
     if (failures.length > 0) {
-      throw new Error(Secret.mask(`${failures.length} cleanup action(s) failed:\n${failures.join("\n")}`));
+      throw new CleanupError(failures);
     }
   }
 }

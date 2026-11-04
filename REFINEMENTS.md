@@ -28,7 +28,9 @@ platform answers `Forbidden`. If that is intended, add a positive "a colleague's
 add a test expecting `Forbidden`, marked as a known issue.
 
 **Known issues, tracked in Jira.** 6 REST tests carry a `knownIssue` mark with a tracker key, so they run as
-expected failures linked to the ticket. When a ticket is fixed the test passes, the run reports it, and the entry in
+expected failures linked to the ticket. Two more issues have a `failure` pattern instead: they hit whichever
+test collides with another (on SQL Server only, so far in cleanup), and such a test is reported as an expected
+failure of the issue. When a ticket is fixed the test passes, the run reports it, and the entry in
 `dataset/known-issues.ts` goes. When a ticket is closed as intended, rewrite or delete the test and drop the entry.
 
 | Ticket | Behaviour | Owner | Tests |
@@ -37,6 +39,8 @@ expected failures linked to the ticket. When a ticket is fixed the test passes, 
 | [VCST-6441](https://virtocommerce.atlassian.net/browse/VCST-6441) | Completeness channel search ignores `keyword` and `objectIds` | CatalogPublishing | 1 |
 | [VCST-6442](https://virtocommerce.atlassian.net/browse/VCST-6442) | A second page with an existing permalink is accepted | PageBuilder | 1 |
 | [VCST-6444](https://virtocommerce.atlassian.net/browse/VCST-6444) | Content statistics return `-1`: enable `Content:StatisticEnabled` in CI | DevOps | 3 |
+| [VCST-6509](https://virtocommerce.atlassian.net/browse/VCST-6509) | Concurrent deletes of unrelated catalogs deadlock on SQL Server | Catalog | any (cleanup) |
+| [VCST-6510](https://virtocommerce.atlassian.net/browse/VCST-6510) | Concurrent deletes of unrelated contacts and organizations deadlock on SQL Server | Customer | any (cleanup) |
 
 For VCST-6444, once devops releases the new `docker-env-full` tag, bump it in our workflow and remove
 `contentStatisticNotCounted` in the same commit. Locally, add `- Content:StatisticEnabled=true` to the platform

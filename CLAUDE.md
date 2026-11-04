@@ -77,7 +77,8 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
   totals adding up: `expect(cart).toHaveConsistentTotals()`.
 - Known defects: add the entry to `dataset/known-issues.ts` and start the test with
   `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test is an expected failure; without one it is skipped
-  as `fixme`. Never a bare `test.fail` or `test.fixme`.
+  as `fixme`. Never a bare `test.fail` or `test.fixme`. A defect that can hit any test (a deadlock between
+  parallel deletes) gets a `failure` pattern instead; a test whose every error matches one is an expected failure.
 - A test that needs an optional module declares `test.use({ requiresModules: [MODULES.x] })` (`@dataset/modules`)
   on its `describe` and is skipped where the module is missing or outside its version range (`minVersion`
   inclusive, `beforeVersion` exclusive); the seed manifest uses the same `MODULES` entries. Keep that module's

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { CleanupStack } from "@core/cleanup-stack";
+import { CleanupError, CleanupStack } from "@core/cleanup-stack";
 import { MASK, Secret } from "@core/secret";
 
 test.describe("CleanupStack", () => {
@@ -40,6 +40,19 @@ test.describe("CleanupStack", () => {
 
     await expect(stack.unwind()).rejects.toThrow("1 cleanup action(s) failed:\nbroken: platform answered 500");
     expect(ran).toEqual(["last", "first"]);
+  });
+
+  test("throws a CleanupError with one line per failed action", async () => {
+    const stack = new CleanupStack();
+    stack.push("delete contact", async () => {
+      throw new Error("platform answered 500");
+    });
+    stack.push("delete user", async () => undefined);
+
+    const error = await stack.unwind().catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(CleanupError);
+    expect(error).toMatchObject({ failures: ["delete contact: platform answered 500"] });
   });
 
   test("masks secrets in the failures", async () => {

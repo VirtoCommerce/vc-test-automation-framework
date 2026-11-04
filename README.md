@@ -360,10 +360,10 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   ├── env.fixture.ts       `env`
 │   ├── dataset.fixture.ts   `dataset`, `store`
 │   ├── api.fixture.ts       `api` (anonymous by default; `test.use({ user })` signs in a dataset user), `requiresModules`
-│   ├── cleanup.fixture.ts   `cleanup` (the stack `arrange` registers on)
+│   ├── cleanup.fixture.ts   `cleanup` (the stack `arrange` registers on); reports errors known issues explain
 │   ├── arrange.fixture.ts   `arrange`
 │   ├── browser.fixture.ts   `shopper`, `frontend`, `pageBuilder`; signs the browser in
-│   └── known-issue.ts       `knownIssue(...)`
+│   └── known-issue.ts       `knownIssue(...)`, matching errors to known issues, the report entries
 │
 ├── tests/
 │   ├── setup/               The `modules` and `seed` setup projects
@@ -460,6 +460,13 @@ Methods named `…Later` create nothing: they register the removal of something 
   follows at edge (today PageBuilder), not for general differences between stable and edge bundles.
 - A test that hits a known defect starts with `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test runs
   and is expected to fail; without one it is skipped as `fixme`. Add the defect to `dataset/known-issues.ts` first.
+- A defect that can hit any test, such as a deadlock between parallel deletes, gets a `failure` pattern in its
+  entry instead of `knownIssue` calls: an error message it causes (request, status, body). A test whose every
+  error, in its steps or its cleanup, matches a tracked issue's `failure` is reported as an expected failure of
+  that issue; any other error still fails it. When the defect is fixed the pattern stops matching.
+- Every known issue a test hits shows in the report as a link to the ticket, a `known issue` tag (Allure lists an
+  expected failure as passed, so filter by the tag), a "Known issue <key>" attachment saying what failed, and a
+  `[known issue] WARN <key>: <summary> (<link>) in "<test>"` line in the run's log.
 - No code comments; names and `test.step` titles say what happens.
 
 Before committing, run `npm run check` (format and lint) and `npm run typecheck`; the pre-commit hook runs both.

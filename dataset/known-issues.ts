@@ -1,22 +1,23 @@
-/** A platform or frontend defect that a test documents. */
+/** A platform or frontend defect that tests document. */
 export interface KnownIssue {
-  /**
-   * Tracker key, such as `VCST-5317`. With a key the test runs and is expected to fail; without one it is skipped
-   * as `fixme` until a ticket exists.
-   */
+  /** Tracker key, such as `VCST-5317`; without one, `knownIssue` skips the test as `fixme`. */
   readonly key?: string;
-  /** What is wrong, in one sentence, as the report shows it. */
+  /** One sentence, as the report shows it. */
   readonly summary: string;
+  /** Error message the defect can cause in any test, such as a deadlock between parallel requests. */
+  readonly failure?: RegExp;
 }
 
 /** Tracker base URL; a known issue's link is this plus its key. */
 export const TRACKER_URL = "https://virtocommerce.atlassian.net/browse/";
 
-/**
- * Every known issue a test is marked with, by name. Add the tracker key once the ticket exists; remove the entry,
- * and its `knownIssue` calls, once the defect is fixed.
- */
+/** Known issues by name. Add the tracker key once the ticket exists; remove the entry once the defect is fixed. */
 export const KNOWN_ISSUES = {
+  catalogDeleteDeadlock: {
+    key: "VCST-6509",
+    summary: "Concurrent deletes of unrelated catalogs deadlock on SQL Server; one delete fails with 500",
+    failure: /DELETE \S+\/api\/catalog\/catalogs\/[^/?\s]+ → 500[\s\S]*deadlocked on lock resources/,
+  },
   channelSearchIgnoresFilters: {
     key: "VCST-6441",
     summary:
@@ -29,6 +30,13 @@ export const KNOWN_ISSUES = {
   duplicatePermalinkAccepted: {
     key: "VCST-6442",
     summary: "The page builder accepts a second page whose permalink already exists in the same store and language",
+  },
+  memberDeleteDeadlock: {
+    key: "VCST-6510",
+    summary:
+      "Concurrent deletes of unrelated contacts and organizations deadlock on SQL Server; one delete fails with 500",
+    failure:
+      /DELETE \S+\/api\/(contacts|organizations|members)\?\S* → 500[\s\S]*An error occurred while saving the entity changes/,
   },
   oauthAppSearchIgnoresFilters: {
     key: "VCST-6440",

@@ -6,10 +6,11 @@ import { AppMenu, UserInfo } from "../vc-shell/app-shell";
 import { blades } from "../vc-shell/blade";
 import { searchInputIn } from "../vc-shell/data-grid";
 import { Notifications } from "../vc-shell/feedback";
+import { AddPagePopup } from "./add-page-popup";
 import { PageDetailsBlade } from "./page-details-blade";
 import { PagesListBlade } from "./pages-list-blade";
-import { isPagesSearch } from "./requests";
-import { Route } from "./routes";
+import { isPageList } from "./requests";
+import { PageType, Route } from "./routes";
 
 /** Side menu item id of each list route, for {@link AppMenu.counter}. */
 const MenuItem: Readonly<Record<PageBuilderRoute, string>> = {
@@ -43,6 +44,7 @@ export class PageBuilderShell {
   readonly notifications: Notifications;
   readonly listBlade: PagesListBlade;
   readonly detailsBlade: PageDetailsBlade;
+  readonly addPagePopup: AddPagePopup;
   readonly logo: Locator;
   readonly userName: Locator;
   readonly userRole: Locator;
@@ -55,6 +57,7 @@ export class PageBuilderShell {
     this.notifications = new Notifications(page);
     const all = blades(page);
     this.listBlade = new PagesListBlade(all.filter({ has: searchInputIn(page) }));
+    this.addPagePopup = new AddPagePopup(page);
     this.detailsBlade = new PageDetailsBlade(all.filter({ has: page.getByTestId("permalink-prefix") }));
     const user = new UserInfo(page);
     this.logo = user.logo;
@@ -71,7 +74,7 @@ export class PageBuilderShell {
     const url = `${path}?storeId=${encodeURIComponent(this.#options.storeId)}&reload=${Date.now()}#/${route}`;
     await whenResponse(
       this.page,
-      (response) => isPagesSearch(response),
+      (response) => isPageList(response),
       () => this.page.goto(url),
     );
     await this.listBlade.root.waitFor({ state: "visible" });
@@ -92,10 +95,14 @@ export class PageBuilderShell {
     return this.detailsBlade;
   }
 
-  /** Loads the draft list, clicks add and returns the empty details blade of a new, unsaved page. */
+  /**
+   * Loads the draft list, clicks add, picks a Landing Page (one language) in the add-page popup and returns the empty
+   * details blade of the new, unsaved page.
+   */
   async addPage(): Promise<PageDetailsBlade> {
     await this.open(Route.draft);
     await this.listBlade.toolbarButton("add").click();
+    await this.addPagePopup.choose(PageType.landing);
     await this.detailsBlade.nameInput.waitFor({ state: "visible" });
     return this.detailsBlade;
   }

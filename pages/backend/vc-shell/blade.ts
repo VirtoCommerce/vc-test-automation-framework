@@ -62,7 +62,7 @@ export class Blade {
   }
 
   datePicker(label: string): DatePicker {
-    return new DatePicker(this.field(label));
+    return new DatePicker(this.field(label), this.title);
   }
 
   /** The blade's first toggle switch. */

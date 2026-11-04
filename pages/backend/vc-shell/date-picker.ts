@@ -11,13 +11,19 @@ export class DatePicker {
   readonly #menu: Locator;
   readonly #monthHeader: Locator;
   readonly #nextMonthButton: Locator;
+  readonly #outside: Locator;
 
-  constructor(root: Locator) {
+  /**
+   * @param outside - An element the open calendar never covers, such as the blade title; clicking it closes the
+   *   calendar, since a date-and-time calendar stays open after a day is picked.
+   */
+  constructor(root: Locator, outside: Locator) {
     this.root = root;
     this.input = root.getByTestId("dp-input").first();
     this.#menu = root.page().locator(".dp__menu").first();
     this.#monthHeader = this.#menu.locator(".dp__month_year_wrap").first();
     this.#nextMonthButton = this.#menu.locator(".dp--arrow-btn-nav").last();
+    this.#outside = outside;
   }
 
   /**
@@ -36,7 +42,7 @@ export class DatePicker {
       if ((await cell.count()) > 0) {
         await cell.click();
         if (await this.#menu.isVisible()) {
-          await this.root.page().keyboard.press("Escape");
+          await this.#outside.click();
         }
         await this.#menu.waitFor({ state: "hidden" });
         return;

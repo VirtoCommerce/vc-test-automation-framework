@@ -1,15 +1,16 @@
 import type { Response } from "@playwright/test";
 
-const SEARCH_PATH = "/api/page-builder-pages/search";
+const LIST_PATH = "/api/page-builder-pages/list";
 const SAVE_PATH = "/api/page-builder-pages/grouped";
 const PUBLISHING_PATH = "/api/page-builder-pages/grouped/publishing/";
 
 /**
- * Whether a response answers the page search (`POST /api/page-builder-pages/search`).
- * @param keyword - Required search keyword (`""` matches a search without one); omit to match any search.
+ * Whether a response answers the page list query (`POST /api/page-builder-pages/list`), which the shell's lists,
+ * search box and menu badges send.
+ * @param keyword - Required search keyword (`""` matches a query without one); omit to match any query.
  */
-export function isPagesSearch(response: Response, keyword?: string): boolean {
-  if (response.request().method() !== "POST" || new URL(response.url()).pathname !== SEARCH_PATH) {
+export function isPageList(response: Response, keyword?: string): boolean {
+  if (response.request().method() !== "POST" || new URL(response.url()).pathname !== LIST_PATH) {
     return false;
   }
   const criteria: unknown = response.request().postDataJSON();

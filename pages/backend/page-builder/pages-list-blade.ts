@@ -5,7 +5,7 @@ import { expect } from "@playwright/test";
 import { whenResponse } from "../../responses";
 import { Blade } from "../vc-shell/blade";
 import { GridRow } from "../vc-shell/data-grid";
-import { isPagesSearch } from "./requests";
+import { isPageList } from "./requests";
 import { Column } from "./routes";
 
 const ROWS_TIMEOUT_MS = 10_000;
@@ -40,7 +40,7 @@ export class PagesListBlade extends Blade {
     }
     const response = await whenResponse(
       this.root.page(),
-      (candidate) => isPagesSearch(candidate, term),
+      (candidate) => isPageList(candidate, term),
       () => this.searchInput.fill(term),
     );
     const body: unknown = await response.json();

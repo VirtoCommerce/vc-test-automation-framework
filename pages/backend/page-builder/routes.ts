@@ -12,12 +12,21 @@ export type PageBuilderRoute = (typeof Route)[keyof typeof Route];
 /** Column ids (`data-column-id`) of the page list grid. */
 export const Column = {
   name: "name",
-  language: "cultureName",
+  type: "type",
+  languages: "languages",
   permalink: "permalink",
   modified: "modifiedDate",
   modifiedBy: "modifiedBy",
   status: "status",
 } as const;
+
+/** Page types the add-page popup offers, as it names them. */
+export const PageType = {
+  multilanguage: "Multilanguage Page",
+  landing: "Landing Page",
+} as const;
+
+export type PageBuilderPageType = (typeof PageType)[keyof typeof PageType];
 
 /** Toolbar item ids of the page details blade; archive's id is `delete`. */
 export const DetailsToolbar = {

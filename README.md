@@ -118,7 +118,7 @@ twice (users, organization memberships, coupons, orders) look it up and leave it
 payment methods, whose ids the platform assigns, are found by store and code and updated in place. Dataset users
 get the current `USERS_PASSWORD`, and pages get their dataset status. A collection whose module is not installed, or not in the version range the suite needs
 (`dataset/modules.ts`), is skipped with a warning, such as
-`[seed] WARN pages: VirtoCommerce.PageBuilderModule 3.1012.1 is older than 3.1034.0, skipped`.
+`[seed] WARN pages: VirtoCommerce.PageBuilderModule 3.1012.1 is older than 3.1039.0, skipped`.
 
 The seeder does not touch the search index. After seeding a fresh platform, rebuild every document type in the
 admin UI's *Search index* blade and wait until it finishes; CI does this itself.

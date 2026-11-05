@@ -34,7 +34,7 @@ on:
 
 jobs:
   auto-tests:
-    uses: VirtoCommerce/.github/.github/workflows/playwright-tests.yml@v3.1000.3
+    uses: VirtoCommerce/.github/.github/workflows/playwright-tests.yml@v3.1000.7
     with:
       installModules: 'false'
       installCustomModule: 'false'

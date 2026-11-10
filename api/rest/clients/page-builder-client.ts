@@ -2,6 +2,7 @@ import type { HttpClient } from "../../http/http-client";
 import type {
   CreateGroupedPageRequest,
   GroupedPage,
+  PageContent,
   PagePublishStatus,
   PageSearchCriteria,
   PageStatus,
@@ -45,6 +46,12 @@ class PagesResource {
   async publishStatus(groupId: string): Promise<PagePublishStatus> {
     const path = `${PAGES_PATH}/grouped/publish-status/${encodeURIComponent(groupId)}`;
     return (await this.#httpClient.get(path)).json<PagePublishStatus>();
+  }
+
+  /** Reads a page's latest saved content, draft or published. */
+  async content(groupId: string): Promise<PageContent> {
+    const path = `${PAGES_PATH}/grouped/${encodeURIComponent(groupId)}/content`;
+    return (await this.#httpClient.get(path)).json<PageContent>();
   }
 
   async delete(groupId: string): Promise<void> {

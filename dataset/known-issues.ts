@@ -27,6 +27,11 @@ export const KNOWN_ISSUES = {
     key: "VCST-6444",
     summary: "GET /api/content/{storeId}/stats returns -1 for pagesCount, blogsCount and themesCount",
   },
+  designerPreviewBlockedByEmbedderPolicy: {
+    summary:
+      "The page designer's preview is blocked (ERR_BLOCKED_BY_RESPONSE): the platform serves the designer with " +
+      "Cross-Origin-Embedder-Policy: credentialless and the frontend's /designer-preview sends no such header",
+  },
   duplicatePermalinkAccepted: {
     key: "VCST-6442",
     summary: "The page builder accepts a second page whose permalink already exists in the same store and language",

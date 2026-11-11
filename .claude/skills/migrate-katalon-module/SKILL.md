@@ -95,7 +95,7 @@ Create `tests/restapi/<platform-module>/<topic>.spec.ts` (see `/write-rest-api-t
 - Scripts that change global settings, reload modules, restart the platform or rebuild the index go to
   `tests/isolated/restapi/<platform-module>/`.
 - Scripts that repeat one pattern with different data become one table-driven test.
-- A script that exposes a platform defect: add it to `dataset/known-issues.ts` and start the test with
+- A script that exposes a platform defect: add it to `known-issues.json` and start the test with
   `await knownIssue(KNOWN_ISSUES.x)`.
 - Katalon checks that assert nothing, or only a status code, get a real assertion on the record.
 

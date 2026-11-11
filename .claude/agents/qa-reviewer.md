@@ -57,8 +57,8 @@ You are a QA test code reviewer for the VirtoCommerce e-commerce platform. You r
 
 - [ ] Index-backed reads wait in `arrange` (`searchableMemberships`, `pickupLocations`, `cartPickupLocations`, `productPickupLocations`, `lockMemberships`) or with `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`
 - [ ] No `waitForTimeout`, sleeps or `networkidle`
-- [ ] Known defects use `await knownIssue(KNOWN_ISSUES.x)` with an entry in `dataset/known-issues.ts`; no bare `test.fail`, `test.fixme` or `test.skip`
-- [ ] A `KNOWN_ISSUES` entry without a tracker key is called out (the test is skipped, not run)
+- [ ] Known defects use `await knownIssue(KNOWN_ISSUES.x)` with an entry in `known-issues.json`; no bare `test.fail`, `test.fixme` or `test.skip`
+- [ ] A `KNOWN_ISSUES` entry without an `issueUrl` is called out (the test is skipped, not run)
 
 ### REST Specs
 

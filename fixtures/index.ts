@@ -28,5 +28,7 @@ export const setupTest = setupFixturesTest;
 /** Playwright `expect` extended with the project's API matchers; import it from `@fixtures`. */
 export const expect = mergeExpects(apiExpect);
 
+export type { KnownIssue, KnownIssueName } from "./known-issue";
+
 export { loadInstalledModules, saveInstalledModules } from "./installed-modules";
-export { knownIssue } from "./known-issue";
+export { KNOWN_ISSUES, knownIssue } from "./known-issue";

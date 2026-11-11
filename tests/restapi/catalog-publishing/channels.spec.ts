@@ -2,8 +2,7 @@ import * as allure from "allure-js-commons";
 
 import { requireFields } from "@core/required-fields";
 import { DEFAULT_COMPLETENESS_EVALUATOR, newCompletenessChannel } from "@dataset/builders/completeness";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
-import { expect, knownIssue, test } from "@fixtures";
+import { expect, KNOWN_ISSUES, knownIssue, test } from "@fixtures";
 
 const PRODUCT_ID = "product-laptop-acer-predator-helios-neo-16-ai";
 const PRODUCT_COMPLETENESS = {

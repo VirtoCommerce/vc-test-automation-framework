@@ -22,7 +22,7 @@ Spawn the `qa-planner` agent and ask it to invoke the `/plan-test-strategy` skil
 
 The agent should:
 - Analyze the requirement
-- Explore existing specs under `tests/`, REFINEMENTS.md, and the reusable building blocks (REST clients, `.graphql` documents, page objects, `dataset/arrange`, `dataset/builders`, `dataset/data`, `dataset/known-issues.ts`)
+- Explore existing specs under `tests/`, REFINEMENTS.md, and the reusable building blocks (REST clients, `.graphql` documents, page objects, `dataset/arrange`, `dataset/builders`, `dataset/data`, `known-issues.json`)
 - Produce a structured test strategy (test cases, projects, identities, priorities, data needs, known issues)
 
 ### 2. Implementation Plan

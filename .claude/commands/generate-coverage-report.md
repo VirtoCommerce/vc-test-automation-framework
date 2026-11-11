@@ -32,7 +32,7 @@ Count `*.spec.ts` files under `tests/restapi`, `tests/graphql`, `tests/e2e/front
 
 ### 2c. Count Known-Issue Tests
 
-Known defects are listed in `dataset/known-issues.ts` and marked in tests with `await knownIssue(KNOWN_ISSUES.<name>)` (`fixtures/known-issue.ts`). A table row may carry the issue as a field (`issue: KNOWN_ISSUES.<name>`), so count the rows that carry it, not just the call sites.
+Known defects are listed in `known-issues.json` and marked in tests with `await knownIssue(KNOWN_ISSUES.<name>)` (`fixtures/known-issue.ts`). A table row may carry the issue as a field (`issue: KNOWN_ISSUES.<name>`), so count the rows that carry it, not just the call sites.
 
 - **Expected failure**: the entry has a tracker `key`. The test runs and is expected to fail.
 - **Skipped (no ticket)**: the entry has no `key`. The test is skipped as `fixme`.
@@ -43,7 +43,7 @@ Bare `test.fail`, `test.fixme` or `test.skip` in a spec break the project rules;
 
 ### 2d. Record Details
 
-For each known-issue test: project, file, test title, the `KNOWN_ISSUES` name, its tracker key (or "none") and summary.
+For each known-issue test: project, file, test title, the `KNOWN_ISSUES` name, its `issueUrl` (or "none") and summary.
 
 ## Step 3: Collect Previous Period Metrics
 
@@ -56,7 +56,7 @@ Commits before the layer rebuild used other projects, fixtures and markers (`@de
 Use `git log --since=<start> --until=<end> --stat -- tests pages dataset api fixtures core` to find:
 - New and modified spec files
 - New tests (titles added), tests removed
-- `knownIssue` marks added and removed, `KNOWN_ISSUES` entries added, removed or given a tracker key
+- `knownIssue` marks added and removed, `KNOWN_ISSUES` entries added, removed or given an `issueUrl`
 - New page objects, REST clients, GraphQL documents, builders, `arrange` methods, dataset records
 - Main feature areas covered
 
@@ -134,7 +134,7 @@ Framework unit tests: {UNIT_TESTS} in {UNIT_FILES} files.
 {Page objects, REST clients, GraphQL documents, builders, arrange methods, dataset records}
 
 ### Known Issues
-{KNOWN_ISSUES entries added, removed or given a tracker key, with reasons}
+{KNOWN_ISSUES entries added, removed or given an `issueUrl`, with reasons}
 
 ---
 
@@ -167,7 +167,7 @@ Framework unit tests: {UNIT_TESTS} in {UNIT_FILES} files.
 ---
 
 *Report generated on {REPORT_DATE}*
-*Data sources: `npx playwright test --list`, `dataset/known-issues.ts`, git history*
+*Data sources: `npx playwright test --list`, `known-issues.json`, git history*
 ```
 
 ## Step 8: Generate HTML Presentation
@@ -190,4 +190,4 @@ Create `project-progress-report/Sprint{SPRINT_ID}/test-coverage-presentation.htm
 Tell the user:
 - The paths of both files
 - Headline metrics (total, growth, active rate)
-- Notable findings or concerns (for example, known issues without a tracker key, bare `test.fail`/`test.fixme`, old-suite tests still ⬜)
+- Notable findings or concerns (for example, known issues without an `issueUrl`, bare `test.fail`/`test.fixme`, old-suite tests still ⬜)

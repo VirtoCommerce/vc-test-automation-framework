@@ -9,12 +9,12 @@ import { TokenClient } from "@api/auth/token-client";
 import { TokenManager } from "@api/auth/token-manager";
 import { HttpClient } from "@api/http/http-client";
 import { Logger } from "@core/logger";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
 import { PageBuilderShell } from "@pages/backend/page-builder/page-builder-shell";
 import { PageDesigner } from "@pages/backend/page-designer/page-designer";
 import { Frontend } from "@pages/frontend/frontend";
 
 import { test as arrangeTest } from "./arrange.fixture";
+import { KNOWN_ISSUES } from "./known-issue";
 
 /** Frontend browser identity: an anonymous visitor, or a new customer account created for the test. */
 export type ShopperKind = "anonymous" | "customer";
@@ -31,8 +31,8 @@ export interface BrowserOptions {
    */
   readonly shopperKind: ShopperKind;
   /**
-   * Whether `pageDesigner` patches the frontend's `/designer-preview` headers; `true` until
-   * `KNOWN_ISSUES.designerPreviewBlockedByEmbedderPolicy` is fixed. Only its guard test turns it off.
+   * Whether `pageDesigner` patches the frontend's `/designer-preview` headers while the known issues file lists
+   * `designerPreviewBlockedByEmbedderPolicy`; `true` by default. Only its guard test turns it off.
    */
   readonly designerPreviewPatched: boolean;
 }
@@ -54,9 +54,10 @@ export interface BrowserFixtures {
   /** The admin UI's page builder shell on the test's `page`, for the store under test. */
   readonly pageBuilder: PageBuilderShell;
   /**
-   * The admin UI's page designer on the test's `page`, for the store under test. Unless `designerPreviewPatched` is
-   * off, works around `KNOWN_ISSUES.designerPreviewBlockedByEmbedderPolicy`: the frontend's `/designer-preview`
-   * responses get the headers the designer's embedder policy requires, and the test is tagged `workaround`. The
+   * The admin UI's page designer on the test's `page`, for the store under test. While the known issues file lists
+   * `designerPreviewBlockedByEmbedderPolicy` and `designerPreviewPatched` is on, works around it: the frontend's
+   * `/designer-preview` responses get the headers the designer's embedder policy requires, and the test is tagged
+   * `workaround`. The
    * context may read and write the clipboard, which the designer's copy and paste of sections use.
    */
   readonly pageDesigner: PageDesigner;
@@ -140,8 +141,8 @@ export const test = arrangeTest.extend<BrowserOptions & BrowserFixtures, Browser
 
   pageDesigner: async ({ page, context, env, designerPreviewPatched }, use, testInfo) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: env.backendBaseUrl });
-    if (designerPreviewPatched) {
-      const issue = KNOWN_ISSUES.designerPreviewBlockedByEmbedderPolicy;
+    const issue = KNOWN_ISSUES.designerPreviewBlockedByEmbedderPolicy;
+    if (designerPreviewPatched && issue !== undefined) {
       await context.route(`${env.frontendBaseUrl}/designer-preview**`, async (route) => {
         const response = await route.fetch();
         await route.fulfill({ response, headers: { ...response.headers(), ...DESIGNER_PREVIEW_HEADERS } });

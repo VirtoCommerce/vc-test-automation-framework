@@ -20,7 +20,7 @@ Read first: CLAUDE.md "Writing tests", README "A REST test" and "Cleaning up". C
 - Test data: `arrange.<domain>.<x>()` (`dataset/arrange/`, domains in README "`arrange` domains"). Missing one?
   Add a method to the domain file, on top of a builder in `dataset/builders/`.
 - Seeded records: `dataset.<collection>.get(id)`; ids from `dataset/data/<collection>/*.json`.
-- Known defect: an entry in `dataset/known-issues.ts`.
+- Known defect: an entry in `known-issues.json`.
 
 ## Step 2: Write the Spec
 
@@ -118,11 +118,11 @@ await expect
 **Store settings.** `arrange.platform.storeSetting(name, value)` restores the old value after the test. Global
 settings (`arrange.platform.setting`, `allowedValue`, `restoreSettingLater`) are for `tests/isolated/` only.
 
-**Known defects.** Add the entry to `dataset/known-issues.ts`, then start the test with it:
+**Known defects.** Add the entry to the root `known-issues.json` and its name to `KNOWN_ISSUE_NAMES` in
+`fixtures/known-issue.ts`, then start the test with it:
 
 ```ts
-import { KNOWN_ISSUES } from "@dataset/known-issues";
-import { expect, knownIssue, test } from "@fixtures";
+import { expect, KNOWN_ISSUES, knownIssue, test } from "@fixtures";
 
 await knownIssue(KNOWN_ISSUES.channelSearchIgnoresFilters);
 ```

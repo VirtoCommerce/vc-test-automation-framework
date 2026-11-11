@@ -39,7 +39,7 @@ api/rest/clients/<module>-client.ts           REST client methods (api.rest.<mod
 pages/frontend/, pages/backend/               page objects
 dataset/arrange/*.ts, dataset/builders/*.ts   arrange methods and drafts
 dataset/data/                                 seeded users, products, orders, pages, …
-dataset/known-issues.ts                       defects already known
+known-issues.json                             defects already known
 ```
 
 ### Step 3: Design Test Cases
@@ -56,7 +56,7 @@ For each behavior decide:
 5. **Cleanup**: `arrange` handles what it creates; `…Later` methods or `cleanup.push` for what the code under
    test creates.
 6. **Priority**: P0 (critical path), P1 (important), P2 (edge case).
-7. **Markers**: a known defect (`knownIssue(KNOWN_ISSUES.x)`, with or without a tracker key).
+7. **Markers**: a known defect (`knownIssue(KNOWN_ISSUES.x)`, with or without an `issueUrl`).
 
 A behavior is tested once at the lowest layer that shows it. The UI keeps only what only the UI shows.
 
@@ -103,7 +103,7 @@ A behavior is tested once at the lowest layer that shows it. The UI keeps only w
 - **REST client methods / types:** <or "None">
 - **Page objects / components:** <or "None">
 - **Builders / arrange methods:** <or "None">
-- **Known issues:** <entries for dataset/known-issues.ts, or "None">
+- **Known issues:** <entries for known-issues.json, or "None">
 
 ## Allure Organization
 - **Epic / feature:** <e.g. "GraphQL" / "Cart / Coupons", "E2E" / "Frontend / Checkout">

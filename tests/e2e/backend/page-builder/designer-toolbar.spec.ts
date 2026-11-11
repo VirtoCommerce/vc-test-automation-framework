@@ -1,8 +1,7 @@
 import * as allure from "allure-js-commons";
 
-import { KNOWN_ISSUES } from "@dataset/known-issues";
 import { MODULES } from "@dataset/modules";
-import { expect, knownIssue, test } from "@fixtures";
+import { expect, KNOWN_ISSUES, knownIssue, test } from "@fixtures";
 import { DESIGNER_PATH, Viewport } from "@pages/backend/page-designer/page-designer";
 
 const ABOUT_STORE_PAGE = "page-acme-about-store";

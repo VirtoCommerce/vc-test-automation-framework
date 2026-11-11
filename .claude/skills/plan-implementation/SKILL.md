@@ -26,7 +26,7 @@ follows, and the order to build them in. Read CLAUDE.md first; it holds the laye
 | Builder | `dataset/builders/<domain>.ts` | `dataset/builders/pricing.ts` |
 | Arrange method | `dataset/arrange/<domain>.ts` (types exported from `index.ts`) | `dataset/arrange/pricing.ts` |
 | Seed record | `dataset/data/<collection>/*.json` (+ `dataset/manifest.ts` for a new collection) | neighbouring JSON files |
-| Known defect | `dataset/known-issues.ts` | existing entries |
+| Known defect | `known-issues.json` | existing entries |
 | Fixture or option | `fixtures/<name>.fixture.ts`, exported from `fixtures/index.ts` | `fixtures/browser.fixture.ts` |
 | REST spec | `tests/restapi/<platform-module>/<topic>.spec.ts` | `tests/restapi/pricing/pricelists.spec.ts` |
 | GraphQL spec | `tests/graphql/<area>/<topic>.spec.ts` | `tests/graphql/cart/cart-items.spec.ts` |
@@ -51,7 +51,7 @@ Before adding a file, search for:
 3. pages/: components, then pages, then the Frontend factory method
 4. dataset/data records (+ manifest), then npm run seed
 5. dataset/builders, then dataset/arrange
-6. dataset/known-issues.ts entries
+6. known-issues.json entries
 7. fixtures (only when no arrange method or option fits)
 8. specs: restapi, graphql, e2e; isolated ones last
 ```

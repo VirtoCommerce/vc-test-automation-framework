@@ -27,11 +27,11 @@ contact id) of any user in the same organization through the GraphQL `user` quer
 platform answers `Forbidden`. If that is intended, add a positive "a colleague's account is readable" test; if not,
 add a test expecting `Forbidden`, marked as a known issue.
 
-**Known issues, tracked in Jira.** 6 REST tests carry a `knownIssue` mark with a tracker key, so they run as
+**Known issues, tracked in Jira.** 6 REST tests carry a `knownIssue` mark with an `issueUrl`, so they run as
 expected failures linked to the ticket. Two more issues have a `failure` pattern instead: they hit whichever
 test collides with another (on SQL Server only, so far in cleanup), and such a test is reported as an expected
 failure of the issue. When a ticket is fixed the test passes, the run reports it, and the entry in
-`dataset/known-issues.ts` goes. When a ticket is closed as intended, rewrite or delete the test and drop the entry.
+`known-issues.json` goes. When a ticket is closed as intended, rewrite or delete the test and drop the entry.
 
 | Ticket | Behaviour | Owner | Tests |
 |---|---|---|---|

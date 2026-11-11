@@ -340,7 +340,6 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   ├── seed/                The seeder and the steps after it (user passwords, page statuses)
 │   ├── builders/            `newX()` functions that build unique entities for tests
 │   ├── arrange/             The `arrange` fixture, one file per domain (see below)
-│   ├── known-issues.ts      Known defects, with tracker keys where tickets exist
 │   └── users.ts, stock.ts, store-under-test.ts   Dataset lookups: credentials, fulfillment centers, the store
 │
 ├── pages/                   Page objects (depend on `core` only)
@@ -356,14 +355,14 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │       ├── vc-shell/        Wrappers of the vc-shell UI kit (blade, data grid, select, date picker, switch, …)
 │       └── page-builder/    The page builder app: routes, list and details blades, `PageBuilderShell`
 │
-├── fixtures/                Playwright fixtures; specs import `test`, `expect` and `knownIssue` from `@fixtures`
+├── fixtures/                Playwright fixtures; specs import `test`, `expect`, `knownIssue` and `KNOWN_ISSUES` from `@fixtures`
 │   ├── env.fixture.ts       `env`
 │   ├── dataset.fixture.ts   `dataset`, `store`
 │   ├── api.fixture.ts       `api` (anonymous by default; `test.use({ user })` signs in a dataset user), `requiresModules`
 │   ├── cleanup.fixture.ts   `cleanup` (the stack `arrange` registers on); reports errors known issues explain
 │   ├── arrange.fixture.ts   `arrange`
 │   ├── browser.fixture.ts   `shopper`, `frontend`, `pageBuilder`; signs the browser in
-│   └── known-issue.ts       `knownIssue(...)`, matching errors to known issues, the report entries
+│   └── known-issue.ts       Reads `known-issues.json`; `knownIssue(...)`, `tests` and `failure` matching, the report entries
 │
 ├── tests/
 │   ├── setup/               The `modules` and `seed` setup projects
@@ -375,6 +374,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   └── unit/                Unit tests of core, api and dataset, against local stub servers
 │
 ├── biome/                   Lint rules, import rules, layer rules, exceptions
+├── known-issues.json        Known defects of the platform under test, with links to their tickets
 ├── playwright.config.ts     Projects, timeouts, reporters
 ├── codegen-graphql.ts, codegen-rest.mts   Code generation
 ├── backend-packages.json    Platform and module versions CI deploys
@@ -431,7 +431,7 @@ Methods named `…Later` create nothing: they register the removal of something 
 
 ### Rules
 
-- Import `test`, `expect` and `knownIssue` from `@fixtures`, never from `@playwright/test`.
+- Import `test`, `expect`, `knownIssue` and `KNOWN_ISSUES` from `@fixtures`, never from `@playwright/test`.
 - Tag every test in Allure: `epic` and `feature` in `beforeEach`, `story` and `description` in the test.
 - Write every phase as a step named `arrange: …`, `act: …` or `assert: …`.
 - No conditional logic, no type casts and no helper functions in specs. Repeated cases are one table-driven test;
@@ -458,15 +458,37 @@ Methods named `…Later` create nothing: they register the removal of something 
   proven on: raise `minVersion` when the suite starts relying on a newer fix, lower it only after a green run on
   the older version. The suite targets edge versions; version ranges are for the few modules it deliberately
   follows at edge (today PageBuilder), not for general differences between stable and edge bundles.
-- A test that hits a known defect starts with `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test runs
-  and is expected to fail; without one it is skipped as `fixme`. Add the defect to `dataset/known-issues.ts` first.
-- A defect that can hit any test, such as a deadlock between parallel deletes, gets a `failure` pattern in its
-  entry instead of `knownIssue` calls: an error message it causes (request, status, body). A test whose every
-  error, in its steps or its cleanup, matches a tracked issue's `failure` is reported as an expected failure of
-  that issue; any other error still fails it. When the defect is fixed the pattern stops matching.
+- Known defects are listed in `known-issues.json` in the repository root, by name:
+
+  ```json
+  {
+    "channelSearchIgnoresFilters": {
+      "issueUrl": "https://virtocommerce.atlassian.net/browse/VCST-6441",
+      "summary": "POST /api/completeness/channels/search ignores objectIds and keyword"
+    }
+  }
+  ```
+
+  `summary` is required. With an `issueUrl` a marked test runs and is expected to fail; without one it is
+  skipped as `fixme`. The file is validated when tests start: an unknown field, a blank summary or an invalid
+  pattern stops the run with the entry's name.
+- A test marks itself with `await knownIssue(KNOWN_ISSUES.x)`, first in the test. `KNOWN_ISSUES` has the names
+  the framework's specs use (`KNOWN_ISSUE_NAMES` in `fixtures/known-issue.ts`); a name the file does not list is
+  `undefined` and the mark does nothing.
+- `tests` marks tests without changing them: patterns over `<spec file> › <describe> › <test>`, where `*`
+  matches any text, such as `"tests/restapi/security/oauth-apps.spec.ts › *"` for a whole file or
+  `"* › search OAuth apps by keyword"` for one test.
+- A defect that can hit any test, such as a deadlock between parallel deletes, gets a `failure` pattern instead:
+  a regular expression over an error it causes (request, status, body), written as a JSON string, so backslashes
+  are doubled (`"DELETE \\S+/api/contacts"`). A test whose every error, in its steps or its cleanup, matches a
+  tracked issue's `failure` is reported as an expected failure of that issue; any other error still fails it.
 - Every known issue a test hits shows in the report as a link to the ticket, a `known issue` tag (Allure lists an
-  expected failure as passed, so filter by the tag), a "Known issue <key>" attachment saying what failed, and a
-  `[known issue] WARN <key>: <summary> (<link>) in "<test>"` line in the run's log.
+  expected failure as passed, so filter by the tag), a "Known issue <label>" attachment saying what failed, and a
+  `[known issue] WARN <label>: <summary> (<link>) in "<test>"` line in the run's log. The label is the last part
+  of the `issueUrl`, such as `VCST-6441`.
+- A platform with its own modules or frontend has its own defects: its CI puts its own `known-issues.json` in the
+  repository root in place of ours. Issues of ours it leaves out are not marked there, and its own issues reach
+  the framework's tests through `tests` and `failure`.
 - No code comments; names and `test.step` titles say what happens.
 
 Before committing, run `npm run check` (format and lint) and `npm run typecheck`; the pre-commit hook runs both.

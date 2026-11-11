@@ -31,8 +31,8 @@ Each folder imports only the folders before it; `biome/layers.json` enforces it.
 | `core/` | env, `Secret`, `CleanupStack`, `pollUntil` / `INDEX_LAG_TIMEOUT_MS`, `requireFields`, `uniqueId`, logger | nothing |
 | `api/` | `ApiSession`, `HttpClient`, auth, REST clients + types, GraphQL client + `.graphql` documents, `Mailbox`, matchers | `core` |
 | `pages/` | page objects: `frontend/` (layouts, ui-kit, components, pages, flows), `backend/` (vc-shell, page-builder) | `core` |
-| `dataset/` | seed data (`data/`, `manifest.ts`, `seed/`), typed access (`dataset.ts`), builders (`newX()`), `arrange/`, `known-issues.ts` | `api`, `core` |
-| `fixtures/` | Playwright fixtures, exported from `fixtures/index.ts` with `knownIssue` | all but `tests` |
+| `dataset/` | seed data (`data/`, `manifest.ts`, `seed/`), typed access (`dataset.ts`), builders (`newX()`), `arrange/` | `api`, `core` |
+| `fixtures/` | Playwright fixtures, exported from `fixtures/index.ts` with `knownIssue` and `KNOWN_ISSUES` (read from the root `known-issues.json`) | all but `tests` |
 | `tests/` | `restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/`, `isolated/`, `setup/`, `unit/` | all; Playwright only through `@fixtures` (except `unit/`) |
 
 Aliases: `@core/*`, `@api/*`, `@dataset/*`, `@pages/*`, `@fixtures`. `@dataset/arrange` is the `arrange/index.ts`
@@ -75,10 +75,12 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
 - Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
 - Expected errors: `rejects.toBeHttpError(status, "body text")`, `rejects.toBeGraphqlError("CODE")`. A cart's
   totals adding up: `expect(cart).toHaveConsistentTotals()`.
-- Known defects: add the entry to `dataset/known-issues.ts` and start the test with
-  `await knownIssue(KNOWN_ISSUES.x)`. With a tracker key the test is an expected failure; without one it is skipped
-  as `fixme`. Never a bare `test.fail` or `test.fixme`. A defect that can hit any test (a deadlock between
-  parallel deletes) gets a `failure` pattern instead; a test whose every error matches one is an expected failure.
+- Known defects: add the entry to the root `known-issues.json` and its name to `KNOWN_ISSUE_NAMES`
+  (`fixtures/known-issue.ts`), then start the test with `await knownIssue(KNOWN_ISSUES.x)`. With an `issueUrl` the
+  test is an expected failure; without one it is skipped as `fixme`. Never a bare `test.fail` or `test.fixme`.
+  A defect that can hit any test (a deadlock between parallel deletes) gets a `failure` pattern instead; a test
+  whose every error matches one is an expected failure. `tests` patterns mark tests without editing them, for a
+  partner's own file: their CI replaces `known-issues.json`.
 - A test that needs an optional module declares `test.use({ requiresModules: [MODULES.x] })` (`@dataset/modules`)
   on its `describe` and is skipped where the module is missing or outside its version range (`minVersion`
   inclusive, `beforeVersion` exclusive); the seed manifest uses the same `MODULES` entries. Keep that module's

@@ -1,9 +1,8 @@
 import * as allure from "allure-js-commons";
 
 import { newPage } from "@dataset/builders/page-builder";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
 import { MODULES } from "@dataset/modules";
-import { expect, knownIssue, test } from "@fixtures";
+import { expect, KNOWN_ISSUES, knownIssue, test } from "@fixtures";
 
 const SEARCH_PAGE_SIZE = 20;
 const SPECIAL_PERMALINKS = [

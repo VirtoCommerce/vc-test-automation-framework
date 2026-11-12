@@ -52,7 +52,7 @@ Read each target file completely, plus what it depends on:
 - [ ] No `waitForTimeout`, `networkidle`, sleeps or `expect(await locator.isVisible())`.
 - [ ] Missing data fails loudly: `requireFields` / `requireDefined`, no `?? ""`, `?? []`, `?? 0`.
 - [ ] Expected errors use `rejects.toBeHttpError(status, "text")` / `rejects.toBeGraphqlError("CODE")`.
-- [ ] Known defects: `await knownIssue(KNOWN_ISSUES.x)` first in the test, entry in `dataset/known-issues.ts`;
+- [ ] Known defects: `await knownIssue(KNOWN_ISSUES.x)` first in the test, entry in `known-issues.json`;
       no bare `test.fail`, `test.fixme` or `test.skip`.
 
 ### Step 5: Project-Specific Checks

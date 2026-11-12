@@ -118,7 +118,7 @@ query (see `tests/graphql/pickup/pickup-locations.spec.ts`).
 `stockQuantity(dataset, productId, centerId)`.
 
 **Known defects.** `await knownIssue(KNOWN_ISSUES.x)` first in the test, with the entry in
-`dataset/known-issues.ts`.
+`known-issues.json`.
 
 ## Rules
 

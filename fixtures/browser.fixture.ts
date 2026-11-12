@@ -2,14 +2,19 @@ import type { ApiSession } from "@api/api-session";
 import type { App } from "@api/auth/browser-sessions";
 import type { CustomerAccount } from "@dataset/arrange";
 
+import * as allure from "allure-js-commons";
+
 import { BrowserSessions } from "@api/auth/browser-sessions";
 import { TokenClient } from "@api/auth/token-client";
 import { TokenManager } from "@api/auth/token-manager";
 import { HttpClient } from "@api/http/http-client";
+import { Logger } from "@core/logger";
 import { PageBuilderShell } from "@pages/backend/page-builder/page-builder-shell";
+import { PageDesigner } from "@pages/backend/page-designer/page-designer";
 import { Frontend } from "@pages/frontend/frontend";
 
 import { test as arrangeTest } from "./arrange.fixture";
+import { KNOWN_ISSUES } from "./known-issue";
 
 /** Frontend browser identity: an anonymous visitor, or a new customer account created for the test. */
 export type ShopperKind = "anonymous" | "customer";
@@ -25,6 +30,11 @@ export interface BrowserOptions {
    * test.use({ shopperKind: "customer" });
    */
   readonly shopperKind: ShopperKind;
+  /**
+   * Whether `pageDesigner` patches the frontend's `/designer-preview` headers while the known issues file lists
+   * `designerPreviewBlockedByEmbedderPolicy`; `true` by default. Only its guard test turns it off.
+   */
+  readonly designerPreviewPatched: boolean;
 }
 
 /** The frontend browser's identity on the API, for arranging carts and other data the browser then shows. */
@@ -43,7 +53,20 @@ export interface BrowserFixtures {
   readonly frontend: Frontend;
   /** The admin UI's page builder shell on the test's `page`, for the store under test. */
   readonly pageBuilder: PageBuilderShell;
+  /**
+   * The admin UI's page designer on the test's `page`, for the store under test. While the known issues file lists
+   * `designerPreviewBlockedByEmbedderPolicy` and `designerPreviewPatched` is on, works around it: the frontend's
+   * `/designer-preview` responses get the headers the designer's embedder policy requires, and the test is tagged
+   * `workaround`. The
+   * context may read and write the clipboard, which the designer's copy and paste of sections use.
+   */
+  readonly pageDesigner: PageDesigner;
 }
+
+const DESIGNER_PREVIEW_HEADERS = {
+  "cross-origin-embedder-policy": "credentialless",
+  "cross-origin-resource-policy": "cross-origin",
+};
 
 interface BrowserWorkerFixtures {
   readonly browserSessions: BrowserSessions;
@@ -58,6 +81,7 @@ interface BrowserWorkerFixtures {
 export const test = arrangeTest.extend<BrowserOptions & BrowserFixtures, BrowserWorkerFixtures>({
   app: [undefined, { option: true }],
   shopperKind: ["anonymous", { option: true }],
+  designerPreviewPatched: [true, { option: true }],
 
   browserSessions: [
     async ({ env, playwright }, use) => {
@@ -113,5 +137,20 @@ export const test = arrangeTest.extend<BrowserOptions & BrowserFixtures, Browser
 
   pageBuilder: async ({ page, env }, use) => {
     await use(new PageBuilderShell(page, { path: env.pageBuilderPath, storeId: env.storeId }));
+  },
+
+  pageDesigner: async ({ page, context, env, designerPreviewPatched }, use, testInfo) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: env.backendBaseUrl });
+    const issue = KNOWN_ISSUES.designerPreviewBlockedByEmbedderPolicy;
+    if (designerPreviewPatched && issue !== undefined) {
+      await context.route(`${env.frontendBaseUrl}/designer-preview**`, async (route) => {
+        const response = await route.fetch();
+        await route.fulfill({ response, headers: { ...response.headers(), ...DESIGNER_PREVIEW_HEADERS } });
+      });
+      testInfo.annotations.push({ type: "workaround", description: issue.summary });
+      await allure.tag("workaround");
+      new Logger("workaround").warn(`designer preview headers patched in "${testInfo.title}": ${issue.summary}`);
+    }
+    await use(new PageDesigner(page, { storeId: env.storeId }));
   },
 });

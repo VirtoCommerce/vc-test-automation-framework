@@ -48,7 +48,7 @@ See README.md "Project structure" for the full tree. The short map:
 | Draft entity | `dataset/builders/<area>.ts`: `newX()` with a unique name and a client-side `id` |
 | Test data with cleanup | `dataset/arrange/<domain>.ts`, reached as `arrange.<domain>.x()` |
 | Seeded record | `dataset/data/<collection>/*.json`, read through `dataset.<collection>.get(id)` |
-| Known defect | `dataset/known-issues.ts` |
+| Known defect | `known-issues.json` |
 
 Layers (`biome/layers.json`): `core` → `api` → `dataset` → `fixtures` → `tests`, with `pages` importing only `core`. Specs import `test`, `expect` and `knownIssue` only from `@fixtures`. Never edit `api/*/generated/`.
 
@@ -89,7 +89,7 @@ Copy the shape of README.md "A REST test", "A GraphQL test" and "An e2e test", o
 5. Index-backed reads wait in `arrange` (`searchableMemberships`, `pickupLocations`, `cartPickupLocations`, `productPickupLocations`, `lockMemberships`) or with `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never `waitForTimeout` or `networkidle`.
 6. Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""`, `?? []`, `?? 0`.
 7. Expected errors: `rejects.toBeHttpError(status, "body text")`, `rejects.toBeGraphqlError("CODE")`.
-8. Known defects: add an entry to `dataset/known-issues.ts`, start the test with `await knownIssue(KNOWN_ISSUES.x)`. Never a bare `test.fail` or `test.fixme`.
+8. Known defects: add an entry to `known-issues.json`, start the test with `await knownIssue(KNOWN_ISSUES.x)`. Never a bare `test.fail` or `test.fixme`.
 9. Tests that change platform-wide state (global settings, index, restart, store availability) go to `tests/isolated/`; they run only with `RUN_DESTRUCTIVE_TESTS=true`.
 10. Place tests by platform module: users and accounts are `security`, not `customer`.
 11. A UI test checks the UI; data rules are checked once through the API.
@@ -124,7 +124,7 @@ Use the npm scripts, not a bare `npx playwright test <file>`: without `--project
 ## Critical Files Reference
 
 - `fixtures/index.ts`, `fixtures/*.fixture.ts`, `fixtures/known-issue.ts`
-- `dataset/arrange/index.ts` and its domain files, `dataset/dataset.ts`, `dataset/known-issues.ts`
+- `dataset/arrange/index.ts` and its domain files, `dataset/dataset.ts`, `known-issues.json`
 - `core/required-fields.ts`, `core/cleanup-stack.ts`, `core/poll.ts`, `core/unique-id.ts`
 - `api/api-session.ts`, `api/api-matchers.ts`, `api/rest/rest-api.ts`, `api/graphql/graphql-client.ts`
 - `api/rest/clients/pricing-client.ts` with `api/rest/types/pricing.ts`: REST client pattern

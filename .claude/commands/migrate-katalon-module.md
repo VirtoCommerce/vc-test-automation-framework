@@ -38,7 +38,7 @@ Extend or create the module's client in `api/rest/clients/<module>-client.ts`, w
 ### Step 5: DATA
 - Records the tests only read: from `dataset` (`dataset.<collection>.get(id)`); add JSON to `dataset/data/<collection>/` if needed, then `npm run seed`.
 - Records the tests change: `newX()` builders in `dataset/builders/<area>.ts` and `arrange.<domain>.x()` methods in `dataset/arrange/<domain>.ts`, which register their own cleanup.
-- Defects the Katalon scripts work around: a `KNOWN_ISSUES` entry in `dataset/known-issues.ts`.
+- Defects the Katalon scripts work around: a `KNOWN_ISSUES` entry in `known-issues.json`.
 
 ### Step 6: SPECS
 Create `tests/restapi/<platform module>/<feature>.spec.ts` (`/write-rest-api-test`). Place by platform module: users and accounts go to `security`, not `customer`.

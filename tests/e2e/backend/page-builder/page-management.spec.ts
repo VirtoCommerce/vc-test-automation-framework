@@ -5,9 +5,8 @@ import { TEST_PAGE_PREFIX } from "@dataset/builders/page-builder";
 import { MODULES } from "@dataset/modules";
 import { expect, test } from "@fixtures";
 import { Column, DetailsToolbar, PageType, Route } from "@pages/backend/page-builder/routes";
+import { DESIGNER_PATH } from "@pages/backend/page-designer/page-designer";
 import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade";
-
-const DESIGNER_APP = "page-builder-designer";
 
 test.beforeEach(async () => {
   await allure.epic("E2E");
@@ -92,7 +91,7 @@ test.describe("page management (platform admin)", () => {
     });
 
     await test.step("assert: the designer app opened in a new tab", async () => {
-      expect(designer.url()).toContain(DESIGNER_APP);
+      expect(new URL(designer.url()).pathname).toBe(DESIGNER_PATH);
       await designer.close();
     });
   });

@@ -1,8 +1,7 @@
 import * as allure from "allure-js-commons";
 
 import { newOAuthApp } from "@dataset/builders/security";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
-import { expect, knownIssue, test } from "@fixtures";
+import { expect, KNOWN_ISSUES, knownIssue, test } from "@fixtures";
 
 test.beforeEach(async () => {
   await allure.epic("REST API");

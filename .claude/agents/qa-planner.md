@@ -54,7 +54,7 @@ You are a QA test planner for the VirtoCommerce e-commerce platform. You analyze
 - **Dataset** (`dataset/data/`, read with `dataset.<collection>.get(id)`): store, catalog, products, users, organizations, prices, orders, pickup locations, pages
 - **REST clients** (`api/rest/clients/`, `api.rest.<module>`), **GraphQL documents** (`api/graphql/operations/<area>/`)
 - **Page objects** (`pages/frontend/`, built by `frontend.<page>()`; `pages/backend/`)
-- **Known issues** (`dataset/known-issues.ts`)
+- **Known issues** (`known-issues.json`)
 
 ### Conventions a Plan Must Respect
 
@@ -94,6 +94,6 @@ From CLAUDE.md "Writing tests":
 6. **Plan cleanup**: name the `arrange` method that owns it, or the `cleanup.push` and where it goes.
 7. **Plan test data**: dataset records read (by id), new dataset records, new builders or `arrange` methods.
 8. **Think about parallelism**: what other tests could touch the same data at the same time; platform-wide changes go to `isolated`.
-9. **Plan known issues**: name the `KNOWN_ISSUES` entry and its tracker key, if any.
+9. **Plan known issues**: name the `KNOWN_ISSUES` entry and its `issueUrl`, if any.
 10. **Plan in dependency order**: `.graphql` documents and codegen, REST clients and types, page objects, builders, `arrange` methods, known issues, then specs, then REFINEMENTS.md if the work does or adds a refinement.
 11. **Plan verification**: `npm run typecheck`, `npm run check`, `npx playwright test --list`, `npm run test:<project> -- <specs>`, and `npm run test:unit` when framework code changes.

@@ -6,6 +6,11 @@ import { uniqueId } from "@core/unique-id";
 /** Starts the name of every page a test creates, so cleanup and searches find them. */
 export const TEST_PAGE_PREFIX = "test-page";
 
+/** Id of the text section built from `texts[index]` by {@link newPage}. */
+export function textSectionId(index: number): string {
+  return `text-${index}`;
+}
+
 /** A page builder page to create. */
 export type PageDraft = WithRequired<CreateGroupedPageRequest, "storeId" | "name" | "permalink" | "cultureName">;
 
@@ -31,7 +36,7 @@ export function newPage(
     content: JSON.stringify({
       settings: { cultureName, header: name, name, permalink, seoInfo: { pageTitle: name } },
       content: (options.texts ?? []).map((text, index) => ({
-        id: `text-${index}`,
+        id: textSectionId(index),
         heading: "h2",
         type: "text",
         text: { html: `<p>${text}</p>\n`, markdown: text },

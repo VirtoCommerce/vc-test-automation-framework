@@ -47,7 +47,7 @@ gh pr checks <number>
 - Arrange methods sit on the right domain class and register cleanup before the change.
 - `dataset/data` or `dataset/manifest.ts` changes: which specs read the changed records? Is the seed still safe
   to repeat?
-- `dataset/known-issues.ts`: new entries are used by a `knownIssue` call; fixed defects are removed with their
+- `known-issues.json`: new entries are used by a `knownIssue` call; fixed defects are removed with their
   calls.
 
 **Fixtures (`fixtures/**`):**
@@ -78,7 +78,7 @@ gh pr checks <number>
 ### Step 6: Check CI
 
 - Did `auto-tests.yml` pass for every database and search engine in its matrix?
-- Are failures caused by the PR, or by a defect already in `dataset/known-issues.ts`?
+- Are failures caused by the PR, or by a defect already in `known-issues.json`?
 
 ## Output Format
 

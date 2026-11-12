@@ -3,8 +3,7 @@ import type { Arrange } from "@dataset/arrange";
 import * as allure from "allure-js-commons";
 
 import { markdownFile } from "@dataset/builders/files";
-import { KNOWN_ISSUES } from "@dataset/known-issues";
-import { expect, knownIssue, test } from "@fixtures";
+import { expect, KNOWN_ISSUES, knownIssue, test } from "@fixtures";
 
 const CONTENT_TYPES = ["pages", "blogs", "themes"] as const;
 const COUNTED_CONTENT = [

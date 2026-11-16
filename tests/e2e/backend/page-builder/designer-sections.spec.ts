@@ -86,7 +86,9 @@ test.describe("page designer sections (platform admin)", () => {
     const { library } = pageDesigner;
     const all = await test.step("arrange: open the block library", async () => {
       await pageDesigner.addBlockButton.click();
-      await expect(library.addButtons).not.toHaveCount(0);
+      // The shared components render first and the theme's block types arrive later (loaded from the
+      // frontend), so a non-empty list is not yet the full one. Wait for a block the search will match.
+      await expect(library.addButtonsMatching(LIBRARY_SEARCH)).not.toHaveCount(0);
       return library.blockNames();
     });
 

@@ -25,6 +25,12 @@ export class BlockLibrary {
     await this.searchBox.press("End");
   }
 
+  /** "Add <block>" buttons of the listed block types whose names contain `term`, ignoring case. */
+  addButtonsMatching(term: string): Locator {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return this.root.getByRole("button", { name: new RegExp(`^${ADD_PREFIX}.*${escaped}`, "i") });
+  }
+
   /** Adds a block type where the panel was opened; its add button shows when the item is hovered. */
   async add(blockName: string): Promise<void> {
     await this.root.getByRole("button", { name: blockName, exact: true }).hover();

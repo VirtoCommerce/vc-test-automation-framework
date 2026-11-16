@@ -86,7 +86,7 @@ export class PageDesigner {
     this.notifications = page.getByRole("alert");
     this.previewFrame = page.locator("iframe#preview-frame-component");
     this.preview = this.previewFrame.contentFrame();
-    this.previewSections = this.preview.locator("#main-content [id][type]:not([type='scroll-to']):not([type] [type])");
+    this.previewSections = this.preview.locator("#main-content > * > [id]:not([id^='__scroll__'])");
     this.previewHeading = this.preview.locator("#main-content").getByRole("heading", { level: 1 });
     this.previewBreadcrumbs = this.preview.getByRole("navigation", { name: "Breadcrumbs navigation" });
   }

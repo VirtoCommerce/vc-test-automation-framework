@@ -1,4 +1,4 @@
-import type { Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { attributeSelector } from "../../selectors";
 
@@ -62,22 +62,39 @@ export class ShipToSelector {
   }
 }
 
-/** Account menu opened from the account button; lists the user's organizations. */
+/** Account menu opened from the account button. */
 export class AccountMenu {
   readonly root: Locator;
   readonly dashboardLink: Locator;
+
+  constructor(root: Locator) {
+    this.root = root;
+    this.dashboardLink = root.getByTestId("dashboard-link");
+  }
+}
+
+/** Organizations menu opened from the main menu's organizations button, shown to members of several organizations. */
+export class OrganizationsMenu {
+  readonly button: Locator;
+  readonly root: Locator;
   readonly organizationsEmptyList: Locator;
   readonly organizationOptions: Locator;
   readonly #searchInput: Locator;
   readonly #searchButton: Locator;
 
-  constructor(root: Locator) {
-    this.root = root;
-    this.dashboardLink = root.getByTestId("dashboard-link");
-    this.organizationsEmptyList = root.getByTestId("organizations-empty-list");
-    this.organizationOptions = root.locator("[data-vc-organization-option] [role='option']");
-    this.#searchInput = root.getByTestId("organizations-search").locator("input");
-    this.#searchButton = root.getByTestId("organizations-search-button");
+  constructor(page: Page) {
+    this.button = page.getByTestId("organizations-button");
+    this.root = page.locator("[role='dialog']").filter({ has: page.getByTestId("organizations-list") });
+    this.organizationsEmptyList = this.root.getByTestId("organizations-empty-list");
+    this.organizationOptions = this.root.locator("[data-vc-organization-option] [role='option']");
+    this.#searchInput = this.root.getByTestId("organizations-search").locator("input");
+    this.#searchButton = this.root.getByTestId("organizations-search-button");
+  }
+
+  /** Clicks the organizations button and waits for the menu. */
+  async open(): Promise<void> {
+    await this.button.click();
+    await this.root.waitFor();
   }
 
   /** Organization entry matched by its exact `data-organization-name`. */

@@ -72,6 +72,12 @@ test.describe("project facts", () => {
     );
   });
 
+  test("rejects an autonomy map without a default", () => {
+    expect(() => parseProjectFacts({ ...VALID, autonomy: { checkout: "propose" } })).toThrow(
+      'project.json: autonomy["*"] is missing',
+    );
+  });
+
   test("rejects a missing file with its path", () => {
     expect(() => readProjectFacts(".qa/does-not-exist.json")).toThrow(
       "project.json: .qa/does-not-exist.json cannot be read",

@@ -19,6 +19,7 @@ export const DEFAULT_CLIENT_ROUTES: readonly Route[] = ["paste"];
 
 const MIN_FLAKY_RUN_SERIES = 2;
 const DEFAULT_PATH = ".qa/project.json";
+const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
 
 function fail(path: string, problem: string): never {
@@ -152,8 +153,10 @@ function parseFlakyRunSeries(value: unknown): number {
 }
 
 function parseAutonomy(value: unknown): ProjectFacts["autonomy"] {
+  const autonomy = asRecord(value, "autonomy");
+  present(autonomy, DEFAULT_AUTONOMY_KEY, `autonomy["${DEFAULT_AUTONOMY_KEY}"]`);
   return Object.fromEntries(
-    Object.entries(asRecord(value, "autonomy")).map(([key, mode]) => {
+    Object.entries(autonomy).map(([key, mode]) => {
       if (mode !== "apply" && mode !== "propose") {
         return fail(`autonomy["${key}"]`, 'must be "apply" or "propose"');
       }

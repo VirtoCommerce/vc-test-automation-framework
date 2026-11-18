@@ -37,5 +37,5 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   service.
 - Tracker: `tracker.keyPattern` validates a ticket key; `tracker.routes` is the order in which to try to read a ticket,
   ending with pasted text.
-- Autonomy: `autonomy["<action>"]`, else `autonomy["*"]`. `propose` means write the change into the report and wait;
-  `apply` means do it.
+- Autonomy: `autonomy["<area>"]`, else `autonomy["*"]`, which the reader requires. `propose` means write the change
+  into the report and wait; `apply` means do it.

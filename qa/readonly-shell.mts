@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { lstatSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
 
@@ -9,6 +10,8 @@ export const JUDGE_AGENT = "qa-judge";
 export const JUDGE_QA_MODULES = ["judge-verdict", "prove-fails"] as const;
 
 export const JUDGE_WRITE_DIR = ".qa/judge";
+
+export const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"] as const;
 
 const TOKEN = /^[A-Za-z0-9_./:=@,+^~-]+$/;
 const GIT_SUBCOMMANDS = ["diff", "log", "show", "status"];
@@ -102,16 +105,48 @@ export function isReadOnlyAgent(name: string | undefined): boolean {
   return READ_ONLY_AGENTS.some((agent) => agent === bare);
 }
 
+function realPathOf(path: string): string | undefined {
+  let existing = path;
+  while (!exists(existing)) {
+    const parent = dirname(existing);
+    if (parent === existing) {
+      return undefined;
+    }
+    existing = parent;
+  }
+  try {
+    return join(realpathSync(existing), relative(existing, path));
+  } catch {
+    return undefined;
+  }
+}
+
+function exists(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isInsideJudgeDir(projectDir: string, file: string): boolean {
+  const area = realPathOf(resolve(projectDir, JUDGE_WRITE_DIR));
+  const target = realPathOf(resolve(projectDir, file));
+  if (area === undefined || target === undefined) {
+    return false;
+  }
+  const path = relative(area, target);
+  return path !== "" && !path.startsWith("..") && !isAbsolute(path);
+}
+
 function writeBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
   if (bareName(agent) !== JUDGE_AGENT) {
     return `${agent} is read-only and may not write files; blocked`;
   }
   const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
-  if (typeof file === "string" && file !== "") {
-    const path = relative(resolve(projectDir, JUDGE_WRITE_DIR), resolve(projectDir, file));
-    if (path !== "" && !path.startsWith("..") && !isAbsolute(path)) {
-      return undefined;
-    }
+  if (typeof file === "string" && file !== "" && isInsideJudgeDir(projectDir, file)) {
+    return undefined;
   }
   const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
   return `${agent} may write only under ${JUDGE_WRITE_DIR}/; blocked: ${shown}`;
@@ -120,8 +155,9 @@ function writeBlockReason(agent: string, toolInput: unknown, projectDir: string)
 /**
  * Decides a PreToolUse hook call for the Bash and Write tools: a one-line reason to block it, or undefined to let it
  * pass. Only the read-only agents are limited; the main session and every other agent pass untouched. A read-only
- * agent's Bash call must be on the allowlist, its Write call is allowed for `qa-judge` under `.qa/judge/` of the
- * project directory only, and a call of any other tool is blocked.
+ * agent's Bash call must be on the allowlist, its Write call is allowed for `qa-judge` under the real `.qa/judge/` of
+ * the project directory only (a link that leaves it does not count), the other writing tools are blocked, and the
+ * tools that only read pass.
  */
 export function hookBlockReason(input: unknown, projectDir: string = process.cwd()): string | undefined {
   if (!isRecord(input)) {
@@ -136,8 +172,14 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
   if (tool === "Write") {
     return writeBlockReason(agent, toolInput, projectDir);
   }
+  if (tool !== undefined && typeof tool !== "string") {
+    return `${agent} is read-only and its tool could not be identified; blocked`;
+  }
+  if (WRITING_TOOLS.some((writing) => writing === tool)) {
+    return `${agent} is read-only and may not use ${tool}; blocked`;
+  }
   if (tool !== undefined && tool !== "Bash") {
-    return `${agent} is read-only and may use only the Bash and Write tools; blocked: ${JSON.stringify(String(tool))}`;
+    return undefined;
   }
   const command = isRecord(toolInput) ? toolInput["command"] : undefined;
   if (typeof command === "string" && isReadOnlyCommand(command, agent)) {

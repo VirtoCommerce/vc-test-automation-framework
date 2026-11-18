@@ -1,16 +1,31 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { proveFails } from "../../../qa/prove-fails.mts";
+import { proveFails, removeWorktree } from "../../../qa/prove-fails.mts";
 
 const SPEC = "tests/unit/qa/fixtures/prove-fails-target.test.ts";
 const TITLE = "adds two numbers";
 const JUDGE_DIR = ".qa/judge";
 const SCRATCH = join(JUDGE_DIR, `prove-fails-test-${process.pid}`);
+const GENERATED_DIR = "tests/unit/qa/fixtures/generated";
+const TEMP_PREFIX = "prove-fails-";
 const PROVE_TIMEOUT_MS = 240_000;
+const HEADER = 'import { expect, test } from "@playwright/test";\n\n';
+const INJECTED = '    expect(total).toBe(4); process.getBuiltinModule("node:fs").writeFileSync("x", "");';
+const REPLACE_ONLY = "may only replace one string or number literal with another";
 
 test.describe.configure({ mode: "serial", timeout: PROVE_TIMEOUT_MS });
 
@@ -25,6 +40,13 @@ function writePatch(name: string, text: string): string {
   return file;
 }
 
+function generatedSpec(name: string, body: string): string {
+  mkdirSync(GENERATED_DIR, { recursive: true });
+  const file = `${GENERATED_DIR}/${name}-${process.pid}.test.ts`;
+  writeFileSync(file, `${HEADER}${body}`);
+  return file;
+}
+
 function breakExpectedValue(): string {
   return writePatch("break.patch", patchLine(SPEC, 6, "    expect(total).toBe(4);", "    expect(total).toBe(5);"));
 }
@@ -34,7 +56,7 @@ function status(): string {
 }
 
 function leftovers(): string[] {
-  return readdirSync(JUDGE_DIR).filter((name) => name.startsWith("prove-") && !name.startsWith("prove-fails-test-"));
+  return readdirSync(tmpdir()).filter((name) => name.startsWith(TEMP_PREFIX));
 }
 
 function worktrees(): string[] {
@@ -43,19 +65,28 @@ function worktrees(): string[] {
     .filter((line) => line.startsWith("worktree "));
 }
 
+test.beforeAll(() => {
+  rmSync(GENERATED_DIR, { recursive: true, force: true });
+});
+
 test.afterAll(() => {
   rmSync(SCRATCH, { recursive: true, force: true });
+  rmSync(GENERATED_DIR, { recursive: true, force: true });
 });
 
 test.describe("prove-fails (unit)", () => {
   test("proveFails leaves the working tree unchanged", async () => {
     const before = status();
     const trees = worktrees();
+    const temporary = leftovers();
     const result = await proveFails(SPEC, TITLE, breakExpectedValue());
     expect(result.failed).toBe(true);
     expect(status()).toBe(before);
     expect(worktrees()).toEqual(trees);
-    expect(leftovers()).toEqual([]);
+    expect(leftovers()).toEqual(temporary);
+    expect(existsSync(JUDGE_DIR) ? readdirSync(JUDGE_DIR).filter((name) => name.startsWith("prove-")) : []).toEqual([
+      `prove-fails-test-${process.pid}`,
+    ]);
     expect(existsSync("node_modules/@playwright/test")).toBe(true);
   });
 
@@ -75,58 +106,79 @@ test.describe("prove-fails (unit)", () => {
     expect(result.failed).toBe(false);
   });
 
-  test("proveFails sees a test that exists only in the working tree", async () => {
-    const spec = `tests/unit/qa/fixtures/prove-fails-uncommitted-${process.pid}.test.ts`;
-    writeFileSync(
-      spec,
-      'import { expect, test } from "@playwright/test";\n\ntest("subtracts", () => {\n  const left = 5 - 2;\n  expect(left).toBe(3);\n});\n',
+  test("proveFails runs in a worktree outside the repository", async () => {
+    process.env["PROVE_REPO_ROOT"] = process.cwd();
+    const spec = generatedSpec(
+      "outside",
+      'test("runs outside the repository", () => {\n  const root = process.env["PROVE_REPO_ROOT"] ?? "";\n  const outside = root !== "" && !process.cwd().startsWith(root) ? 1 : 0;\n  expect(outside).toBe(1);\n});\n',
     );
     try {
       const patch = writePatch(
-        "uncommitted.patch",
-        patchLine(spec, 5, "  expect(left).toBe(3);", "  expect(left).toBe(4);"),
+        "outside.patch",
+        patchLine(spec, 6, "  expect(outside).toBe(1);", "  expect(outside).toBe(2);"),
       );
-      expect((await proveFails(spec, "subtracts", patch)).failed).toBe(true);
+      expect((await proveFails(spec, "runs outside the repository", patch)).failed).toBe(true);
     } finally {
-      rmSync(spec, { force: true });
+      delete process.env["PROVE_REPO_ROOT"];
     }
   });
 
-  test("proveFails reports failed: false for an assertion that cannot fail", async () => {
-    const spec = `tests/unit/qa/fixtures/prove-fails-tautology-${process.pid}.test.ts`;
-    writeFileSync(
-      spec,
-      'import { expect, test } from "@playwright/test";\n\ntest("always equal", () => {\n  const total = 4;\n  expect(total).toBe(total);\n});\n',
+  test("proveFails sees a test that exists only in the working tree, even a git-ignored one", async () => {
+    const spec = generatedSpec(
+      "uncommitted",
+      'test("subtracts", () => {\n  const left = 5 - 2;\n  expect(left).toBe(3);\n});\n',
     );
-    try {
-      const patch = writePatch("tautology.patch", patchLine(spec, 4, "  const total = 4;", "  const total = 5;"));
-      const result = await proveFails(spec, "always equal", patch);
-      expect(result).toEqual({ failed: false, output: "the test passed" });
-    } finally {
-      rmSync(spec, { force: true });
-    }
+    const patch = writePatch(
+      "uncommitted.patch",
+      patchLine(spec, 5, "  expect(left).toBe(3);", "  expect(left).toBe(4);"),
+    );
+    expect((await proveFails(spec, "subtracts", patch)).failed).toBe(true);
+  });
+
+  test("proveFails accepts a changed string literal", async () => {
+    const spec = generatedSpec(
+      "string",
+      'test("names it", () => {\n  const name = "abc";\n  expect(name).toBe("abc");\n});\n',
+    );
+    const patch = writePatch(
+      "string.patch",
+      patchLine(spec, 5, '  expect(name).toBe("abc");', "  expect(name).toBe('abd');"),
+    );
+    expect((await proveFails(spec, "names it", patch)).failed).toBe(true);
+  });
+
+  test("proveFails reports failed: false for an assertion that cannot fail", async () => {
+    const spec = generatedSpec(
+      "tautology",
+      'test("always equal", () => {\n  const total = 4;\n  expect(total).toBe(total);\n});\n',
+    );
+    const patch = writePatch("tautology.patch", patchLine(spec, 4, "  const total = 4;", "  const total = 5;"));
+    const result = await proveFails(spec, "always equal", patch);
+    expect(result).toEqual({ failed: false, output: "the test passed" });
+  });
+
+  test("proveFails does not take a flaky result for a proof", async () => {
+    const spec = generatedSpec(
+      "flaky",
+      'test.describe.configure({ retries: 2 });\n\ntest("flaky one", (_fixtures, testInfo) => {\n  const limit = 0;\n  expect(testInfo.retry).toBeGreaterThanOrEqual(limit);\n});\n',
+    );
+    const patch = writePatch("flaky.patch", patchLine(spec, 6, "  const limit = 0;", "  const limit = 1;"));
+    await expect(proveFails(spec, "flaky one", patch)).rejects.toThrow("flaky");
   });
 
   test("proveFails removes its worktree and leaves the working tree alone when the patch does not apply", async () => {
     const before = status();
+    const temporary = leftovers();
     const bad = writePatch("bad.patch", patchLine(SPEC, 6, "    expect(total).toBe(9);", "    expect(total).toBe(5);"));
     await expect(proveFails(SPEC, TITLE, bad)).rejects.toThrow("prove-fails: the patch does not apply");
     expect(status()).toBe(before);
-    expect(leftovers()).toEqual([]);
+    expect(leftovers()).toEqual(temporary);
   });
 
   test("proveFails refuses a test that fails before the patch", async () => {
-    const spec = `tests/unit/qa/fixtures/prove-fails-red-${process.pid}.test.ts`;
-    writeFileSync(
-      spec,
-      'import { expect, test } from "@playwright/test";\n\ntest("already red", () => {\n  expect(1).toBe(2);\n});\n',
-    );
-    try {
-      const patch = writePatch("red.patch", patchLine(spec, 4, "  expect(1).toBe(2);", "  expect(1).toBe(3);"));
-      await expect(proveFails(spec, "already red", patch)).rejects.toThrow("fails before the patch");
-    } finally {
-      rmSync(spec, { force: true });
-    }
+    const spec = generatedSpec("red", 'test("already red", () => {\n  expect(1).toBe(2);\n});\n');
+    const patch = writePatch("red.patch", patchLine(spec, 4, "  expect(1).toBe(2);", "  expect(1).toBe(3);"));
+    await expect(proveFails(spec, "already red", patch)).rejects.toThrow("fails before the patch");
   });
 
   test("proveFails names what is wrong with its inputs", async () => {
@@ -139,16 +191,86 @@ test.describe("prove-fails (unit)", () => {
     await expect(proveFails(SPEC, TITLE, patch, "no-such-project")).rejects.toThrow("not found");
   });
 
-  test("proveFails refuses a patch that touches configuration, secrets or tooling", async () => {
-    for (const file of [
-      "package.json",
-      "playwright.config.ts",
-      ".env.local",
-      "qa/contract.mts",
-      ".claude/settings.json",
-    ]) {
+  test("proveFails refuses a patch that touches any file but the spec", async () => {
+    for (const file of ["core/env.ts", "package.json", "playwright.config.ts", ".env.local", "qa/contract.mts"]) {
       const patch = writePatch("touch.patch", patchLine(file, 1, "a", "b"));
-      await expect(proveFails(SPEC, TITLE, patch)).rejects.toThrow("may not change");
+      await expect(proveFails(SPEC, TITLE, patch)).rejects.toThrow(`may touch only ${SPEC}`);
+    }
+    const both = writePatch(
+      "both.patch",
+      patchLine(SPEC, 6, "    expect(total).toBe(4);", "    expect(total).toBe(5);") +
+        patchLine("core/env.ts", 1, "a", "b"),
+    );
+    await expect(proveFails(SPEC, TITLE, both)).rejects.toThrow("prove-fails: the patch");
+    const created = writePatch("created.patch", `--- /dev/null\n+++ b/${SPEC}\n@@ -0,0 +1,1 @@\n+x\n`);
+    await expect(proveFails(SPEC, TITLE, created)).rejects.toThrow(`may touch only ${SPEC}`);
+  });
+
+  test("proveFails refuses code injected into the spec", async () => {
+    const injected = writePatch("injected.patch", patchLine(SPEC, 6, "    expect(total).toBe(4);", INJECTED));
+    await expect(proveFails(SPEC, TITLE, injected)).rejects.toThrow(REPLACE_ONLY);
+    const interpolated = writePatch(
+      "interpolated.patch",
+      patchLine(SPEC, 5, "    const total = `4`;", `    const total = \`$\{process.exit(1)}\`;`),
+    );
+    await expect(proveFails(SPEC, TITLE, interpolated)).rejects.toThrow(REPLACE_ONLY);
+    const imported = writePatch(
+      "imported.patch",
+      patchLine(
+        SPEC,
+        1,
+        'import { expect, test } from "@playwright/test";',
+        'import { expect, test } from "/elsewhere/evil.mts";',
+      ),
+    );
+    await expect(proveFails(SPEC, TITLE, imported)).rejects.toThrow(REPLACE_ONLY);
+  });
+
+  test("proveFails refuses a hunk that adds or removes lines", async () => {
+    const header = [`--- a/${SPEC}`, `+++ b/${SPEC}`];
+    const hunks: Record<string, string[]> = {
+      adds: [
+        "@@ -6,1 +6,2 @@",
+        "-    expect(total).toBe(4);",
+        "+    expect(total).toBe(5);",
+        "+    expect(total).toBe(6);",
+      ],
+      removes: [
+        "@@ -5,2 +5,1 @@",
+        "-    const total = 2 + 2;",
+        "-    expect(total).toBe(4);",
+        "+    expect(total).toBe(5);",
+      ],
+      "only removes": ["@@ -6,1 +5,0 @@", "-    expect(total).toBe(4);"],
+      "only adds": ["@@ -6,0 +7,1 @@", "+    process.exit(1);"],
+    };
+    for (const [name, lines] of Object.entries(hunks)) {
+      const patch = writePatch(`${name.replace(" ", "-")}.patch`, [...header, ...lines, ""].join("\n"));
+      await expect(proveFails(SPEC, TITLE, patch)).rejects.toThrow(REPLACE_ONLY);
+    }
+  });
+
+  test("proveFails refuses a patch with lines outside a hunk", async () => {
+    const stray = writePatch(
+      "stray.patch",
+      `${patchLine(SPEC, 6, "    expect(total).toBe(4);", "    expect(total).toBe(5);")}process.exit(1);\n`,
+    );
+    await expect(proveFails(SPEC, TITLE, stray)).rejects.toThrow("prove-fails: the patch");
+  });
+
+  test("proveFails cleans up without a throw and keeps what a link points at", async () => {
+    const target = mkdtempSync(join(tmpdir(), "prove-fails-target-"));
+    const worktree = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+    try {
+      writeFileSync(join(target, "kept.txt"), "kept");
+      symlinkSync(target, join(worktree, "node_modules"), "junction");
+      await removeWorktree(process.cwd(), worktree);
+      expect(existsSync(worktree)).toBe(false);
+      expect(readFileSync(join(target, "kept.txt"), "utf8")).toBe("kept");
+      await removeWorktree(process.cwd(), join(tmpdir(), `${TEMP_PREFIX}absent-${process.pid}`));
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+      rmSync(worktree, { recursive: true, force: true });
     }
   });
 

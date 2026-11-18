@@ -47,16 +47,19 @@ Judge the diff and the files it touches, never the expert's account of them.
 A test that cannot fail passes and looks green; nothing else in the flow catches it. Do not reason that it would
 fail: prove it, with the script, on a copy.
 
-1. Pick the test's main assertion and the expected value it compares with, in the spec or in a constant the spec
-   imports. Change only that expected value to a wrong one (a different number, text or status).
+1. Pick the test's main assertion and the expected value it compares with, written as a string or number literal
+   in the spec file itself (a constant or a table row in the same file counts). Change only that literal to a
+   wrong one (a different number or text). When the value lives in another file, you cannot patch it: judge from
+   the assertion and say so.
 2. Write the change as a unified diff to `.qa/judge/<contract-name>/break-<n>.patch`, `<contract-name>` being the
-   contract's file name without `.md`. Paths are repository-relative, `--- a/<path>` and `+++ b/<path>`; one hunk
-   per file with the line numbers of the file as it is now; no context lines needed. A patch may not touch
-   configuration, `package.json`, dot-files or `qa/`.
+   contract's file name without `.md`: `--- a/<spec>` and `+++ b/<spec>`, the spec's repository-relative path, then
+   hunks with the line numbers of the file as it is now and no context lines. Each hunk is one `-` line and one `+`
+   line that differ only in a string or number literal. The script refuses any other patch: a second file, an added
+   or removed line, changed code.
 3. Run `node qa/prove-fails.mts <spec> <title words> <patch> --project=<project>`, with the project from the case
    row. The title words are a part of the test's title, unquoted, written only with letters, digits and `_ . / : =
    @ , + ^ ~ -`, that matches one test in the spec; the patch is the last argument. It runs the test as it is, then
-   with your patch, on a throw-away git worktree, and prints `{ "failed": …, "output": … }`.
+   with your patch, on a throw-away git worktree outside the repository, and prints `{ "failed": …, "output": … }`.
 4. Read it:
    - `failed: true`: proved. Quote the first line of `output` as evidence.
    - `failed: false`: the test still passes with its expected value broken, so it does not check that value. The

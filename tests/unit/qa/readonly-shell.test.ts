@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
@@ -9,6 +10,8 @@ import { hookBlockReason, isReadOnlyAgent, isReadOnlyCommand, READ_ONLY_AGENTS }
 const HOOK_FILE = ".claude/hooks/readonly-shell.mts";
 const SETTINGS_FILE = ".claude/settings.json";
 const PROJECT_DIR = resolve(process.cwd());
+const JUDGE_AREA = join(PROJECT_DIR, ".qa", "judge");
+const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"];
 const JUDGE_COMMAND = "node qa/prove-fails.mts tests/a.spec.ts a title .qa/judge/x/break-1.patch";
 
 const ALLOWED = [
@@ -279,10 +282,52 @@ test.describe("read-only shell (unit)", () => {
     }
   });
 
-  test("blocks a read-only agent's call of a tool it should not have", () => {
-    for (const tool of ["Edit", "PowerShell", "Monitor", 3]) {
-      const input = { agent_type: "qa-judge", tool_name: tool, tool_input: { command: "git diff" } };
-      expect(hookBlockReason(input, PROJECT_DIR)).toBeDefined();
+  test("blocks a read-only agent's call of a tool that writes", () => {
+    for (const tool of WRITING_TOOLS) {
+      for (const agent of ["qa-judge", "qa-reviewer", "vc:qa-explorer"]) {
+        const input = { agent_type: agent, tool_name: tool, tool_input: { file_path: ".qa/judge/x.json" } };
+        const reason = hookBlockReason(input, PROJECT_DIR);
+        expect(reason).toMatch(/^[^\n]+$/);
+        expect(reason).toContain(tool);
+      }
+    }
+  });
+
+  test("lets a read-only agent use the tools that only read", () => {
+    for (const tool of ["Read", "Glob", "Grep", "Skill"]) {
+      const input = { agent_type: "qa-judge", tool_name: tool, tool_input: { file_path: "tests/a.spec.ts" } };
+      expect(hookBlockReason(input, PROJECT_DIR)).toBeUndefined();
+    }
+  });
+
+  test("lets another agent and the main session use the writing tools", () => {
+    for (const tool of WRITING_TOOLS) {
+      expect(hookBlockReason({ agent_type: "qa-healer", tool_name: tool }, PROJECT_DIR)).toBeUndefined();
+      expect(hookBlockReason({ tool_name: tool }, PROJECT_DIR)).toBeUndefined();
+    }
+  });
+
+  test("blocks the judge writing through a link that leaves .qa/judge/", () => {
+    const outside = mkdtempSync(join(tmpdir(), "judge-outside-"));
+    const name = `link-test-${process.pid}`;
+    const area = join(JUDGE_AREA, name);
+    try {
+      mkdirSync(join(area, "prove-abc"), { recursive: true });
+      symlinkSync(outside, join(area, "prove-abc", "node_modules"), "junction");
+      symlinkSync(outside, join(area, "elsewhere"), "junction");
+      for (const file of [
+        "prove-abc/node_modules/@playwright/test/cli.js",
+        "prove-abc/node_modules",
+        "elsewhere/x.json",
+        "elsewhere/deeper/not-yet/x.json",
+      ]) {
+        const reason = hookBlockReason(judgeWrite(`.qa/judge/${name}/${file}`), PROJECT_DIR);
+        expect(reason, file).toContain(".qa/judge/");
+      }
+      expect(hookBlockReason(judgeWrite(`.qa/judge/${name}/real/x.json`), PROJECT_DIR)).toBeUndefined();
+    } finally {
+      rmSync(area, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 
@@ -408,8 +453,24 @@ test.describe("read-only shell hook script (unit)", () => {
     expect(inHook).toHaveLength(READ_ONLY_AGENTS.length);
   });
 
-  test("registers the hook for the Bash and Write tools", () => {
-    expect(readFileSync(SETTINGS_FILE, "utf8")).toMatch(/"matcher":\s*"Bash\|Write"/);
+  test("registers the hook for the shell and every writing tool, and for no reading tool", () => {
+    const matcher = /"matcher":\s*"([^"]*)"/.exec(readFileSync(SETTINGS_FILE, "utf8"))?.[1];
+    expect(matcher?.split("|").sort()).toEqual(["Bash", "Edit", "MultiEdit", "NotebookEdit", "PowerShell", "Write"]);
+  });
+
+  test("blocks the judge's write through a link when run as the hook script", () => {
+    const outside = mkdtempSync(join(tmpdir(), "judge-outside-"));
+    const name = `link-hook-${process.pid}`;
+    const area = join(JUDGE_AREA, name);
+    try {
+      mkdirSync(area, { recursive: true });
+      symlinkSync(outside, join(area, "node_modules"), "junction");
+      const result = runHook(JSON.stringify(judgeWrite(`.qa/judge/${name}/node_modules/x.json`)));
+      expect(result.status).toBe(2);
+    } finally {
+      rmSync(area, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 
   test("passes input it cannot parse", () => {

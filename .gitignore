@@ -21,3 +21,4 @@ allure-report/
 .qa/reports/
 .qa/kb/
 .qa/judge/
+tests/unit/qa/fixtures/generated/

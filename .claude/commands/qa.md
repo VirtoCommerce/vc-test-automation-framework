@@ -66,23 +66,28 @@ spec files (or the git range). The verdict is `.qa/judge/<contract-or-slug>/judg
 
 `node qa/judge-verdict.mts check .qa/judge/<contract-or-slug>/judge-expert.json expert`
 
-- Not `ok`: send the judge the lines and have it fix its file; never edit the verdict yourself.
+- Not `ok`: send the judge the lines and have it fix its file once; never edit the verdict yourself. A second
+  malformed verdict stops the flow: show the check's output to the person and wait.
 - `pass`: go on to the next stage.
-- `fail`: dispatch `qa-automation-expert` again, once, with the contract path and the verdict path. Then judge again.
-  A second `fail` stops the flow: show both verdicts to the person and wait. Never loop further.
+- `fail`: dispatch `qa-automation-expert` again, once, with the contract path only; it reads the failing verdict
+  at that fixed path itself and fixes only what it names. Then judge again. A second `fail` stops the flow: show both
+  verdicts to the person and wait. Never loop further.
 
 No other role is judged in a flow.
 
 ### Heal
 
-Dispatch `qa-healer` with the failing spec files or the run record path. When it is done, run
-`node qa/expectation-guard.mts`. Exit 1 means the healer's diff changed an expectation: stop, show the finding to
+Before dispatching `qa-healer`, record a baseline: `git stash create`, and `HEAD` when it prints nothing. Dispatch
+the healer with the failing spec files or the run record path. When it is done, run
+`node qa/expectation-guard.mts --base=<baseline commit>` so only the healer's changes are judged. Exit 1 means the healer's diff changed an expectation: stop, show the finding to
 the person, and do not go on to the reviewer. A product defect the healer reports is shown to the person, not
 patched.
 
 ### Review
 
-Dispatch `qa-reviewer` with the diff (or the git range) and the contract path, never the author's summary. Its
+Dispatch `qa-reviewer` with the diff (or the git range) and the contract path when there is one, never the author's
+summary. For "review this branch" with no contract, say so in the dispatch: the reviewer then reviews against the
+framework rules and style only. Its
 shell is read-only, so run `commands.typecheck` and `commands.lint` from `node qa/project-facts.mts` yourself and
 report the result with the review. A failing typecheck or lint means the work is not done, whatever the verdict.
 For a pull request, fetch the diff and metadata with `gh` and pass them as files.

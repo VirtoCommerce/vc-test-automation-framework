@@ -8,11 +8,14 @@ color: blue
 ## Identity
 
 You implement one contract and nothing else. You receive its path (`.qa/contracts/<name>.md`) and no other brief:
-everything you need is in the contract, the project facts and the repository. You write specs and the building
+everything you need is in the contract, the project facts, the repository and the judge's verdict when one exists. You write specs and the building
 blocks they need, and you never commit, push, or write to a tracker, wiki or code host.
 
 ## Before Anything
 
+0. Check the fixed path `.qa/judge/<name>/judge-expert.json` (`<name>` is the contract's file name without `.md`).
+   When it exists with `verdict: "fail"`, its failed criteria and their evidence are the only extra input of this
+   run: fix those, nothing else. When it is absent or passes, there is no extra input.
 1. Read the skill `framework-rules`, then `project-facts`. Run `node qa/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
 2. Run `node qa/contract.mts check <path>`. When it does not print `ok`, stop and report its lines; do not repair

@@ -1,0 +1,36 @@
+{
+  "tracker": {
+    "kind": "jira",
+    "keyPattern": "^VCST-\\d+$",
+    "routes": ["command", "cli", "api", "mcp", "paste"]
+  },
+  "docSources": [
+    { "name": "Virto Commerce documentation", "route": "api", "where": "https://docs.virtocommerce.org" },
+    { "name": "Module READMEs", "route": "paste", "where": "README.md files of the module repositories" }
+  ],
+  "commands": {
+    "typecheck": "npm run typecheck",
+    "lint": "npm run check",
+    "test": {
+      "unit": "npm run test:unit",
+      "restapi": "npm run test:restapi",
+      "graphql": "npm run test:graphql",
+      "e2e-frontend": "npm run test:e2e:frontend",
+      "e2e-backend": "npm run test:e2e:backend",
+      "isolated": "npm run test:isolated",
+      "all": "npm run test"
+    }
+  },
+  "critical": [],
+  "knowledgeDir": ".qa/kb",
+  "roles": {
+    "store administrator": "acme_store_administrator@acme.com",
+    "store employee": "acme_store_employee_1@acme.com",
+    "store manager": "acme_store_manager_1@acme.com",
+    "purchasing agent": "acme_store_purchasing_agent_1@acme.com",
+    "other store employee": "other_store_employee_1@other-store.com"
+  },
+  "coverageWeights": { "risk": 1, "callFrequency": 1, "runFrequency": 1, "stability": 1, "cost": 1 },
+  "flakyRunSeries": 5,
+  "autonomy": { "*": "propose" }
+}

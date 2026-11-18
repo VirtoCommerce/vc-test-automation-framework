@@ -41,6 +41,45 @@
       }
     },
     {
+      "includes": ["qa/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@api",
+                      "@api/**",
+                      "@dataset",
+                      "@dataset/**",
+                      "@pages",
+                      "@pages/**",
+                      "@fixtures",
+                      "@fixtures/**",
+                      "**/api",
+                      "**/api/**",
+                      "**/dataset",
+                      "**/dataset/**",
+                      "**/pages",
+                      "**/pages/**",
+                      "**/fixtures",
+                      "**/fixtures/**",
+                      "**/tests",
+                      "**/tests/**"
+                    ],
+                    "message": "qa may depend only on core and its own files."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["api/**"],
       "linter": {
         "rules": {

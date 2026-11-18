@@ -1,145 +1,85 @@
 ---
 name: plan-test-strategy
-description: "Analyze a Jira ticket, feature requirement, or bug report and produce a structured test coverage strategy — what to test, which Playwright project, who runs it, arrange and dataset needs, priority"
-argument-hint: "<ticket-or-requirement>"
+description: "Analyse a ticket card, a spec or documentation page, an area of existing functionality or a coverage gap and design the case matrix: one formal technique per acceptance criterion or documented rule, plus edge, negative and regression cases, each with its project, data role and oracle source"
+argument-hint: "<ticket-key | spec-link | area | gap-id>"
 ---
 
 ## Test Strategy Planning
 
-Given a requirement, feature or ticket, produce a structured test strategy. Read CLAUDE.md "Writing tests" first.
+Given a source, design the case matrix that `plan-implementation` writes into the contract. Read the skill
+`framework-rules` and `project-facts` first; the project names, roles and critical flows come from the facts, never
+from this file.
 
-## Process
+## Step 1: Understand the Source
 
-### Step 1: Understand the Requirement
+- A ticket: read only its card (skill `read-ticket`). The acceptance criteria are the card's list. When the value is
+  `"none found"` there are none: say so and take the expected behaviour from the documentation and the schema.
+- A specification or documentation page: each documented rule is one criterion.
+- An area of existing functionality or a gap, with no ticket: the criteria are the documented rules found in
+  `docSources`, the API schema, and what the explorer's report observed. Read the coverage report to see what is
+  already tested.
+- Note the surfaces involved (API operations, endpoints, pages) and the identities (roles from the facts, anonymous).
 
-- The platform module or area (cart, checkout, catalog, customers, security, orders, quotes, lists, pickup,
-  content, page builder, platform settings, …).
-- The identities involved: anonymous, dataset user, a customer of the test's own, organization maintainer, store
-  administrator, platform admin.
-- The surface: xAPI queries and mutations, REST endpoints, frontend pages, page builder blades.
+## Step 2: Explore Existing Coverage
 
-### Step 2: Explore Existing Coverage
+Search the repository's test folders and its documentation (README, `CLAUDE.md`) before planning anything new: specs
+already covering a criterion, and the building blocks that exist (clients, documents, page objects, arrange methods,
+builders, dataset records, known issues). A criterion already covered is listed as covered, not planned again.
 
-Search before planning anything new:
+## Step 3: Design the Cases
 
-```
-tests/restapi/<platform-module>/*.spec.ts
-tests/graphql/<area>/*.spec.ts
-tests/e2e/frontend/<area>/*.spec.ts
-tests/e2e/backend/page-builder/*.spec.ts
-tests/isolated/**/*.spec.ts
-REFINEMENTS.md                                planned refinements and old-suite tests still to port
-```
+1. For each acceptance criterion or documented rule choose one formal technique:
+   - equivalence partitioning: one case per class of input that the rule treats differently;
+   - boundary value analysis: the values on and next to each limit;
+   - decision table: combinations of conditions that lead to different outcomes;
+   - state transition: each allowed and each forbidden move between states;
+   - pairwise: the interacting parameters, when full combinations are too many.
+2. Add what the technique does not give: edge cases, negative cases (rejected input, missing permission, empty or
+   absent data) and regression cases (behaviour next to the change that must not break).
+3. For each case decide:
+   - **Project**: a key of `commands.test`. A behaviour is tested once, at the lowest layer that shows it; the UI
+     keeps only what only the UI shows.
+   - **Data role**: a role from the facts, or `none`. A test that changes a user's own state creates its own user.
+   - **Oracle**: where the expected value comes from, written `ticket:`, `doc:`, `schema:` or `observed:` followed by
+     the criterion, page or field. If the only source is what the stand did, the oracle is `observed:` and the case
+     goes under `## Observed only`.
+4. Priority: a flow listed in `critical` first.
 
-And the building blocks:
+## Step 4: Data and Infrastructure
 
-```
-api/graphql/operations/<area>/*.graphql       queries and mutations
-api/rest/clients/<module>-client.ts           REST client methods (api.rest.<module>)
-pages/frontend/, pages/backend/               page objects
-dataset/arrange/*.ts, dataset/builders/*.ts   arrange methods and drafts
-dataset/data/                                 seeded users, products, orders, pages, …
-known-issues.json                             defects already known
-```
+Name the dataset records to read, the records and builders to add, and the clients, documents, page objects, arrange
+methods and known issues to add. This feeds Stand needs, Building blocks and Known issues in the contract.
 
-### Step 3: Design Test Cases
+## Output
 
-For each behavior decide:
-
-1. **Assert**: the specific expected outcome.
-2. **Project**: `graphql` (frontend business logic), `restapi` (admin API), `e2e-frontend` (what the shopper
-   sees), `e2e-backend` (page builder), `isolated` (platform-wide changes).
-3. **Who**: anonymous `api`; `test.use({ user: "<dataset user>" })` for read-only checks;
-   `arrange.customers.customerAccount()` or `shopperKind: "customer"` for anything that changes a customer's
-   state; the store administrator for admin REST.
-4. **Arrange**: dataset ids it reads; `arrange.<domain>` methods it needs, existing or new.
-5. **Cleanup**: `arrange` handles what it creates; `…Later` methods or `cleanup.push` for what the code under
-   test creates.
-6. **Priority**: P0 (critical path), P1 (important), P2 (edge case).
-7. **Markers**: a known defect (`knownIssue(KNOWN_ISSUES.x)`, with or without an `issueUrl`).
-
-A behavior is tested once at the lowest layer that shows it. The UI keeps only what only the UI shows.
-
-### Step 4: Identify Test Data Needs
-
-- Seeded records the tests read, by dataset id.
-- New records for `dataset/data/` (then `npm run seed` and a reindex).
-- New builders or `arrange` methods.
-
-## Output Format
+The matrix, in the contract's columns, with the existing coverage above it:
 
 ```markdown
-# Test Strategy: <Feature Name>
-
-## Requirement Summary
-<1-3 sentences>
-
 ## Existing Coverage
-- **Existing specs:** <files>
-- **Reusable building blocks:** <documents, client methods, page objects, arrange methods>
-- **Gaps:** <what is missing>
+- Covered: <criterion> by <spec file>
+- Reusable building blocks: <names>
+- Gaps: <what is missing>
 
-## Test Cases
-
-### P0 — Critical Path
-| # | Test title | Project | Verifies | Who | Arrange | Cleanup | Markers |
-|---|---|---|---|---|---|---|---|
-| 1 | <plain-words title> | graphql / restapi / e2e-frontend / e2e-backend / isolated | <outcome> | <identity> | <dataset ids, arrange methods> | <how> | <none / knownIssue> |
-
-### P1 — Important
-| # | Test title | Project | Verifies | Who | Arrange | Cleanup | Markers |
-|---|---|---|---|---|---|---|---|
-
-### P2 — Edge Cases
-| # | Test title | Project | Verifies | Who | Arrange | Cleanup | Markers |
-|---|---|---|---|---|---|---|---|
-
-## Test Data Requirements
-- **Dataset records used:** <ids>
-- **New dataset records:** <files under dataset/data, or "None">
-
-## New Infrastructure Needed
-- **GraphQL documents:** <or "None">
-- **REST client methods / types:** <or "None">
-- **Page objects / components:** <or "None">
-- **Builders / arrange methods:** <or "None">
-- **Known issues:** <entries for known-issues.json, or "None">
-
-## Allure Organization
-- **Epic / feature:** <e.g. "GraphQL" / "Cart / Coupons", "E2E" / "Frontend / Checkout">
-- **Describe blocks:** <e.g. "coupons (customer of their own)">
-
-## Parallelism and Risks
-<shared data or settings, index lag, frontend settings (QUANTITY_CONTROL, RANGE_FILTER_TYPE, CHECKOUT_MODE),
-known defects>
+## Cases
+| Case | Technique | Project | Data role | Oracle |
+|---|---|---|---|---|
+| C-01 <what it shows> | boundary value analysis | <project> | <role or none> | ticket: <criterion> |
 ```
 
-## Project Decision Guide
+Then `plan-implementation` turns it into the contract file.
+
+## Example from this repository
 
 | Signal | Project |
 |---|---|
-| Result of an xAPI query or mutation | `graphql` |
-| Frontend business logic (cart totals, promotions, checkout, registration) | `graphql` |
-| Admin CRUD, users and roles, catalog administration, store settings | `restapi` |
-| Rendering, navigation, forms, modals, what the shopper sees | `e2e-frontend` |
-| Page builder app behavior | `e2e-backend` |
+| Result of an xAPI query or mutation, frontend business logic (totals, promotions, checkout) | `graphql` |
+| Platform administration: catalogue, users and roles, store settings | `restapi` |
+| Rendering, navigation, forms, modals | `e2e-frontend` |
+| Page builder app behaviour | `e2e-backend` |
 | Global settings, index rebuild, restart, store closed to anonymous users | `isolated` |
-| Error handling of an API | `graphql` or `restapi`, not e2e |
-| Same logic for anonymous and signed-in shoppers | `graphql`, one `describe` per identity |
+| API error handling | `graphql` or `restapi`, never e2e |
 
-## Coverage Patterns by Area
-
-- **Cart:** cart operations (graphql, `arrange.carts.cart`); merge and saved for later (graphql, a customer of
-  the test's own); cart page quantity, remove, clear (e2e-frontend, `arrange.carts.defaultCart(shopper.api, …)`).
-- **Catalog:** search, filters, facets, variations, configurable products (graphql); catalog administration
-  (restapi, `arrange.catalog`); category page filters and sorting (e2e-frontend).
-- **Customers:** contacts, organizations, members, addresses (restapi `customer`, graphql `customer`,
-  `arrange.customers`).
-- **Security:** platform users, roles, API keys, OAuth apps, sign-in, password reset (restapi `security`,
-  graphql `security`, `arrange.security`). Users and accounts are `security`, not `customer`.
-- **Orders, quotes, checkout:** order from cart and order queries (graphql); order administration (restapi,
-  `arrange.orders.order`); quotes (graphql, `arrange.orders.quoteFromCart`); checkout UI in either
-  `CHECKOUT_MODE` (e2e-frontend, `frontend.checkout()`).
-- **Pickup:** availability rules (graphql, `arrange.pickup`); one filter test in the checkout UI.
-- **Page builder:** page administration and validation (restapi `page-builder`); statuses and blades
-  (e2e-backend, `arrange.content.page()`); published pages on the frontend (e2e-frontend).
+- Existing coverage lives under `tests/restapi/`, `tests/graphql/`, `tests/e2e/` and `tests/isolated/`; old-suite
+  tests still to port are in `REFINEMENTS.md`.
+- Reusable blocks: `api/graphql/operations/`, `api/rest/clients/`, `pages/`, `dataset/arrange/`, `dataset/builders/`,
+  `dataset/data/`, `known-issues.json`.

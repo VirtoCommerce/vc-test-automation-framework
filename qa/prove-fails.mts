@@ -54,17 +54,17 @@ const MATCHERS = [
   "toHaveValue",
   "toHaveURL",
   "toHaveTitle",
-  "toBeGreaterThan",
-  "toBeGreaterThanOrEqual",
-  "toBeLessThan",
-  "toBeLessThanOrEqual",
 ];
 const MATCHER_CHAIN = ["resolves", "rejects"];
 const NEGATION = "not";
 const LINE_BREAK = new RegExp(`\\r\\n|[\\n\\r${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]`);
-const GENERATED_FIXTURES = /(^|\/)fixtures\/generated\//;
+const GENERATED_FIXTURES = /^tests\/unit\/qa\/fixtures\/generated\//;
+const QA_DIR = ".qa";
 const EXPECT_VARIANTS = ["soft", "poll"];
 const TEST_FUNCTIONS = ["ArrowFunctionExpression", "FunctionExpression"];
+const CALLS = ["CallExpression", "OptionalCallExpression"];
+const MEMBERS = ["MemberExpression", "OptionalMemberExpression"];
+const TYPE_WRAPPERS = ["TSNonNullExpression", "TSAsExpression", "TSSatisfiesExpression", "TSTypeAssertion"];
 const SKIPPED_KEYS = new Set([
   "loc",
   "extra",
@@ -184,11 +184,19 @@ function isMember(node: unknown): node is AstNode {
   return isNode(node) && node.type === "MemberExpression" && node["computed"] !== true;
 }
 
+function unwrapped(node: unknown): unknown {
+  let current = node;
+  while (isNode(current) && TYPE_WRAPPERS.includes(current.type)) {
+    current = current["expression"];
+  }
+  return current;
+}
+
 function isExpectCall(node: unknown): boolean {
-  if (!isNode(node) || node.type !== "CallExpression") {
+  if (!isNode(node) || !CALLS.includes(node.type)) {
     return false;
   }
-  const callee = node["callee"];
+  const callee = unwrapped(node["callee"]);
   if (nameOf(callee) === "expect") {
     return true;
   }
@@ -197,6 +205,22 @@ function isExpectCall(node: unknown): boolean {
     nameOf(callee["object"]) === "expect" &&
     EXPECT_VARIANTS.includes(nameOf(callee["property"]) ?? "")
   );
+}
+
+function isAssertionCall(node: AstNode): boolean {
+  const callee = unwrapped(node["callee"]);
+  if (!CALLS.includes(node.type) || !isNode(callee) || !MEMBERS.includes(callee.type)) {
+    return false;
+  }
+  let current = unwrapped(callee["object"]);
+  while (isNode(current) && MEMBERS.includes(current.type)) {
+    current = unwrapped(current["object"]);
+  }
+  return isExpectCall(current);
+}
+
+function argumentsOf(call: AstNode): unknown[] {
+  return Array.isArray(call["arguments"]) ? call["arguments"] : [];
 }
 
 function matcherOf(node: AstNode): { negated: boolean } | undefined {
@@ -259,7 +283,7 @@ function isTestCall(callee: unknown): boolean {
   );
 }
 
-function isInsideTest(program: AstNode, testLine: number, line: number): boolean {
+function checkInsideTest(program: AstNode, testLine: number, line: number, edit: Edit): void {
   const calls = collect(
     program,
     (node) =>
@@ -268,64 +292,76 @@ function isInsideTest(program: AstNode, testLine: number, line: number): boolean
       lineOf(node["callee"]) <= testLine &&
       testLine <= lineOf(node["callee"], "end"),
   );
-  return calls.some((call) =>
-    (Array.isArray(call["arguments"]) ? call["arguments"] : []).some(
+  if (calls.length > 1) {
+    throw problem(`more than one test starts on line ${testLine}; put each test on its own line`);
+  }
+  const inside = calls.some((call) =>
+    argumentsOf(call).some(
       (argument) =>
         isNode(argument) &&
         TEST_FUNCTIONS.includes(argument.type) &&
-        lineOf(argument) <= line &&
-        line <= lineOf(argument, "end"),
+        argument.start <= edit.start &&
+        edit.end <= argument.end,
     ),
   );
+  if (!inside) {
+    throw problem(`line ${line} is not inside the test that starts on line ${testLine}`);
+  }
+}
+
+function assertionOn(program: AstNode, line: number): AstNode | undefined {
+  const onLine = collect(program, isAssertionCall).filter(
+    (call) => lineOf(call) === line || argumentsOf(call).some((argument) => lineOf(argument) === line),
+  );
+  if (onLine.length > 1) {
+    throw problem(`line ${line}: more than one assertion on the line; put each assertion on its own line`);
+  }
+  return onLine[0];
+}
+
+function editOf(call: AstNode, line: number): Edit | undefined {
+  const args = argumentsOf(call);
+  const [argument] = args;
+  if (args.length !== 1 || !isNode(argument) || lineOf(argument) !== line || matcherOf(call) === undefined) {
+    return undefined;
+  }
+  const text = mutationOf(argument);
+  return text === undefined ? undefined : { start: argument.start, end: argument.end, text };
 }
 
 /**
  * Makes the mutation `proveFails` runs, and nothing else: it changes exactly one literal, the expected value of an
  * `expect(...).<matcher>(<literal>)` on `line`, where the matcher is one of the single-expected-value matchers
- * (`toBe`, `toEqual`, `toHaveText`, `toBeLessThan`, ...), is called with exactly one argument, and is not under
- * `.not`. A number becomes its value plus one, a string or plain template becomes itself with `__mutated__`
- * appended. The source is parsed, so a literal in a comment, a regular expression or a template with substitutions is
- * never a candidate, and no text of the caller enters the result. A name, a key, a file name or a second argument
- * (`toHaveAttribute("href", ...)`, `toHaveScreenshot("a.png")`, `toBeCloseTo(1, 2)`) is never changed. With
- * `testLine` the line must also lie inside the body of the `test(...)` or `test.only(...)` declared there.
+ * (`toBe`, `toEqual`, `toHaveText`, ...), is called with exactly one argument, and is not under `.not`. The line must
+ * hold that assertion and no other: every `expect` chain that starts on the line or has an argument there counts,
+ * whatever its matcher, so an assertion that cannot be proved is never credited by its neighbour. A bound
+ * (`toBeGreaterThan`, `toBeLessThan`, ...) is not changed, because one more rarely breaks it. A number becomes its
+ * value plus one, a string or plain template becomes itself with `__mutated__` appended. The source is parsed, so a
+ * literal in a comment, a regular expression or a template with substitutions is never a candidate, and no text of
+ * the caller enters the result. A name, a key, a file name or a second argument (`toHaveAttribute("href", ...)`,
+ * `toHaveScreenshot("a.png")`, `toBeCloseTo(1, 2)`) is never changed. With `testLine` the changed literal must also
+ * lie, by position, inside the function of the one `test(...)` or `test.only(...)` that starts there.
  *
  * @returns the mutated source and the mutated line.
- * @throws Error when the source cannot be parsed, the line holds no such assertion or more than one, only a `.not`
- * one, or it is outside the test.
+ * @throws Error when the source cannot be parsed, the line holds no such assertion, more than one assertion, only a
+ * `.not` one, or the literal is outside the test, or more than one test starts on `testLine`.
  */
 export function mutateAssertion(source: string, line: number, testLine?: number): { source: string; mutated: string } {
   const program = parseSource(source);
-  const edits: Edit[] = [];
-  let negated = 0;
-  for (const call of collect(program, (node) => matcherOf(node) !== undefined)) {
-    const args = Array.isArray(call["arguments"]) ? call["arguments"] : [];
-    const [argument] = args;
-    const text = args.length === 1 && isNode(argument) && lineOf(argument) === line ? mutationOf(argument) : undefined;
-    if (text === undefined || !isNode(argument)) {
-      continue;
-    }
-    if (matcherOf(call)?.negated) {
-      negated += 1;
-    } else {
-      edits.push({ start: argument.start, end: argument.end, text });
-    }
-  }
-  if (edits.length === 0 && negated > 0) {
+  const call = assertionOn(program, line);
+  const edit = call === undefined ? undefined : editOf(call, line);
+  if (call !== undefined && edit !== undefined && matcherOf(call)?.negated) {
     throw problem(`line ${line} has only a negated assertion: a .not assertion cannot be proved this way`);
   }
-  if (edits.length === 0) {
+  if (edit === undefined) {
     throw problem(
       `line ${line} has no assertion it can change: it needs one expect(...).<matcher>(<one string or number literal>) with a matcher from ${MATCHERS.join(", ")}`,
     );
   }
-  if (edits.length > 1) {
-    throw problem(`line ${line} has more than one assertion it could change; put each assertion on its own line`);
+  if (testLine !== undefined) {
+    checkInsideTest(program, testLine, line, edit);
   }
-  if (testLine !== undefined && !isInsideTest(program, testLine, line)) {
-    throw problem(`line ${line} is not inside the test that starts on line ${testLine}`);
-  }
-  const [edit] = edits;
-  const mutated = edit === undefined ? source : `${source.slice(0, edit.start)}${edit.text}${source.slice(edit.end)}`;
+  const mutated = `${source.slice(0, edit.start)}${edit.text}${source.slice(edit.end)}`;
   return { source: mutated, mutated: mutated.split(LINE_BREAK)[line - 1] ?? "" };
 }
 
@@ -335,7 +371,7 @@ async function checkedSpec(spec: string, root: string): Promise<string> {
     throw problem(`${spec} is not a path inside the repository`);
   }
   const specPath = normalize(relative(root, path));
-  if (specPath.split("/")[0] === ".qa") {
+  if (specPath.split("/")[0]?.toLowerCase() === QA_DIR) {
     throw problem(`${spec} is under .qa/ and cannot be proved`);
   }
   if (!existsSync(path) || !statSync(path).isFile()) {

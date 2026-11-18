@@ -49,12 +49,14 @@ fail: prove it, with the script, on a copy.
 
 1. Find the line of the test's main assertion: one `expect(...).<matcher>(<literal>)` on a line of its own, inside the
    spec file, whose matcher is `toBe`, `toEqual`, `toStrictEqual`, `toMatch`, `toContain`, `toHaveLength`,
-   `toHaveCount`, `toHaveText`, `toContainText`, `toHaveValue`, `toHaveURL`, `toHaveTitle` or a `toBeGreater`/`toBeLess`
-   comparison, with one string or number literal as its only argument. You write nothing for the proof: the script
-   changes that one literal, a number plus one, a string with `__mutated__` appended. A `.not` line, a matcher with a
-   second argument or a key (`toHaveAttribute`, `toHaveCSS`, `toHaveScreenshot`, `toBeCloseTo`), a line with two
-   assertions, a literal in a comment, a regular expression or a template with substitutions, and a spec that is
-   git-ignored or under `.qa/` are refused; they cannot be proved this way, so judge from the assertion and say so.
+   `toHaveCount`, `toHaveText`, `toContainText`, `toHaveValue`, `toHaveURL` or `toHaveTitle`, with one string or
+   number literal as its only argument. You write nothing for the proof: the script changes that one literal, a
+   number plus one, a string with `__mutated__` appended. A `.not` line, a bound (`toBeGreaterThan`, `toBeLessThan`
+   and their `OrEqual` forms: one more rarely breaks it), a matcher with a second argument or a key
+   (`toHaveAttribute`, `toHaveCSS`, `toHaveScreenshot`, `toBeCloseTo`), a line with more than one assertion of any
+   kind, a literal in a comment, a regular expression or a template with substitutions, an assertion outside the test
+   (a hook, a helper), and a spec that is git-ignored or under `.qa/` are refused; they cannot be proved this way, so
+   judge from the assertion and say so. For a bound, check that the limit comes from the oracle and is the tight one.
 2. Run `node qa/prove-fails.mts <spec> <line> <title words> --project=<project>`, with the project from the case
    row. `<spec>` is the repository-relative path, `<line>` the assertion's line, and the title words a part of the
    test's title, unquoted, written only with letters, digits and `_ . / : = @ , + ^ ~ -`, that matches one test in

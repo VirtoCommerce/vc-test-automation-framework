@@ -10,7 +10,9 @@ judge proves a test fails with `node qa/prove-fails.mts`; the model does not run
   a fail.
 - `fails-when-behaviour-breaks`: each test fails when that behaviour breaks. Prove it where the script can change a
   literal of the assertion (evidence: the `prove-fails` output with `failed: true` and the line it changed); where
-  none can, say why and reason from the assertion. An assertion that cannot fail (a tautology, a check on a value the
+  none can, say why and reason from the assertion. A bound (`toBeGreaterThan`, `toBeLessThan` and their `OrEqual`
+  forms) and a line with more than one assertion are never proved by the script: reason from the assertion, and pass
+  a bound only when its limit is the oracle's and the tightest the case allows. An assertion that cannot fail (a tautology, a check on a value the
   test set itself, a missing await, an assertion on something that is always present) is a fail.
 - `skip-has-reason`: every skip, `fixme` and expected failure carries a reason a reader can act on, a
   `requiresModules`, `requiresFeatures`, `knownIssue` or profile condition. A silent skip is a fail.

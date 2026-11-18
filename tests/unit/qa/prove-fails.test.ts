@@ -26,7 +26,7 @@ const PROVE_TIMEOUT_MS = 240_000;
 const HEADER = 'import { expect, test } from "@playwright/test";\n\n';
 const IGNORED_SPEC = `test-results/prove-fails-ignored-${process.pid}.test.ts`;
 const NONE = "has no assertion it can change";
-const MANY = "has more than one assertion it could change";
+const MANY = "more than one assertion on the line";
 const NEGATED = "a .not assertion cannot be proved this way";
 
 test.describe.configure({ mode: "serial", timeout: PROVE_TIMEOUT_MS });
@@ -138,10 +138,6 @@ test.describe("the mutation the script makes (unit)", () => {
       ['await expect(l).toHaveValue("x");', 'await expect(l).toHaveValue("x__mutated__");'],
       ['await expect(p).toHaveURL("x");', 'await expect(p).toHaveURL("x__mutated__");'],
       ['await expect(p).toHaveTitle("x");', 'await expect(p).toHaveTitle("x__mutated__");'],
-      ["expect(a).toBeGreaterThan(1);", "expect(a).toBeGreaterThan(2);"],
-      ["expect(a).toBeGreaterThanOrEqual(1);", "expect(a).toBeGreaterThanOrEqual(2);"],
-      ["expect(a).toBeLessThan(1);", "expect(a).toBeLessThan(2);"],
-      ["expect(a).toBeLessThanOrEqual(1);", "expect(a).toBeLessThanOrEqual(2);"],
     ];
     for (const [before, after] of cases) {
       expect(mutateAssertion(before, 1).mutated, before).toBe(after);
@@ -162,6 +158,10 @@ test.describe("the mutation the script makes (unit)", () => {
       'expect(a).toThrow("x");',
       "expect(a).toBe();",
       "expect(a).toBe(...b);",
+      "expect(a).toBeGreaterThan(1);",
+      "expect(a).toBeGreaterThanOrEqual(1);",
+      "expect(a).toBeLessThan(1);",
+      "expect(a).toBeLessThanOrEqual(1);",
     ]) {
       expect(() => mutateAssertion(line, 1), line).toThrow(NONE);
     }
@@ -177,19 +177,27 @@ test.describe("the mutation the script makes (unit)", () => {
     }
   });
 
-  test("a line with more than one assertion it could change is refused, with one it is mutated alone", () => {
+  test("a line with more than one assertion of any kind is refused, so a sibling never stands in", () => {
     for (const line of [
       "expect(a).toBe(1); expect(b).toBe(2);",
       'expect(a).toBe(1); expect(b).toHaveText("x");',
       "expect(a).toBeLessThan(1); expect(b).toBeGreaterThan(0);",
+      "expect(a).not.toBe(1); expect(b).toBe(2);",
+      "expect(a).toBe(b); expect(c).toBe(2);",
+      'expect(a).toBe(1); expect(b).toHaveCSS("c", "r");',
+      "expect(a).toBe(1); expect(b).toBeTruthy();",
+      "expect.soft(a).toBe(1); await expect.poll(() => b).toBe(2);",
+      "expect(a).toBe(1); expect(b)?.toBe(2);",
+      'expect(a).toBe(1); expect(b)["toBe"](2);',
+      "expect(a).toBe(1); (expect(b) as Matchers).toBe(2);",
+      "expect(a).toBe(1); expect(b)!.toBe(2);",
     ]) {
       expect(() => mutateAssertion(line, 1), line).toThrow(MANY);
     }
-    expect(mutateAssertion('expect(a).toBe(1); expect(b).toHaveCSS("c", "r");', 1).mutated).toBe(
-      'expect(a).toBe(2); expect(b).toHaveCSS("c", "r");',
-    );
-    expect(mutateAssertion("expect(a).not.toBe(1); expect(b).toBe(2);", 1).mutated).toBe(
-      "expect(a).not.toBe(1); expect(b).toBe(3);",
+    expect(() => mutateAssertion("expect(a)\n  .toBe(1); expect(b).toBe(2);", 2)).toThrow(MANY);
+    expect(mutateAssertion("expect(a).toBe(1);\nexpect(b).toBe(2);", 2).mutated).toBe("expect(b).toBe(3);");
+    expect(mutateAssertion("expect(a).toEqual(expect.anything());\nexpect(b).toBe(2);", 2).mutated).toBe(
+      "expect(b).toBe(3);",
     );
   });
 
@@ -274,6 +282,22 @@ test.describe("the mutation the script makes (unit)", () => {
     expect(mutateAssertion(source, 8, 7).mutated).toBe("    expect(2).toBe(3);");
   });
 
+  test("containment is by position, so an assertion beside the test on its line is refused", () => {
+    const hook = 'test.beforeEach(() => { expect(a).toBe(1); }); test("t", () => {});';
+    const helper = 'const h = () => { expect(a).toBe(1); }; test("t", () => { h(); });';
+    for (const source of [hook, helper]) {
+      expect(() => mutateAssertion(source, 1, 1), source).toThrow("is not inside the test that starts on line 1");
+    }
+    expect(mutateAssertion('test("t", () => { expect(a).toBe(1); });', 1, 1).mutated).toBe(
+      'test("t", () => { expect(a).toBe(2); });',
+    );
+  });
+
+  test("a line that starts more than one test is refused, so one test cannot take another's assertion", () => {
+    const source = 'test("a", () => { expect(a).toBe(1); }); test("b", () => {});';
+    expect(() => mutateAssertion(source, 1, 1)).toThrow("more than one test starts on line 1");
+  });
+
   test("a spec that cannot be parsed is refused", () => {
     expect(() => mutateAssertion("expect(a).toBe(", 1)).toThrow("cannot be parsed");
   });
@@ -303,9 +327,21 @@ test.describe("the environment of the nested run (unit)", () => {
 });
 
 test.describe("what may be proved (unit)", () => {
-  test("a spec under .qa/ is refused before anything is read", async () => {
-    await expect(proveFails(".qa/judge/x.test.ts", "t", 3)).rejects.toThrow("is under .qa/");
-    await expect(proveFails(".qa/contracts/x.test.ts", "t", 3)).rejects.toThrow("is under .qa/");
+  test("a spec under .qa/ is refused before anything is read, in any letter case", async () => {
+    for (const spec of [".qa/judge/x.test.ts", ".qa/contracts/x.test.ts", ".QA/judge/x.test.ts", ".Qa/x.test.ts"]) {
+      await expect(proveFails(spec, "t", 3), spec).rejects.toThrow("is under .qa/");
+    }
+  });
+
+  test("the flag lifts the ignore only for the repository's own generated fixtures directory", async () => {
+    const lookalike = `test-results/fixtures/generated/lookalike-${process.pid}.test.ts`;
+    mkdirSync("test-results/fixtures/generated", { recursive: true });
+    writeFileSync(lookalike, `${HEADER}test("lookalike", () => {\n  expect(1).toBe(1);\n});\n`);
+    try {
+      await expect(proveFails(lookalike, "lookalike", 4)).rejects.toThrow("is ignored by git");
+    } finally {
+      rmSync("test-results/fixtures", { recursive: true, force: true });
+    }
   });
 
   test("a spec git ignores is refused, and the generated fixtures are allowed only with the flag", async () => {
@@ -351,11 +387,11 @@ test.describe("prove-fails (unit)", () => {
 
   test("proveFails reports failed: false when the changed literal does not matter", async () => {
     const spec = generatedSpec(
-      "loose",
-      'test("loose bound", () => {\n  const total = 4;\n  expect(total).toBeLessThan(100);\n});\n',
+      "swallowed",
+      'test("swallowed", () => {\n  const total = 4;\n  try {\n    expect(total).toBe(4);\n  } catch {\n    return;\n  }\n});\n',
     );
-    const result = await proveFails(spec, "loose bound", 5);
-    expect(result).toEqual({ failed: false, output: "the test passed", mutated: "  expect(total).toBeLessThan(101);" });
+    const result = await proveFails(spec, "swallowed", 6);
+    expect(result).toEqual({ failed: false, output: "the test passed", mutated: "    expect(total).toBe(5);" });
   });
 
   test("proveFails runs in a worktree outside the repository", async () => {
@@ -392,7 +428,7 @@ test.describe("prove-fails (unit)", () => {
   test("proveFails does not take a flaky result for a proof", async () => {
     const spec = generatedSpec(
       "flaky",
-      'test.describe.configure({ retries: 2 });\n\ntest("flaky one", ({}, testInfo) => {\n  expect(testInfo.retry).toBeGreaterThanOrEqual(0);\n});\n',
+      'test.describe.configure({ retries: 2 });\n\ntest("flaky one", ({}, testInfo) => {\n  expect(testInfo.retry).toBe(0);\n});\n',
     );
     await expect(proveFails(spec, "flaky one", 6)).rejects.toThrow("is flaky");
   });

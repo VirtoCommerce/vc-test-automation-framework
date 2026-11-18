@@ -53,43 +53,13 @@ facade. Generated code (`api/rest/generated`, `api/graphql/generated`) is never 
 
 ## Writing tests
 
-- `allure.epic` and `allure.feature` in `test.beforeEach`; `allure.story` and `allure.description` in each test;
-  one `test.describe("<topic> (<who>)")` per identity, e.g. `(anonymous)`, `(store administrator)`,
-  `(customer of their own)`.
-- Every phase is `test.step("arrange: …")`, `test.step("act: …")` or `test.step("assert: …")`.
-- No conditional logic, no `as` casts and no helper functions in specs; repeated cases are one table-driven test
-  whose rows may hold small lambdas. No raw selectors in specs: add them to `pages/`.
-- Read seeded data from `dataset` (a spec may name a dataset id as a constant). Create what the test changes with
-  `arrange`. A test that changes a customer's own state (cart, lists, addresses, locks) creates its own customer.
-- REST administration tests run as the dataset store administrator; a test that locks, deletes or changes the
-  password of the acting user creates its own with `arrange.security.platformUser()`.
-- Find records by search criteria, never by "is listed in the first N" windows.
-- A UI test checks the UI; data rules (search semantics, prices, scopes, validation) are checked once through the API.
-- A test that leaves data it cannot remove says why in a `leaves data` annotation.
-- Register cleanup before the change. Builders give drafts a client-side `id` the platform keeps, so the undo
-  can be pushed first; `cleanup.track(description, undo, change)` registers the undo and runs the change in one call.
-- Prove a deletion by reading the record by id (`find(id)` is `undefined`), not by a search.
-- Index-backed reads lag: wait in `arrange` (`searchableMemberships`, `pickupLocations`, `cartPickupLocations`,
-  `productPickupLocations`, `lockMemberships`) or `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never
-  `waitForTimeout` or `networkidle`.
-- Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
-- Expected errors: `rejects.toBeHttpError(status, "body text")`, `rejects.toBeGraphqlError("CODE")`. A cart's
-  totals adding up: `expect(cart).toHaveConsistentTotals()`.
-- Known defects: add the entry to the root `known-issues.json` and its name to `KNOWN_ISSUE_NAMES`
-  (`fixtures/known-issue.ts`), then start the test with `await knownIssue(KNOWN_ISSUES.x)`. With an `issueUrl` the
-  test is an expected failure; without one it is skipped as `fixme`. Never a bare `test.fail` or `test.fixme`.
-  A defect that can hit any test (a deadlock between parallel deletes) gets a `failure` pattern instead; a test
-  whose every error matches one is an expected failure. `tests` patterns mark tests without editing them, for a
-  partner's own file: their CI replaces `known-issues.json`.
-- A test that needs an optional module declares `test.use({ requiresModules: [MODULES.x] })` (`@dataset/modules`)
-  on its `describe` and is skipped where the module is missing or outside its version range (`minVersion`
-  inclusive, `beforeVersion` exclusive); the seed manifest uses the same `MODULES` entries. Keep that module's
-  GraphQL fields out of shared fragments.
-- Tests that change platform-wide state (settings, index, restart) go to `tests/isolated/`, which runs only with
-  `RUN_DESTRUCTIVE_TESTS=true`.
-- Place tests by platform module: users and accounts are `security`, not `customer`.
+The framework rules (spec structure, layers, data and cleanup, waits, known defects, optional modules, working
+discipline) live in the `framework-rules` skill, `.claude/skills/framework-rules/SKILL.md`. Read it before writing
+or reviewing a test. A framework rule beats the style rules below.
 
 ## Code style
+
+This repository's default style. A client repository replaces it with its own; framework rules do not change.
 
 - TypeScript strict with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`; no `any`, no `!`, no
   floating promises (all enforced).

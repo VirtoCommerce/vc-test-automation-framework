@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/readonly-shell.mts\""
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/readonly-shell.mts\" || exit 2"
           }
         ]
       }

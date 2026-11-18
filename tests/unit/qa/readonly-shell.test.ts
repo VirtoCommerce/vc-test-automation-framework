@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { runInNewContext } from "node:vm";
@@ -222,6 +222,9 @@ const NOT_JUDGE_WRITES = [
   ".qa/judge/cart/x.js",
   ".qa/judge/cart/x.json.ts",
   ".qa/judge/cart/x.JSON",
+  ".qa/judge/x/a.spec.ts:b.json",
+  ".qa/judge/x/a:b.json",
+  ".qa/judge/x:y/a.json",
   ".qa/judge/cart/json",
   ".qa/judgement/x.json",
   ".qa/judge-x/x.json",
@@ -260,6 +263,8 @@ const NOT_EXPLORER_WRITES = [
   ".qa/reports/explore-a--b.md",
   ".qa/reports/explore-cart.md.ts",
   ".qa/reports/explore-cart.mts",
+  ".qa/reports/explore-cart.md:x",
+  ".qa/reports/explore-cart.md:x.md",
   ".qa/reports/explore-cart/notes.md",
   ".qa/reports/explore-cart/explore-cart.md",
   ".qa/reportsx/x.md",
@@ -658,6 +663,85 @@ test.describe("read-only shell (unit)", () => {
     });
   }
 
+  for (const [tool, input] of [
+    ["snapshot", { filename: ".claude/hooks/readonly-shell.mts" }],
+    ["console_messages", { filename: ".claude/hooks/readonly-shell.mts" }],
+    ["network_requests", { filename: ".claude/hooks/readonly-shell.mts" }],
+    ["take_screenshot", { filename: ".claude/hooks/readonly-shell.mts" }],
+    ["evaluate", { function: PAGE_EXTRACTOR, filename: ".claude/hooks/readonly-shell.mts" }],
+    ["snapshot", { path: "x.md" }],
+    ["take_screenshot", { type: "png", outputFile: "x.png" }],
+    ["click", { ref: "e1", filename: "x" }],
+    ["navigate", { url: "https://example.com", filename: "x" }],
+    ["tabs", { action: "list", filename: "x" }],
+    ["close", { filename: "x" }],
+  ] as const) {
+    test(`blocks ${tool} with a key it does not need: ${JSON.stringify(input)}`, () => {
+      for (const agent of READ_ONLY_NAMES) {
+        const reason = hookBlockReason(browserCall(agent, `${BROWSER_PREFIX}${tool}`, input), PROJECT_DIR);
+        expect(reason, agent).toMatch(/^[^\n]+$/);
+        expect(reason, agent).toContain(`${BROWSER_PREFIX}${tool}`);
+      }
+    });
+  }
+
+  for (const [tool, input] of [
+    ["navigate", { url: "https://example.com" }],
+    ["navigate_back", {}],
+    ["snapshot", {}],
+    ["take_screenshot", { type: "png", fullPage: true, element: "cart", ref: "e1" }],
+    ["click", { element: "button", ref: "e1", doubleClick: false, button: "left", modifiers: ["Shift"] }],
+    ["hover", { element: "button", ref: "e1" }],
+    ["type", { element: "search", ref: "e1", text: "boots", submit: false, slowly: true }],
+    ["select_option", { element: "sort", ref: "e1", values: ["price"] }],
+    ["press_key", { key: "Tab" }],
+    ["wait_for", { time: 1, text: "Cart", textGone: "Loading" }],
+    ["tabs", { action: "new", index: 1, url: "https://example.com" }],
+    ["console_messages", { level: "error", all: true }],
+    ["network_requests", { includeStatic: false }],
+    ["evaluate", { function: PAGE_EXTRACTOR, element: "cart", ref: "e1" }],
+    ["resize", { width: 390, height: 844 }],
+    ["close", {}],
+  ] as const) {
+    test(`lets ${tool} through with the keys it needs: ${JSON.stringify(input)}`, () => {
+      expect(
+        hookBlockReason(browserCall("qa-explorer", `${BROWSER_PREFIX}${tool}`, input), PROJECT_DIR),
+      ).toBeUndefined();
+    });
+  }
+
+  test("blocks a browser call whose input is not an object, and lets a call with no input through", () => {
+    for (const input of ["x", 3, true, ["https://example.com"]]) {
+      expect(
+        hookBlockReason(browserCall("qa-explorer", `${BROWSER_PREFIX}snapshot`, input), PROJECT_DIR),
+      ).toBeDefined();
+    }
+    expect(
+      hookBlockReason({ agent_type: "qa-explorer", tool_name: `${BROWSER_PREFIX}snapshot` }, PROJECT_DIR),
+    ).toBeUndefined();
+    expect(hookBlockReason(browserCall("qa-explorer", `${BROWSER_PREFIX}close`, null), PROJECT_DIR)).toBeUndefined();
+  });
+
+  for (const url of ["data:text/html,x", "javascript:alert(1)", "file:///etc/passwd", "about:blank", "", 3, null]) {
+    test(`blocks a new tab opening ${JSON.stringify(url)}`, () => {
+      const reason = hookBlockReason(
+        browserCall("qa-explorer", `${BROWSER_PREFIX}tabs`, { action: "new", url }),
+        PROJECT_DIR,
+      );
+      expect(reason).toMatch(/^[^\n]+$/);
+      expect(reason).toContain("tabs");
+    });
+  }
+
+  test("lets tabs open http and https addresses and list, select and close without a URL", () => {
+    const tabs = (input: unknown): unknown => browserCall("qa-explorer", `${BROWSER_PREFIX}tabs`, input);
+    expect(hookBlockReason(tabs({ action: "new", url: "https://example.com/a" }), PROJECT_DIR)).toBeUndefined();
+    expect(hookBlockReason(tabs({ action: "new", url: "http://localhost:3000" }), PROJECT_DIR)).toBeUndefined();
+    for (const action of ["list", "select", "close", "new"]) {
+      expect(hookBlockReason(tabs({ action, index: 0 }), PROJECT_DIR)).toBeUndefined();
+    }
+  });
+
   test("lets another agent and the main session use any MCP tool", () => {
     for (const tool of [...NOT_BROWSER_TOOLS, EVALUATE, `${BROWSER_PREFIX}navigate`]) {
       expect(
@@ -734,6 +818,25 @@ test.describe("read-only shell (unit)", () => {
     expect(hookBlockReason([])).toBeUndefined();
   });
 });
+
+function registeredCommand(): string {
+  const settings: { hooks: { PreToolUse: { hooks: { command: string }[] }[] } } = JSON.parse(
+    readFileSync(SETTINGS_FILE, "utf8"),
+  );
+  const command = settings.hooks.PreToolUse[0]?.hooks[0]?.command;
+  expect(command).toBeDefined();
+  return command ?? "";
+}
+
+function runRegistered(command: string, projectDir: string, stdin: string): { status: number | null } {
+  const result = spawnSync(command.split("$CLAUDE_PROJECT_DIR").join(projectDir), {
+    shell: true,
+    input: stdin,
+    encoding: "utf8",
+    env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+  });
+  return { status: result.status };
+}
 
 function runHook(stdin: string, ...args: string[]): { status: number | null; stderr: string; stdout: string } {
   const result = spawnSync("node", [HOOK_FILE, ...args], {
@@ -874,6 +977,33 @@ test.describe("read-only shell hook script (unit)", () => {
       "Write",
       "mcp__playwright__.*",
     ]);
+  });
+
+  test("fails closed: any non-zero exit of the hook entry becomes exit 2", () => {
+    const command = registeredCommand();
+    const project = mkdtempSync(join(tmpdir(), "hook-project-"));
+    try {
+      mkdirSync(join(project, ".claude", "hooks"), { recursive: true });
+      writeFileSync(join(project, ".claude", "hooks", "readonly-shell.mts"), "this is not valid code (");
+      const broken = runRegistered(command, project, "{}");
+      expect(broken.status).toBe(2);
+      rmSync(join(project, ".claude", "hooks", "readonly-shell.mts"));
+      expect(runRegistered(command, project, "{}").status).toBe(2);
+      writeFileSync(join(project, ".claude", "hooks", "readonly-shell.mts"), "process.exit(1);");
+      expect(runRegistered(command, project, "{}").status).toBe(2);
+      writeFileSync(join(project, ".claude", "hooks", "readonly-shell.mts"), "process.exit(0);");
+      expect(runRegistered(command, project, "{}").status).toBe(0);
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+
+  test("the registered command still allows and blocks as the hook script does", () => {
+    const command = registeredCommand();
+    const call = (input: unknown): number | null => runRegistered(command, PROJECT_DIR, JSON.stringify(input)).status;
+    expect(call({ agent_type: "qa-reviewer", tool_name: "Bash", tool_input: { command: "git diff" } })).toBe(0);
+    expect(call({ agent_type: "qa-reviewer", tool_name: "Bash", tool_input: { command: "git push" } })).toBe(2);
+    expect(call({ tool_name: "Bash", tool_input: { command: "git push" } })).toBe(0);
   });
 
   test("names the browser tools the hook allows, and no others", () => {

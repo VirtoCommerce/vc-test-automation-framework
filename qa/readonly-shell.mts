@@ -19,24 +19,26 @@ export const EXPLORER_WRITE_DIR = ".qa/reports";
 
 export const BROWSER_TOOL_PREFIX = "mcp__playwright__browser_";
 
-export const BROWSER_TOOLS = [
-  "navigate",
-  "navigate_back",
-  "snapshot",
-  "take_screenshot",
-  "click",
-  "hover",
-  "type",
-  "select_option",
-  "press_key",
-  "wait_for",
-  "tabs",
-  "console_messages",
-  "network_requests",
-  "evaluate",
-  "resize",
-  "close",
-].map((name) => `${BROWSER_TOOL_PREFIX}${name}`);
+const BROWSER_TOOL_KEYS: Readonly<Record<string, readonly string[]>> = {
+  navigate: ["url"],
+  navigate_back: [],
+  snapshot: [],
+  take_screenshot: ["type", "fullPage", "element", "ref"],
+  click: ["element", "ref", "doubleClick", "button", "modifiers"],
+  hover: ["element", "ref"],
+  type: ["element", "ref", "text", "submit", "slowly"],
+  select_option: ["element", "ref", "values"],
+  press_key: ["key"],
+  wait_for: ["time", "text", "textGone"],
+  tabs: ["action", "index", "url"],
+  console_messages: ["level", "all"],
+  network_requests: ["includeStatic", "static"],
+  evaluate: ["function", "element", "ref"],
+  resize: ["width", "height"],
+  close: [],
+};
+
+export const BROWSER_TOOLS = Object.keys(BROWSER_TOOL_KEYS).map((name) => `${BROWSER_TOOL_PREFIX}${name}`);
 
 export const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"] as const;
 
@@ -204,7 +206,7 @@ function isReportFile(segments: readonly string[]): boolean {
 }
 
 function isJudgeFile(segments: readonly string[]): boolean {
-  return segments.length >= 2 && JUDGE_FILE.test(segments.at(-1) ?? "");
+  return segments.length >= 2 && JUDGE_FILE.test(segments.at(-1) ?? "") && !segments.some((name) => name.includes(":"));
 }
 
 function writeRuleOf(
@@ -253,15 +255,22 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown): st
   if (!BROWSER_TOOLS.includes(tool)) {
     return `${agent} is read-only and may not use ${tool}; blocked`;
   }
+  if (toolInput !== undefined && toolInput !== null && !isRecord(toolInput)) {
+    return `${agent} may call ${tool} only with named arguments; blocked`;
+  }
   const input = isRecord(toolInput) ? toolInput : {};
   const name = tool.slice(BROWSER_TOOL_PREFIX.length);
+  const extra = Object.keys(input).find((key) => !(BROWSER_TOOL_KEYS[name] ?? []).includes(key));
+  if (extra !== undefined) {
+    return `${agent} may not pass ${JSON.stringify(extra.slice(0, MAX_SHOWN_COMMAND))} to ${tool}; blocked`;
+  }
   if (name === "evaluate" && !isShippedExtractor(input["function"])) {
     return `${agent} may run only the shipped page extractor in ${tool}; blocked`;
   }
   if (name === "type" && input["submit"] !== undefined && input["submit"] !== false) {
     return `${agent} may not type with submit in ${tool}; blocked`;
   }
-  if (name === "navigate" && !isWebUrl(input["url"])) {
+  if ((name === "navigate" || (name === "tabs" && input["url"] !== undefined)) && !isWebUrl(input["url"])) {
     return `${agent} may open only http or https addresses in ${tool}; blocked`;
   }
   return undefined;

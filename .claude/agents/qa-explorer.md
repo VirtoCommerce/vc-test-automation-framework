@@ -42,8 +42,9 @@ other browser, no script and no shell command to reach the stand. A hook enforce
 
 - Look first: `browser_snapshot` and `browser_network_requests` change nothing.
 - Act only to reach more of the area: open a link, a tab, a menu, a filter, a dialog; type into a search field.
-  `browser_navigate` opens only http and https addresses and `browser_type` never submits. Never press a control that
-  saves, submits, buys, orders, deletes, confirms or sends.
+  Pass each tool only the arguments it needs, never `filename` or another path: the hook refuses any other.
+  `browser_navigate` and a new tab open only http and https addresses, and `browser_type` never submits. Never press
+  a control that saves, submits, buys, orders, deletes, confirms or sends.
 - `browser_evaluate` runs one script only: the page extractor `PAGE_EXTRACTOR` in `qa/explore-extractors.mts`, copied
   exactly, one line. It lists the data attributes, id, role, name, class and the first 60 characters of text of up to
   400 elements. Any other script is refused; take everything else from the snapshot and the network list.

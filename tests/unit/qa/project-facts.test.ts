@@ -92,6 +92,54 @@ test.describe("project facts", () => {
     }
   });
 
+  test("rejects the repository root, rooted, drive and UNC forms, git, qa, tooling and short-name segments", () => {
+    for (const path of [
+      ".",
+      "./",
+      ".\\",
+      ".git",
+      ".git/",
+      ".GIT/hooks",
+      ".gitattributes",
+      "pages/.git/x",
+      "pages/.gitignore",
+      ".qa/",
+      ".QA/runs",
+      "pages/.qa",
+      "qa",
+      "qa/",
+      "QA",
+      "pages/qa",
+      "node_modules",
+      "pages/node_modules/",
+      ".claude",
+      ".claude/hooks",
+      "pages/.claude",
+      "\\Users\\x",
+      "\\\\server\\x",
+      "//server/x",
+      "C:/x",
+      "c:pages",
+      "GIT~1/config",
+      "pages/PAGES~2",
+      "pages\\x",
+      "pages//x",
+      "pages/./x",
+      "pages/..",
+      "pages x/",
+      "pages/*",
+      "-pages",
+    ]) {
+      expect(() => parseProjectFacts({ ...VALID, healerPaths: [path] }), path).toThrow("project.json: healerPaths[0]");
+    }
+  });
+
+  test("accepts a plain relative directory, with or without its trailing slash", () => {
+    for (const path of ["pages/", "dataset", "tests/", "src/page-objects/v1.2/", "a_b-c"]) {
+      expect(parseProjectFacts({ ...VALID, healerPaths: [path] }).healerPaths, path).toEqual([path]);
+    }
+  });
+
   test("a healer path list may be empty", () => {
     expect(parseProjectFacts({ ...VALID, healerPaths: [] }).healerPaths).toEqual([]);
   });

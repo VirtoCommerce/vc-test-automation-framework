@@ -83,15 +83,14 @@ const ALLOWED = [
   "git log --oneline -n 5",
   "git show HEAD~1",
   "git status --short",
-  "npx playwright test --list --reporter=json --project=restapi tests/restapi/cart.spec.ts",
-  "npx playwright test --list --reporter=list --project=restapi",
-  "npx playwright test --list --reporter=null",
+  "npx --no playwright test --list --reporter=json --project=restapi tests/restapi/cart.spec.ts",
+  "npx --no playwright test --list --reporter=list --project=restapi",
+  "npx --no playwright test --list --reporter=null",
   "node qa/project-facts.mts",
   "node qa/contract.mts check .qa/contracts/cart-coupons.md",
   "node qa/ticket-card.mts check card.json",
   "node qa/reconcile-run.mts .qa/runs/x/list.restapi.json .qa/runs/x/report.restapi.json",
   "node qa/rank-gaps.mts gaps.json",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/cart/review-list.restapi.json npx playwright test --list --reporter=json --project=restapi",
 ];
 
 const JUDGE_ONLY = [
@@ -145,7 +144,7 @@ const JUDGE_CHAINED = [
   "node qa/prove-fails.mts/../evil.mts",
   "node qa/judge-verdict.mts && rm x",
   "git push",
-  "npx playwright test",
+  "npx --no playwright test",
 ];
 
 const NOT_LISTED = [
@@ -164,21 +163,21 @@ const NOT_LISTED = [
   "git diff --textconv",
   "git",
   "git diff-tree HEAD",
-  "npx playwright test",
-  "npx playwright test --list",
-  "npx playwright test --list --project=unit tests/unit/qa/readonly-shell.test.ts",
-  "npx playwright test --list --reporter=line",
-  "npx playwright test --list --reporter=dot",
-  "npx playwright test --list --reporter=json --reporter=list",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/report.restapi.json npx playwright test --list --reporter=json --project=restapi",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/list.restapi.json npx playwright test --list --reporter=json --project=restapi",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/y/review-list.restapi.json npx playwright test --list --reporter=json",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/review-list.restapi.json npx playwright test --list --reporter=json",
-  "npx playwright test tests/restapi/cart.spec.ts",
-  "npx playwright test --list --reporter=./evil.js",
-  "npx playwright test --list --config=evil.config.ts",
-  "npx playwright show-report",
-  "npx playwright install",
+  "npx --no playwright test",
+  "npx --no playwright test --list",
+  "npx --no playwright test --list --project=unit tests/unit/qa/readonly-shell.test.ts",
+  "npx --no playwright test --list --reporter=line",
+  "npx --no playwright test --list --reporter=dot",
+  "npx --no playwright test --list --reporter=json --reporter=list",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/report.restapi.json npx --no playwright test --list --reporter=json --project=restapi",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/list.restapi.json npx --no playwright test --list --reporter=json --project=restapi",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/y/review-list.restapi.json npx --no playwright test --list --reporter=json",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/review-list.restapi.json npx --no playwright test --list --reporter=json",
+  "npx --no playwright test tests/restapi/cart.spec.ts",
+  "npx --no playwright test --list --reporter=./evil.js",
+  "npx --no playwright test --list --config=evil.config.ts",
+  "npx --no playwright show-report",
+  "npx --no playwright install",
   "npx rimraf x",
   "node qa/prove-fails.mts x",
   "node qa/judge-verdict.mts check x",
@@ -193,17 +192,17 @@ const NOT_LISTED = [
   "ls",
   "curl https://example.com",
   "FOO=bar git diff",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=out.json npx playwright test --list --reporter=json",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/../../x.json npx playwright test --list --reporter=json",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=out.json npx --no playwright test --list --reporter=json",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/../../x.json npx --no playwright test --list --reporter=json",
   "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/a/list.json git diff",
-  "npx playwright test --list --reporter=json .qa/reports/x.spec.ts",
-  "npx playwright test --list --reporter=json ./.qa/reports/x.spec.ts",
-  "npx playwright test --list --reporter=json .QA/reports/x.spec.ts",
-  "npx playwright test --list --reporter=json .Qa/judge/cart/x.spec.ts",
-  "npx playwright test --list --reporter=json tests/../.qa/reports/x.spec.ts",
-  "npx playwright test --list --reporter=json .qa",
-  "npx playwright test --list --reporter=json --project=restapi .qa/runs/x.spec.ts",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/cart/review-list.restapi.json npx playwright test --list --reporter=json .qa/reports/x.spec.ts",
+  "npx --no playwright test --list --reporter=json .qa/reports/x.spec.ts",
+  "npx --no playwright test --list --reporter=json ./.qa/reports/x.spec.ts",
+  "npx --no playwright test --list --reporter=json .QA/reports/x.spec.ts",
+  "npx --no playwright test --list --reporter=json .Qa/judge/cart/x.spec.ts",
+  "npx --no playwright test --list --reporter=json tests/../.qa/reports/x.spec.ts",
+  "npx --no playwright test --list --reporter=json .qa",
+  "npx --no playwright test --list --reporter=json --project=restapi .qa/runs/x.spec.ts",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/cart/review-list.restapi.json npx --no playwright test --list --reporter=json .qa/reports/x.spec.ts",
 ];
 
 const JUDGE_WRITES = [
@@ -226,6 +225,10 @@ const NOT_JUDGE_WRITES = [
   ".qa/judge/x/a.spec.ts:b.json",
   ".qa/judge/x/a:b.json",
   ".qa/judge/x:y/a.json",
+  ".qa/judge/CART~1/x.json",
+  ".qa/judge/cart/JUDGE-~1.JSO",
+  ".qa/judge/cart/x~2.json",
+  ".qa/JUDGE~1/cart/x.json",
   ".qa/judge/cart/json",
   ".qa/judgement/x.json",
   ".qa/judge-x/x.json",
@@ -265,6 +268,8 @@ const NOT_EXPLORER_WRITES = [
   ".qa/reports/explore-cart.md.ts",
   ".qa/reports/explore-cart.mts",
   ".qa/reports/explore-cart.md:x",
+  ".qa/REPORT~1/explore-cart.md",
+  ".qa/reports/EXPLOR~1.MD",
   ".qa/reports/explore-cart.md:x.md",
   ".qa/reports/explore-cart/notes.md",
   ".qa/reports/explore-cart/explore-cart.md",
@@ -300,9 +305,44 @@ test.describe("read-only shell (unit)", () => {
   });
 
   test("allows the list command", () => {
-    expect(isReadOnlyCommand("npx playwright test --list --reporter=json --project=restapi tests/a.spec.ts")).toBe(
+    expect(isReadOnlyCommand("npx --no playwright test --list --reporter=json --project=restapi tests/a.spec.ts")).toBe(
       true,
     );
+  });
+
+  test("refuses npx without --no, which may fetch a package", () => {
+    for (const agent of [...READ_ONLY_NAMES, undefined]) {
+      expect(isReadOnlyCommand("npx playwright test --list --reporter=json", agent)).toBe(false);
+      expect(isReadOnlyCommand("npx --yes playwright test --list --reporter=json", agent)).toBe(false);
+      expect(isReadOnlyCommand("npx --no --yes playwright test --list --reporter=json", agent)).toBe(false);
+      expect(isReadOnlyCommand("npx -y playwright test --list --reporter=json", agent)).toBe(false);
+      expect(isReadOnlyCommand("npx --no playwright test --list --reporter=json", agent)).toBe(true);
+      expect(isReadOnlyCommand("npx --no -- playwright test --list --reporter=json", agent)).toBe(true);
+    }
+  });
+
+  test("the review-list output file is the reviewer's, in its own run folder; the healer's only in heal-<slug>", () => {
+    const reviewList = (folder: string): string =>
+      `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/${folder}/review-list.restapi.json npx --no playwright test --list --reporter=json --project=restapi`;
+
+    expect(isReadOnlyCommand(reviewList("cart"), "qa-reviewer")).toBe(true);
+    expect(isReadOnlyCommand(reviewList("cart-coupons"), "vc:qa-reviewer")).toBe(true);
+    expect(isReadOnlyCommand(reviewList("heal-cart"), "qa-reviewer")).toBe(false);
+    expect(isReadOnlyCommand(reviewList("HEAL-cart"), "qa-reviewer")).toBe(false);
+    expect(isReadOnlyCommand(reviewList("heal-cart"), "qa-healer")).toBe(true);
+    expect(isReadOnlyCommand(reviewList("cart"), "qa-healer")).toBe(false);
+    expect(isReadOnlyCommand(reviewList("heal-"), "qa-healer")).toBe(false);
+    expect(isReadOnlyCommand(reviewList("heal-Cart"), "qa-healer")).toBe(false);
+    for (const agent of ["qa-explorer", "qa-coverage", "qa-judge", undefined]) {
+      expect(isReadOnlyCommand(reviewList("cart"), agent)).toBe(false);
+      expect(isReadOnlyCommand(reviewList("heal-cart"), agent)).toBe(false);
+    }
+    expect(
+      hookBlockReason({ agent_type: "qa-explorer", tool_name: "Bash", tool_input: { command: reviewList("cart") } }),
+    ).toContain("qa-explorer");
+    expect(
+      hookBlockReason({ agent_type: "qa-reviewer", tool_name: "Bash", tool_input: { command: reviewList("cart") } }),
+    ).toBeUndefined();
   });
 
   for (const command of ALLOWED) {
@@ -383,7 +423,7 @@ test.describe("read-only shell (unit)", () => {
 
   test("names the listing command with its reporter in the block message", () => {
     const reason = hookBlockReason({ agent_type: "qa-reviewer", tool_input: { command: "git push" } });
-    expect(reason).toContain("npx playwright test --list --reporter=json|list|null");
+    expect(reason).toContain("npx --no playwright test --list --reporter=json|list|null");
   });
 
   test("blocks a read-only agent whose command is missing or not text", () => {
@@ -470,12 +510,12 @@ test.describe("read-only shell (unit)", () => {
     });
     expect(hookBlockReason(bash("git diff"), PROJECT_DIR)).toBeUndefined();
     expect(hookBlockReason(bash("node qa/project-facts.mts"), PROJECT_DIR)).toBeUndefined();
-    expect(hookBlockReason(bash("npx playwright test --list --reporter=json"), PROJECT_DIR)).toBeUndefined();
+    expect(hookBlockReason(bash("npx --no playwright test --list --reporter=json"), PROJECT_DIR)).toBeUndefined();
     for (const command of [
       "git push",
       "echo x > .qa/reports/x.md",
       "node qa/prove-fails.mts a.spec.ts 1 t",
-      "npx playwright test",
+      "npx --no playwright test",
     ]) {
       expect(hookBlockReason(bash(command), PROJECT_DIR), command).toBeDefined();
     }

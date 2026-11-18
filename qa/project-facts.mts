@@ -22,6 +22,10 @@ const MIN_FLAKY_RUN_SERIES = 2;
 export const PROJECT_FACTS_PATH = ".qa/project.json";
 const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
+const HEALER_PATH = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\/?$/;
+const FORBIDDEN_HEALER_SEGMENTS = ["qa", "node_modules", ".claude"];
+
+export const SHORT_NAME_SEGMENT = /~\d/;
 
 function fail(path: string, problem: string): never {
   throw new Error(`project.json: ${path} ${problem}`);
@@ -166,12 +170,25 @@ function parseAutonomy(value: unknown): ProjectFacts["autonomy"] {
   );
 }
 
+function isForbiddenHealerSegment(segment: string): boolean {
+  const name = segment.toLowerCase();
+  return (
+    name === "." ||
+    name === ".." ||
+    name.startsWith("-") ||
+    name.startsWith(".git") ||
+    name.startsWith(".qa") ||
+    FORBIDDEN_HEALER_SEGMENTS.includes(name) ||
+    SHORT_NAME_SEGMENT.test(name)
+  );
+}
+
 function parseHealerPaths(value: unknown): string[] {
   return asList(value, "healerPaths").map((item, index) => {
     const path = `healerPaths[${index}]`;
     const text = asString(item, path);
-    if (text.startsWith("/") || /^[a-z]:/i.test(text) || text.split(/[\\/]/).includes("..")) {
-      fail(path, "must be a path inside the repository");
+    if (!HEALER_PATH.test(text) || text.split("/").filter(Boolean).some(isForbiddenHealerSegment)) {
+      fail(path, "must be a plain directory inside the repository, not its root, git, qa, tooling or a short name");
     }
     return text;
   });

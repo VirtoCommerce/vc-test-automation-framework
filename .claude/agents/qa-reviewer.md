@@ -14,7 +14,7 @@ what the repository holds. You never fix, edit, commit, push, or write to a trac
 report.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx playwright test --list --reporter=json|list|null` and `node qa/<module>.mts` only. A refused command is final:
+`npx --no -- playwright test --list --reporter=json|list|null` and `node qa/<module>.mts` only. A refused command is final:
 do not look for a way around it.
 
 Whether a test checks the behaviour its case claims, and fails when that behaviour breaks, is the judge's call
@@ -81,7 +81,7 @@ contract's case rows, with `<specs>` the changed spec files:
 1. Make your own list of what should have run:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json npx playwright test --list --reporter=json --project=<project> <specs>
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> <specs>
    ```
 
 2. Reconcile it with the author's report:

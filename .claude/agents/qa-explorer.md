@@ -14,7 +14,7 @@ never edit, commit, push, or write to a tracker, wiki or code host. You write on
 `.qa/reports/`.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx playwright test --list --reporter=json|list|null` and `node qa/<module>.mts` only, and your Write is limited to
+`npx --no -- playwright test --list --reporter=json|list|null` and `node qa/<module>.mts` only, and your Write is limited to
 the one file `.qa/reports/explore-<slug>.md`. A refused command, write or browser call is final: do not look for a way around it. Do not read `.env*` files or
 print a secret.
 

@@ -2,7 +2,7 @@ import { lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { EXTRACTORS } from "./explore-extractors.mts";
-import { PROJECT_FACTS_PATH, readProjectFacts } from "./project-facts.mts";
+import { PROJECT_FACTS_PATH, readProjectFacts, SHORT_NAME_SEGMENT } from "./project-facts.mts";
 
 export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
 
@@ -55,7 +55,15 @@ const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
 const PROVE_FAILS_PATH = "qa/prove-fails.mts";
 const PROVE_FAILS_PROJECT = /^--project=[\w.-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
-const JSON_OUTPUT_ASSIGNMENT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/[\w-]+\/review-list\.[\w-]+\.json$/;
+const OUTPUT_VARIABLE = "PLAYWRIGHT_JSON_OUTPUT_FILE=";
+const REVIEWER_AGENT = "qa-reviewer";
+const REVIEWER_OUTPUT =
+  /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/(?![Hh][Ee][Aa][Ll]-)[\w-]+\/review-list\.[\w-]+\.json$/;
+const HEALER_REVIEW_OUTPUT =
+  /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/heal-[a-z0-9]+(-[a-z0-9]+)*\/review-list\.[\w-]+\.json$/;
+const NPX = "npx";
+const NPX_NO_INSTALL = "--no";
+const END_OF_OPTIONS = "--";
 const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
 const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_MODULES]);
 const MAX_SHOWN_COMMAND = 80;
@@ -99,9 +107,16 @@ function isGitRead(tokens: readonly string[]): boolean {
   return rest.every((token) => !GIT_FORBIDDEN_PREFIXES.some((prefix) => token.startsWith(prefix)));
 }
 
+function npxArgs(tokens: readonly string[]): readonly string[] | undefined {
+  if (tokens[0] !== NPX || tokens[1] !== NPX_NO_INSTALL) {
+    return undefined;
+  }
+  return tokens[2] === END_OF_OPTIONS ? tokens.slice(3) : tokens.slice(2);
+}
+
 function isPlaywrightList(tokens: readonly string[]): boolean {
-  const [, , , ...rest] = tokens;
-  if (tokens[1] !== "playwright" || tokens[2] !== "test" || !rest.includes("--list")) {
+  const [tool, subcommand, ...rest] = npxArgs(tokens) ?? [];
+  if (tool !== "playwright" || subcommand !== "test" || !rest.includes("--list")) {
     return false;
   }
   if (rest.some((token) => QA_FOLDER_TOKEN.test(token))) {
@@ -139,18 +154,30 @@ function isQaModule(tokens: readonly string[], agent: string | undefined): boole
   return tokens[1] !== PROVE_FAILS_PATH || isProveFailsCall(tokens);
 }
 
-function withoutOutputAssignment(tokens: readonly string[]): readonly string[] | undefined {
+function outputPatternOf(agent: string | undefined): RegExp | undefined {
+  const bare = bareName(agent);
+  if (bare === REVIEWER_AGENT) {
+    return REVIEWER_OUTPUT;
+  }
+  return bare === HEALER_AGENT ? HEALER_REVIEW_OUTPUT : undefined;
+}
+
+function withoutOutputAssignment(tokens: readonly string[], agent: string | undefined): readonly string[] | undefined {
   const [first = ""] = tokens;
-  if (!first.startsWith("PLAYWRIGHT_JSON_OUTPUT_FILE=")) {
+  if (!first.startsWith(OUTPUT_VARIABLE)) {
     return tokens;
   }
-  return JSON_OUTPUT_ASSIGNMENT.test(first) ? tokens.slice(1) : undefined;
+  return outputPatternOf(agent)?.test(first) === true ? tokens.slice(1) : undefined;
 }
 
 /**
- * True only for a single plain command on the allowlist: `npx playwright test --list --reporter=json|list|null …`,
+ * True only for a single plain command on the allowlist: `npx --no playwright test --list --reporter=json|list|null …`,
  * `git diff|log|show|status …`, `node qa/<module>.mts …`; `qa-judge` also has `judge-verdict` and `prove-fails`.
- * No chaining, substitution, redirection, quoting, globbing or variable expansion.
+ * `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a flag), so npm never
+ * fetches a package. Only `qa-reviewer` may lead the listing with
+ * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json`, `<name>` not starting with `heal-`, and
+ * `qa-healer` only with `<name>` = `heal-<slug>`. No chaining, substitution, redirection, quoting, globbing or
+ * variable expansion.
  */
 export function isReadOnlyCommand(command: string, agent?: string): boolean {
   const text = command.trim();
@@ -161,17 +188,17 @@ export function isReadOnlyCommand(command: string, agent?: string): boolean {
   if (!tokens.every((token) => TOKEN.test(token))) {
     return false;
   }
-  const bare = withoutOutputAssignment(tokens);
+  const bare = withoutOutputAssignment(tokens, agent);
   if (bare === undefined) {
     return false;
   }
   if (bare !== tokens) {
-    return bare[0] === "npx" && isPlaywrightList(bare);
+    return isPlaywrightList(bare);
   }
   if (tokens[0] === "git") {
     return isGitRead(tokens);
   }
-  if (tokens[0] === "npx") {
+  if (tokens[0] === NPX) {
     return isPlaywrightList(tokens);
   }
   return isQaModule(tokens, agent);
@@ -188,10 +215,10 @@ function isRepoPath(token: string): boolean {
 }
 
 function isHealerPlaywright(tokens: readonly string[]): boolean {
-  if (tokens[0] !== "npx" || tokens[1] !== "playwright" || tokens[2] !== "test") {
+  const [tool, subcommand, ...rest] = npxArgs(tokens) ?? [];
+  if (tool !== "playwright" || subcommand !== "test") {
     return false;
   }
-  const rest = tokens.slice(3);
   let reporters = 0;
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index] ?? "";
@@ -218,11 +245,12 @@ function isHealerPlaywright(tokens: readonly string[]): boolean {
 }
 
 /**
- * True only for a single plain command the healer may run besides the read-only ones: `npx playwright test` on repository
- * paths with `--project`, `--repeat-each`, `--retries=0`, `--reporter=list|json|null`, `--grep` or `-g` and `--list`,
- * optionally led by `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/<name>.json`; `node qa/expectation-guard.mts
- * --snapshot|--base=<sha>`; `npx tsc --noEmit`; `npx biome check <paths>` with no flag. Nothing that writes to git,
- * updates snapshots, picks a config or an output folder.
+ * True only for a single plain command the healer may run besides the read-only ones: `npx --no playwright test` on
+ * repository paths with `--project`, `--repeat-each`, `--retries=0`, `--reporter=list|json|null`, `--grep` or `-g`
+ * and `--list`, optionally led by `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/<name>.json`; `node
+ * qa/expectation-guard.mts --snapshot|--base=<sha>`; `npx --no tsc --noEmit`; `npx --no biome check <paths>` with no
+ * flag. Nothing that fetches a package, writes to git, updates snapshots, picks a config or an output folder, and not
+ * the main session's `--repo-fingerprint`.
  */
 export function isHealerCommand(command: string): boolean {
   const text = command.trim();
@@ -231,11 +259,8 @@ export function isHealerCommand(command: string): boolean {
     return false;
   }
   const [first = "", second, third, ...rest] = tokens;
-  if (first.startsWith("PLAYWRIGHT_JSON_OUTPUT_FILE=")) {
+  if (first.startsWith(OUTPUT_VARIABLE)) {
     return HEAL_JSON_OUTPUT.test(first) && isHealerPlaywright(tokens.slice(1));
-  }
-  if (first === "npx" && second === "playwright") {
-    return isHealerPlaywright(tokens);
   }
   if (first === "node") {
     return (
@@ -245,11 +270,15 @@ export function isHealerCommand(command: string): boolean {
       (third === "--snapshot" || GUARD_BASE.test(third))
     );
   }
-  if (first === "npx" && second === "tsc") {
-    return third === "--noEmit" && rest.length === 0;
+  const [tool, subcommand, ...args] = npxArgs(tokens) ?? [];
+  if (tool === "playwright") {
+    return isHealerPlaywright(tokens);
   }
-  if (first === "npx" && second === "biome") {
-    return third === "check" && rest.length > 0 && rest.every(isRepoPath);
+  if (tool === "tsc") {
+    return subcommand === "--noEmit" && args.length === 0;
+  }
+  if (tool === "biome") {
+    return subcommand === "check" && args.length > 0 && args.every(isRepoPath);
   }
   return false;
 }
@@ -284,14 +313,19 @@ function exists(path: string): boolean {
   }
 }
 
+function hasShortName(path: string): boolean {
+  return path.split(PATH_SEPARATORS).some((segment) => SHORT_NAME_SEGMENT.test(segment));
+}
+
 function pathInside(projectDir: string, dir: string, file: string): string[] | undefined {
+  const requested = resolve(projectDir, file);
   const area = realPathOf(resolve(projectDir, dir));
-  const target = realPathOf(resolve(projectDir, file));
-  if (area === undefined || target === undefined) {
+  const target = realPathOf(requested);
+  if (area === undefined || target === undefined || hasShortName(relative(projectDir, requested))) {
     return undefined;
   }
   const path = relative(area, target);
-  if (path === "" || path.startsWith("..") || isAbsolute(path)) {
+  if (path === "" || path.startsWith("..") || isAbsolute(path) || hasShortName(path)) {
     return undefined;
   }
   return path.split(PATH_SEPARATORS);
@@ -391,7 +425,7 @@ function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, pro
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may run only git diff|log|show|status, node qa/<module>.mts, npx playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx tsc --noEmit and npx biome check <paths>; blocked: ${shown}`;
+  return `${agent} may run only git diff|log|show|status, node qa/<module>.mts, npx --no playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx --no tsc --noEmit and npx --no biome check <paths>; blocked: ${shown}`;
 }
 
 function isWebUrl(value: unknown): boolean {
@@ -477,5 +511,5 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} is read-only and may run only git diff|log|show|status, npx playwright test --list --reporter=json|list|null and node qa/<module>.mts; blocked: ${shown}`;
+  return `${agent} is read-only and may run only git diff|log|show|status, npx --no playwright test --list --reporter=json|list|null and node qa/<module>.mts; blocked: ${shown}`;
 }

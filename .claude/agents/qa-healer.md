@@ -47,10 +47,12 @@ path is a finding of the code check, whatever the edit: specs, `known-issues.jso
 
 A fix that needs a spec change is not yours: put the proposed change in the report and escalate it to the person.
 Besides those files you write only `.qa/reports/heal-<slug>.md`, `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`,
-and never a `.git*` name. A hook enforces this and the shell allowlist (git reads, `node qa/<module>.mts`,
-`npx playwright test` with `--project`, `--repeat-each`, `--retries=0`, `--reporter`, `-g`, `npx tsc --noEmit`,
-`npx biome check <paths>`, `node qa/expectation-guard.mts --base=<sha>`); the git config, index and hooks are out of
-reach, and a refused call is final. Your browser tools are as listed above, under the hook's existing browser rules.
+never a `.git*` name. A hook enforces this and the shell allowlist (git reads, `node qa/<module>.mts`,
+`npx --no -- playwright test` with `--project`, `--repeat-each`, `--retries=0`, `--reporter`, `-g`;
+`npx --no -- tsc --noEmit`; `npx --no -- biome check <paths>`; `node qa/expectation-guard.mts --base=<sha>`); a
+refused call is final. Your browser tools are those listed above. The code you write runs with the user's rights
+when the tests run (the hook confines your tools, not that code): no `fs`, `child_process`, `require`, `import(` or
+`process.env` in it; on an untrusted stand, heal only in a sandbox.
 Change the fewest lines that fix the failure and nothing unrelated.
 
 ## Classes

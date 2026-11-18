@@ -1,7 +1,8 @@
 import type { ProjectFacts } from "./project-facts.mts";
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -16,8 +17,14 @@ type DiffLine = { file: string; marker: string; text: string; first: boolean };
 const CLI_FILE_NAME = "expectation-guard.mts";
 const BASE_FLAG = "--base=";
 const SNAPSHOT_FLAG = "--snapshot";
+const FINGERPRINT_FLAG = "--repo-fingerprint";
 const DEFAULT_BASE = "HEAD";
-const USAGE = "expectation-guard: usage is node qa/expectation-guard.mts [--base=<tree-ish> | --snapshot]";
+const USAGE =
+  "expectation-guard: usage is node qa/expectation-guard.mts [--base=<tree-ish> | --snapshot | --repo-fingerprint]";
+const FILTER_KEY = /^filter\.(.+)\.[^.]+$/;
+const FILTER_SETTINGS = ["clean", "smudge", "process"];
+const FINGERPRINT_DIRS = ["info", "hooks"];
+const MISSING = "missing";
 const FINDING_EXIT_CODE = 1;
 const ERROR_EXIT_CODE = 2;
 const WHOLE_FILE_CONTEXT = 100_000;
@@ -42,8 +49,14 @@ const EXPECTATION = [
   /expected\w*\s*[:=]/i,
 ];
 const SUPPRESSION = [
-  /\btest\.(?:skip|fixme|fail|slow|setTimeout)\b/,
-  /\bdescribe\.(?:skip|fixme|fail|slow|configure)\b/,
+  /\btest\s*\.\s*(?:skip|fixme|fail|slow|setTimeout)\b/,
+  /\bdescribe\s*\.\s*(?:skip|fixme|fail|slow|configure)\b/,
+  /\b(?:testInfo|test\s*\.\s*info\s*\(\s*\))\s*\.\s*(?:skip|fixme|fail)\b/,
+  /["'`](?:node:)?(?:fs|child_process)(?:\/promises)?["'`]/,
+  /\brequire\s*[.(]/,
+  /\bimport\s*\(/,
+  /\bprocess\s*(?:\.\s*env\b|\[)/,
+  /\b(?:writeFileSync|appendFileSync|rmSync|unlinkSync|execSync|spawn\w*)\b/,
   /\bwaitForTimeout\b/,
   /networkidle/,
   /\bexpect\.(?:extend|poll|configure)\b/,
@@ -149,8 +162,10 @@ export function findChangedExpectations(diff: string): ChangedExpectation[] {
 /**
  * Finds every added line, in any file, that switches a check off or hides a failure: `test.skip|fixme|fail|slow|
  * setTimeout`, `describe.skip|fixme|fail|slow|configure`, `waitForTimeout`, `networkidle`, `expect.extend|poll|
- * configure`, an empty-handed `catch {` or `.catch(() =>`, and `process.exit`. A bare `return` or `throw` is too
- * common to flag.
+ * configure`, `testInfo.skip|fixme|fail` and `test.info().skip|fixme|fail`, an empty-handed `catch {` or
+ * `.catch(() =>`, `process.exit`, a `setTimeout`, `force: true`, `retries:` or `timeout:`; and code that reaches past the
+ * page: the `fs` and `child_process` modules, `require`, a dynamic `import(`, `process.env` and the file-writing and
+ * process-spawning calls. A bare `return` or `throw` is too common to flag.
  */
 export function findAddedSuppressions(diff: string): ChangedExpectation[] {
   return diffLines(diff)
@@ -167,14 +182,19 @@ export function findOutsideHealerPaths(files: readonly string[], healerPaths: re
   return files.filter((file) => !allowed.some((path) => file === path || file.startsWith(`${path}/`)));
 }
 
-type Mode = { kind: "snapshot" } | { kind: "compare"; base: string };
+type Mode = { kind: "snapshot" } | { kind: "fingerprint" } | { kind: "compare"; base: string };
+
+type Git = (args: readonly string[], index?: string) => string;
 
 function parseMode(args: readonly string[]): Mode {
   let base: string | undefined;
   let snapshot = false;
+  let fingerprint = false;
   for (const arg of args) {
     if (arg === SNAPSHOT_FLAG) {
       snapshot = true;
+    } else if (arg === FINGERPRINT_FLAG) {
+      fingerprint = true;
     } else if (arg.startsWith(BASE_FLAG)) {
       base = arg.slice(BASE_FLAG.length);
       if (base === "" || base.startsWith("-")) {
@@ -184,16 +204,16 @@ function parseMode(args: readonly string[]): Mode {
       throw new Error(USAGE);
     }
   }
+  if (Number(snapshot) + Number(fingerprint) + Number(base !== undefined) > 1) {
+    throw new Error(USAGE);
+  }
   if (snapshot) {
-    if (base !== undefined) {
-      throw new Error(USAGE);
-    }
     return { kind: "snapshot" };
   }
-  return { kind: "compare", base: base ?? DEFAULT_BASE };
+  return fingerprint ? { kind: "fingerprint" } : { kind: "compare", base: base ?? DEFAULT_BASE };
 }
 
-function runGit(args: readonly string[], index?: string): string {
+function execGit(args: readonly string[], index?: string): string {
   return execFileSync(
     "git",
     [
@@ -210,41 +230,87 @@ function runGit(args: readonly string[], index?: string): string {
     {
       encoding: "utf8",
       maxBuffer: MAX_BUFFER,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...(index === undefined ? {} : { GIT_INDEX_FILE: index }) },
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_ATTR_NOSYSTEM: "1",
+        ...(index === undefined ? {} : { GIT_INDEX_FILE: index }),
+      },
       stdio: ["ignore", "pipe", "ignore"],
     },
   );
+}
+
+function filterDrivers(git: Git): string[] {
+  let names: string;
+  try {
+    names = git(["config", "--name-only", "--get-regexp", "^filter\\."]);
+  } catch {
+    return [];
+  }
+  const drivers = new Set(names.split("\n").flatMap((key) => FILTER_KEY.exec(key.trim())?.[1] ?? []));
+  if ([...drivers].some((driver) => driver.includes("="))) {
+    throw new Error("expectation-guard: a filter driver name holds '=' and cannot be switched off");
+  }
+  return [...drivers].flatMap((driver) => [
+    ...FILTER_SETTINGS.flatMap((setting) => ["-c", `filter.${driver}.${setting}=`]),
+    "-c",
+    `filter.${driver}.required=false`,
+  ]);
+}
+
+/**
+ * Runs `work` with a git that reads the repository but runs none of its code: no fsmonitor, hooks from an empty
+ * folder, no global or system attributes file, and every filter driver git knows switched off, so a planted
+ * `.git/config` or `.git/info/attributes` cannot run a command or rewrite what is hashed. The temporary folder also
+ * holds the throw-away index and is removed afterwards.
+ */
+function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
+  const scratch = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+  try {
+    const hooks = join(scratch, "hooks");
+    mkdirSync(hooks);
+    const safety = [
+      "-c",
+      "core.fsmonitor=false",
+      "-c",
+      `core.hooksPath=${hooks}`,
+      "-c",
+      `core.attributesFile=${join(scratch, "none")}`,
+    ];
+    const filters = filterDrivers((args, index) => execGit([...safety, ...args], index));
+    return work((args, index) => execGit([...safety, ...filters, ...args], index), scratch);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 /**
  * Writes the working tree, untracked files included and ignored files left out, as a git tree object through a
  * throw-away index. The repository's own index, branch and files are not touched.
  */
-function snapshotTree(): string {
-  const directory = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+function snapshotTree(git: Git, scratch: string): string {
   try {
-    const index = join(directory, "index");
-    runGit(["add", "-A", "--", ":/"], index);
-    return runGit(["write-tree"], index).trim();
+    const index = join(scratch, "index");
+    git(["add", "-A", "--", ":/"], index);
+    return git(["write-tree"], index).trim();
   } catch {
     throw new Error("expectation-guard: the working tree could not be snapshotted");
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
   }
 }
 
-function resolveTree(base: string): string {
+function resolveTree(git: Git, base: string): string {
   try {
-    return runGit(["rev-parse", "--verify", "--quiet", `${base}^{tree}`]).trim();
+    return git(["rev-parse", "--verify", "--quiet", `${base}^{tree}`]).trim();
   } catch {
     throw new Error(`expectation-guard: ${base} is not a tree or commit in this repository`);
   }
 }
 
-function baselineFacts(baseTree: string): ProjectFacts {
+function baselineFacts(git: Git, baseTree: string): ProjectFacts {
   let text: string;
   try {
-    text = runGit(["show", `${baseTree}:${PROJECT_FACTS_PATH}`]);
+    text = git(["show", `${baseTree}:${PROJECT_FACTS_PATH}`]);
   } catch {
     throw new Error(`project.json: ${PROJECT_FACTS_PATH} cannot be read in the baseline`);
   }
@@ -257,9 +323,9 @@ function baselineFacts(baseTree: string): ProjectFacts {
   return parseProjectFacts(json);
 }
 
-function changedFiles(base: string, current: string): string[] {
+function changedFiles(git: Git, base: string, current: string): string[] {
   try {
-    return runGit(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", base, current, "--"])
+    return git(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", base, current, "--"])
       .split("\0")
       .filter((file) => file !== "");
   } catch {
@@ -267,15 +333,16 @@ function changedFiles(base: string, current: string): string[] {
   }
 }
 
-function diffTrees(base: string, current: string): string {
+function diffTrees(git: Git, base: string, current: string): string {
   try {
-    return runGit([
+    return git([
       "diff",
       `--unified=${WHOLE_FILE_CONTEXT}`,
       "--no-renames",
       "--no-color",
       "--no-ext-diff",
       "--no-textconv",
+      "--text",
       base,
       current,
       "--",
@@ -285,12 +352,12 @@ function diffTrees(base: string, current: string): string {
   }
 }
 
-function guard(base: string): string[] {
-  const baseTree = resolveTree(base);
-  const healerPaths = baselineFacts(baseTree).healerPaths;
-  const currentTree = snapshotTree();
-  const diff = diffTrees(baseTree, currentTree);
-  const outside = findOutsideHealerPaths(changedFiles(baseTree, currentTree), healerPaths).map(
+function guard(git: Git, scratch: string, base: string): string[] {
+  const baseTree = resolveTree(git, base);
+  const healerPaths = baselineFacts(git, baseTree).healerPaths;
+  const currentTree = snapshotTree(git, scratch);
+  const diff = diffTrees(git, baseTree, currentTree);
+  const outside = findOutsideHealerPaths(changedFiles(git, baseTree, currentTree), healerPaths).map(
     (file) => `${OUTSIDE_PREFIX}${file}`,
   );
   const expectations = findChangedExpectations(diff).map(({ file, line }) => `${file}: ${line.trim()}`);
@@ -298,13 +365,66 @@ function guard(base: string): string[] {
   return [...outside, ...expectations, ...suppressions];
 }
 
+function contentHash(path: string): string {
+  try {
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  } catch {
+    return MISSING;
+  }
+}
+
+function fingerprintEntries(label: string, path: string): string[] {
+  let names: string[];
+  try {
+    if (!statSync(path).isDirectory()) {
+      return [`${label}\0${contentHash(path)}`];
+    }
+    names = readdirSync(path).sort();
+  } catch {
+    return [`${label}\0${MISSING}`];
+  }
+  return [`${label}/\0dir`, ...names.flatMap((name) => fingerprintEntries(`${label}/${name}`, join(path, name)))];
+}
+
+/**
+ * Hashes `.git/config`, `config.worktree`, every file under `.git/info/` and `.git/hooks/`, and `.qa/project.json` into
+ * one sha256, missing files included, so adding a hook or a config line changes it. Reads only.
+ */
+function repoFingerprint(git: Git): string {
+  let paths: string[];
+  try {
+    paths = git(["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel"])
+      .split("\n")
+      .map((line) => line.trim());
+  } catch {
+    throw new Error("expectation-guard: not inside a git repository");
+  }
+  const [gitDir = "", commonDir = "", top = ""] = paths;
+  if (gitDir === "" || commonDir === "" || top === "") {
+    throw new Error("expectation-guard: not inside a git repository");
+  }
+  const entries = [
+    ...fingerprintEntries("config", join(commonDir, "config")),
+    ...fingerprintEntries("config.worktree", join(gitDir, "config.worktree")),
+    ...FINGERPRINT_DIRS.flatMap((dir) => fingerprintEntries(dir, join(commonDir, dir))),
+    ...fingerprintEntries(PROJECT_FACTS_PATH, join(top, PROJECT_FACTS_PATH)),
+  ];
+  return createHash("sha256").update(entries.join("\n")).digest("hex");
+}
+
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const mode = parseMode(process.argv.slice(2));
-    if (mode.kind === "snapshot") {
-      process.stdout.write(`${snapshotTree()}\n`);
-    } else {
-      const findings = guard(mode.base);
+    withSafeGit((git, scratch) => {
+      if (mode.kind === "snapshot") {
+        process.stdout.write(`${snapshotTree(git, scratch)}\n`);
+        return;
+      }
+      if (mode.kind === "fingerprint") {
+        process.stdout.write(`${repoFingerprint(git)}\n`);
+        return;
+      }
+      const findings = guard(git, scratch, mode.base);
       if (findings.length === 0) {
         process.stdout.write("expectation-guard: ok\n");
       } else {
@@ -313,7 +433,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
         );
         process.exitCode = FINDING_EXIT_CODE;
       }
-    }
+    });
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = ERROR_EXIT_CODE;

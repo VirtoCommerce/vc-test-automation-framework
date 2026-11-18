@@ -15,7 +15,7 @@ fix, edit, commit, push, or write to a tracker, wiki or code host. You write onl
 file only.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx playwright test --list --reporter=json|list|null`, `node qa/<module>.mts`, and for you
+`npx --no -- playwright test --list --reporter=json|list|null`, `node qa/<module>.mts`, and for you
 `node qa/prove-fails.mts` and `node qa/judge-verdict.mts`. A refused command is final: do not look for a way around
 it. Do not read `.env*` files or print a secret.
 

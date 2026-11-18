@@ -278,6 +278,35 @@ test.describe("added suppressions", () => {
     'test.describe["configure"]({ retries: 2 });',
     "const options = { retries: 3 };",
     "await locator.click({ timeout: 60000 });",
+    'import { writeFileSync } from "node:fs";',
+    'import * as fs from "fs";',
+    'import { readFile } from "node:fs/promises";',
+    'import { execSync } from "node:child_process";',
+    "import cp from 'child_process';",
+    'import "node:fs";',
+    'const fs = require("fs");',
+    'const cp = require ( "node:child_process" );',
+    "const m = require(name);",
+    'const m = await import("./x.mts");',
+    "const m = await import (name);",
+    "const token = process.env.TOKEN;",
+    'const token = process.env["TOKEN"];',
+    "const all = process . env;",
+    'writeFileSync("x", "y");',
+    'appendFileSync("x", "y");',
+    'rmSync("x", { recursive: true });',
+    'unlinkSync("x");',
+    'execSync("x");',
+    'spawn("x");',
+    'spawnSync("x");',
+    "testInfo.skip();",
+    'testInfo.fixme(true, "later");',
+    "testInfo.fail();",
+    "testInfo . skip ( );",
+    "test.info().skip();",
+    "test.info().fixme();",
+    "test . info ( ) . fail ( );",
+    "test\t.\tskip(true);",
   ];
 
   for (const line of SUPPRESSIONS) {
@@ -287,6 +316,21 @@ test.describe("added suppressions", () => {
       expect(findAddedSuppressions(diff)).toEqual([{ file: PAGE, line: `  ${line}` }]);
     });
   }
+
+  test("a plain import, a page call and a test title are not findings", () => {
+    const diff = diffOf(
+      PAGE,
+      [
+        "@@ -1,1 +1,4 @@",
+        " a",
+        '+import { CartPage } from "./cart-page.ts";',
+        '+await page.getByRole("button", { name: "Import" }).click();',
+        '+test("imports a file", async () => {});',
+      ].join("\n"),
+    );
+
+    expect(findAddedSuppressions(diff)).toEqual([]);
+  });
 
   test("a removed suppression, a bare return and a bare throw are not findings", () => {
     const diff = diffOf(
@@ -588,5 +632,143 @@ test.describe("expectation guard CLI", () => {
 
     expect(git(repo, "status", "--porcelain")).toBe(status);
     expect(readFileSync(join(repo, ".git", "index")).equals(index)).toBe(true);
+  });
+});
+
+test.describe("expectation guard against a planted git configuration", () => {
+  let root = "";
+  let repo = "";
+  let baseline = "";
+
+  function markerCommand(name: string): string {
+    return `node -e "require('fs').writeFileSync('${join(root, name).replaceAll("\\", "/")}','x')"`;
+  }
+
+  test.beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+    repo = join(root, "repo");
+    mkdirSync(repo);
+    git(repo, "init", "-q");
+    write(repo, FACTS, JSON.stringify(FACTS_FILE));
+    write(repo, SPEC, PRICE_SPEC(10));
+    write(repo, PAGE, PAGE_OBJECT('locator("#total")'));
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "base");
+    const result = runGuard(repo, "--snapshot");
+    expect(result.status).toBe(0);
+    baseline = result.stdout.trim();
+  });
+
+  test.afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test("a core.fsmonitor in .git/config does not run during the guard", () => {
+    git(repo, "config", "core.fsmonitor", markerCommand("fsmonitor-ran"));
+    write(repo, PAGE, PAGE_OBJECT('getByTestId("total")'));
+
+    expect(runGuard(repo, "--snapshot").status).toBe(0);
+    expect(runGuard(repo, `--base=${baseline}`).status).toBe(0);
+    expect(runGuard(repo, "--repo-fingerprint").status).toBe(0);
+    expect(readdirSync(root)).not.toContain("fsmonitor-ran");
+  });
+
+  test("a filter planted in .git/config and .git/info/attributes neither runs nor hides a changed spec", () => {
+    git(repo, "config", "filter.planted.clean", markerCommand("filter-ran"));
+    git(repo, "config", "filter.planted.required", "true");
+    write(repo, ".git/info/attributes", "* filter=planted\n");
+    write(repo, SPEC, PRICE_SPEC(12));
+
+    const result = runGuard(repo, `--base=${baseline}`);
+
+    expect(readdirSync(root)).not.toContain("filter-ran");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(`outside healer paths: ${SPEC}`);
+  });
+
+  test("a -diff attribute in .git/info/attributes does not hide a changed expectation in a page object", () => {
+    write(repo, ".git/info/attributes", "*.ts -diff\n");
+    write(repo, PAGE, PAGE_OBJECT('locator("#total")').replace('toHaveText("10")', 'toHaveText("12")'));
+
+    const result = runGuard(repo, `--base=${baseline}`);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(`${PAGE}: await expect(total).toHaveText("10");`);
+  });
+
+  test("a hook in .git/hooks does not run during the guard", () => {
+    write(repo, ".git/hooks/post-index-change", `#!/bin/sh\n${markerCommand("hook-ran")}\n`);
+    write(repo, PAGE, PAGE_OBJECT('getByTestId("total")'));
+
+    expect(runGuard(repo, "--snapshot").status).toBe(0);
+    expect(runGuard(repo, `--base=${baseline}`).status).toBe(0);
+    expect(readdirSync(root)).not.toContain("hook-ran");
+  });
+});
+
+test.describe("repository fingerprint", () => {
+  let repo = "";
+
+  function fingerprint(): string {
+    const result = runGuard(repo, "--repo-fingerprint");
+    expect(result.status).toBe(0);
+    return result.stdout;
+  }
+
+  test.beforeEach(() => {
+    repo = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+    git(repo, "init", "-q");
+    write(repo, FACTS, JSON.stringify(FACTS_FILE));
+    write(repo, PAGE, PAGE_OBJECT('locator("#total")'));
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "base");
+  });
+
+  test.afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  test("prints one sha and the same one twice", () => {
+    const first = fingerprint();
+
+    expect(first).toMatch(/^[0-9a-f]{64}\n$/);
+    expect(fingerprint()).toBe(first);
+  });
+
+  test("changes when a pre-commit hook is added", () => {
+    const before = fingerprint();
+    write(repo, ".git/hooks/pre-commit", "#!/bin/sh\nexit 0\n");
+
+    expect(fingerprint()).not.toBe(before);
+  });
+
+  test("changes when .git/config, .git/info/ or .qa/project.json change", () => {
+    const before = fingerprint();
+    git(repo, "config", "core.fsmonitor", "x");
+    const afterConfig = fingerprint();
+    write(repo, ".git/info/attributes", "* filter=x\n");
+    const afterInfo = fingerprint();
+    write(repo, FACTS, JSON.stringify({ ...FACTS_FILE, healerPaths: ["pages/", "tests/"] }));
+
+    expect(afterConfig).not.toBe(before);
+    expect(afterInfo).not.toBe(afterConfig);
+    expect(fingerprint()).not.toBe(afterInfo);
+  });
+
+  test("does not change when a page object or a spec changes, and leaves the index and status as they were", () => {
+    const before = fingerprint();
+    write(repo, PAGE, PAGE_OBJECT('getByTestId("total")'));
+    write(repo, SPEC, PRICE_SPEC(12));
+    const status = git(repo, "status", "--porcelain");
+    const index = readFileSync(join(repo, ".git", "index"));
+
+    expect(fingerprint()).toBe(before);
+    expect(git(repo, "status", "--porcelain")).toBe(status);
+    expect(readFileSync(join(repo, ".git", "index")).equals(index)).toBe(true);
+  });
+
+  test("takes no other argument", () => {
+    expect(runGuard(repo, "--repo-fingerprint", "--snapshot").status).toBe(2);
+    expect(runGuard(repo, "--repo-fingerprint", `--base=${"a".repeat(40)}`).status).toBe(2);
   });
 });

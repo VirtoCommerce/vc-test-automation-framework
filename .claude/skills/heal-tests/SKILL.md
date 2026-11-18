@@ -18,24 +18,25 @@ that can only be made green by changing one is a product defect, and it stays re
   creates the git-ignored run folder.
 - A hook confines you: Write, Edit and MultiEdit work only under `facts.healerPaths`, `.qa/reports/heal-<slug>.md`,
   `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`, never on a `.git*` name; Bash runs only the commands shown in
-  this skill. A refused call is final: do not look for a way around it, report it.
+  this skill. `npx` always carries `--no --`: `--no` stops npm from fetching a package it does not find, `--` stops it
+  from reading the tool's own flags. A refused call is final: do not look for a way around it, report it.
 - The dispatch carries a baseline: a git tree id that `/qa` or `/qa-heal` recorded with
   `node qa/expectation-guard.mts --snapshot` before you started (working tree, untracked files included). It is what
   the guard in step 7 compares against. Without one, stop and say so. Never record or replace a baseline yourself: a
   new one would hide the changes made before it. Save the id in `.qa/runs/heal-<slug>/baseline.txt` for the report.
 - You may edit only files under `facts.healerPaths`. A spec is never one of them.
-- Find the Playwright project of each test: `npx playwright test --list --reporter=json <spec>` names it per test.
+- Find the Playwright project of each test: `npx --no -- playwright test --list --reporter=json <spec>` names it per test.
   Run a project only when it is a key of `commands.test`.
 
 ## Step 2: Reproduce
 
-For each project, run the failing tests with `npx playwright test` itself (the hook refuses npm scripts), with the
+For each project, run the failing tests with `npx --no -- playwright test` itself (the hook refuses npm scripts), with the
 project's name from `commands.test`. `-g` takes one word without quotes or spaces: join the words of a title with `.`.
 The leading variable sends the JSON report to your run folder:
 
 ```shell
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/round-0.<project>.json npx playwright test <spec> --project=<project> -g <title.words> --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/list.<project>.json npx playwright test --list --reporter=json <spec> --project=<project> -g <title.words>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/round-0.<project>.json npx --no -- playwright test <spec> --project=<project> -g <title.words> --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/list.<project>.json npx --no -- playwright test --list --reporter=json <spec> --project=<project> -g <title.words>
 node qa/reconcile-run.mts .qa/runs/heal-<slug>/list.<project>.json .qa/runs/heal-<slug>/round-0.<project>.json
 ```
 
@@ -69,8 +70,8 @@ way that could be intermittent (a timeout, a wait, an order), and for any test t
 `facts.flakyRunSeries` times per project:
 
 ```shell
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json npx playwright test <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series-list.<project>.json npx playwright test --list --reporter=json <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json npx --no -- playwright test <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series-list.<project>.json npx --no -- playwright test --list --reporter=json <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries>
 node qa/reconcile-run.mts .qa/runs/heal-<slug>/series-list.<project>.json .qa/runs/heal-<slug>/series.<project>.json
 ```
 
@@ -90,7 +91,11 @@ Only a test defect, within the area's autonomy:
 - A locator is fixed in the page object (selector priority: `framework-rules`, `create-ui-layer` "Locator
   Conventions"). A lagging read is fixed in `arrange` (the dataset's index-wait methods). Never `waitForTimeout`,
   `networkidle`, `expect.poll`, a raised retry count, a blanket timeout, a skip, `fixme` or an annotation that hides
-  the failure: the guard flags each of them as an added line.
+  the failure (`testInfo.skip` and `test.info().fixme` too): the guard flags each of them as an added line.
+- The code you write runs with the user's rights when the tests run; the hook confines your tool calls, not that
+  code. So it never reaches past the page: no `fs` or `child_process`, `require`, dynamic `import(`, `process.env`,
+  file writes or spawned processes (the guard flags those as added lines too). On an untrusted stand, heal only in a
+  sandbox.
 - Never edit a spec, and never touch an `expect` line, a matcher argument, an `assert:` step, a helper's expected
   value or an `expected…` constant, even to rename a locator inside it. If the fix needs a spec change, it is not
   yours: write the proposed change as a diff in the report under Escalated and stop on that failure.
@@ -100,9 +105,9 @@ Only a test defect, within the area's autonomy:
 ## Step 6: Re-run, at Most Three Rounds
 
 After each applied round run the same commands as step 2 (`round-<n>.<project>.json`) and reconcile. Typecheck
-with `npx tsc --noEmit` (it only reads) must be clean. Lint only the files you changed, in the linter's check mode and
+with `npx --no -- tsc --noEmit` (it only reads) must be clean. Lint only the files you changed, in the linter's check mode and
 never with a command that fixes: `commands.lint` here is `biome check --write .`, which rewrites specs and `qa/` and
-would create findings, so run `npx biome check <changed files>` without `--write` (the hook refuses any flag). Fix
+would create findings, so run `npx --no -- biome check <changed files>` without `--write` (the hook refuses any flag). Fix
 what it reports by hand, inside the healer paths. A fix that makes another test red is
 reverted. After round three, whatever is still red is escalated: do not start a fourth round and do not change the
 class to get out of it.

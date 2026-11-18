@@ -40,4 +40,6 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
 - Autonomy: `autonomy["<area>"]`, else `autonomy["*"]`, which the reader requires. `propose` means write the change
   into the report and wait; `apply` means do it.
 - Healer paths: `healerPaths` lists the directories the healer may change (page objects, data). Everything else,
-  specs included, is off limits to it.
+  specs included, is off limits to it. Each is a plain relative directory (`pages/`); the reader refuses the
+  repository root, a leading `/` or `\`, a drive or UNC path, `..`, an 8.3 short name (`~1`) and any segment that
+  starts with `.git` or `.qa` or is `qa`, `node_modules` or `.claude`.

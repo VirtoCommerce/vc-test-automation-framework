@@ -68,7 +68,7 @@ function harmlessInput(tool: string): Record<string, unknown> {
   if (tool === `${BROWSER_PREFIX}navigate`) {
     return { url: "https://example.com/cart" };
   }
-  return tool === `${BROWSER_PREFIX}type` ? { ref: "e1", text: "boots" } : {};
+  return tool === `${BROWSER_PREFIX}type` ? { target: "e1", text: "boots" } : {};
 }
 
 function browserCall(agent: string, tool: string, input: unknown): unknown {
@@ -571,7 +571,7 @@ test.describe("read-only shell (unit)", () => {
         expect(hookBlockReason(browserCall(agent, EVALUATE, { function: text }), PROJECT_DIR)).toBeUndefined();
       }
       expect(
-        hookBlockReason(browserCall(agent, EVALUATE, { function: PAGE_EXTRACTOR, ref: "e1" }), PROJECT_DIR),
+        hookBlockReason(browserCall(agent, EVALUATE, { function: PAGE_EXTRACTOR, target: "e1" }), PROJECT_DIR),
       ).toBeUndefined();
     }
     expect(EXTRACTORS).toContain(PAGE_EXTRACTOR);
@@ -616,7 +616,7 @@ test.describe("read-only shell (unit)", () => {
 
   test("blocks typing with submit, whatever its value, and lets typing without it through", () => {
     const type = (extra: Record<string, unknown>): unknown =>
-      browserCall("qa-explorer", `${BROWSER_PREFIX}type`, { ref: "e1", text: "boots", ...extra });
+      browserCall("qa-explorer", `${BROWSER_PREFIX}type`, { target: "e1", text: "boots", ...extra });
     expect(hookBlockReason(type({}), PROJECT_DIR)).toBeUndefined();
     expect(hookBlockReason(type({ submit: false }), PROJECT_DIR)).toBeUndefined();
     for (const submit of [true, "true", 1, "false", null, {}]) {
@@ -671,7 +671,10 @@ test.describe("read-only shell (unit)", () => {
     ["evaluate", { function: PAGE_EXTRACTOR, filename: ".claude/hooks/readonly-shell.mts" }],
     ["snapshot", { path: "x.md" }],
     ["take_screenshot", { type: "png", outputFile: "x.png" }],
-    ["click", { ref: "e1", filename: "x" }],
+    ["click", { target: "e1", filename: "x" }],
+    ["click", { element: "Add", ref: "e5" }],
+    ["snapshot", { target: "e1", filename: "x" }],
+    ["network_requests", { filter: "x", filename: "x.json" }],
     ["navigate", { url: "https://example.com", filename: "x" }],
     ["tabs", { action: "list", filename: "x" }],
     ["close", { filename: "x" }],
@@ -689,17 +692,19 @@ test.describe("read-only shell (unit)", () => {
     ["navigate", { url: "https://example.com" }],
     ["navigate_back", {}],
     ["snapshot", {}],
-    ["take_screenshot", { type: "png", fullPage: true, element: "cart", ref: "e1" }],
-    ["click", { element: "button", ref: "e1", doubleClick: false, button: "left", modifiers: ["Shift"] }],
-    ["hover", { element: "button", ref: "e1" }],
-    ["type", { element: "search", ref: "e1", text: "boots", submit: false, slowly: true }],
-    ["select_option", { element: "sort", ref: "e1", values: ["price"] }],
+    ["snapshot", { target: "e1", depth: 2, boxes: true }],
+    ["take_screenshot", { type: "png", fullPage: true, element: "cart", target: "e1" }],
+    ["click", { element: "button", target: "e1", doubleClick: false, button: "left", modifiers: ["Shift"] }],
+    ["hover", { element: "button", target: "e1" }],
+    ["type", { element: "search", target: "e1", text: "boots", submit: false, slowly: true }],
+    ["select_option", { element: "sort", target: "e1", values: ["price"] }],
     ["press_key", { key: "Tab" }],
     ["wait_for", { time: 1, text: "Cart", textGone: "Loading" }],
     ["tabs", { action: "new", index: 1, url: "https://example.com" }],
     ["console_messages", { level: "error", all: true }],
-    ["network_requests", { includeStatic: false }],
-    ["evaluate", { function: PAGE_EXTRACTOR, element: "cart", ref: "e1" }],
+    ["network_requests", { includeStatic: false, static: false, filter: "/graphql" }],
+    ["click", { element: "Add", target: "e5" }],
+    ["evaluate", { function: PAGE_EXTRACTOR, element: "cart", target: "e1" }],
     ["resize", { width: 390, height: 844 }],
     ["close", {}],
   ] as const) {
@@ -828,9 +833,12 @@ function registeredCommand(): string {
   return command ?? "";
 }
 
+function hasBash(): boolean {
+  return spawnSync("bash", ["-c", "exit 0"]).status === 0;
+}
+
 function runRegistered(command: string, projectDir: string, stdin: string): { status: number | null } {
-  const result = spawnSync(command.split("$CLAUDE_PROJECT_DIR").join(projectDir), {
-    shell: true,
+  const result = spawnSync("bash", ["-c", command], {
     input: stdin,
     encoding: "utf8",
     env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
@@ -980,8 +988,9 @@ test.describe("read-only shell hook script (unit)", () => {
   });
 
   test("fails closed: any non-zero exit of the hook entry becomes exit 2", () => {
+    test.skip(!hasBash(), "bash is not on PATH; Claude Code runs hook commands with bash");
     const command = registeredCommand();
-    const project = mkdtempSync(join(tmpdir(), "hook-project-"));
+    const project = mkdtempSync(join(tmpdir(), "hook project-"));
     try {
       mkdirSync(join(project, ".claude", "hooks"), { recursive: true });
       writeFileSync(join(project, ".claude", "hooks", "readonly-shell.mts"), "this is not valid code (");
@@ -999,6 +1008,7 @@ test.describe("read-only shell hook script (unit)", () => {
   });
 
   test("the registered command still allows and blocks as the hook script does", () => {
+    test.skip(!hasBash(), "bash is not on PATH; Claude Code runs hook commands with bash");
     const command = registeredCommand();
     const call = (input: unknown): number | null => runRegistered(command, PROJECT_DIR, JSON.stringify(input)).status;
     expect(call({ agent_type: "qa-reviewer", tool_name: "Bash", tool_input: { command: "git diff" } })).toBe(0);

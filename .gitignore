@@ -22,3 +22,4 @@ allure-report/
 .qa/kb/
 .qa/judge/
 tests/unit/qa/fixtures/generated/
+.playwright-mcp/

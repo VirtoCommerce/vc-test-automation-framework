@@ -1,13 +1,14 @@
+import { isAbsolute, relative, resolve } from "node:path";
+
 export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
 
-export const ALLOWED_QA_MODULES = [
-  "project-facts",
-  "ticket-card",
-  "contract",
-  "reconcile-run",
-  "judge-verdict",
-  "rank-gaps",
-] as const;
+export const ALLOWED_QA_MODULES = ["project-facts", "ticket-card", "contract", "reconcile-run", "rank-gaps"] as const;
+
+export const JUDGE_AGENT = "qa-judge";
+
+export const JUDGE_QA_MODULES = ["judge-verdict", "prove-fails"] as const;
+
+export const JUDGE_WRITE_DIR = ".qa/judge";
 
 const TOKEN = /^[A-Za-z0-9_./:=@,+^~-]+$/;
 const GIT_SUBCOMMANDS = ["diff", "log", "show", "status"];
@@ -16,8 +17,17 @@ const PLAYWRIGHT_FLAGS = [/^--list$/, /^--reporter=(json|list|null)$/, /^--proje
 const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
 const JSON_OUTPUT_ASSIGNMENT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/[\w-]+\/review-list\.[\w-]+\.json$/;
-const QA_MODULE_PATH = new RegExp(`^qa/(${ALLOWED_QA_MODULES.join("|")})[.]mts$`);
+const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
+const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_MODULES]);
 const MAX_SHOWN_COMMAND = 80;
+
+function modulePattern(modules: readonly string[]): RegExp {
+  return new RegExp(`^qa/(${modules.join("|")})[.]mts$`);
+}
+
+function bareName(agent: string | undefined): string | undefined {
+  return agent?.split(":").pop();
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -44,8 +54,9 @@ function isPlaywrightList(tokens: readonly string[]): boolean {
   );
 }
 
-function isQaModule(tokens: readonly string[]): boolean {
-  return tokens[0] === "node" && QA_MODULE_PATH.test(tokens[1] ?? "");
+function isQaModule(tokens: readonly string[], agent: string | undefined): boolean {
+  const pattern = bareName(agent) === JUDGE_AGENT ? JUDGE_QA_MODULE_PATH : QA_MODULE_PATH;
+  return tokens[0] === "node" && pattern.test(tokens[1] ?? "");
 }
 
 function withoutOutputAssignment(tokens: readonly string[]): readonly string[] | undefined {
@@ -57,10 +68,11 @@ function withoutOutputAssignment(tokens: readonly string[]): readonly string[] |
 }
 
 /**
- * True only for a single plain command on the allowlist: `npx playwright test --list …`, `git diff|log|show|status …`,
- * `node qa/<module>.mts …`. No chaining, substitution, redirection, quoting, globbing or variable expansion.
+ * True only for a single plain command on the allowlist: `npx playwright test --list --reporter=json|list|null …`,
+ * `git diff|log|show|status …`, `node qa/<module>.mts …`; `qa-judge` also has `judge-verdict` and `prove-fails`.
+ * No chaining, substitution, redirection, quoting, globbing or variable expansion.
  */
-export function isReadOnlyCommand(command: string): boolean {
+export function isReadOnlyCommand(command: string, agent?: string): boolean {
   const text = command.trim();
   if (text === "") {
     return false;
@@ -82,19 +94,36 @@ export function isReadOnlyCommand(command: string): boolean {
   if (tokens[0] === "npx") {
     return isPlaywrightList(tokens);
   }
-  return isQaModule(tokens);
+  return isQaModule(tokens, agent);
 }
 
 export function isReadOnlyAgent(name: string | undefined): boolean {
-  const bare = name?.split(":").pop();
+  const bare = bareName(name);
   return READ_ONLY_AGENTS.some((agent) => agent === bare);
 }
 
+function writeBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
+  if (bareName(agent) !== JUDGE_AGENT) {
+    return `${agent} is read-only and may not write files; blocked`;
+  }
+  const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
+  if (typeof file === "string" && file !== "") {
+    const path = relative(resolve(projectDir, JUDGE_WRITE_DIR), resolve(projectDir, file));
+    if (path !== "" && !path.startsWith("..") && !isAbsolute(path)) {
+      return undefined;
+    }
+  }
+  const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
+  return `${agent} may write only under ${JUDGE_WRITE_DIR}/; blocked: ${shown}`;
+}
+
 /**
- * Decides a PreToolUse hook call for the Bash tool: a one-line reason to block it, or undefined to let it pass.
- * Only the read-only agents are limited; the main session and every other agent pass untouched.
+ * Decides a PreToolUse hook call for the Bash and Write tools: a one-line reason to block it, or undefined to let it
+ * pass. Only the read-only agents are limited; the main session and every other agent pass untouched. A read-only
+ * agent's Bash call must be on the allowlist, its Write call is allowed for `qa-judge` under `.qa/judge/` of the
+ * project directory only, and a call of any other tool is blocked.
  */
-export function hookBlockReason(input: unknown): string | undefined {
+export function hookBlockReason(input: unknown, projectDir: string = process.cwd()): string | undefined {
   if (!isRecord(input)) {
     return undefined;
   }
@@ -102,11 +131,18 @@ export function hookBlockReason(input: unknown): string | undefined {
   if (typeof agent !== "string" || !isReadOnlyAgent(agent)) {
     return undefined;
   }
+  const tool = input["tool_name"];
   const toolInput = input["tool_input"];
+  if (tool === "Write") {
+    return writeBlockReason(agent, toolInput, projectDir);
+  }
+  if (tool !== undefined && tool !== "Bash") {
+    return `${agent} is read-only and may use only the Bash and Write tools; blocked: ${JSON.stringify(String(tool))}`;
+  }
   const command = isRecord(toolInput) ? toolInput["command"] : undefined;
-  if (typeof command === "string" && isReadOnlyCommand(command)) {
+  if (typeof command === "string" && isReadOnlyCommand(command, agent)) {
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} is read-only and may run only git diff|log|show|status, npx playwright test --list and node qa/<module>.mts; blocked: ${shown}`;
+  return `${agent} is read-only and may run only git diff|log|show|status, npx playwright test --list --reporter=json|list|null and node qa/<module>.mts; blocked: ${shown}`;
 }

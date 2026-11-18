@@ -1,0 +1,27 @@
+{
+  "role": "expert",
+  "subject": ".qa/contracts/cart-coupons.md",
+  "criteria": [
+    {
+      "name": "case-has-test",
+      "pass": true,
+      "evidence": "C-01 to C-04 have tests at tests/restapi/cart-coupons.spec.ts:14, :27, :41 and :58; C-05 is out of scope in the contract with a known issue"
+    },
+    {
+      "name": "checks-claimed-behaviour",
+      "pass": true,
+      "evidence": "tests/restapi/cart-coupons.spec.ts:14 asserts the discount of the coupon from the ticket's table, on the project and role of row C-01"
+    },
+    {
+      "name": "fails-when-behaviour-breaks",
+      "pass": false,
+      "evidence": "prove-fails on the test at :41 with expected 10 changed to 11 printed failed: false, so the test does not check the discount"
+    },
+    {
+      "name": "skip-has-reason",
+      "pass": true,
+      "evidence": "no skip, fixme or expected failure in the diff; searched tests/restapi/cart-coupons.spec.ts"
+    }
+  ],
+  "verdict": "fail"
+}

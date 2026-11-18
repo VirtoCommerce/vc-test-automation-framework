@@ -20,3 +20,4 @@ allure-report/
 .qa/runs/
 .qa/reports/
 .qa/kb/
+.qa/judge/

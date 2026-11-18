@@ -129,8 +129,8 @@ assertions on shared lists, dataset users whose state changes, and setup written
 **Bug fix:** expect a test that fails without the fix. When a platform defect is fixed, its `KNOWN_ISSUES` entry
 and `knownIssue` calls go.
 
-**Refactoring:** expect no behavior change; `npx playwright test --list` count unchanged unless intended. Watch for
-removed tests without replacement and callers left behind.
+**Refactoring:** expect no behavior change; `npx playwright test --list --reporter=list` count unchanged unless
+intended. Watch for removed tests without replacement and callers left behind.
 
 **Infrastructure:** expect fixture, client or arrange changes with all callers updated. Watch for fixtures that
 now build more for every test, and changed cleanup order.

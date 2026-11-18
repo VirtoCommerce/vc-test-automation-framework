@@ -704,6 +704,19 @@ test.describe("expectation guard against a planted git configuration", () => {
     expect(runGuard(repo, `--base=${baseline}`).status).toBe(0);
     expect(readdirSync(root)).not.toContain("hook-ran");
   });
+
+  test("a hook defined in .git/config does not run during the guard", () => {
+    git(repo, "config", "hook.planted.event", "post-index-change");
+    git(repo, "config", "hook.planted.command", markerCommand("config-hook-ran"));
+    git(repo, "config", "hook.planted.with.dots.event", "post-index-change");
+    git(repo, "config", "hook.planted.with.dots.command", markerCommand("dotted-hook-ran"));
+    write(repo, PAGE, PAGE_OBJECT('getByTestId("total")'));
+
+    expect(runGuard(repo, "--snapshot").status).toBe(0);
+    expect(runGuard(repo, `--base=${baseline}`).status).toBe(0);
+    expect(readdirSync(root)).not.toContain("config-hook-ran");
+    expect(readdirSync(root)).not.toContain("dotted-hook-ran");
+  });
 });
 
 test.describe("repository fingerprint", () => {
@@ -742,6 +755,17 @@ test.describe("repository fingerprint", () => {
     expect(fingerprint()).not.toBe(before);
   });
 
+  test("changes when a hook is added to the folder core.hooksPath names, inside the working tree", () => {
+    git(repo, "config", "core.hooksPath", "pages/hooks");
+    const before = fingerprint();
+    write(repo, "pages/hooks/pre-commit", "#!/bin/sh\nexit 0\n");
+    const added = fingerprint();
+    write(repo, "pages/hooks/pre-commit", "#!/bin/sh\nexit 1\n");
+
+    expect(added).not.toBe(before);
+    expect(fingerprint()).not.toBe(added);
+  });
+
   test("changes when .git/config, .git/info/ or .qa/project.json change", () => {
     const before = fingerprint();
     git(repo, "config", "core.fsmonitor", "x");
@@ -770,5 +794,118 @@ test.describe("repository fingerprint", () => {
   test("takes no other argument", () => {
     expect(runGuard(repo, "--repo-fingerprint", "--snapshot").status).toBe(2);
     expect(runGuard(repo, "--repo-fingerprint", `--base=${"a".repeat(40)}`).status).toBe(2);
+  });
+});
+
+test.describe("heal recipe of /qa and /qa-heal", () => {
+  const QA_MODULES = ["qa/expectation-guard.mts", "qa/project-facts.mts"];
+  let root = "";
+  let repo = "";
+  let baseline = "";
+  let fingerprint = "";
+
+  function recipeOf(command: string): string[] {
+    const text = readFileSync(join(".claude", "commands", command), "utf8");
+    const start = text.indexOf("```shell", text.indexOf("--repo-fingerprint"));
+    const end = text.indexOf("```", start + 1);
+    return text
+      .slice(start, end)
+      .split("\n")
+      .slice(1)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+  }
+
+  function runRecipe(env: NodeJS.ProcessEnv = {}): { status: number | null; stdout: string } {
+    const script = recipeOf("qa-heal.md")
+      .join("\n")
+      .replaceAll("<baseline tree id>", baseline)
+      .replaceAll("<fingerprint>", fingerprint);
+    const result = spawnSync("bash", ["-c", script], { cwd: repo, encoding: "utf8", env: { ...process.env, ...env } });
+    return { status: result.status, stdout: result.stdout };
+  }
+
+  function plantSmudge(): string {
+    const forged = `process.stdout.write(process.argv.includes("--repo-fingerprint") ? "${fingerprint}\n" : "expectation-guard: ok\n");\n`;
+    const smudge = join(root, "smudge.cjs");
+    writeFileSync(
+      smudge,
+      `require("fs").writeFileSync(${JSON.stringify(join(root, "smudge-ran"))}, "x");\nprocess.stdin.resume();\nprocess.stdin.on("end", () => process.stdout.write(${JSON.stringify(forged)}));\n`,
+    );
+    return `node ${smudge.replaceAll("\\", "/")}`;
+  }
+
+  test.beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+    repo = join(root, "repo");
+    mkdirSync(repo);
+    git(repo, "init", "-q");
+    for (const file of QA_MODULES) {
+      write(repo, file, readFileSync(file, "utf8"));
+    }
+    write(repo, FACTS, JSON.stringify(FACTS_FILE));
+    write(repo, SPEC, PRICE_SPEC(10));
+    write(repo, PAGE, PAGE_OBJECT('locator("#total")'));
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "base");
+    baseline = runGuard(repo, "--snapshot").stdout.trim();
+    fingerprint = runGuard(repo, "--repo-fingerprint").stdout.trim();
+  });
+
+  test.afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test("/qa and /qa-heal carry the same recipe, which reads the baseline with git cat-file and never git archive", () => {
+    const recipe = recipeOf("qa-heal.md");
+
+    expect(recipeOf("qa.md")).toEqual(recipe);
+    expect(recipe.join("\n")).not.toContain("archive");
+    expect(recipe.join("\n")).toContain("cat-file blob");
+  });
+
+  test("an untouched repository with a changed page object is clean", () => {
+    write(repo, PAGE, PAGE_OBJECT('getByTestId("total")'));
+
+    expect(runRecipe().status).toBe(0);
+  });
+
+  test("a guard forged in the working tree is not the one that judges", () => {
+    write(repo, "qa/expectation-guard.mts", 'process.stdout.write("expectation-guard: ok\n");\n');
+    write(repo, SPEC, PRICE_SPEC(12));
+
+    const result = runRecipe();
+
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(`outside healer paths: ${SPEC}`);
+  });
+
+  test("a smudge filter planted in .git/config and .git/info/attributes does not run and cannot forge the guard", () => {
+    git(repo, "config", "filter.ev.smudge", plantSmudge());
+    write(repo, ".git/info/attributes", "* filter=ev\n");
+    write(repo, SPEC, PRICE_SPEC(12));
+
+    const result = runRecipe();
+
+    expect(readdirSync(root)).not.toContain("smudge-ran");
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("repository config changed by the healer");
+  });
+
+  test("a smudge filter from the global config and attributes file does not run and cannot forge the guard", () => {
+    const attributes = join(root, "attributes");
+    const global = join(root, "global.gitconfig");
+    writeFileSync(attributes, "* filter=ev\n");
+    writeFileSync(
+      global,
+      `[core]\n\tattributesFile = ${attributes.replaceAll("\\", "/")}\n[filter "ev"]\n\tsmudge = ${plantSmudge()}\n`,
+    );
+    write(repo, SPEC, PRICE_SPEC(12));
+
+    const result = runRecipe({ GIT_CONFIG_GLOBAL: global });
+
+    expect(readdirSync(root)).not.toContain("smudge-ran");
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(`outside healer paths: ${SPEC}`);
   });
 });

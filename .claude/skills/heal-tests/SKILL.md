@@ -17,7 +17,7 @@ that can only be made green by changing one is a product defect, and it stays re
 - `<slug>` is the target in lower case letters, digits and hyphens. Writing `.qa/runs/heal-<slug>/baseline.txt` below
   creates the git-ignored run folder.
 - A hook confines you: Write, Edit and MultiEdit work only under `facts.healerPaths`, `.qa/reports/heal-<slug>.md`,
-  `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`, never on a `.git*` name; Bash runs only the commands shown in
+  `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`, never on a `.git*` name or in the folder git runs hooks from; Bash runs only the commands shown in
   this skill. `npx` always carries `--no --`: `--no` stops npm from fetching a package it does not find, `--` stops it
   from reading the tool's own flags. A refused call is final: do not look for a way around it, report it.
 - The dispatch carries a baseline: a git tree id that `/qa` or `/qa-heal` recorded with
@@ -121,7 +121,8 @@ node qa/expectation-guard.mts --base=<tree id in .qa/runs/heal-<slug>/baseline.t
 ```
 
 This is your own early check; the hook keeps you from writing `qa/`, and the dispatcher repeats it from the
-baseline's own copy of `qa/` (`/qa`, `/qa-heal`). It compares the working tree, untracked files included, with that tree, and reads `healerPaths` from the baseline's
+baseline's own copy of `qa/`, taken with `git cat-file`, together with a fingerprint of the git configuration and
+hooks (`/qa`, `/qa-heal`). It compares the working tree, untracked files included, with that tree, and reads `healerPaths` from the baseline's
 `.qa/project.json`. Exit 0: every changed file is under `healerPaths`, no expectation line changed and no added line
 switches a check off. Exit 1 lists `outside healer paths: <file>`, a changed expectation line, or `<file>: added <line>`:
 undo the edit that caused each one (a finding is your mistake, not a style matter), re-run the guard until clean, and

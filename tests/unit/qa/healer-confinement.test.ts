@@ -417,6 +417,66 @@ test.describe("healer writes", () => {
   });
 });
 
+test.describe("healer writes and the git hooks folder", () => {
+  let project = "";
+
+  function gitIn(...args: string[]): void {
+    spawnSync("git", args, { cwd: project, stdio: "ignore" });
+  }
+
+  function write(file: string): string | undefined {
+    return hookBlockReason(healerCall("Write", { file_path: file }), project);
+  }
+
+  test.beforeEach(() => {
+    project = mkdtempSync(join(tmpdir(), "healer-hooks-"));
+    gitIn("init", "-q");
+    mkdirSync(join(project, ".qa"), { recursive: true });
+    mkdirSync(join(project, "pages", "hooks"), { recursive: true });
+    writeFileSync(join(project, ".qa", "project.json"), JSON.stringify(FACTS));
+  });
+
+  test.afterEach(() => {
+    rmSync(project, { recursive: true, force: true });
+  });
+
+  test("a repository without core.hooksPath leaves the healer paths writable", () => {
+    expect(write("pages/x.ts")).toBeUndefined();
+    expect(write("pages/hooks/x.ts")).toBeUndefined();
+  });
+
+  test("a core.hooksPath inside a healer path is not writable, the rest of the path is", () => {
+    gitIn("config", "core.hooksPath", "pages/hooks");
+
+    const files = ["pages/hooks/pre-commit", "pages/hooks/sub/x.ts"];
+    for (const file of process.platform === "win32" ? [...files, "pages/HOOKS/pre-commit"] : files) {
+      expect(write(file), file).toContain("qa-healer");
+    }
+    expect(write("pages/x.ts")).toBeUndefined();
+    expect(write("pages/hooks-extra/x.ts")).toBeUndefined();
+  });
+
+  test("an absolute core.hooksPath inside a healer path is not writable", () => {
+    gitIn("config", "core.hooksPath", join(project, "dataset", "git-hooks").replaceAll("\\", "/"));
+
+    expect(write("dataset/git-hooks/pre-push")).toContain("qa-healer");
+    expect(write("dataset/arrange/x.ts")).toBeUndefined();
+  });
+
+  test("a core.hooksPath that is the healer path itself makes the whole path unwritable", () => {
+    gitIn("config", "core.hooksPath", "pages");
+
+    expect(write("pages/x.ts")).toContain("qa-healer");
+  });
+
+  test("a repository whose git configuration cannot be read blocks every healer write", () => {
+    writeFileSync(join(project, ".git", "config"), "[core\nbroken");
+
+    expect(write("pages/x.ts")).toContain("qa-healer");
+    expect(write(".qa/reports/heal-cart.md")).toContain("qa-healer");
+  });
+});
+
 test.describe("healer other tools", () => {
   test("lets the reading tools pass", () => {
     for (const tool of ["Read", "Grep", "Glob", "Skill"]) {

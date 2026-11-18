@@ -91,7 +91,7 @@ rebuild them from `package.json`. Let `<name>` be the contract's file name witho
 3. Save the list of what should have run, for the same specs and projects:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/list.json npx playwright test --list --reporter=json <specs>
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/list.json npx --no -- playwright test --list --reporter=json <specs>
    ```
 
    (`list.<project>.json` for several projects.) Do not hand-edit either file: the reviewer reconciles them.

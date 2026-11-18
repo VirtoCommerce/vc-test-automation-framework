@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
@@ -86,6 +87,16 @@ const GREP_VALUE = /^[\w.+^~,:@/=][\w.+^~,:@/=-]*$/;
 const GUARD_BASE = /^--base=[0-9a-f]{7,64}$/;
 const GUARD_PATH = "qa/expectation-guard.mts";
 const DRIVE_PATH = /^[A-Za-z]:/;
+const GIT_DIR = ".git";
+const NO_HOOKS_FOLDER = "";
+const GIT_HOOKS_FOLDER_ARGS = [
+  "-c",
+  "core.fsmonitor=false",
+  "rev-parse",
+  "--path-format=absolute",
+  "--git-path",
+  "hooks",
+];
 
 function modulePattern(modules: readonly string[]): RegExp {
   return new RegExp(`^qa/(${modules.join("|")})[.]mts$`);
@@ -391,12 +402,40 @@ function healerMayWrite(file: string, projectDir: string, healerPaths: readonly 
   return run !== undefined && run.length >= 2 && HEAL_SLUG.test(run[0] ?? "");
 }
 
+/**
+ * The folder git runs hooks from (`core.hooksPath`, else `.git/hooks`), resolved by git itself. Outside a repository
+ * there is none (`NO_HOOKS_FOLDER`); a repository whose configuration git cannot read gives undefined, which blocks.
+ */
+function hooksFolderOf(projectDir: string): string | undefined {
+  try {
+    return execFileSync("git", GIT_HOOKS_FOLDER_ARGS, {
+      cwd: projectDir,
+      encoding: "utf8",
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return exists(join(projectDir, GIT_DIR)) ? undefined : NO_HOOKS_FOLDER;
+  }
+}
+
+function isInsideHooksFolder(file: string, projectDir: string, hooksFolder: string): boolean {
+  return hooksFolder !== NO_HOOKS_FOLDER && pathInside(projectDir, hooksFolder, file) !== undefined;
+}
+
 function healerWriteBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
   const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
   const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
   const healerPaths = healerPathsOf(projectDir);
   if (healerPaths === undefined) {
     return `${agent} may not write: ${PROJECT_FACTS_PATH} could not be read; blocked: ${shown}`;
+  }
+  const hooksFolder = hooksFolderOf(projectDir);
+  if (hooksFolder === undefined) {
+    return `${agent} may not write: the git hooks folder could not be resolved; blocked: ${shown}`;
+  }
+  if (typeof file === "string" && file !== "" && isInsideHooksFolder(file, projectDir, hooksFolder)) {
+    return `${agent} may not write into the folder git runs hooks from; blocked: ${shown}`;
   }
   if (typeof file === "string" && file !== "" && healerMayWrite(file, projectDir, healerPaths)) {
     return undefined;

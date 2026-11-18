@@ -21,8 +21,10 @@ const FINGERPRINT_FLAG = "--repo-fingerprint";
 const DEFAULT_BASE = "HEAD";
 const USAGE =
   "expectation-guard: usage is node qa/expectation-guard.mts [--base=<tree-ish> | --snapshot | --repo-fingerprint]";
-const FILTER_KEY = /^filter\.(.+)\.[^.]+$/;
+const FILTER_SECTION = "filter";
 const FILTER_SETTINGS = ["clean", "smudge", "process"];
+const HOOK_SECTION = "hook";
+const HOOK_EVENTS = ["post-index-change"];
 const FINGERPRINT_DIRS = ["info", "hooks"];
 const MISSING = "missing";
 const FINDING_EXIT_CODE = 1;
@@ -241,29 +243,42 @@ function execGit(args: readonly string[], index?: string): string {
   );
 }
 
-function filterDrivers(git: Git): string[] {
-  let names: string;
+function configuredNames(git: Git, section: string): string[] {
+  let keys: string;
   try {
-    names = git(["config", "--name-only", "--get-regexp", "^filter\\."]);
+    keys = git(["config", "--name-only", "--get-regexp", `^${section}\\.`]);
   } catch {
     return [];
   }
-  const drivers = new Set(names.split("\n").flatMap((key) => FILTER_KEY.exec(key.trim())?.[1] ?? []));
-  if ([...drivers].some((driver) => driver.includes("="))) {
-    throw new Error("expectation-guard: a filter driver name holds '=' and cannot be switched off");
+  const pattern = new RegExp(`^${section}\\.(.+)\\.[^.]+$`);
+  const names = [...new Set(keys.split("\n").flatMap((key) => pattern.exec(key.trim())?.[1] ?? []))];
+  if (names.some((name) => name.includes("="))) {
+    throw new Error(`expectation-guard: a ${section} name holds '=' and cannot be switched off`);
   }
-  return [...drivers].flatMap((driver) => [
+  return names;
+}
+
+function switchedOff(git: Git): string[] {
+  const filters = configuredNames(git, FILTER_SECTION).flatMap((driver) => [
     ...FILTER_SETTINGS.flatMap((setting) => ["-c", `filter.${driver}.${setting}=`]),
     "-c",
     `filter.${driver}.required=false`,
   ]);
+  const hooks = [...HOOK_EVENTS, ...configuredNames(git, HOOK_SECTION)].flatMap((name) => [
+    "-c",
+    `hook.${name}.enabled=false`,
+    "-c",
+    `hook.${name}.command=`,
+  ]);
+  return [...filters, ...hooks];
 }
 
 /**
- * Runs `work` with a git that reads the repository but runs none of its code: no fsmonitor, hooks from an empty
- * folder, no global or system attributes file, and every filter driver git knows switched off, so a planted
- * `.git/config` or `.git/info/attributes` cannot run a command or rewrite what is hashed. The temporary folder also
- * holds the throw-away index and is removed afterwards.
+ * Runs `work` with a git that reads the repository and runs no command the repository or the user configured: no
+ * fsmonitor, hook scripts from an empty folder, every hook defined in the configuration (`hook.<name>.command`) and
+ * the hook events the guard's own commands raise disabled, no global or system attributes file, and every filter
+ * driver git knows switched off, so a planted `.git/config` or `.git/info/attributes` cannot run a command or rewrite
+ * what is hashed. The temporary folder also holds the throw-away index and is removed afterwards.
  */
 function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
   const scratch = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
@@ -278,8 +293,8 @@ function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
       "-c",
       `core.attributesFile=${join(scratch, "none")}`,
     ];
-    const filters = filterDrivers((args, index) => execGit([...safety, ...args], index));
-    return work((args, index) => execGit([...safety, ...filters, ...args], index), scratch);
+    const off = switchedOff((args, index) => execGit([...safety, ...args], index));
+    return work((args, index) => execGit([...safety, ...off, ...args], index), scratch);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
@@ -386,9 +401,18 @@ function fingerprintEntries(label: string, path: string): string[] {
   return [`${label}/\0dir`, ...names.flatMap((name) => fingerprintEntries(`${label}/${name}`, join(path, name)))];
 }
 
+function configuredHooksFolder(): string {
+  try {
+    return execGit(["-c", "core.fsmonitor=false", "rev-parse", "--path-format=absolute", "--git-path", "hooks"]).trim();
+  } catch {
+    throw new Error("expectation-guard: the hooks folder cannot be resolved");
+  }
+}
+
 /**
- * Hashes `.git/config`, `config.worktree`, every file under `.git/info/` and `.git/hooks/`, and `.qa/project.json` into
- * one sha256, missing files included, so adding a hook or a config line changes it. Reads only.
+ * Hashes `.git/config`, `config.worktree`, every file under `.git/info/` and `.git/hooks/`, every file in the folder
+ * git runs hooks from (`core.hooksPath`, wherever it points), and `.qa/project.json` into one sha256, missing files
+ * included, so adding a hook or a config line changes it. Reads only.
  */
 function repoFingerprint(git: Git): string {
   let paths: string[];
@@ -407,6 +431,7 @@ function repoFingerprint(git: Git): string {
     ...fingerprintEntries("config", join(commonDir, "config")),
     ...fingerprintEntries("config.worktree", join(gitDir, "config.worktree")),
     ...FINGERPRINT_DIRS.flatMap((dir) => fingerprintEntries(dir, join(commonDir, dir))),
+    ...fingerprintEntries("hooksPath", configuredHooksFolder()),
     ...fingerprintEntries(PROJECT_FACTS_PATH, join(top, PROJECT_FACTS_PATH)),
   ];
   return createHash("sha256").update(entries.join("\n")).digest("hex");

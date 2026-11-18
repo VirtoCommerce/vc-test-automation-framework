@@ -1,13 +1,17 @@
+import type { ProjectFacts } from "./project-facts.mts";
+
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import { readProjectFacts } from "./project-facts.mts";
+import { PROJECT_FACTS_PATH, parseProjectFacts } from "./project-facts.mts";
 
 export type ChangedExpectation = { file: string; line: string };
 
 type Hunk = { old: number; added: number };
+
+type DiffLine = { file: string; marker: string; text: string; first: boolean };
 
 const CLI_FILE_NAME = "expectation-guard.mts";
 const BASE_FLAG = "--base=";
@@ -21,6 +25,7 @@ const MAX_BUFFER = 256 * 1024 * 1024;
 const NO_FILE = "/dev/null";
 const TEMP_PREFIX = "expectation-guard-index-";
 const OUTSIDE_PREFIX = "outside healer paths: ";
+const ADDED_PREFIX = "added ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
 const PATH_SUFFIX = /\t.*$/;
@@ -35,6 +40,16 @@ const EXPECTATION = [
   /\bassert\s*:/,
   /\bassert\s*(?:\.\s*\w+\s*)?\(/,
   /expected\w*\s*[:=]/i,
+];
+const SUPPRESSION = [
+  /\btest\.(?:skip|fixme|fail|slow|setTimeout)\b/,
+  /\bdescribe\.(?:skip|fixme|fail|slow|configure)\b/,
+  /\bwaitForTimeout\b/,
+  /networkidle/,
+  /\bexpect\.(?:extend|poll|configure)\b/,
+  /\bcatch\s*\{/,
+  /\.catch\(\s*\(\s*\)\s*=>/,
+  /\bprocess\.exit\b/,
 ];
 
 function holdsExpectation(text: string): boolean {
@@ -66,48 +81,75 @@ function withoutCarriageReturn(text: string): string {
   return text.endsWith("\r") ? text.slice(0, -1) : text;
 }
 
-/**
- * Finds every removed or changed line, in any file, that holds an expectation: an `expect…` call or helper, a
- * `.expect…`, `.verify…` or `.assert…` method call, a `toBe…`, `toEqual`, `toHave…` style matcher, an `assert:` step,
- * or an `expected…` value; a line inside a multi-line expectation counts too. Added lines are never findings. Give
- * it a diff with the whole file as context (`--unified=100000`) so the start of a long expectation is seen.
- */
-export function findChangedExpectations(diff: string): ChangedExpectation[] {
-  const findings: ChangedExpectation[] = [];
+function diffLines(diff: string): DiffLine[] {
+  const lines: DiffLine[] = [];
   let oldPath = "";
   let file = "";
   let hunk: Hunk = { old: 0, added: 0 };
-  let depth = 0;
+  let first = false;
   for (const raw of diff.split("\n")) {
     if (hunk.old > 0 || hunk.added > 0) {
       const marker = raw.charAt(0);
       if (marker === "\\") {
         continue;
       }
-      const text = raw.slice(1);
-      if (marker !== "+") {
-        hunk = { old: hunk.old - 1, added: marker === " " || raw === "" ? hunk.added - 1 : hunk.added };
-        const starts = holdsExpectation(text);
-        if (marker === "-" && (starts || depth > 0)) {
-          findings.push({ file, line: withoutCarriageReturn(text) });
-        }
-        depth = starts || depth > 0 ? Math.max(0, depth + bracketBalance(text)) : 0;
-      } else {
+      if (marker === "+") {
         hunk = { old: hunk.old, added: hunk.added - 1 };
+      } else {
+        hunk = { old: hunk.old - 1, added: marker === " " || raw === "" ? hunk.added - 1 : hunk.added };
       }
+      lines.push({ file, marker, text: withoutCarriageReturn(raw.slice(1)), first });
+      first = false;
       continue;
     }
     const header = HUNK_HEADER.exec(raw);
     if (header !== null) {
       hunk = { old: countOf(header[1]), added: countOf(header[2]) };
-      depth = 0;
+      first = true;
     } else if (raw.startsWith("--- ")) {
       oldPath = pathOf(raw.slice(4));
     } else if (raw.startsWith("+++ ")) {
       file = pathOf(raw.slice(4)) || oldPath;
     }
   }
+  return lines;
+}
+
+/**
+ * Finds every removed or changed line, in any file, that holds an expectation: an `expect…` call or helper, a
+ * `.expect…`, `.verify…` or `.assert…` method call, a `toBe…`, `toEqual`, `toHave…` style matcher, an `assert:` step,
+ * or an `expected…` value; a line inside a multi-line expectation counts too. Added lines are never findings here.
+ * Give it a diff with the whole file as context (`--unified=100000`) so the start of a long expectation is seen.
+ */
+export function findChangedExpectations(diff: string): ChangedExpectation[] {
+  const findings: ChangedExpectation[] = [];
+  let depth = 0;
+  for (const { file, marker, text, first } of diffLines(diff)) {
+    if (marker === "+") {
+      continue;
+    }
+    if (first) {
+      depth = 0;
+    }
+    const starts = holdsExpectation(text);
+    if (marker === "-" && (starts || depth > 0)) {
+      findings.push({ file, line: text });
+    }
+    depth = starts || depth > 0 ? Math.max(0, depth + bracketBalance(text)) : 0;
+  }
   return findings;
+}
+
+/**
+ * Finds every added line, in any file, that switches a check off or hides a failure: `test.skip|fixme|fail|slow|
+ * setTimeout`, `describe.skip|fixme|fail|slow|configure`, `waitForTimeout`, `networkidle`, `expect.extend|poll|
+ * configure`, an empty-handed `catch {` or `.catch(() =>`, and `process.exit`. A bare `return` or `throw` is too
+ * common to flag.
+ */
+export function findAddedSuppressions(diff: string): ChangedExpectation[] {
+  return diffLines(diff)
+    .filter(({ marker, text }) => marker === "+" && SUPPRESSION.some((pattern) => pattern.test(text)))
+    .map(({ file, text }) => ({ file, line: text }));
 }
 
 /**
@@ -193,6 +235,22 @@ function resolveTree(base: string): string {
   }
 }
 
+function baselineFacts(baseTree: string): ProjectFacts {
+  let text: string;
+  try {
+    text = runGit(["show", `${baseTree}:${PROJECT_FACTS_PATH}`]);
+  } catch {
+    throw new Error(`project.json: ${PROJECT_FACTS_PATH} cannot be read in the baseline`);
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`project.json: ${PROJECT_FACTS_PATH} is not valid JSON in the baseline`);
+  }
+  return parseProjectFacts(json);
+}
+
 function changedFiles(base: string, current: string): string[] {
   try {
     return runGit(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", base, current, "--"])
@@ -222,16 +280,16 @@ function diffTrees(base: string, current: string): string {
 }
 
 function guard(base: string): string[] {
-  const healerPaths = readProjectFacts().healerPaths;
   const baseTree = resolveTree(base);
+  const healerPaths = baselineFacts(baseTree).healerPaths;
   const currentTree = snapshotTree();
+  const diff = diffTrees(baseTree, currentTree);
   const outside = findOutsideHealerPaths(changedFiles(baseTree, currentTree), healerPaths).map(
     (file) => `${OUTSIDE_PREFIX}${file}`,
   );
-  const expectations = findChangedExpectations(diffTrees(baseTree, currentTree)).map(
-    (finding) => `${finding.file}: ${finding.line.trim()}`,
-  );
-  return [...outside, ...expectations];
+  const expectations = findChangedExpectations(diff).map(({ file, line }) => `${file}: ${line.trim()}`);
+  const suppressions = findAddedSuppressions(diff).map(({ file, line }) => `${file}: ${ADDED_PREFIX}${line.trim()}`);
+  return [...outside, ...expectations, ...suppressions];
 }
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {

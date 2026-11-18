@@ -79,11 +79,18 @@ No other role is judged in a flow.
 
 Before dispatching `qa-healer`, record a baseline: `node qa/expectation-guard.mts --snapshot` prints a git tree id of
 the working tree, untracked files included. Dispatch the healer with the failing spec files or the run record path
-and that baseline id. When it is done, run `node qa/expectation-guard.mts --base=<baseline tree id>` so only the
-healer's changes are judged. Exit 1 means it changed a file outside the healer paths or an expectation: stop, show
-the findings to the person, and do not go on to the reviewer. Exit 2 means the guard could not run: report "not
-checked", do not go on to the reviewer, and never say clean. A product defect the healer reports is shown to the person, not
-patched.
+and that baseline id. When it is done, run the guard from the baseline's own copy of `qa/`, never from the working
+tree (the healer could have changed it), so only the healer's changes are judged:
+
+```shell
+dir=$(mktemp -d) && git archive <baseline tree id> qa | tar -x -C "$dir"
+node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
+```
+
+Exit 1 means it changed a file outside the healer paths, an expectation, or added a skip, wait or similar: stop,
+show the findings to the person, and do not go on to the reviewer. Exit 2 means the guard could not run: report "not
+checked", do not go on to the reviewer, and never say clean. A product defect the healer reports is shown to the
+person, not patched.
 
 ### Review
 

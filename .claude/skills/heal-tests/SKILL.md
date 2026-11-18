@@ -76,14 +76,14 @@ test-side cause (a missing wait, shared data between tests) and the area's auton
 
 Only a test defect, within the area's autonomy:
 
-- A key of `autonomy` other than `*` matches when it equals a directory name in the spec's path or a word of its
-  `allure.epic` / `allure.feature`. One match: its value. Two or more matches: `propose`. No match: `autonomy["*"]`.
+- Any key of `autonomy` other than `*` that matches the area: it equals a directory name in the spec's path or a word
+  of its `allure.epic` / `allure.feature`. One match: its value. Two or more matches: `propose`. No match: `autonomy["*"]`.
   An area named in `critical` with no key of its own is `propose`.
 - `apply`: make the fix. `propose`: edit nothing; the report holds the exact change as a diff.
 - A locator is fixed in the page object (selector priority: `framework-rules`, `create-ui-layer` "Locator
-  Conventions"). A lagging read is fixed in `arrange` (the dataset's index-wait methods), never with `expect.poll`
-  in a spec. Never `waitForTimeout`, `networkidle`, a raised retry count, a blanket timeout, a skip, `fixme` or an
-  annotation that hides the failure.
+  Conventions"). A lagging read is fixed in `arrange` (the dataset's index-wait methods). Never `waitForTimeout`,
+  `networkidle`, `expect.poll`, a raised retry count, a blanket timeout, a skip, `fixme` or an annotation that hides
+  the failure: the guard flags each of them as an added line.
 - Never edit a spec, and never touch an `expect` line, a matcher argument, an `assert:` step, a helper's expected
   value or an `expected…` constant, even to rename a locator inside it. If the fix needs a spec change, it is not
   yours: write the proposed change as a diff in the report under Escalated and stop on that failure.
@@ -92,24 +92,36 @@ Only a test defect, within the area's autonomy:
 
 ## Step 6: Re-run, at Most Three Rounds
 
-After each applied round run the same commands as step 2 (`round-<n>.<project>.json`) and reconcile. Typecheck and
-lint (`commands.typecheck`, `commands.lint`) must be clean for what you changed. A fix that makes another test red is
+After each applied round run the same commands as step 2 (`round-<n>.<project>.json`) and reconcile. Typecheck
+(`commands.typecheck`, which only reads) must be clean. Lint only the files you changed, in the linter's check mode
+and never with a command that fixes: `commands.lint` here is `biome check --write .`, which rewrites specs and `qa/`
+and would create findings, so run `npx biome check <changed files>` without `--write` (another linter: its check
+mode, no fix flag). Fix what it reports by hand, inside the healer paths. A fix that makes another test red is
 reverted. After round three, whatever is still red is escalated: do not start a fourth round and do not change the
 class to get out of it.
 
 ## Step 7: Guard, Then Report
 
-Run the guard against the baseline you were given:
+Run the guard against the baseline you were given, from the baseline's own copy of `qa/` (the code that judges must
+not be code you could have changed):
 
 ```shell
-node qa/expectation-guard.mts --base=<tree id in .qa/runs/heal-<slug>/baseline.txt>
+dir=$(mktemp -d) && git archive <tree id in .qa/runs/heal-<slug>/baseline.txt> qa | tar -x -C "$dir"
+node "$dir/qa/expectation-guard.mts" --base=<the same tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
 ```
 
-It compares the working tree, untracked files included, with that tree. Exit 0: every changed file is under
-`facts.healerPaths` and no expectation line changed. Exit 1 lists `outside healer paths: <file>` or an expectation
-line that changed: undo the edit that caused each one (a finding is your mistake, not a style matter), re-run the
-guard until clean, and say in the report which fix you undid. Exit 2 means the guard could not run: report "not
-checked", never clean.
+It compares the working tree, untracked files included, with that tree, and reads `healerPaths` from the baseline's
+`.qa/project.json`. Exit 0: every changed file is under `healerPaths`, no expectation line changed and no added line
+switches a check off. Exit 1 lists `outside healer paths: <file>`, a changed expectation line, or `<file>: added <line>`:
+undo the edit that caused each one (a finding is your mistake, not a style matter), re-run the guard until clean, and
+say in the report which fix you undid. Exit 2 means the guard could not run (a baseline without `qa/` included):
+report "not checked", never clean.
+
+**What the guard cannot see, so say it in the report and leave it to the person and the judge:** a locator or value
+edit that is legal by path and line but changes meaning (`page.locator("body")` in a page object, which makes every
+check on it pass), a changed builder or `arrange` default that feeds the expected value, and a compensating
+computation (`price - 2`) in the dataset. For each change under `healerPaths`, the report states what the old and new
+code select or compute and why the test still checks the same behaviour.
 
 Write `.qa/reports/heal-<slug>.md`:
 

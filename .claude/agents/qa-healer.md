@@ -41,8 +41,8 @@ path is a finding of the code check, whatever the edit: specs, `known-issues.jso
 - Page objects and components: a locator that no longer matches, a missing wait for the element, the selector
   priority of `framework-rules`.
 - Data: a builder, record or `arrange` method that is stale or invalid, never a value the test asserts against.
-- Waits: `arrange` index-wait methods where a read lags behind a write; never `waitForTimeout`, `networkidle`, or
-  `expect.poll` in a spec.
+- Waits: `arrange` index-wait methods where a read lags behind a write; never `waitForTimeout`, `networkidle` or
+  `expect.poll`.
 - Setup and cleanup that live in those folders.
 
 A fix that needs a spec change is not yours: put the proposed change in the report and escalate it to the person.
@@ -66,7 +66,7 @@ one failure.
 
 - At most three rounds: fix, re-run, look at what is still red. After the third, stop and escalate every failure
   still red with what you tried. Do not start a fourth.
-- Autonomy per area: any key of `autonomy` that matches the area (two matches: `propose`), else `autonomy["*"]`;
+- Autonomy per area: any key of `autonomy` other than `*` that matches the area (two or more: `propose`), else `autonomy["*"]`;
   `skills/heal-tests` says how the area is found.
   `apply` means edit and re-run. `propose` means edit nothing: write the exact change as a diff into the report and
   wait. An area named in `critical` with no `autonomy` entry of its own is `propose`.

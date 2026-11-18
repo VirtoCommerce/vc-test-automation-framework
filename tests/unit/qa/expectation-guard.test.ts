@@ -1,11 +1,15 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { findChangedExpectations, findOutsideHealerPaths } from "../../../qa/expectation-guard.mts";
+import {
+  findAddedSuppressions,
+  findChangedExpectations,
+  findOutsideHealerPaths,
+} from "../../../qa/expectation-guard.mts";
 
 const GUARD = resolve("qa/expectation-guard.mts");
 const SPEC = "tests/e2e/cart.spec.ts";
@@ -59,6 +63,21 @@ function git(cwd: string, ...args: string[]): string {
 function write(cwd: string, file: string, text: string): void {
   mkdirSync(dirname(join(cwd, file)), { recursive: true });
   writeFileSync(join(cwd, file), text);
+}
+
+function runFromBaseline(cwd: string, tree: string): { status: number | null; stdout: string; stderr: string } {
+  const directory = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+  try {
+    const archive = execFileSync("git", ["archive", "--format=tar", tree, "qa"], { cwd, maxBuffer: 64 * 1024 * 1024 });
+    spawnSync("tar", ["-x", "-C", directory], { input: archive });
+    const result = spawnSync("node", [join(directory, "qa", "expectation-guard.mts"), `--base=${tree}`], {
+      cwd,
+      encoding: "utf8",
+    });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 function runGuard(cwd: string, ...args: string[]): { status: number | null; stdout: string; stderr: string } {
@@ -225,6 +244,49 @@ test.describe("expectation guard", () => {
 
   test("an empty diff has no findings", () => {
     expect(findChangedExpectations("")).toEqual([]);
+  });
+});
+
+test.describe("added suppressions", () => {
+  const SUPPRESSIONS = [
+    'test.skip(true, "later");',
+    'test.fixme(true, "later");',
+    "test.fail();",
+    "test.slow();",
+    "test.setTimeout(999999);",
+    "test.describe.configure({ retries: 3 });",
+    'test.describe.skip("x", () => {});',
+    "await page.waitForTimeout(500);",
+    'await page.waitForLoadState("networkidle");',
+    "expect.extend({});",
+    "await expect.poll(() => read()).toBe(1);",
+    "expect.configure({ timeout: 99999 });",
+    "try { await x(); } catch {",
+    "await locator.click().catch(() => {});",
+    "process.exit(0);",
+  ];
+
+  for (const line of SUPPRESSIONS) {
+    test(`an added ${line} is found`, () => {
+      const diff = diffOf(PAGE, ["@@ -1,1 +1,2 @@", " a", `+  ${line}`].join("\n"));
+
+      expect(findAddedSuppressions(diff)).toEqual([{ file: PAGE, line: `  ${line}` }]);
+    });
+  }
+
+  test("a removed suppression, a bare return and a bare throw are not findings", () => {
+    const diff = diffOf(
+      PAGE,
+      ["@@ -1,3 +1,3 @@", "-  test.skip(true);", "+  return;", '+  throw new Error("x");', " }"].join("\n"),
+    );
+
+    expect(findAddedSuppressions(diff)).toEqual([]);
+  });
+
+  test("findings carry the file of their own section", () => {
+    const diff = `${diffOf(PAGE, "@@ -1,1 +1,2 @@\n a\n+  test.skip();")}${diffOf(HELPER, "@@ -1,1 +1,2 @@\n a\n+  const b = 1;")}`;
+
+    expect(findAddedSuppressions(diff)).toEqual([{ file: PAGE, line: "  test.skip();" }]);
   });
 });
 
@@ -444,17 +506,61 @@ test.describe("expectation guard CLI", () => {
     expect(runGuard(repo, "--snapshot", `--base=${baseline}`).status).toBe(2);
   });
 
-  test("facts that are missing or without healerPaths stop it with exit 2", () => {
+  test("facts that are missing or without healerPaths in the baseline stop it with exit 2", () => {
     const { healerPaths: _ignored, ...withoutPaths } = FACTS_FILE;
     write(repo, FACTS, JSON.stringify(withoutPaths));
-    const missingPaths = runGuard(repo, `--base=${baseline}`);
+    const missingPaths = runGuard(repo, `--base=${snapshot()}`);
     rmSync(join(repo, FACTS));
-    const missingFile = runGuard(repo, `--base=${baseline}`);
+    const missingFile = runGuard(repo, `--base=${snapshot()}`);
 
     expect(missingPaths.status).toBe(2);
     expect(missingPaths.stderr).toContain("project.json: healerPaths is missing");
     expect(missingFile.status).toBe(2);
     expect(missingFile.stderr).toContain("project.json: .qa/project.json cannot be read");
+  });
+
+  test("an edited facts file in the working tree cannot widen the healer paths", () => {
+    write(repo, FACTS, JSON.stringify({ ...FACTS_FILE, healerPaths: ["pages/", "dataset/", "tests/", ".qa/"] }));
+    write(repo, SPEC, PRICE_SPEC(12));
+
+    const result = runGuard(repo, `--base=${baseline}`);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(`outside healer paths: ${SPEC}`);
+    expect(result.stdout).toContain(`outside healer paths: ${FACTS}`);
+  });
+
+  test("an added test.skip in a page object is a finding", () => {
+    write(
+      repo,
+      PAGE,
+      `${PAGE_OBJECT('locator("#total")')}test.skip(true, "later");
+`,
+    );
+
+    const result = runGuard(repo, `--base=${baseline}`);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(`${PAGE}: added test.skip(true, "later");`);
+  });
+
+  test("a guard edited after the baseline cannot hide a change when it is run from the baseline", () => {
+    for (const name of readdirSync(resolve("qa")).filter((file) => file.endsWith(".mts"))) {
+      write(repo, `qa/${name}`, readFileSync(resolve("qa", name), "utf8"));
+    }
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "guard");
+    const tree = snapshot();
+    const edited = join(repo, "qa", "expectation-guard.mts");
+    writeFileSync(edited, 'process.stdout.write("expectation-guard: ok");');
+    write(repo, SPEC, PRICE_SPEC(12));
+
+    const fromWorkingTree = spawnSync("node", [edited, `--base=${tree}`], { cwd: repo, encoding: "utf8" });
+    const fromBaseline = runFromBaseline(repo, tree);
+
+    expect(fromWorkingTree.status).toBe(0);
+    expect(fromBaseline.status).toBe(1);
+    expect(fromBaseline.stdout).toContain(`outside healer paths: ${SPEC}`);
   });
 
   test("snapshot and guard leave the index, the working tree and the git status as they were", () => {

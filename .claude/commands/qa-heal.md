@@ -11,9 +11,15 @@ one.
    untracked files included. Dispatch the agent fresh with the target and that baseline id, nothing else. It
    re-runs, classifies (test defect, product defect, stand data, flaky), fixes page objects, data and waits, and
    stops after three rounds.
-2. Run `node qa/expectation-guard.mts --base=<baseline tree id>`. Exit 1 means it changed a file outside the healer
-   paths or an expectation: stop, show the findings to the person, and do not offer a review. Exit 2 means the guard
-   could not run: report "not checked", never clean, and do not offer a review.
+2. Run the guard from the baseline's own copy of `qa/`, never from the working tree (the healer could have changed
+   it):
+   ```shell
+   dir=$(mktemp -d) && git archive <baseline tree id> qa | tar -x -C "$dir"
+   node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
+   ```
+   Exit 1 means it changed a file outside the healer paths, an expectation, or added a skip, wait or similar: stop,
+   show the findings to the person, and do not offer a review. Exit 2 means the guard could not run: report "not
+   checked", never clean, and do not offer a review.
 3. Present what it fixed, what it classified as a product defect (a `knownIssue` proposal, never a patch), and what
    it escalated. A stand that was not reachable is "not done".
 

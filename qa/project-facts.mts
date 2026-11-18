@@ -19,7 +19,7 @@ export type ProjectFacts = {
 export const DEFAULT_CLIENT_ROUTES: readonly Route[] = ["paste"];
 
 const MIN_FLAKY_RUN_SERIES = 2;
-const DEFAULT_PATH = ".qa/project.json";
+export const PROJECT_FACTS_PATH = ".qa/project.json";
 const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
 
@@ -204,7 +204,7 @@ export function parseProjectFacts(json: unknown): ProjectFacts {
  *
  * @throws Error `"project.json: <path> cannot be read"` or the first validation error.
  */
-export function readProjectFacts(path = DEFAULT_PATH): ProjectFacts {
+export function readProjectFacts(path = PROJECT_FACTS_PATH): ProjectFacts {
   let text: string;
   try {
     text = readFileSync(path, "utf8");

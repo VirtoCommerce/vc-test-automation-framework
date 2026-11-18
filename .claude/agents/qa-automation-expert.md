@@ -37,6 +37,7 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
 - Never change an expected value or an assertion to make a test pass. A red test is a finding: report it, or
   record it as a known issue only when the contract names one.
 - Register cleanup before the change. A skip always has a reason.
+- Anything outside the contract's case rows and `## Building blocks` needs an amendment first.
 
 ## Scope Changes
 
@@ -77,10 +78,12 @@ rebuild them from `package.json`. Let `<name>` be the contract's file name witho
    next to the list reporter:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/report.json <commands.test[project]> -- <specs> --reporter=list,json
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/report.json <commands.test[project]> [--] <specs> --reporter=list,json
    ```
 
-   Set the variable in the way the shell does it. With several projects use `report.<project>.json` so that no run
+   Set the variable in the way the shell does it. For an npm script pass the arguments after `--`; for a direct
+   `playwright test` command append them without `--`, which would make Playwright read them as a file filter.
+   With several projects use `report.<project>.json` so that no run
    overwrites another.
 3. Save the list of what should have run, for the same specs and projects:
 
@@ -89,10 +92,12 @@ rebuild them from `package.json`. Let `<name>` be the contract's file name witho
    ```
 
    (`list.<project>.json` for several projects.) Do not hand-edit either file: the reviewer reconciles them.
-4. Every test passes on every project it belongs to. Passed plus skipped equals tests times projects, and every
+4. When the facts name a `unit` test project and the change touched non-spec framework layers (core, api,
+   dataset, pages, fixtures), run the unit project too; it must pass.
+5. Every test passes on every project it belongs to. Passed plus skipped equals tests times projects, and every
    skip is explained by `requiresModules`, `requiresFeatures`, `knownIssue` or the stand profile. A skip with no
    reason is a failure.
-5. When the stand is not reachable, report the run as not done and leave no run record. Never write one by hand.
+6. When the stand is not reachable, report the run as not done and leave no run record. Never write one by hand.
 
 Fix every type error, lint finding and failing test your change caused before reporting. A failure you cannot
 fix without changing an expectation goes into the report as a finding.

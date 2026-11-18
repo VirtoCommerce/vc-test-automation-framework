@@ -44,7 +44,8 @@ Present the expert's report:
 
 When the stand was not reachable, say that the run was not done.
 
-End with:
+When an amendment awaits approval, end by naming it and say that implementation is paused. When the run was not
+done, end by saying so. Only when nothing awaits approval and the run was done, end with:
 ```
 Implementation complete. Run /qa-review to review the code.
 ```

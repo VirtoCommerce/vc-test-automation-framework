@@ -86,7 +86,8 @@ page object; UI sign-in only when sign-in is under test.
 
 ### Step 7: Code Quality
 
-- [ ] `npm run typecheck` and `npm run check` pass.
+- [ ] The facts' `commands.typecheck` and `commands.lint` pass. The dispatcher runs them; the reviewer's shell is
+      read-only, so the reviewer reports them as not checked.
 - [ ] No `any`, no `!`, no floating promises, no unused imports.
 - [ ] Named and exported functions are `function` declarations; arrows only for inline callbacks.
 - [ ] Class state in `readonly #private` fields.

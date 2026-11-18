@@ -1,9 +1,13 @@
+import type { hookBlockReason } from "../../qa/readonly-shell.mts";
+
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import { hookBlockReason } from "../../qa/readonly-shell.mts";
+type HookBlockReason = typeof hookBlockReason;
 
 const CLI_FILE_NAME = "readonly-shell.mts";
+const MODULE = "../../qa/readonly-shell.mts";
+const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"];
 const STDIN = 0;
 const BLOCK_EXIT_CODE = 2;
 
@@ -23,10 +27,39 @@ function parse(text: string): unknown {
   }
 }
 
-if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
-  const reason = hookBlockReason(parse(readStdin()));
-  if (reason !== undefined) {
-    process.stderr.write(`${reason}\n`);
-    process.exitCode = BLOCK_EXIT_CODE;
+function readOnlyAgentOf(input: unknown): string | undefined {
+  if (typeof input !== "object" || input === null || !("agent_type" in input)) {
+    return undefined;
   }
+  const agent = input.agent_type;
+  if (typeof agent !== "string") {
+    return undefined;
+  }
+  return READ_ONLY_AGENTS.includes(agent.split(":").pop() ?? "") ? agent : undefined;
+}
+
+function block(reason: string): void {
+  process.stderr.write(`${reason}\n`);
+  process.exitCode = BLOCK_EXIT_CODE;
+}
+
+async function main(): Promise<void> {
+  const input = parse(readStdin());
+  const agent = readOnlyAgentOf(input);
+  if (agent === undefined) {
+    return;
+  }
+  try {
+    const shell: { hookBlockReason: HookBlockReason } = await import(process.argv[2] ?? MODULE);
+    const reason = shell.hookBlockReason(input);
+    if (reason !== undefined) {
+      block(reason);
+    }
+  } catch {
+    block(`${agent} is read-only and its shell check could not run; blocked`);
+  }
+}
+
+if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
+  await main();
 }

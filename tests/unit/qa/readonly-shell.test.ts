@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
 
-import { hookBlockReason, isReadOnlyAgent, isReadOnlyCommand } from "../../../qa/readonly-shell.mts";
+import { hookBlockReason, isReadOnlyAgent, isReadOnlyCommand, READ_ONLY_AGENTS } from "../../../qa/readonly-shell.mts";
 
 const HOOK_FILE = ".claude/hooks/readonly-shell.mts";
 
@@ -13,15 +14,16 @@ const ALLOWED = [
   "git log --oneline -n 5",
   "git show HEAD~1",
   "git status --short",
-  "npx playwright test --list",
   "npx playwright test --list --reporter=json --project=restapi tests/restapi/cart.spec.ts",
+  "npx playwright test --list --reporter=list --project=restapi",
+  "npx playwright test --list --reporter=null",
   "node qa/project-facts.mts",
   "node qa/contract.mts check .qa/contracts/cart-coupons.md",
   "node qa/ticket-card.mts check card.json",
   "node qa/reconcile-run.mts .qa/runs/x/list.restapi.json .qa/runs/x/report.restapi.json",
   "node qa/judge-verdict.mts check .qa/judge/x.json",
   "node qa/rank-gaps.mts gaps.json",
-  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/cart/list.restapi.json npx playwright test --list --reporter=json --project=restapi",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/cart/review-list.restapi.json npx playwright test --list --reporter=json --project=restapi",
 ];
 
 const CHAINED = [
@@ -61,6 +63,15 @@ const NOT_LISTED = [
   "git",
   "git diff-tree HEAD",
   "npx playwright test",
+  "npx playwright test --list",
+  "npx playwright test --list --project=unit tests/unit/qa/readonly-shell.test.ts",
+  "npx playwright test --list --reporter=line",
+  "npx playwright test --list --reporter=dot",
+  "npx playwright test --list --reporter=json --reporter=list",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/report.restapi.json npx playwright test --list --reporter=json --project=restapi",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/list.restapi.json npx playwright test --list --reporter=json --project=restapi",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/x/y/review-list.restapi.json npx playwright test --list --reporter=json",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/review-list.restapi.json npx playwright test --list --reporter=json",
   "npx playwright test tests/restapi/cart.spec.ts",
   "npx playwright test --list --reporter=./evil.js",
   "npx playwright test --list --config=evil.config.ts",
@@ -74,6 +85,7 @@ const NOT_LISTED = [
   "node --eval 1",
   "node -e 1 qa/contract.mts",
   "node qa/contract.mts.sh",
+  "node qa/contractxmts check x",
   "cat .env",
   "ls",
   "curl https://example.com",
@@ -121,6 +133,15 @@ test.describe("read-only shell (unit)", () => {
     }
   });
 
+  test("restricts a plugin-prefixed read-only agent", () => {
+    expect(isReadOnlyAgent("vc:qa-reviewer")).toBe(true);
+    expect(isReadOnlyAgent("a:b:qa-judge")).toBe(true);
+    expect(isReadOnlyAgent("vc:qa-healer")).toBe(false);
+    expect(isReadOnlyAgent("qa-reviewer:other")).toBe(false);
+    expect(hookBlockReason({ agent_type: "vc:qa-reviewer", tool_input: { command: "git push" } })).toBeDefined();
+    expect(hookBlockReason({ agent_type: "vc:qa-reviewer", tool_input: { command: "git diff" } })).toBeUndefined();
+  });
+
   test("blocks a read-only agent's unlisted command with one line and passes everything else", () => {
     const reason = hookBlockReason({ agent_type: "qa-reviewer", tool_input: { command: "git push" } });
     expect(reason).toMatch(/^[^\n]+$/);
@@ -145,8 +166,8 @@ test.describe("read-only shell (unit)", () => {
   });
 });
 
-function runHook(stdin: string): { status: number | null; stderr: string; stdout: string } {
-  const result = spawnSync("node", [HOOK_FILE], { input: stdin, encoding: "utf8" });
+function runHook(stdin: string, ...args: string[]): { status: number | null; stderr: string; stdout: string } {
+  const result = spawnSync("node", [HOOK_FILE, ...args], { input: stdin, encoding: "utf8" });
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
@@ -181,6 +202,39 @@ test.describe("read-only shell hook script (unit)", () => {
   test("blocks a read-only agent when stdin carries no command", () => {
     const result = runHook(JSON.stringify({ agent_type: "qa-explorer", tool_input: {} }));
     expect(result.status).toBe(2);
+  });
+
+  test("blocks a read-only agent, even running git diff, when the module cannot be loaded", () => {
+    const result = runHook(
+      JSON.stringify({ agent_type: "qa-reviewer", tool_input: { command: "git diff" } }),
+      "./no-such-module.mts",
+    );
+    expect(result.status).toBe(2);
+    expect(result.stderr.trim()).toMatch(/^[^\n]+$/);
+    expect(result.stderr).toContain("qa-reviewer");
+  });
+
+  test("blocks a plugin-prefixed read-only agent when the module cannot be loaded", () => {
+    const result = runHook(
+      JSON.stringify({ agent_type: "vc:qa-judge", tool_input: { command: "git diff" } }),
+      "./no-such-module.mts",
+    );
+    expect(result.status).toBe(2);
+  });
+
+  test("lets another agent and the main session through when the module cannot be loaded", () => {
+    expect(
+      runHook(JSON.stringify({ agent_type: "qa-healer", tool_input: { command: "git push" } }), "./no-such-module.mts")
+        .status,
+    ).toBe(0);
+    expect(runHook(JSON.stringify({ tool_input: { command: "git push" } }), "./no-such-module.mts").status).toBe(0);
+  });
+
+  test("names the same read-only agents in the hook script as in the module", () => {
+    const source = readFileSync(HOOK_FILE, "utf8");
+    for (const name of READ_ONLY_AGENTS) {
+      expect(source).toContain(JSON.stringify(name));
+    }
   });
 
   test("passes input it cannot parse", () => {

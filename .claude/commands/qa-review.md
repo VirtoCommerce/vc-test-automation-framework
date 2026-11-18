@@ -7,7 +7,8 @@ You are orchestrating the review stage. Spawn the `qa-reviewer` agent to review 
 Dispatch the reviewer fresh with the diff (or the git range) and the contract path only, never the author's summary.
 The reviewer's shell is read-only (a hook enforces it): it cannot run typecheck, lint or `gh`. Run
 `commands.typecheck` and `commands.lint` from `node qa/project-facts.mts` yourself and report the result with the
-review; for a PR, fetch the diff and metadata with `gh` and pass them in.
+review; for a PR, fetch the diff and metadata with `gh` and pass them in. A failing typecheck or lint means the work
+is not done, whatever the reviewer's verdict: do not end with "ready to commit" until both are clean.
 
 ## Input
 

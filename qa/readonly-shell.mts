@@ -12,15 +12,11 @@ export const ALLOWED_QA_MODULES = [
 const TOKEN = /^[A-Za-z0-9_./:=@,+^~-]+$/;
 const GIT_SUBCOMMANDS = ["diff", "log", "show", "status"];
 const GIT_FORBIDDEN_PREFIXES = ["--output", "--ext-diff", "--textconv", "--no-index", "--open-files", "--exec", "-O"];
-const PLAYWRIGHT_FLAGS = [
-  /^--list$/,
-  /^--reporter=(json|list|line|dot|null)$/,
-  /^--project=[\w.-]+$/,
-  /^--grep(-invert)?=\S+$/,
-];
+const PLAYWRIGHT_FLAGS = [/^--list$/, /^--reporter=(json|list|null)$/, /^--project=[\w.-]+$/, /^--grep(-invert)?=\S+$/];
 const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
-const JSON_OUTPUT_ASSIGNMENT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=(\.qa\/runs\/[\w./-]+)$/;
-const QA_MODULE_PATH = new RegExp(`^qa/(${ALLOWED_QA_MODULES.join("|")}).mts$`);
+const REPORTER_FLAG = /^--reporter=/;
+const JSON_OUTPUT_ASSIGNMENT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/[\w-]+\/review-list\.[\w-]+\.json$/;
+const QA_MODULE_PATH = new RegExp(`^qa/(${ALLOWED_QA_MODULES.join("|")})[.]mts$`);
 const MAX_SHOWN_COMMAND = 80;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -40,6 +36,9 @@ function isPlaywrightList(tokens: readonly string[]): boolean {
   if (tokens[1] !== "playwright" || tokens[2] !== "test" || !rest.includes("--list")) {
     return false;
   }
+  if (rest.filter((token) => REPORTER_FLAG.test(token)).length !== 1) {
+    return false;
+  }
   return rest.every((token) =>
     token.startsWith("-") ? PLAYWRIGHT_FLAGS.some((flag) => flag.test(token)) : PLAYWRIGHT_PATH.test(token),
   );
@@ -49,16 +48,12 @@ function isQaModule(tokens: readonly string[]): boolean {
   return tokens[0] === "node" && QA_MODULE_PATH.test(tokens[1] ?? "");
 }
 
-function isSafeRunPath(path: string): boolean {
-  return !path.split("/").includes("..");
-}
-
 function withoutOutputAssignment(tokens: readonly string[]): readonly string[] | undefined {
-  const match = JSON_OUTPUT_ASSIGNMENT.exec(tokens[0] ?? "");
-  if (match === null) {
+  const [first = ""] = tokens;
+  if (!first.startsWith("PLAYWRIGHT_JSON_OUTPUT_FILE=")) {
     return tokens;
   }
-  return isSafeRunPath(match[1] ?? "") ? tokens.slice(1) : undefined;
+  return JSON_OUTPUT_ASSIGNMENT.test(first) ? tokens.slice(1) : undefined;
 }
 
 /**
@@ -91,7 +86,8 @@ export function isReadOnlyCommand(command: string): boolean {
 }
 
 export function isReadOnlyAgent(name: string | undefined): boolean {
-  return READ_ONLY_AGENTS.some((agent) => agent === name);
+  const bare = name?.split(":").pop();
+  return READ_ONLY_AGENTS.some((agent) => agent === bare);
 }
 
 /**

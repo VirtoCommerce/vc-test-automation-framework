@@ -6,7 +6,9 @@ argument-hint: "<file-path-or-pattern>"
 
 ## Test Code Review
 
-Check every item below against CLAUDE.md and README "Writing tests". Report only real issues, with line numbers.
+Read the skill `framework-rules` first, then check every item below against it (the framework's rules) and against the
+repository's own style (its `CLAUDE.md`, linter configuration and neighbouring files). A framework rule beats a style
+rule. Report only real issues, with line numbers.
 
 ## Review Process
 
@@ -80,7 +82,7 @@ page object; UI sign-in only when sign-in is under test.
 - [ ] Arrange methods: on the right domain class, register cleanup before the change, wait for index lag where
       the data is searched.
 - [ ] Fixtures: right scope (worker vs test); minimal dependencies.
-- [ ] Layers respected (`biome/layers.json`); nothing duplicates an existing method.
+- [ ] Layers respected (the repository's layer configuration); nothing duplicates an existing method.
 
 ### Step 7: Code Quality
 
@@ -133,3 +135,7 @@ APPROVE | REQUEST_CHANGES | NEEDS_DISCUSSION
 ```
 
 When reviewing several files, write one section per file, then an overall summary.
+
+## Example from this repository
+
+- The layer configuration is `biome/layers.json`; the table is in `CLAUDE.md` "Layers".

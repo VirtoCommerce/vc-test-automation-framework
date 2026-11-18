@@ -6,12 +6,15 @@ argument-hint: "<pr-number-or-url>"
 
 ## Pull Request Review
 
-Analyze the full scope of the PR and give structured, actionable feedback. CLAUDE.md is the source of the
-conventions.
+Analyze the full scope of the PR and give structured, actionable feedback. The skill `framework-rules` is the source
+of the framework's rules and the repository's `CLAUDE.md` of its style; a framework rule beats a style rule.
 
 ## Review Process
 
 ### Step 1: Gather PR Context
+
+The `qa-reviewer` shell is read-only and cannot run `gh`: the dispatcher fetches the commands below and passes
+the diff and the metadata, and the reviewer works from those and from `git diff|log|show`.
 
 ```bash
 gh pr view <number> --json title,body,baseRefName,headRefName,files,additions,deletions,commits

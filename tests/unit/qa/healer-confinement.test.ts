@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
+import { parseProjectFacts } from "../../../qa/project-facts.mts";
 import { hookBlockReason, isHealerCommand, isReadOnlyCommand } from "../../../qa/readonly-shell.mts";
 
 const HOOK_FILE = ".claude/hooks/readonly-shell.mts";
@@ -525,5 +526,71 @@ test.describe("healer hook script", () => {
 
       expect(runHook(JSON.stringify(input), "./no-such-module.mts").status, agent).toBe(2);
     }
+  });
+});
+
+test.describe("healer paths in the project facts", () => {
+  test("rejects a file without healerPaths", () => {
+    const { healerPaths: _ignored, ...rest } = FACTS;
+
+    expect(() => parseProjectFacts(rest)).toThrow("project.json: healerPaths is missing");
+  });
+
+  test("rejects a healer path that is absolute or leaves the repository", () => {
+    for (const path of ["/etc", "../outside/", "pages/../../x", ""]) {
+      expect(() => parseProjectFacts({ ...FACTS, healerPaths: [path] }), path).toThrow("project.json: healerPaths[0]");
+    }
+  });
+
+  test("rejects the repository root, rooted, drive and UNC forms, git, qa, tooling and short-name segments", () => {
+    for (const path of [
+      ".",
+      "./",
+      ".\\",
+      ".git",
+      ".git/",
+      ".GIT/hooks",
+      ".gitattributes",
+      "pages/.git/x",
+      "pages/.gitignore",
+      ".qa/",
+      ".QA/runs",
+      "pages/.qa",
+      "qa",
+      "qa/",
+      "QA",
+      "pages/qa",
+      "node_modules",
+      "pages/node_modules/",
+      ".claude",
+      ".claude/hooks",
+      "pages/.claude",
+      "\\Users\\x",
+      "\\\\server\\x",
+      "//server/x",
+      "C:/x",
+      "c:pages",
+      "GIT~1/config",
+      "pages/PAGES~2",
+      "pages\\x",
+      "pages//x",
+      "pages/./x",
+      "pages/..",
+      "pages x/",
+      "pages/*",
+      "-pages",
+    ]) {
+      expect(() => parseProjectFacts({ ...FACTS, healerPaths: [path] }), path).toThrow("project.json: healerPaths[0]");
+    }
+  });
+
+  test("accepts a plain relative directory, with or without its trailing slash", () => {
+    for (const path of ["pages/", "dataset", "tests/", "src/page-objects/v1.2/", "a_b-c"]) {
+      expect(parseProjectFacts({ ...FACTS, healerPaths: [path] }).healerPaths, path).toEqual([path]);
+    }
+  });
+
+  test("a healer path list may be empty", () => {
+    expect(parseProjectFacts({ ...FACTS, healerPaths: [] }).healerPaths).toEqual([]);
   });
 });

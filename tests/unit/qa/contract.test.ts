@@ -118,4 +118,51 @@ test.describe("contract check", () => {
   test("an empty amendments section is fine", () => {
     expect(checkContract(`${FILLED}\n## Amendments\n`)).toEqual([]);
   });
+
+  test("a duplicate Amendments heading cannot hide an unapproved entry", () => {
+    const approved = `${FILLED}
+## Amendments
+
+### A-1 drop C-03
+
+Reason.
+
+Approved: Dana Lee, 2026-11-19
+`;
+    const bad = `${approved}
+## Amendments
+
+### A-2 drop C-04
+
+Reason.
+`;
+    const problems = checkContract(bad);
+    expect(problems).toContain("contract: ## Amendments appears more than once");
+    expect(problems).toContain('contract: ## Amendments entry "A-2 drop C-04" has no Approved: <who>, <date> line');
+  });
+
+  test("a heading that varies Amendments is still checked", () => {
+    for (const heading of ["Amendment", "Amendments (draft)", "AMENDMENTS", "amendments"]) {
+      const bad = `${FILLED}
+## ${heading}
+
+### A-1 drop C-03
+
+Reason.
+`;
+      expect(checkContract(bad)).toEqual([
+        `contract: ## ${heading} entry "A-1 drop C-03" has no Approved: <who>, <date> line`,
+      ]);
+    }
+  });
+
+  test("a duplicate required section is reported", () => {
+    expect(
+      checkContract(`${FILLED}
+## Scope
+
+- more
+`),
+    ).toEqual(["contract: ## Scope appears more than once"]);
+  });
 });

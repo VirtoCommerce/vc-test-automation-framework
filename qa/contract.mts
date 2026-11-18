@@ -17,6 +17,7 @@ const REQUIRED_SECTIONS = [
   "Verification",
 ] as const;
 const CASE_COLUMNS = ["Case", "Technique", "Project", "Data role", "Oracle"] as const;
+const AMENDMENTS_HEADING = /^amendment/i;
 const NO_ROLE = "none";
 const APPROVAL = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}\s*$/m;
 const CONFIRMATION = /^(characterization|confirmed by \S.*)$/;
@@ -27,18 +28,16 @@ function problem(text: string): string {
   return `contract: ${text}`;
 }
 
-function parseSections(markdown: string): Map<string, string[]> {
-  const sections = new Map<string, string[]>();
-  let current: string[] | undefined;
+type Section = { heading: string; lines: string[] };
+
+function parseSections(markdown: string): Section[] {
+  const sections: Section[] = [];
   for (const line of markdown.split(/\r?\n/)) {
     const heading = /^## (\S.*?)\s*$/.exec(line);
     if (heading?.[1] !== undefined) {
-      current = sections.has(heading[1]) ? undefined : [];
-      if (current !== undefined) {
-        sections.set(heading[1], current);
-      }
-    } else if (current !== undefined) {
-      current.push(line);
+      sections.push({ heading: heading[1], lines: [] });
+    } else {
+      sections.at(-1)?.lines.push(line);
     }
   }
   return sections;
@@ -153,7 +152,7 @@ function checkObservedOnly(lines: string[] | undefined, rows: CaseRow[]): string
   return problems;
 }
 
-function checkAmendments(lines: string[]): string[] {
+function checkAmendments(heading: string, lines: string[]): string[] {
   const entries: { title: string; body: string[] }[] = [];
   const outside: string[] = [];
   for (const line of lines) {
@@ -166,11 +165,11 @@ function checkAmendments(lines: string[]): string[] {
   }
   const problems: string[] = [];
   if (hasText(outside)) {
-    problems.push(problem("## Amendments has text outside a ### entry"));
+    problems.push(problem(`## ${heading} has text outside a ### entry`));
   }
   for (const entry of entries) {
     if (!APPROVAL.test(entry.body.join("\n"))) {
-      problems.push(problem(`## Amendments entry "${entry.title}" has no Approved: <who>, <date> line`));
+      problems.push(problem(`## ${heading} entry "${entry.title}" has no Approved: <who>, <date> line`));
     }
   }
   return problems;
@@ -183,8 +182,18 @@ function checkAmendments(lines: string[]): string[] {
  * @returns one line per problem, empty when the contract is valid.
  */
 export function checkContract(markdown: string, roles?: string[]): string[] {
-  const sections = parseSections(markdown);
+  const parsed = parseSections(markdown);
+  const sections = new Map<string, string[]>();
   const problems: string[] = [];
+  for (const { heading, lines } of parsed) {
+    if (sections.has(heading)) {
+      if (!problems.includes(problem(`## ${heading} appears more than once`))) {
+        problems.push(problem(`## ${heading} appears more than once`));
+      }
+    } else {
+      sections.set(heading, lines);
+    }
+  }
   for (const heading of REQUIRED_SECTIONS) {
     const lines = sections.get(heading);
     if (lines === undefined) {
@@ -200,9 +209,10 @@ export function checkContract(markdown: string, roles?: string[]): string[] {
   const cases = sections.get("Cases");
   const checked = cases !== undefined && hasText(cases) ? checkCases(cases, roles) : { problems: [], rows: [] };
   problems.push(...checked.problems, ...checkObservedOnly(sections.get("Observed only"), checked.rows));
-  const amendments = sections.get("Amendments");
-  if (amendments !== undefined) {
-    problems.push(...checkAmendments(amendments));
+  for (const { heading, lines } of parsed) {
+    if (AMENDMENTS_HEADING.test(heading)) {
+      problems.push(...checkAmendments(heading, lines));
+    }
   }
   return problems;
 }

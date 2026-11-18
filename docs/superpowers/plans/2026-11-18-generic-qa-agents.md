@@ -439,3 +439,36 @@ test("rejects a flaky run series below 2", () => { /* flakyRunSeries: 1 */ });
 - [ ] **Step 1: Write both sections.**
 - [ ] **Step 2: Verify**: `npm run typecheck && npm run check && npm run test:unit` all clean; the scan test passes.
 - [ ] **Step 3: Commit** `docs(VCST-6837): agents guide`
+
+### Task 17: Test quality gates
+
+**Files:**
+- Create: `qa/test-shape.mts`, `qa/test-duration.mts`
+- Modify: `qa/project-facts.mts` + `.qa/project.json` (new `quality` block), `qa/readonly-shell.mts` (allow the two new
+  CLIs for read-only agents), `.claude/agents/qa-automation-expert.md` (stable series), `.claude/agents/qa-reviewer.md`
+  (shape and duration gates), `README.md` (the `quality` fields)
+- Test: `tests/unit/qa/test-shape.test.ts`, `tests/unit/qa/test-duration.test.ts`, `tests/unit/qa/project-facts.test.ts`
+
+**Interfaces:**
+- Consumes: `ProjectFacts` (Task 1), the per-project run records and `reconcileRun` with `--repeat-each` (Tasks 5–6),
+  `@babel/parser` (declared in Task 8)
+- Produces:
+  - `ProjectFacts.quality: { maxSteps: number; maxLines: number; maxExpects: number; maxNesting: number; maxConditionals: number; stableSeries: number; durationBudgetMs: Record<string, number>; slowdownRatio: number }`;
+    our values: 8, 60, 12, 3, 0, 3, `{ restapi: 15000, graphql: 15000, "e2e-frontend": 90000, "e2e-backend": 120000 }`, 1.5
+  - `checkTestShape(source: string, file: string, limits: ProjectFacts["quality"]): { test: string; finding: string }[]`;
+    CLI `node qa/test-shape.mts <spec>…` (exit 1 on a finding)
+  - `checkDurations(report: unknown, project: string, quality: ProjectFacts["quality"], previous?: unknown): { test: string; finding: string }[]`;
+    CLI `node qa/test-duration.mts <report.json> <project> [<previous report.json>]` (exit 1 on a finding)
+
+- [ ] **Step 1: Write the failing tests**: `a test over maxSteps is reported`; `an if statement in a test is reported
+  when maxConditionals is 0`; `a table-driven loop's body counts once`; `a test within limits gives nothing`;
+  `a test over its project's budget is reported`; `a test 1.6× slower than its previous run is reported`; `a project
+  without a budget is not judged on budget`; `project.json without quality is rejected`.
+- [ ] **Step 2: Run** them — Expected: FAIL.
+- [ ] **Step 3: Implement** the modules (steps = `test.step` calls; nesting = block depth inside the test body; a
+  `for … of ROWS` loop is not a conditional); extend the facts; the expert runs new and changed specs with
+  `--repeat-each=<quality.stableSeries> --retries=0` into its run record (reconcile already fails a failing repetition);
+  the reviewer runs both CLIs and reports a finding as Critical; both CLIs are read-only and allowlisted.
+- [ ] **Step 4: Run** the tests — Expected: PASS; `npm run typecheck && npm run check` clean; reviewer and expert
+  stay ≤ 8,000 characters.
+- [ ] **Step 5: Commit** `feat(VCST-6837): shape, stable-series and duration gates for new tests`

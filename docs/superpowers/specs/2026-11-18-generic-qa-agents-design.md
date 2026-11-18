@@ -195,6 +195,21 @@ registered, only data the profile marks `owned` changed), and the definition of 
   report under `.qa/runs/<contract>/`, a record the tool wrote, and the reviewer counts tests times projects itself
   with `--list` *(my call)*.
 - When the stand is not reachable, the report says the run was not done.
+- The new and changed tests pass the three quality gates below.
+
+### Test quality gates (added 18.11)
+
+Three code checks, no model calls, on records the run already leaves. Their limits live in the project facts, so a
+client sets its own:
+
+| Gate | What it checks | Fails when |
+|---|---|---|
+| Shape | each new or changed test, parsed: steps, lines, `expect` calls, nesting depth, conditionals | a count is over its limit |
+| Stable series | the new and changed tests run `--repeat-each=<series>` with `--retries=0` before acceptance | any repetition fails (the test is flaky) |
+| Duration budget | each test's duration from the run's JSON report | it is over its project's budget, or slower than its previous recorded run by more than the allowed ratio |
+
+The expert runs the series and leaves its record; the reviewer runs the shape and duration checks and reports a
+failed gate as a Critical finding.
 
 ### Coverage and priority (`qa-coverage`)
 

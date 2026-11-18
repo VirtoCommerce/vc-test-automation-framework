@@ -11,6 +11,10 @@ export const JUDGE_QA_MODULES = ["judge-verdict", "prove-fails"] as const;
 
 export const JUDGE_WRITE_DIR = ".qa/judge";
 
+export const EXPLORER_AGENT = "qa-explorer";
+
+export const EXPLORER_WRITE_DIR = ".qa/reports";
+
 export const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"] as const;
 
 const TOKEN = /^[A-Za-z0-9_./:=@,+^~-]+$/;
@@ -151,8 +155,8 @@ function exists(path: string): boolean {
   }
 }
 
-function isInsideJudgeDir(projectDir: string, file: string): boolean {
-  const area = realPathOf(resolve(projectDir, JUDGE_WRITE_DIR));
+function isInsideDir(projectDir: string, dir: string, file: string): boolean {
+  const area = realPathOf(resolve(projectDir, dir));
   const target = realPathOf(resolve(projectDir, file));
   if (area === undefined || target === undefined) {
     return false;
@@ -161,23 +165,32 @@ function isInsideJudgeDir(projectDir: string, file: string): boolean {
   return path !== "" && !path.startsWith("..") && !isAbsolute(path);
 }
 
+function writeDirOf(agent: string): string | undefined {
+  const bare = bareName(agent);
+  if (bare === JUDGE_AGENT) {
+    return JUDGE_WRITE_DIR;
+  }
+  return bare === EXPLORER_AGENT ? EXPLORER_WRITE_DIR : undefined;
+}
+
 function writeBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
-  if (bareName(agent) !== JUDGE_AGENT) {
+  const dir = writeDirOf(agent);
+  if (dir === undefined) {
     return `${agent} is read-only and may not write files; blocked`;
   }
   const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
-  if (typeof file === "string" && file !== "" && isInsideJudgeDir(projectDir, file)) {
+  if (typeof file === "string" && file !== "" && isInsideDir(projectDir, dir, file)) {
     return undefined;
   }
   const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may write only under ${JUDGE_WRITE_DIR}/; blocked: ${shown}`;
+  return `${agent} may write only under ${dir}/; blocked: ${shown}`;
 }
 
 /**
  * Decides a PreToolUse hook call for the Bash and Write tools: a one-line reason to block it, or undefined to let it
  * pass. Only the read-only agents are limited; the main session and every other agent pass untouched. A read-only
- * agent's Bash call must be on the allowlist, its Write call is allowed for `qa-judge` under the real `.qa/judge/` of
- * the project directory only (a link that leaves it does not count), the other writing tools are blocked, and the
+ * agent's Bash call must be on the allowlist, its Write call is allowed for `qa-judge` under the real `.qa/judge/` and for
+ * `qa-explorer` under the real `.qa/reports/` of the project directory only (a link that leaves it does not count), the other writing tools are blocked, and the
  * tools that only read pass.
  */
 export function hookBlockReason(input: unknown, projectDir: string = process.cwd()): string | undefined {

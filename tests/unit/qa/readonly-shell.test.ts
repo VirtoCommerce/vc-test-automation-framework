@@ -11,6 +11,7 @@ const HOOK_FILE = ".claude/hooks/readonly-shell.mts";
 const SETTINGS_FILE = ".claude/settings.json";
 const PROJECT_DIR = resolve(process.cwd());
 const JUDGE_AREA = join(PROJECT_DIR, ".qa", "judge");
+const REPORTS_AREA = join(PROJECT_DIR, ".qa", "reports");
 const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"];
 const JUDGE_COMMAND = "node qa/prove-fails.mts tests/a.spec.ts 12 a title";
 
@@ -162,8 +163,40 @@ const NOT_JUDGE_WRITES = [
   "",
 ];
 
+const EXPLORER_WRITES = [
+  ".qa/reports/explore-cart.md",
+  ".qa/reports/explore-cart/notes.md",
+  `${PROJECT_DIR}/.qa/reports/explore-cart.md`,
+  ".qa/reports/./explore-cart.md",
+];
+
+const NOT_EXPLORER_WRITES = [
+  ".qa/reports",
+  ".qa/reports/",
+  ".qa/reportsx/x.md",
+  ".qa/reports-x/x.md",
+  ".qa/report/x.md",
+  ".qa/judge/x/judge-expert.json",
+  ".qa/runs/x/explore-cart.md",
+  ".qa/reports/../runs/x.md",
+  ".qa/reports/../../x.md",
+  "../.qa/reports/x.md",
+  "tests/restapi/cart.spec.ts",
+  "pages/frontend/pages/cart/cart-page.ts",
+  ".claude/agents/qa-explorer.md",
+  "/etc/passwd",
+  "C:\\Windows\\x.md",
+  "D:/.qa/reports/x.md",
+  "\\\\server\\share\\x.md",
+  "",
+];
+
 function judgeWrite(file: unknown): Record<string, unknown> {
   return { agent_type: "qa-judge", tool_name: "Write", tool_input: { file_path: file } };
+}
+
+function explorerWrite(file: unknown): Record<string, unknown> {
+  return { agent_type: "qa-explorer", tool_name: "Write", tool_input: { file_path: file } };
 }
 
 test.describe("read-only shell (unit)", () => {
@@ -298,9 +331,58 @@ test.describe("read-only shell (unit)", () => {
   });
 
   test("blocks every other read-only agent from writing", () => {
-    for (const agent of ["qa-reviewer", "qa-explorer", "qa-coverage"]) {
-      const input = { ...judgeWrite(".qa/judge/x.json"), agent_type: agent };
-      expect(hookBlockReason(input, PROJECT_DIR)).toContain("may not write");
+    for (const agent of ["qa-reviewer", "qa-coverage"]) {
+      for (const file of [".qa/judge/x.json", ".qa/reports/explore-cart.md"]) {
+        const input = { ...judgeWrite(file), agent_type: agent };
+        expect(hookBlockReason(input, PROJECT_DIR), `${agent} ${file}`).toContain("may not write");
+      }
+    }
+  });
+
+  for (const file of EXPLORER_WRITES) {
+    test(`lets the explorer write ${file}`, () => {
+      expect(hookBlockReason(explorerWrite(file), PROJECT_DIR)).toBeUndefined();
+      expect(hookBlockReason({ ...explorerWrite(file), agent_type: "vc:qa-explorer" }, PROJECT_DIR)).toBeUndefined();
+    });
+  }
+
+  for (const file of NOT_EXPLORER_WRITES) {
+    test(`blocks the explorer writing ${JSON.stringify(file)}`, () => {
+      const reason = hookBlockReason(explorerWrite(file), PROJECT_DIR);
+      expect(reason).toMatch(/^[^\n]+$/);
+      expect(reason).toContain(".qa/reports/");
+    });
+  }
+
+  test("keeps each writer to its own folder", () => {
+    expect(hookBlockReason(judgeWrite(".qa/reports/explore-cart.md"), PROJECT_DIR)).toContain(".qa/judge/");
+    expect(hookBlockReason(explorerWrite(".qa/judge/x/judge-expert.json"), PROJECT_DIR)).toContain(".qa/reports/");
+  });
+
+  test("blocks an explorer write with no usable path", () => {
+    expect(
+      hookBlockReason({ agent_type: "qa-explorer", tool_name: "Write", tool_input: {} }, PROJECT_DIR),
+    ).toBeDefined();
+    expect(hookBlockReason(explorerWrite(3), PROJECT_DIR)).toBeDefined();
+    expect(hookBlockReason({ agent_type: "qa-explorer", tool_name: "Write" }, PROJECT_DIR)).toBeDefined();
+  });
+
+  test("keeps the explorer's shell as strict as the other read-only agents'", () => {
+    const bash = (command: string): unknown => ({
+      agent_type: "qa-explorer",
+      tool_name: "Bash",
+      tool_input: { command },
+    });
+    expect(hookBlockReason(bash("git diff"), PROJECT_DIR)).toBeUndefined();
+    expect(hookBlockReason(bash("node qa/project-facts.mts"), PROJECT_DIR)).toBeUndefined();
+    expect(hookBlockReason(bash("npx playwright test --list --reporter=json"), PROJECT_DIR)).toBeUndefined();
+    for (const command of [
+      "git push",
+      "echo x > .qa/reports/x.md",
+      "node qa/prove-fails.mts a.spec.ts 1 t",
+      "npx playwright test",
+    ]) {
+      expect(hookBlockReason(bash(command), PROJECT_DIR), command).toBeDefined();
     }
   });
 
@@ -347,6 +429,24 @@ test.describe("read-only shell (unit)", () => {
         expect(reason, file).toContain(".qa/judge/");
       }
       expect(hookBlockReason(judgeWrite(`.qa/judge/${name}/real/x.json`), PROJECT_DIR)).toBeUndefined();
+    } finally {
+      rmSync(area, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test("blocks the explorer writing through a link that leaves .qa/reports/", () => {
+    const outside = mkdtempSync(join(tmpdir(), "reports-outside-"));
+    const name = `link-test-${process.pid}`;
+    const area = join(REPORTS_AREA, name);
+    try {
+      mkdirSync(area, { recursive: true });
+      symlinkSync(outside, join(area, "elsewhere"), "junction");
+      for (const file of ["elsewhere/x.md", "elsewhere", "elsewhere/deeper/not-yet/x.md"]) {
+        const reason = hookBlockReason(explorerWrite(`.qa/reports/${name}/${file}`), PROJECT_DIR);
+        expect(reason, file).toContain(".qa/reports/");
+      }
+      expect(hookBlockReason(explorerWrite(`.qa/reports/${name}/real/x.md`), PROJECT_DIR)).toBeUndefined();
     } finally {
       rmSync(area, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });
@@ -425,6 +525,26 @@ test.describe("read-only shell hook script (unit)", () => {
     expect(blocked.stderr.trim()).toMatch(/^[^\n]+$/);
     expect(write("qa-reviewer", ".qa/judge/x.json").status).toBe(2);
     expect(write("qa-healer", "tests/restapi/cart.spec.ts").status).toBe(0);
+  });
+
+  test("lets the explorer write under .qa/reports/ and blocks every other write, by the project directory", () => {
+    const write = (agent: string, file: string) =>
+      runHook(JSON.stringify({ agent_type: agent, tool_name: "Write", tool_input: { file_path: file } }));
+    expect(write("qa-explorer", ".qa/reports/explore-cart.md").status).toBe(0);
+    const blocked = write("qa-explorer", "tests/restapi/cart.spec.ts");
+    expect(blocked.status).toBe(2);
+    expect(blocked.stderr.trim()).toMatch(/^[^\n]+$/);
+    expect(write("qa-explorer", ".qa/judge/x.json").status).toBe(2);
+    expect(write("qa-judge", ".qa/reports/explore-cart.md").status).toBe(2);
+    expect(write("qa-coverage", ".qa/reports/x.md").status).toBe(2);
+  });
+
+  test("blocks the explorer writing under .qa/reports/ when the module cannot be loaded", () => {
+    const result = runHook(
+      JSON.stringify({ agent_type: "qa-explorer", tool_name: "Write", tool_input: { file_path: ".qa/reports/x.md" } }),
+      "./no-such-module.mts",
+    );
+    expect(result.status).toBe(2);
   });
 
   test("blocks a read-only agent, even running git diff, when the module cannot be loaded", () => {

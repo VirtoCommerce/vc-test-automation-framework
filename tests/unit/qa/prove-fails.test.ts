@@ -24,7 +24,10 @@ const TEMP_PREFIX = "prove-fails-";
 const PLAYWRIGHT_CLI = "node_modules/@playwright/test/cli.js";
 const PROVE_TIMEOUT_MS = 240_000;
 const HEADER = 'import { expect, test } from "@playwright/test";\n\n';
-const NO_LITERAL = "has no expect(...).toXxx(...) call with a string or number literal argument";
+const IGNORED_SPEC = `test-results/prove-fails-ignored-${process.pid}.test.ts`;
+const NONE = "has no assertion it can change";
+const MANY = "has more than one assertion it could change";
+const NEGATED = "a .not assertion cannot be proved this way";
 
 test.describe.configure({ mode: "serial", timeout: PROVE_TIMEOUT_MS });
 
@@ -79,10 +82,13 @@ function listedFiles(withFixtures: boolean): string[] {
 
 test.beforeAll(() => {
   rmSync(GENERATED_DIR, { recursive: true, force: true });
+  process.env["PROVE_FAILS_FIXTURES"] = "1";
 });
 
 test.afterAll(() => {
   rmSync(GENERATED_DIR, { recursive: true, force: true });
+  rmSync(IGNORED_SPEC, { force: true });
+  delete process.env["PROVE_FAILS_FIXTURES"];
 });
 
 test.describe("the mutation the script makes (unit)", () => {
@@ -104,21 +110,87 @@ test.describe("the mutation the script makes (unit)", () => {
 
   test("every matcher form is found, and only the matcher's own arguments change", () => {
     const cases: [string, string][] = [
-      ["expect(a).not.toBe(4);", "expect(a).not.toBe(5);"],
       ["await expect(a).resolves.toBe(4);", "await expect(a).resolves.toBe(5);"],
-      ['await expect(a).rejects.toThrow("x");', 'await expect(a).rejects.toThrow("x__mutated__");'],
       ["expect.soft(a).toBe(4);", "expect.soft(a).toBe(5);"],
       ['await expect.poll(() => a).toBe("x");', 'await expect.poll(() => a).toBe("x__mutated__");'],
       [
         'await expect(page.locator("a")).toHaveText("hi");',
         'await expect(page.locator("a")).toHaveText("hi__mutated__");',
       ],
-      ["expect(a).toBeCloseTo(1, 2);", "expect(a).toBeCloseTo(2, 3);"],
       ["expect(a).toBe((4));", "expect(a).toBe((5));"],
     ];
     for (const [before, after] of cases) {
       expect(mutateAssertion(before, 1).mutated).toBe(after);
     }
+  });
+
+  test("every single-expected-value matcher is mutated, and its argument only", () => {
+    const cases: [string, string][] = [
+      ["expect(a).toBe(1);", "expect(a).toBe(2);"],
+      ["expect(a).toEqual(1);", "expect(a).toEqual(2);"],
+      ["expect(a).toStrictEqual(1);", "expect(a).toStrictEqual(2);"],
+      ['expect(a).toMatch("x");', 'expect(a).toMatch("x__mutated__");'],
+      ['expect(a).toContain("x");', 'expect(a).toContain("x__mutated__");'],
+      ["expect(a).toHaveLength(3);", "expect(a).toHaveLength(4);"],
+      ["await expect(l).toHaveCount(3);", "await expect(l).toHaveCount(4);"],
+      ['await expect(l).toHaveText("x");', 'await expect(l).toHaveText("x__mutated__");'],
+      ['await expect(l).toContainText("x");', 'await expect(l).toContainText("x__mutated__");'],
+      ['await expect(l).toHaveValue("x");', 'await expect(l).toHaveValue("x__mutated__");'],
+      ['await expect(p).toHaveURL("x");', 'await expect(p).toHaveURL("x__mutated__");'],
+      ['await expect(p).toHaveTitle("x");', 'await expect(p).toHaveTitle("x__mutated__");'],
+      ["expect(a).toBeGreaterThan(1);", "expect(a).toBeGreaterThan(2);"],
+      ["expect(a).toBeGreaterThanOrEqual(1);", "expect(a).toBeGreaterThanOrEqual(2);"],
+      ["expect(a).toBeLessThan(1);", "expect(a).toBeLessThan(2);"],
+      ["expect(a).toBeLessThanOrEqual(1);", "expect(a).toBeLessThanOrEqual(2);"],
+    ];
+    for (const [before, after] of cases) {
+      expect(mutateAssertion(before, 1).mutated, before).toBe(after);
+    }
+  });
+
+  test("a name, a key, a file or a second argument is never mutated: those lines are refused", () => {
+    for (const line of [
+      'await expect(l).toHaveAttribute("href", /.*/);',
+      'await expect(l).toHaveAttribute("href", "x");',
+      'expect(a).toHaveProperty("a", expect.anything());',
+      'await expect(l).toHaveCSS("color", "red");',
+      'await expect(p).toHaveScreenshot("home.png");',
+      "expect(a).toBeCloseTo(0.3, 5);",
+      "expect(a).toBe(4, 5);",
+      'await expect(l).toHaveText("a", { timeout: 5 });',
+      'await expect(a).rejects.toThrow("x");',
+      'expect(a).toThrow("x");',
+      "expect(a).toBe();",
+      "expect(a).toBe(...b);",
+    ]) {
+      expect(() => mutateAssertion(line, 1), line).toThrow(NONE);
+    }
+  });
+
+  test("a .not assertion is refused", () => {
+    for (const line of [
+      "expect(a).not.toBe(4);",
+      "await expect(a).resolves.not.toBe(4);",
+      'expect(a).not.toMatch("x");',
+    ]) {
+      expect(() => mutateAssertion(line, 1), line).toThrow(NEGATED);
+    }
+  });
+
+  test("a line with more than one assertion it could change is refused, with one it is mutated alone", () => {
+    for (const line of [
+      "expect(a).toBe(1); expect(b).toBe(2);",
+      'expect(a).toBe(1); expect(b).toHaveText("x");',
+      "expect(a).toBeLessThan(1); expect(b).toBeGreaterThan(0);",
+    ]) {
+      expect(() => mutateAssertion(line, 1), line).toThrow(MANY);
+    }
+    expect(mutateAssertion('expect(a).toBe(1); expect(b).toHaveCSS("c", "r");', 1).mutated).toBe(
+      'expect(a).toBe(2); expect(b).toHaveCSS("c", "r");',
+    );
+    expect(mutateAssertion("expect(a).not.toBe(1); expect(b).toBe(2);", 1).mutated).toBe(
+      "expect(a).not.toBe(1); expect(b).toBe(3);",
+    );
   });
 
   test("a line whose only literal is not an argument of a matcher is refused", () => {
@@ -138,7 +210,7 @@ test.describe("the mutation the script makes (unit)", () => {
       'import { a } from "./a";',
       "expect(total).toMatch(/4/);",
     ]) {
-      expect(() => mutateAssertion(line, 1), line).toThrow(NO_LITERAL);
+      expect(() => mutateAssertion(line, 1), line).toThrow(NONE);
     }
   });
 
@@ -152,20 +224,20 @@ test.describe("the mutation the script makes (unit)", () => {
       "/* expect(total).toBe(4); */",
       "const text = '\\' expect(total).toBe(4); ';",
     ]) {
-      expect(() => mutateAssertion(line, 1), line).toThrow(NO_LITERAL);
+      expect(() => mutateAssertion(line, 1), line).toThrow(NONE);
     }
   });
 
   test("lines are counted the way the language counts them, so a separator hides nothing", () => {
     const source = "const a = 1; // c expect(total).toBe(4);\nexpect(total).toBe(4);";
-    expect(() => mutateAssertion(source, 1)).toThrow(NO_LITERAL);
+    expect(() => mutateAssertion(source, 1)).toThrow(NONE);
     expect(mutateAssertion(source, 2).source).toBe(source.replace("toBe(4)", "toBe(5)"));
     expect(mutateAssertion(source, 3).source).toBe(
       source.replace("toBe(4);", "toBe(4);").replace(/toBe\(4\);$/, "toBe(5);"),
     );
     const carriageReturn = "const a = 1; // c\rexpect(total).toBe(4);";
     expect(mutateAssertion(carriageReturn, 2).mutated).toBe("expect(total).toBe(5);");
-    expect(() => mutateAssertion(carriageReturn, 1)).toThrow(NO_LITERAL);
+    expect(() => mutateAssertion(carriageReturn, 1)).toThrow(NONE);
   });
 
   test("the mutated source is the original with only the literal's characters replaced", () => {
@@ -180,6 +252,26 @@ test.describe("the mutation the script makes (unit)", () => {
     expect(() => mutateAssertion(source, 4, 7)).toThrow("is not inside the test that starts on line 7");
     expect(mutateAssertion(source, 8, 7).mutated).toBe("  expect(2).toBe(3);");
     expect(mutateAssertion(source, 4).mutated).toBe("  expect(1).toBe(2);");
+  });
+
+  test("only the test call itself encloses an assertion, not a describe or a hook", () => {
+    const source = [
+      'import { expect, test } from "@playwright/test";',
+      "",
+      'test.describe("g", () => {',
+      "  test.beforeEach(() => {",
+      "    expect(1).toBe(1);",
+      "  });",
+      '  test.only("t", () => {',
+      "    expect(2).toBe(2);",
+      "  });",
+      "});",
+      "",
+    ].join("\n");
+    expect(() => mutateAssertion(source, 5, 4)).toThrow("is not inside the test that starts on line 4");
+    expect(() => mutateAssertion(source, 5, 3)).toThrow("is not inside the test that starts on line 3");
+    expect(() => mutateAssertion(source, 8, 3)).toThrow("is not inside the test that starts on line 3");
+    expect(mutateAssertion(source, 8, 7).mutated).toBe("    expect(2).toBe(3);");
   });
 
   test("a spec that cannot be parsed is refused", () => {
@@ -207,6 +299,31 @@ test.describe("the environment of the nested run (unit)", () => {
     expect(childEnv({ NODE_OPTIONS: "--max-old-space-size=4096" }, "r")["NODE_OPTIONS"]).toBe(
       "--max-old-space-size=4096",
     );
+  });
+});
+
+test.describe("what may be proved (unit)", () => {
+  test("a spec under .qa/ is refused before anything is read", async () => {
+    await expect(proveFails(".qa/judge/x.test.ts", "t", 3)).rejects.toThrow("is under .qa/");
+    await expect(proveFails(".qa/contracts/x.test.ts", "t", 3)).rejects.toThrow("is under .qa/");
+  });
+
+  test("a spec git ignores is refused, and the generated fixtures are allowed only with the flag", async () => {
+    const before = status();
+    const temporary = leftovers();
+    mkdirSync("test-results", { recursive: true });
+    writeFileSync(IGNORED_SPEC, `${HEADER}test("ignored", () => {\n  expect(1).toBe(1);\n});\n`);
+    await expect(proveFails(IGNORED_SPEC, "ignored", 4)).rejects.toThrow("is ignored by git");
+    const generated = generatedSpec("flagless", 'test("flagless", () => {\n  expect(1).toBe(1);\n});\n');
+    delete process.env["PROVE_FAILS_FIXTURES"];
+    try {
+      await expect(proveFails(generated, "flagless", 4)).rejects.toThrow("is ignored by git");
+    } finally {
+      process.env["PROVE_FAILS_FIXTURES"] = "1";
+    }
+    expect((await proveFails(generated, "flagless", 4)).failed).toBe(true);
+    expect(status()).toBe(before);
+    expect(leftovers()).toEqual(temporary);
   });
 });
 
@@ -281,8 +398,10 @@ test.describe("prove-fails (unit)", () => {
   });
 
   test("proveFails refuses a test that is expected to fail", async () => {
-    const spec = generatedSpec("known", 'test.fail("known issue", () => {\n  expect(1).toBe(2);\n});\n');
-    await expect(proveFails(spec, "known issue", 4)).rejects.toThrow("is expected to fail");
+    const spec = generatedSpec("known", 'test("known issue", () => {\n  test.fail();\n  expect(1).toBe(2);\n});\n');
+    await expect(proveFails(spec, "known issue", 5)).rejects.toThrow("is expected to fail");
+    const declared = generatedSpec("declared", 'test.fail("declared issue", () => {\n  expect(1).toBe(2);\n});\n');
+    await expect(proveFails(declared, "declared issue", 4)).rejects.toThrow("is not inside the test");
   });
 
   test("proveFails refuses a line with no literal before it makes a worktree", async () => {
@@ -292,8 +411,8 @@ test.describe("prove-fails (unit)", () => {
       "plain",
       'test("plain", () => {\n  const total = 4;\n  expect(total).toBeTruthy();\n});\n',
     );
-    await expect(proveFails(spec, "plain", 5)).rejects.toThrow(NO_LITERAL);
-    await expect(proveFails(spec, "plain", 4)).rejects.toThrow(NO_LITERAL);
+    await expect(proveFails(spec, "plain", 5)).rejects.toThrow(NONE);
+    await expect(proveFails(spec, "plain", 4)).rejects.toThrow(NONE);
     expect(status()).toBe(before);
     expect(leftovers()).toEqual(temporary);
   });

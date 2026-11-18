@@ -47,11 +47,14 @@ Judge the diff and the files it touches, never the expert's account of them.
 A test that cannot fail passes and looks green; nothing else in the flow catches it. Do not reason that it would
 fail: prove it, with the script, on a copy.
 
-1. Find the line of the test's main assertion, an `expect(...).toXxx(...)` call with a string or number literal as an
-   argument of the matcher (`toBe(4)`, `toHaveText("Total")`), inside the spec file itself. You write nothing for
-   the proof: the script makes the change, a number plus one, a string with `__mutated__` appended. A line with no
-   such literal (a status check with no argument, a literal in a comment, a regular expression or a template with
-   substitutions) is refused; then judge from the assertion and say so.
+1. Find the line of the test's main assertion: one `expect(...).<matcher>(<literal>)` on a line of its own, inside the
+   spec file, whose matcher is `toBe`, `toEqual`, `toStrictEqual`, `toMatch`, `toContain`, `toHaveLength`,
+   `toHaveCount`, `toHaveText`, `toContainText`, `toHaveValue`, `toHaveURL`, `toHaveTitle` or a `toBeGreater`/`toBeLess`
+   comparison, with one string or number literal as its only argument. You write nothing for the proof: the script
+   changes that one literal, a number plus one, a string with `__mutated__` appended. A `.not` line, a matcher with a
+   second argument or a key (`toHaveAttribute`, `toHaveCSS`, `toHaveScreenshot`, `toBeCloseTo`), a line with two
+   assertions, a literal in a comment, a regular expression or a template with substitutions, and a spec that is
+   git-ignored or under `.qa/` are refused; they cannot be proved this way, so judge from the assertion and say so.
 2. Run `node qa/prove-fails.mts <spec> <line> <title words> --project=<project>`, with the project from the case
    row. `<spec>` is the repository-relative path, `<line>` the assertion's line, and the title words a part of the
    test's title, unquoted, written only with letters, digits and `_ . / : = @ , + ^ ~ -`, that matches one test in

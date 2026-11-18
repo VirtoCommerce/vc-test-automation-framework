@@ -41,8 +41,28 @@ const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 const ENV_FILE = /^\.env(\..+)?$/;
 const ENV_EXAMPLE = ".env.example";
 const MUTATION_SUFFIX = "__mutated__";
-const MATCHER_PREFIX = "to";
-const MATCHER_CHAIN = ["not", "resolves", "rejects"];
+const MATCHERS = [
+  "toBe",
+  "toEqual",
+  "toStrictEqual",
+  "toMatch",
+  "toContain",
+  "toHaveLength",
+  "toHaveCount",
+  "toHaveText",
+  "toContainText",
+  "toHaveValue",
+  "toHaveURL",
+  "toHaveTitle",
+  "toBeGreaterThan",
+  "toBeGreaterThanOrEqual",
+  "toBeLessThan",
+  "toBeLessThanOrEqual",
+];
+const MATCHER_CHAIN = ["resolves", "rejects"];
+const NEGATION = "not";
+const LINE_BREAK = new RegExp(`\\r\\n|[\\n\\r${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]`);
+const GENERATED_FIXTURES = /(^|\/)fixtures\/generated\//;
 const EXPECT_VARIANTS = ["soft", "poll"];
 const TEST_FUNCTIONS = ["ArrowFunctionExpression", "FunctionExpression"];
 const SKIPPED_KEYS = new Set([
@@ -95,19 +115,26 @@ function quietly(action: () => void): void {
   }
 }
 
+function exitCodeOf(error: { code?: number | string } | null): number {
+  if (error === null) {
+    return 0;
+  }
+  return typeof error.code === "number" ? error.code : -1;
+}
+
 function run(
   file: string,
   args: readonly string[],
   cwd: string,
   env: NodeJS.ProcessEnv = process.env,
-): Promise<{ stdout: string; stderr: string; failed: boolean }> {
+): Promise<{ stdout: string; stderr: string; failed: boolean; code: number }> {
   return new Promise((done) => {
     const child = execFile(
       file,
       [...args],
       { cwd, env, timeout: RUN_TIMEOUT_MS, maxBuffer: MAX_BUFFER, encoding: "utf8", windowsHide: true },
       (error, stdout, stderr) => {
-        done({ stdout, stderr, failed: error !== null });
+        done({ stdout, stderr, failed: error !== null, code: exitCodeOf(error) });
       },
     );
     child.stdin?.end();
@@ -172,19 +199,21 @@ function isExpectCall(node: unknown): boolean {
   );
 }
 
-function isMatcherCall(node: AstNode): boolean {
+function matcherOf(node: AstNode): { negated: boolean } | undefined {
   if (node.type !== "CallExpression") {
-    return false;
+    return undefined;
   }
   const callee = node["callee"];
-  if (!isMember(callee) || !(nameOf(callee["property"]) ?? "").startsWith(MATCHER_PREFIX)) {
-    return false;
+  if (!isMember(callee) || !MATCHERS.includes(nameOf(callee["property"]) ?? "")) {
+    return undefined;
   }
+  let negated = false;
   let current: unknown = callee["object"];
-  while (isMember(current) && MATCHER_CHAIN.includes(nameOf(current["property"]) ?? "")) {
+  while (isMember(current) && [NEGATION, ...MATCHER_CHAIN].includes(nameOf(current["property"]) ?? "")) {
+    negated = negated || nameOf(current["property"]) === NEGATION;
     current = current["object"];
   }
-  return isExpectCall(current);
+  return isExpectCall(current) ? { negated } : undefined;
 }
 
 function jsonString(text: string): string {
@@ -223,12 +252,11 @@ function parseSource(source: string): AstNode {
   throw problem("the spec cannot be parsed");
 }
 
-function rootName(callee: unknown): string | undefined {
-  let current = callee;
-  while (isMember(current)) {
-    current = current["object"];
-  }
-  return nameOf(current);
+function isTestCall(callee: unknown): boolean {
+  return (
+    nameOf(callee) === "test" ||
+    (isMember(callee) && nameOf(callee["object"]) === "test" && nameOf(callee["property"]) === "only")
+  );
 }
 
 function isInsideTest(program: AstNode, testLine: number, line: number): boolean {
@@ -236,7 +264,7 @@ function isInsideTest(program: AstNode, testLine: number, line: number): boolean
     program,
     (node) =>
       node.type === "CallExpression" &&
-      rootName(node["callee"]) === "test" &&
+      isTestCall(node["callee"]) &&
       lineOf(node["callee"]) <= testLine &&
       testLine <= lineOf(node["callee"], "end"),
   );
@@ -252,49 +280,75 @@ function isInsideTest(program: AstNode, testLine: number, line: number): boolean
 }
 
 /**
- * Makes the mutation `proveFails` runs, and nothing else: on `line` of `source`, every string, number and plain
- * template literal that is a direct argument of an `expect(...).toXxx(...)` call (also `.not`, `.resolves`,
- * `.rejects`, `expect.soft`, `expect.poll`) is replaced, a number by its value plus one, a string by itself with
- * `__mutated__` appended. The source is parsed, so a literal in a comment, a regular expression or a template with
- * substitutions is never a candidate, and no text of the caller enters the result. With `testLine` the line must also
- * lie inside the body of the test declared there.
+ * Makes the mutation `proveFails` runs, and nothing else: it changes exactly one literal, the expected value of an
+ * `expect(...).<matcher>(<literal>)` on `line`, where the matcher is one of the single-expected-value matchers
+ * (`toBe`, `toEqual`, `toHaveText`, `toBeLessThan`, ...), is called with exactly one argument, and is not under
+ * `.not`. A number becomes its value plus one, a string or plain template becomes itself with `__mutated__`
+ * appended. The source is parsed, so a literal in a comment, a regular expression or a template with substitutions is
+ * never a candidate, and no text of the caller enters the result. A name, a key, a file name or a second argument
+ * (`toHaveAttribute("href", ...)`, `toHaveScreenshot("a.png")`, `toBeCloseTo(1, 2)`) is never changed. With
+ * `testLine` the line must also lie inside the body of the `test(...)` or `test.only(...)` declared there.
  *
  * @returns the mutated source and the mutated line.
- * @throws Error when the source cannot be parsed, the line holds no such literal, or it is outside the test.
+ * @throws Error when the source cannot be parsed, the line holds no such assertion or more than one, only a `.not`
+ * one, or it is outside the test.
  */
 export function mutateAssertion(source: string, line: number, testLine?: number): { source: string; mutated: string } {
   const program = parseSource(source);
   const edits: Edit[] = [];
-  for (const call of collect(program, isMatcherCall)) {
-    for (const argument of (Array.isArray(call["arguments"]) ? call["arguments"] : []).filter(isNode)) {
-      const text = lineOf(argument) === line ? mutationOf(argument) : undefined;
-      if (text !== undefined) {
-        edits.push({ start: argument.start, end: argument.end, text });
-      }
+  let negated = 0;
+  for (const call of collect(program, (node) => matcherOf(node) !== undefined)) {
+    const args = Array.isArray(call["arguments"]) ? call["arguments"] : [];
+    const [argument] = args;
+    const text = args.length === 1 && isNode(argument) && lineOf(argument) === line ? mutationOf(argument) : undefined;
+    if (text === undefined || !isNode(argument)) {
+      continue;
+    }
+    if (matcherOf(call)?.negated) {
+      negated += 1;
+    } else {
+      edits.push({ start: argument.start, end: argument.end, text });
     }
   }
+  if (edits.length === 0 && negated > 0) {
+    throw problem(`line ${line} has only a negated assertion: a .not assertion cannot be proved this way`);
+  }
   if (edits.length === 0) {
-    throw problem(`line ${line} has no expect(...).toXxx(...) call with a string or number literal argument`);
+    throw problem(
+      `line ${line} has no assertion it can change: it needs one expect(...).<matcher>(<one string or number literal>) with a matcher from ${MATCHERS.join(", ")}`,
+    );
+  }
+  if (edits.length > 1) {
+    throw problem(`line ${line} has more than one assertion it could change; put each assertion on its own line`);
   }
   if (testLine !== undefined && !isInsideTest(program, testLine, line)) {
     throw problem(`line ${line} is not inside the test that starts on line ${testLine}`);
   }
-  let mutated = source;
-  for (const edit of edits.sort((first, second) => second.start - first.start)) {
-    mutated = `${mutated.slice(0, edit.start)}${edit.text}${mutated.slice(edit.end)}`;
-  }
-  return { source: mutated, mutated: mutated.split(/\r\n|[\n\r\u2028\u2029]/)[line - 1] ?? "" };
+  const [edit] = edits;
+  const mutated = edit === undefined ? source : `${source.slice(0, edit.start)}${edit.text}${source.slice(edit.end)}`;
+  return { source: mutated, mutated: mutated.split(LINE_BREAK)[line - 1] ?? "" };
 }
 
-function checkedSpec(spec: string, root: string): string {
+async function checkedSpec(spec: string, root: string): Promise<string> {
   const path = resolve(root, spec);
   if (isAbsolute(spec) || !isInside(root, path)) {
     throw problem(`${spec} is not a path inside the repository`);
   }
+  const specPath = normalize(relative(root, path));
+  if (specPath.split("/")[0] === ".qa") {
+    throw problem(`${spec} is under .qa/ and cannot be proved`);
+  }
   if (!existsSync(path) || !statSync(path).isFile()) {
     throw problem(`${spec} is not a file`);
   }
-  return normalize(relative(root, path));
+  const ignored = await run("git", ["check-ignore", "-q", "--", specPath], root);
+  if (ignored.code !== 0 && ignored.code !== 1) {
+    throw problem(`git check-ignore failed: ${firstLine(ignored.stderr)}`);
+  }
+  if (ignored.code === 0 && !(process.env[FIXTURES_FLAG] === "1" && GENERATED_FIXTURES.test(specPath))) {
+    throw problem(`${spec} is ignored by git and cannot be proved`);
+  }
+  return specPath;
 }
 
 function checkedLine(line: number): void {
@@ -591,7 +645,7 @@ export async function proveFails(
 ): Promise<ProveFailsResult> {
   checkedLine(line);
   const root = resolve((await git(["rev-parse", "--show-toplevel"], process.cwd())).trim());
-  const specPath = checkedSpec(spec, root);
+  const specPath = await checkedSpec(spec, root);
   const source = readFileSync(join(root, specPath), "utf8");
   mutateAssertion(source, line);
   const worktree = mkdtempSync(join(tmpdir(), TEMP_PREFIX));

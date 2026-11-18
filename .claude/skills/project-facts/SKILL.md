@@ -39,3 +39,5 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   ending with pasted text.
 - Autonomy: `autonomy["<area>"]`, else `autonomy["*"]`, which the reader requires. `propose` means write the change
   into the report and wait; `apply` means do it.
+- Healer paths: `healerPaths` lists the directories the healer may change (page objects, data). Everything else,
+  specs included, is off limits to it.

@@ -12,6 +12,7 @@ const VALID = {
   coverageWeights: { risk: 1, callFrequency: 1, runFrequency: 1, stability: 1, cost: 1 },
   flakyRunSeries: 5,
   autonomy: { "*": "propose" },
+  healerPaths: ["pages/", "dataset/"],
 };
 
 function withRoutes(routes: unknown): unknown {
@@ -24,6 +25,7 @@ test.describe("project facts", () => {
 
     expect(facts.roles["store administrator"]).toBe("acme_store_administrator@acme.com");
     expect(facts.tracker.routes).toEqual(["command", "cli", "api", "mcp", "paste"]);
+    expect(facts.healerPaths).toEqual(["pages/", "dataset/"]);
   });
 
   test("parses a minimal valid file", () => {
@@ -76,6 +78,22 @@ test.describe("project facts", () => {
     expect(() => parseProjectFacts({ ...VALID, autonomy: { checkout: "propose" } })).toThrow(
       'project.json: autonomy["*"] is missing',
     );
+  });
+
+  test("rejects a file without healerPaths", () => {
+    const { healerPaths: _ignored, ...rest } = VALID;
+
+    expect(() => parseProjectFacts(rest)).toThrow("project.json: healerPaths is missing");
+  });
+
+  test("rejects a healer path that is absolute or leaves the repository", () => {
+    for (const path of ["/etc", "../outside/", "pages/../../x", ""]) {
+      expect(() => parseProjectFacts({ ...VALID, healerPaths: [path] }), path).toThrow("project.json: healerPaths[0]");
+    }
+  });
+
+  test("a healer path list may be empty", () => {
+    expect(parseProjectFacts({ ...VALID, healerPaths: [] }).healerPaths).toEqual([]);
   });
 
   test("rejects a missing file with its path", () => {

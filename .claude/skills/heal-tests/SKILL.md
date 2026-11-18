@@ -1,6 +1,6 @@
 ---
 name: heal-tests
-description: "Heal failing or flaky specs: reproduce, classify each failure (test defect, product defect, stand data, flaky), fix only test-side defects within the area's autonomy, at most three rounds, write the heal report and the flaky list, finish with the expectation guard"
+description: "Heal failing or flaky specs: reproduce, classify each failure (test defect, product defect, stand data, flaky), fix only test infrastructure under the healer paths (never a spec) within the area's autonomy, at most three rounds, write the heal report and the flaky list, finish with the expectation guard"
 argument-hint: "<spec-file | test-title | .qa/runs/<contract>/>"
 ---
 
@@ -15,9 +15,11 @@ that can only be made green by changing one is a product defect, and it stays re
 - The target is a spec file, a test title or a run record folder. For a run record, the failing tests are what
   `node qa/reconcile-run.mts <list.json> <report.json>` prints under `failures`. No target: stop and say so.
 - `<slug>` is the target in lower case letters, digits and hyphens. Create `.qa/runs/heal-<slug>/` (git-ignored).
-- Record your own starting point: `git stash create`, or `HEAD` when it prints nothing. Save the printed commit in
-  `.qa/runs/heal-<slug>/baseline.txt`. It changes no file; it is what the guard in step 7 compares against, so that
-  work somebody left uncommitted before you started is not counted as yours.
+- The dispatch carries a baseline: a git tree id that `/qa` or `/qa-heal` recorded with
+  `node qa/expectation-guard.mts --snapshot` before you started (working tree, untracked files included). It is what
+  the guard in step 7 compares against. Without one, stop and say so. Never record or replace a baseline yourself: a
+  new one would hide the changes made before it. Save the id in `.qa/runs/heal-<slug>/baseline.txt` for the report.
+- You may edit only files under `facts.healerPaths`. A spec is never one of them.
 - Find the Playwright project of each test: `npx playwright test --list --reporter=json <spec>` names it per test.
   Run a command only for projects named in `commands.test`.
 
@@ -74,16 +76,17 @@ test-side cause (a missing wait, shared data between tests) and the area's auton
 
 Only a test defect, within the area's autonomy:
 
-- The area is the first key of `autonomy` other than `*` that equals a directory name in the spec's path or a word of
-  its `allure.epic` / `allure.feature`. No such key: `autonomy["*"]`. Two keys match: the more restrictive, `propose`.
+- A key of `autonomy` other than `*` matches when it equals a directory name in the spec's path or a word of its
+  `allure.epic` / `allure.feature`. One match: its value. Two or more matches: `propose`. No match: `autonomy["*"]`.
   An area named in `critical` with no key of its own is `propose`.
 - `apply`: make the fix. `propose`: edit nothing; the report holds the exact change as a diff.
 - A locator is fixed in the page object (selector priority: `framework-rules`, `create-ui-layer` "Locator
-  Conventions"), never inline in the spec. A lagging read is fixed with an `arrange` index-wait or
-  `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`. Never `waitForTimeout`, `networkidle`, a raised retry count,
-  a blanket timeout, a skip, `fixme` or an annotation that hides the failure.
-- Do not touch an `expect` line, a matcher argument, an `assert:` step or an expected value, even to rename a locator
-  inside it. If the fix needs one, the fix is not yours: escalate it.
+  Conventions"). A lagging read is fixed in `arrange` (the dataset's index-wait methods), never with `expect.poll`
+  in a spec. Never `waitForTimeout`, `networkidle`, a raised retry count, a blanket timeout, a skip, `fixme` or an
+  annotation that hides the failure.
+- Never edit a spec, and never touch an `expect` line, a matcher argument, an `assert:` step, a helper's expected
+  value or an `expected…` constant, even to rename a locator inside it. If the fix needs a spec change, it is not
+  yours: write the proposed change as a diff in the report under Escalated and stop on that failure.
 - A product defect: add a `knownIssue` proposal to the report and edit nothing. The entry shows the name for
   `KNOWN_ISSUES`, `summary`, and a `failure` pattern or the test; `issueUrl` is left for a person to fill in.
 
@@ -96,21 +99,23 @@ class to get out of it.
 
 ## Step 7: Guard, Then Report
 
-Run the guard against your own starting point:
+Run the guard against the baseline you were given:
 
 ```shell
-node qa/expectation-guard.mts --base=<commit in .qa/runs/heal-<slug>/baseline.txt>
+node qa/expectation-guard.mts --base=<tree id in .qa/runs/heal-<slug>/baseline.txt>
 ```
 
-Exit 0 means no expectation changed. Exit 1 lists lines that did: undo the edit that caused each one (a finding is
-your mistake, not a style matter), re-run the guard until clean, and say in the report which fix you undid. Exit 2
-means the guard could not run: report it as "not checked", never as clean.
+It compares the working tree, untracked files included, with that tree. Exit 0: every changed file is under
+`facts.healerPaths` and no expectation line changed. Exit 1 lists `outside healer paths: <file>` or an expectation
+line that changed: undo the edit that caused each one (a finding is your mistake, not a style matter), re-run the
+guard until clean, and say in the report which fix you undid. Exit 2 means the guard could not run: report "not
+checked", never clean.
 
 Write `.qa/reports/heal-<slug>.md`:
 
 ```
 # Heal: <target>
-<date> · baseline <commit> · rounds used <n> of 3 · result <passed>/<expected> per project · guard <clean | not checked>
+<date> · baseline <tree> · rounds used <n> of 3 · result <passed>/<expected> per project · guard <clean | not checked>
 
 ## Failures
 ### <test title> (<project>)

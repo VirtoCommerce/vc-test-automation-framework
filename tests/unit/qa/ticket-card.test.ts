@@ -19,6 +19,7 @@ const FACTS = parseProjectFacts({
   coverageWeights: { risk: 1, callFrequency: 1, runFrequency: 1, stability: 1, cost: 1 },
   flakyRunSeries: 5,
   autonomy: { "*": "propose" },
+  healerPaths: ["pages/", "dataset/"],
 });
 
 const CARD = {

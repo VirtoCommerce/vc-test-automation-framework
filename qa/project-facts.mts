@@ -13,6 +13,7 @@ export type ProjectFacts = {
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
   flakyRunSeries: number;
   autonomy: Record<string, "apply" | "propose">;
+  healerPaths: string[];
 };
 
 export const DEFAULT_CLIENT_ROUTES: readonly Route[] = ["paste"];
@@ -165,6 +166,17 @@ function parseAutonomy(value: unknown): ProjectFacts["autonomy"] {
   );
 }
 
+function parseHealerPaths(value: unknown): string[] {
+  return asList(value, "healerPaths").map((item, index) => {
+    const path = `healerPaths[${index}]`;
+    const text = asString(item, path);
+    if (text.startsWith("/") || /^[a-z]:/i.test(text) || text.split(/[\\/]/).includes("..")) {
+      fail(path, "must be a path inside the repository");
+    }
+    return text;
+  });
+}
+
 /**
  * Validates the parsed contents of a project facts file.
  *
@@ -182,6 +194,7 @@ export function parseProjectFacts(json: unknown): ProjectFacts {
     coverageWeights: parseCoverageWeights(present(root, "coverageWeights", "coverageWeights")),
     flakyRunSeries: parseFlakyRunSeries(present(root, "flakyRunSeries", "flakyRunSeries")),
     autonomy: parseAutonomy(present(root, "autonomy", "autonomy")),
+    healerPaths: parseHealerPaths(present(root, "healerPaths", "healerPaths")),
   };
 }
 

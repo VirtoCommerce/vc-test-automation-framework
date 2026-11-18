@@ -77,10 +77,12 @@ No other role is judged in a flow.
 
 ### Heal
 
-Before dispatching `qa-healer`, record a baseline: `git stash create`, and `HEAD` when it prints nothing. Dispatch
-the healer with the failing spec files or the run record path. When it is done, run
-`node qa/expectation-guard.mts --base=<baseline commit>` so only the healer's changes are judged. Exit 1 means the healer's diff changed an expectation: stop, show the finding to
-the person, and do not go on to the reviewer. A product defect the healer reports is shown to the person, not
+Before dispatching `qa-healer`, record a baseline: `node qa/expectation-guard.mts --snapshot` prints a git tree id of
+the working tree, untracked files included. Dispatch the healer with the failing spec files or the run record path
+and that baseline id. When it is done, run `node qa/expectation-guard.mts --base=<baseline tree id>` so only the
+healer's changes are judged. Exit 1 means it changed a file outside the healer paths or an expectation: stop, show
+the findings to the person, and do not go on to the reviewer. Exit 2 means the guard could not run: report "not
+checked", do not go on to the reviewer, and never say clean. A product defect the healer reports is shown to the person, not
 patched.
 
 ### Review

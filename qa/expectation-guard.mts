@@ -1,5 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { basename } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+
+import { readProjectFacts } from "./project-facts.mts";
 
 export type ChangedExpectation = { file: string; line: string };
 
@@ -7,22 +11,26 @@ type Hunk = { old: number; added: number };
 
 const CLI_FILE_NAME = "expectation-guard.mts";
 const BASE_FLAG = "--base=";
+const SNAPSHOT_FLAG = "--snapshot";
 const DEFAULT_BASE = "HEAD";
-const USAGE = "expectation-guard: usage is node qa/expectation-guard.mts [--base=<commit-ish>]";
+const USAGE = "expectation-guard: usage is node qa/expectation-guard.mts [--base=<tree-ish> | --snapshot]";
 const FINDING_EXIT_CODE = 1;
 const ERROR_EXIT_CODE = 2;
-const CONTEXT_LINES = 20;
+const WHOLE_FILE_CONTEXT = 100_000;
 const MAX_BUFFER = 256 * 1024 * 1024;
 const NO_FILE = "/dev/null";
-const SPEC_FILE = /\.(?:spec|test)\.[cm]?ts$/;
+const TEMP_PREFIX = "expectation-guard-index-";
+const OUTSIDE_PREFIX = "outside healer paths: ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
 const PATH_SUFFIX = /\t.*$/;
+const TRAILING_SLASHES = /\/+$/;
 const STRING_LITERAL = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
 const OPENERS = new Set(["(", "[", "{"]);
 const CLOSERS = new Set([")", "]", "}"]);
 const EXPECTATION = [
-  /\bexpect\s*(?:\.\s*\w+\s*)?\(/,
+  /\bexpect\w*\s*[.(]/,
+  /\.(?:expect|verify|assert)\w*\s*\(/,
   /\.\s*to(?:Be|Equal|StrictEqual|Have|Match|Contain|Throw|Satisfy)\w*\s*\(/,
   /\bassert\s*:/,
   /\bassert\s*(?:\.\s*\w+\s*)?\(/,
@@ -59,9 +67,10 @@ function withoutCarriageReturn(text: string): string {
 }
 
 /**
- * Finds every removed or changed line in a spec that holds an expectation: an `expect(` call, a `toBe…`, `toEqual`,
- * `toHave…` style matcher, an `assert:` step, or an `expected…` value; a line inside a multi-line expectation counts
- * too. Added lines are never findings, and neither is any file that is not a spec.
+ * Finds every removed or changed line, in any file, that holds an expectation: an `expect…` call or helper, a
+ * `.expect…`, `.verify…` or `.assert…` method call, a `toBe…`, `toEqual`, `toHave…` style matcher, an `assert:` step,
+ * or an `expected…` value; a line inside a multi-line expectation counts too. Added lines are never findings. Give
+ * it a diff with the whole file as context (`--unified=100000`) so the start of a long expectation is seen.
  */
 export function findChangedExpectations(diff: string): ChangedExpectation[] {
   const findings: ChangedExpectation[] = [];
@@ -76,11 +85,10 @@ export function findChangedExpectations(diff: string): ChangedExpectation[] {
         continue;
       }
       const text = raw.slice(1);
-      const removed = marker === "-";
       if (marker !== "+") {
         hunk = { old: hunk.old - 1, added: marker === " " || raw === "" ? hunk.added - 1 : hunk.added };
         const starts = holdsExpectation(text);
-        if (removed && SPEC_FILE.test(file) && (starts || depth > 0)) {
+        if (marker === "-" && (starts || depth > 0)) {
           findings.push({ file, line: withoutCarriageReturn(text) });
         }
         depth = starts || depth > 0 ? Math.max(0, depth + bracketBalance(text)) : 0;
@@ -102,61 +110,145 @@ export function findChangedExpectations(diff: string): ChangedExpectation[] {
   return findings;
 }
 
-function parseBase(args: readonly string[]): string {
-  let base = DEFAULT_BASE;
-  for (const arg of args) {
-    if (!arg.startsWith(BASE_FLAG)) {
-      throw new Error(USAGE);
-    }
-    base = arg.slice(BASE_FLAG.length);
-    if (base === "" || base.startsWith("-")) {
-      throw new Error(`expectation-guard: ${arg} is not a commit-ish`);
-    }
-  }
-  return base;
+/**
+ * Returns the files that are not under one of the healer paths: a path is a directory prefix, with or without its
+ * trailing slash, and `pages` does not allow `pages-extra/`. A file that is not allowed is a finding whatever it holds.
+ */
+export function findOutsideHealerPaths(files: readonly string[], healerPaths: readonly string[]): string[] {
+  const allowed = healerPaths.map((path) => path.replace(TRAILING_SLASHES, ""));
+  return files.filter((file) => !allowed.some((path) => file === path || file.startsWith(`${path}/`)));
 }
 
-function runGit(args: readonly string[]): string {
+type Mode = { kind: "snapshot" } | { kind: "compare"; base: string };
+
+function parseMode(args: readonly string[]): Mode {
+  let base: string | undefined;
+  let snapshot = false;
+  for (const arg of args) {
+    if (arg === SNAPSHOT_FLAG) {
+      snapshot = true;
+    } else if (arg.startsWith(BASE_FLAG)) {
+      base = arg.slice(BASE_FLAG.length);
+      if (base === "" || base.startsWith("-")) {
+        throw new Error(`expectation-guard: ${arg} is not a tree-ish`);
+      }
+    } else {
+      throw new Error(USAGE);
+    }
+  }
+  if (snapshot) {
+    if (base !== undefined) {
+      throw new Error(USAGE);
+    }
+    return { kind: "snapshot" };
+  }
+  return { kind: "compare", base: base ?? DEFAULT_BASE };
+}
+
+function runGit(args: readonly string[], index?: string): string {
   return execFileSync(
     "git",
-    ["-c", "core.quotepath=off", "-c", "diff.noprefix=false", "-c", "diff.mnemonicPrefix=false", ...args],
+    [
+      "-c",
+      "core.quotepath=off",
+      "-c",
+      "core.safecrlf=false",
+      "-c",
+      "diff.noprefix=false",
+      "-c",
+      "diff.mnemonicPrefix=false",
+      ...args,
+    ],
     {
       encoding: "utf8",
       maxBuffer: MAX_BUFFER,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...(index === undefined ? {} : { GIT_INDEX_FILE: index }) },
       stdio: ["ignore", "pipe", "ignore"],
     },
   );
 }
 
-function resolveBase(base: string): string {
+/**
+ * Writes the working tree, untracked files included and ignored files left out, as a git tree object through a
+ * throw-away index. The repository's own index, branch and files are not touched.
+ */
+function snapshotTree(): string {
+  const directory = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
   try {
-    return runGit(["rev-parse", "--verify", "--quiet", `${base}^{commit}`]).trim();
+    const index = join(directory, "index");
+    runGit(["add", "-A", "--", ":/"], index);
+    return runGit(["write-tree"], index).trim();
   } catch {
-    throw new Error(`expectation-guard: ${base} is not a commit in this repository`);
+    throw new Error("expectation-guard: the working tree could not be snapshotted");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 }
 
-function diffAgainst(commit: string): string {
+function resolveTree(base: string): string {
   try {
-    return runGit(["diff", `--unified=${CONTEXT_LINES}`, "--no-color", "--no-ext-diff", "--no-textconv", commit, "--"]);
+    return runGit(["rev-parse", "--verify", "--quiet", `${base}^{tree}`]).trim();
+  } catch {
+    throw new Error(`expectation-guard: ${base} is not a tree or commit in this repository`);
+  }
+}
+
+function changedFiles(base: string, current: string): string[] {
+  try {
+    return runGit(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", base, current, "--"])
+      .split("\0")
+      .filter((file) => file !== "");
   } catch {
     throw new Error("expectation-guard: git diff failed");
   }
 }
 
+function diffTrees(base: string, current: string): string {
+  try {
+    return runGit([
+      "diff",
+      `--unified=${WHOLE_FILE_CONTEXT}`,
+      "--no-renames",
+      "--no-color",
+      "--no-ext-diff",
+      "--no-textconv",
+      base,
+      current,
+      "--",
+    ]);
+  } catch {
+    throw new Error("expectation-guard: git diff failed");
+  }
+}
+
+function guard(base: string): string[] {
+  const healerPaths = readProjectFacts().healerPaths;
+  const baseTree = resolveTree(base);
+  const currentTree = snapshotTree();
+  const outside = findOutsideHealerPaths(changedFiles(baseTree, currentTree), healerPaths).map(
+    (file) => `${OUTSIDE_PREFIX}${file}`,
+  );
+  const expectations = findChangedExpectations(diffTrees(baseTree, currentTree)).map(
+    (finding) => `${finding.file}: ${finding.line.trim()}`,
+  );
+  return [...outside, ...expectations];
+}
+
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
-    const base = parseBase(process.argv.slice(2));
-    const findings = findChangedExpectations(diffAgainst(resolveBase(base)));
-    if (findings.length === 0) {
-      process.stdout.write("expectation-guard: ok\n");
+    const mode = parseMode(process.argv.slice(2));
+    if (mode.kind === "snapshot") {
+      process.stdout.write(`${snapshotTree()}\n`);
     } else {
-      const lines = findings.map((finding) => `${finding.file}: ${finding.line.trim()}`);
-      process.stdout.write(
-        `expectation-guard: ${findings.length} changed expectation(s) since ${base}\n${lines.join("\n")}\n`,
-      );
-      process.exitCode = FINDING_EXIT_CODE;
+      const findings = guard(mode.base);
+      if (findings.length === 0) {
+        process.stdout.write("expectation-guard: ok\n");
+      } else {
+        process.stdout.write(
+          `expectation-guard: ${findings.length} finding(s) since ${mode.base}\n${findings.join("\n")}\n`,
+        );
+        process.exitCode = FINDING_EXIT_CODE;
+      }
     }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

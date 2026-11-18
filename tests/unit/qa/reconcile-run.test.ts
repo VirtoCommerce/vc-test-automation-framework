@@ -1,3 +1,5 @@
+import type { RunVerdict } from "../../../qa/reconcile-run.mts";
+
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -39,6 +41,29 @@ function only(
 ): unknown {
   const root = source as { suites: Node[] };
   return { ...root, suites: root.suites.map((suite) => keep(suite, titles, dropFrom)) };
+}
+
+type Entry = Record<string, unknown> & { projectName: string };
+
+function reshape(source: unknown, title: string, change: (entries: Entry[]) => Entry[]): unknown {
+  function visit(node: Node): Node {
+    return {
+      ...node,
+      specs: (node.specs ?? []).map((spec) =>
+        spec.title === title ? { ...spec, tests: change(spec.tests as Entry[]) } : spec,
+      ),
+      suites: (node.suites ?? []).map(visit),
+    };
+  }
+  const root = source as { suites: Node[] };
+  return { ...root, suites: root.suites.map(visit) };
+}
+
+function repeated(statuses: readonly string[]): (entries: Entry[]) => Entry[] {
+  return (entries) => {
+    const [base] = entries;
+    return base?.projectName === "alpha" ? statuses.map((status) => ({ ...base, status })) : entries;
+  };
 }
 
 function run(titles: readonly string[], dropFromReport?: (title: string) => string | undefined) {
@@ -130,6 +155,121 @@ test.describe("run reconciliation", () => {
     expect(verdict.passed + verdict.explainedSkips + verdict.failures.length).toBe(verdict.expected);
     expect(verdict.passed).toBe(6);
     expect(verdict.explainedSkips).toBe(4);
+  });
+
+  test.describe("a run that cannot be trusted", () => {
+    const NO_TESTS = { suites: [], errors: [] };
+
+    test("an empty list fails", () => {
+      expect(() => reconcileRun(NO_TESTS, NO_TESTS)).toThrow("reconcile: the list contains no tests");
+      expect(() => reconcileRun(only(LISTED, ["no such test"]), REPORT)).toThrow(
+        "reconcile: the list contains no tests",
+      );
+    });
+
+    test("errors in the list fail, even with no suites", () => {
+      const broken = { suites: [], errors: [{ message: "import failed" }] };
+
+      expect(() => reconcileRun(broken, NO_TESTS)).toThrow("reconcile: the list has errors: import failed");
+      expect(() => reconcileRun({ ...(LISTED as object), errors: [{ message: "import failed" }] }, REPORT)).toThrow(
+        "reconcile: the list has errors: import failed",
+      );
+    });
+
+    test("a global error in the report fails next to passing tests", () => {
+      const titles = ["passes"];
+      const report = { ...(only(REPORT, titles) as object), errors: [{ message: "global setup failed" }] };
+
+      expect(() => reconcileRun(only(LISTED, titles), report)).toThrow(
+        "reconcile: the report has errors: global setup failed",
+      );
+    });
+
+    test("an errors field that is not a list is rejected", () => {
+      expect(() => reconcileRun(LISTED, { ...(REPORT as object), errors: "boom" })).toThrow(
+        "reconcile: the report is not Playwright JSON",
+      );
+    });
+
+    test("a test repeated in the run keeps its worst outcome", () => {
+      const listed = reshape(only(LISTED, ["passes"]), "passes", repeated(["skipped", "skipped"]));
+      for (const statuses of [
+        ["unexpected", "expected"],
+        ["expected", "unexpected"],
+      ]) {
+        const report = reshape(only(REPORT, ["passes"]), "passes", repeated(statuses));
+
+        const verdict = reconcileRun(listed, report);
+
+        expect(verdict.passed).toBe(2);
+        expect(verdict.failures.map(({ project, why }) => [project, why])).toEqual([["alpha", "failed"]]);
+      }
+    });
+
+    test("a repeated test with fewer entries in the report than in the list fails", () => {
+      const listed = reshape(only(LISTED, ["passes"]), "passes", repeated(["skipped", "skipped"]));
+      const report = reshape(only(REPORT, ["passes"]), "passes", repeated(["expected"]));
+
+      const verdict = reconcileRun(listed, report);
+
+      expect(verdict.passed).toBe(2);
+      expect(verdict.failures.map(({ project, why }) => [project, why])).toEqual([
+        ["alpha", "missing from the report"],
+      ]);
+    });
+
+    test("a failing repetition the list did not expect is not hidden", () => {
+      const listed = reshape(only(LISTED, ["passes"]), "passes", repeated(["skipped"]));
+      const report = reshape(only(REPORT, ["passes"]), "passes", repeated(["expected", "unexpected"]));
+
+      expect(reconcileRun(listed, report).failures.map(({ why }) => why)).toEqual(["failed"]);
+    });
+
+    test("an expected failure needs a known issue or a fail annotation with a reason", () => {
+      function withAnnotations(annotations: unknown[]): RunVerdict {
+        const report = reshape(only(REPORT, ["expected failure"]), "expected failure", (entries) =>
+          entries.map((entry) => ({ ...entry, annotations })),
+        );
+        return reconcileRun(only(LISTED, ["expected failure"]), report);
+      }
+      const unexplained = [
+        {
+          test: "sample.test.ts › group › expected failure",
+          project: "alpha",
+          why: "expected failure without a reason",
+        },
+        {
+          test: "sample.test.ts › group › expected failure",
+          project: "beta",
+          why: "expected failure without a reason",
+        },
+      ];
+
+      expect(withAnnotations([]).failures).toEqual(unexplained);
+      expect(withAnnotations([{ type: "fail" }]).failures).toEqual(unexplained);
+      expect(withAnnotations([{ type: "fail", description: " " }]).failures).toEqual(unexplained);
+      expect(withAnnotations([{ type: "fail", description: "TKT-1: bug" }]).failures).toEqual([]);
+      expect(withAnnotations([{ type: "known issue", description: "TKT-1: bug" }]).failures).toEqual([]);
+    });
+
+    test("the command line exits 1 for an empty list and for load errors", () => {
+      const folder = mkdtempSync(join(tmpdir(), "reconcile-"));
+      try {
+        const emptyFile = join(folder, "empty.json");
+        const brokenFile = join(folder, "broken.json");
+        writeFileSync(emptyFile, JSON.stringify({ suites: [], errors: [] }));
+        writeFileSync(brokenFile, JSON.stringify({ suites: [], errors: [{ message: "import failed" }] }));
+        const spawn = (listFile: string) =>
+          spawnSync(process.execPath, ["qa/reconcile-run.mts", listFile, REPORT_FILE], { encoding: "utf8" });
+
+        expect(spawn(emptyFile).status).toBe(1);
+        expect(spawn(emptyFile).stderr).toContain("reconcile: the list contains no tests");
+        expect(spawn(brokenFile).status).toBe(1);
+        expect(spawn(brokenFile).stderr).toContain("reconcile: the list has errors: import failed");
+      } finally {
+        rmSync(folder, { recursive: true, force: true });
+      }
+    });
   });
 
   test("input that is not Playwright JSON is rejected", () => {

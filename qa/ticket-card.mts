@@ -60,14 +60,18 @@ function asText(value: unknown, path: string): string {
   return value;
 }
 
+function checkSafeKey(key: string): void {
+  if (!SAFE_FILE_NAME.test(key) || key.includes("..")) {
+    fail("key", "is not a safe file name");
+  }
+}
+
 function parseKey(value: unknown, facts: ProjectFacts): string {
   const key = asString(value, "key");
   if (!new RegExp(facts.tracker.keyPattern).test(key)) {
     fail("key", "does not match tracker.keyPattern");
   }
-  if (!SAFE_FILE_NAME.test(key) || key.includes("..")) {
-    fail("key", "is not a safe file name");
-  }
+  checkSafeKey(key);
   return key;
 }
 
@@ -149,8 +153,10 @@ export function parseTicketCard(json: unknown, facts: ProjectFacts): TicketCard 
  * the same ticket.
  *
  * @returns the path written.
+ * @throws Error `"ticket card: key is not a safe file name"` before anything is written.
  */
 export function writeTicketCard(card: TicketCard, dir: string): string {
+  checkSafeKey(card.key);
   const folder = join(dir, "tickets");
   mkdirSync(folder, { recursive: true });
   const path = join(folder, `${card.key}.json`);

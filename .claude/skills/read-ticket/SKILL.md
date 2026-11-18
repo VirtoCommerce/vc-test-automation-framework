@@ -22,8 +22,8 @@ Where each kind keeps its fields, and the call per route, are in `providers.md`.
 
 - `command`: the framework's tracker command, when one exists.
 - `cli`: the provider's command line tool, its output piped through the redactor when one exists.
-- `api`: the provider's REST read call; the token comes from the secret reference the project names, never from a file
-  in the repository and never typed into the command.
+- `api`: the provider's REST read call, its response passed through the redactor when one exists; the token comes from
+  the secret reference the project names, never from a file in the repository and never typed into the command.
 - `mcp`: the provider's MCP read tools. Its text reaches the model unmasked, so use this route only when it is in
   `tracker.routes`; never add it yourself.
 - `paste`: ask the person to paste the ticket text or name a file. The person chooses what to paste.
@@ -31,7 +31,8 @@ Where each kind keeps its fields, and the call per route, are in `providers.md`.
 A route that is absent (tool not installed), unauthorised (401, 403), not connected or returns nothing is not an
 error: note it in one line and go to the next route. When `paste` is the last route and the person gives nothing,
 stop and say no route answered. A route that is not in `tracker.routes` is never used, even if it would work. An
-unknown `tracker.kind` has only `paste`.
+unknown `tracker.kind` has only `paste`: when `paste` is not in `tracker.routes`, stop and report that no route can
+read this tracker; write no card.
 
 ## Step 3: Fill the Card
 

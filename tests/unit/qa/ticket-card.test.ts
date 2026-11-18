@@ -1,4 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import type { TicketCard } from "../../../qa/ticket-card.mts";
+
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -87,7 +89,17 @@ test.describe("ticket card", () => {
 
   test("refuses to write a key that would leave the directory", () => {
     const loose = { ...FACTS, tracker: { ...FACTS.tracker, keyPattern: ".*" } };
+    const dir = mkdtempSync(join(tmpdir(), "ticket-card-"));
+    const handBuilt: TicketCard = { ...parseTicketCard(CARD, FACTS), key: "../x" };
 
-    expect(() => parseTicketCard({ ...CARD, key: "../x" }, loose)).toThrow("ticket card: key is not a safe file name");
+    try {
+      expect(() => parseTicketCard({ ...CARD, key: "../x" }, loose)).toThrow(
+        "ticket card: key is not a safe file name",
+      );
+      expect(() => writeTicketCard(handBuilt, dir)).toThrow("ticket card: key is not a safe file name");
+      expect(existsSync(join(dir, "tickets"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

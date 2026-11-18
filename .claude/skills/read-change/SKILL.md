@@ -14,8 +14,8 @@ pull request. Read `framework-rules` first, then `project-facts`.
 - Run the `project-facts` reader. If it fails, stop and report its line.
 - The id is the pull request number, with the repository when the project has more than one. Ask for it when the
   request does not give it.
-- The routes to try are `tracker.routes` of the facts, in that order, unless the facts name a separate list for the
-  code host; then use that list. A route not listed is never used.
+- The routes to try are `tracker.routes` of the facts, in that order. The facts have no separate route list for the
+  code host yet, so `tracker.routes` is used for it until one exists. A route not listed is never used.
 
 ## Step 2: Try the Routes in Order
 
@@ -54,8 +54,9 @@ order, copied from the host and never invented:
 - <path> (<added | modified | deleted | renamed>)
 ```
 
-A required field that no route returned is a reason to write no record: report which field is missing. The record and
-the diff never contain secrets: leave out tokens or credentials the diff adds, and say so in the report.
+A required field that no route returned is a reason to write no record: report which field is missing. The record
+never contains secrets. When the diff contains one (a token, password or key), do not edit the diff file: delete the
+saved `.diff` and the record, stop, and report that the change holds a secret, without quoting it.
 
 ## Step 4: Report
 

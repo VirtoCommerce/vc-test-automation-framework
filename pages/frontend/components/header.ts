@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Locator } from "@playwright/test";
 
 import { attributeSelector } from "../../selectors";
 
@@ -82,9 +82,10 @@ export class OrganizationsMenu {
   readonly #searchInput: Locator;
   readonly #searchButton: Locator;
 
-  constructor(page: Page) {
-    this.button = page.getByTestId("organizations-button");
-    this.root = page.locator("[role='dialog']").filter({ has: page.getByTestId("organizations-list") });
+  /** @param root - Main layout: holds both the organizations button and the menu it opens. */
+  constructor(root: Locator) {
+    this.button = root.getByTestId("organizations-button");
+    this.root = root.locator("[role='dialog']").filter({ has: root.page().getByTestId("organizations-list") });
     this.organizationsEmptyList = this.root.getByTestId("organizations-empty-list");
     this.organizationOptions = this.root.locator("[data-vc-organization-option] [role='option']");
     this.#searchInput = this.root.getByTestId("organizations-search").locator("input");

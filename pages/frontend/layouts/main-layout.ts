@@ -23,7 +23,7 @@ export abstract class MainLayout {
     this.page = page;
     this.root = page.locator(".main-layout");
     this.topHeader = new TopHeader(page.getByTestId("top-header"));
-    this.organizationsMenu = new OrganizationsMenu(page);
+    this.organizationsMenu = new OrganizationsMenu(this.root);
     this.cartQuantityLabel = badgeContent(page.getByTestId("desktop-main-menu-cart-link"));
   }
 

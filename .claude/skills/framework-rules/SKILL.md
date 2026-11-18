@@ -35,7 +35,9 @@ repository's default style. When two framework rules seem to conflict, stop and 
 
 - Report metadata: `allure.epic` and `allure.feature` in `test.beforeEach`; `allure.story` and `allure.description`
   in each test. One `test.describe("<topic> (<who>)")` per identity, named by role, for example `(anonymous)` or
-  `(store administrator)`.
+  `(store administrator)`. The `"<topic> (<who>)"` describe format and the `arrange:` / `act:` / `assert:` step
+  wording below are structural formats that belong to the framework, so they are not the "naming and wording" style
+  that the repository decides.
 - Every phase is a `test.step`: `"arrange: …"`, `"act: …"` or `"assert: …"`.
 - No conditional logic, no `as` casts and no helper functions in specs. Repeated cases are one table-driven test whose
   rows may hold small lambdas.
@@ -44,8 +46,8 @@ repository's default style. When two framework rules seem to conflict, stop and 
 
 ## Layers and Imports
 
-- Each folder imports only the folders before it in the order the repository declares (`biome/layers.json` in this
-  framework). The linter enforces it; do not work around it.
+- Each folder imports only the folders before it in the order the repository's layer configuration declares.
+  The linter enforces it; do not work around it.
 - Tests import Playwright only through `@fixtures`, except unit tests.
 - Generated code is never edited by hand; regenerate it.
 
@@ -54,7 +56,7 @@ repository's default style. When two framework rules seem to conflict, stop and 
 - Read seeded data from the dataset; a spec may name a dataset id as a constant. Create what the test changes with
   `arrange`.
 - A test that changes the acting customer's own state (cart, lists, addresses, locks) creates its own customer.
-- Administration tests run as the role the project facts name for the store administrator. A test that locks, deletes
+- REST administration tests run as the role the project facts name for the store administrator. A test that locks, deletes
   or changes the password of the acting user creates its own with `arrange.security.platformUser()`.
 - Find records by search criteria, never by "is listed in the first N" windows.
 - Register cleanup before the change. Builders give drafts a client-side `id` the platform keeps, so the undo can be
@@ -110,4 +112,5 @@ repository's default style. When two framework rules seem to conflict, stop and 
 - Our describe identities: `(anonymous)`, `(store administrator)`, `(customer of their own)`.
 - Our index-wait methods in `arrange`: `searchableMemberships`, `pickupLocations`, `cartPickupLocations`,
   `productPickupLocations`, `lockMemberships`.
+- Place by module: users and accounts are `security`, not `customer`.
 - Our layer order is in `biome/layers.json`; the table is in `CLAUDE.md` "Layers".

@@ -33,6 +33,8 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
 - Commands: `commands.typecheck`, `commands.lint` and `commands.test["<project>"]`. Run these exactly; do not rebuild
   them from `package.json`.
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.
+- Knowledge snapshot: `knowledgeDir` is the directory where the knowledge snapshot lives; read it before calling a live
+  service.
 - Tracker: `tracker.keyPattern` validates a ticket key; `tracker.routes` is the order in which to try to read a ticket,
   ending with pasted text.
 - Autonomy: `autonomy["<action>"]`, else `autonomy["*"]`. `propose` means write the change into the report and wait;

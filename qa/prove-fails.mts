@@ -11,52 +11,51 @@ import {
   statSync,
   symlinkSync,
   unlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-export type ProveFailsResult = { failed: boolean; output: string };
+import { parse } from "@babel/parser";
 
-type TestRef = { project: string; title: string; line: number };
+export type ProveFailsResult = { failed: boolean; output: string; mutated: string };
 
-type Outcome = { status: string; messages: string[] };
+type TestRef = { project: string; title: string; line: number; expectedStatus: string };
+
+type Outcome = { status: string; expectedStatus: string; messages: string[] };
+
+type AstNode = Record<string, unknown> & { type: string; start: number; end: number };
+
+type Edit = { start: number; end: number; text: string };
 
 const CLI_FILE_NAME = "prove-fails.mts";
-const JUDGE_DIR = ".qa/judge";
 const TEMP_PREFIX = "prove-fails-";
 const PLAYWRIGHT_CLI = ["node_modules", "@playwright", "test", "cli.js"];
-const RUN_TIMEOUT_MS = 600_000;
+const RUN_TIMEOUT_MS = 300_000;
 const MAX_BUFFER = 64 * 1024 * 1024;
 const MAX_OUTPUT = 3000;
 const MAX_PROBLEM = 300;
 const PROJECT_FLAG = /^--project=([\w.-]+)$/;
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
-const NUMSTAT_ROW = /^(?:\d+|-)\t(?:\d+|-)\t(.*)$/;
 const ENV_FILE = /^\.env(\..+)?$/;
 const ENV_EXAMPLE = ".env.example";
-const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/;
-const GIT_HEADER_LINE = /^index [0-9a-f]+\.\.[0-9a-f]+/;
-const APPLY_FLAGS = ["--recount", "--unidiff-zero"];
-const LITERAL_MASK = "0";
-const LITERAL = new RegExp(
-  [
-    String.raw`"(?:[^"\\\n]|\\.)*"`,
-    String.raw`'(?:[^'\\\n]|\\.)*'`,
-    String.raw`(?<![\w$)\]])\x60(?:[^\x60\\$]|\\.|\$(?!\{))*\x60`,
-    String.raw`\b(?:0[xX][0-9a-fA-F_]+|\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?)n?\b`,
-  ].join("|"),
-  "g",
-);
-const UNSAFE_LINE = new RegExp(
-  [
-    String.raw`\b(?:import|require|eval|Function|process|globalThis|child_process|getBuiltinModule|fetch|fork|symlink\w*|chmod\w*)\b`,
-    String.raw`\b(?:exec|spawn|write|unlink|rm|rename|copy|append|mkdir)\w*`,
-    String.raw`\bfrom\s*["'\x60]`,
-    String.raw`\.(?:post|put|patch|delete)\s*\(`,
-  ].join("|"),
-);
-const ASSERTION_LINE = /\bexpect\b|\.to[A-Z]\w*\s*\(/;
+const MUTATION_SUFFIX = "__mutated__";
+const MATCHER_PREFIX = "to";
+const MATCHER_CHAIN = ["not", "resolves", "rejects"];
+const EXPECT_VARIANTS = ["soft", "poll"];
+const TEST_FUNCTIONS = ["ArrowFunctionExpression", "FunctionExpression"];
+const SKIPPED_KEYS = new Set([
+  "loc",
+  "extra",
+  "leadingComments",
+  "trailingComments",
+  "innerComments",
+  "comments",
+  "tokens",
+]);
+const FIXTURES_FLAG = "PROVE_FAILS_FIXTURES";
+const INHERITED_PLAYWRIGHT = /^(PW_|TEST_WORKER_INDEX$|TEST_PARALLEL_INDEX$|FORCE_COLOR$)/;
 
 function problem(text: string): Error {
   return new Error(`prove-fails: ${text}`);
@@ -64,6 +63,15 @@ function problem(text: string): Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNode(value: unknown): value is AstNode {
+  return (
+    isRecord(value) &&
+    typeof value["type"] === "string" &&
+    typeof value["start"] === "number" &&
+    typeof value["end"] === "number"
+  );
 }
 
 function firstLine(text: string): string {
@@ -94,7 +102,7 @@ function run(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ stdout: string; stderr: string; failed: boolean }> {
   return new Promise((done) => {
-    execFile(
+    const child = execFile(
       file,
       [...args],
       { cwd, env, timeout: RUN_TIMEOUT_MS, maxBuffer: MAX_BUFFER, encoding: "utf8", windowsHide: true },
@@ -102,6 +110,7 @@ function run(
         done({ stdout, stderr, failed: error !== null });
       },
     );
+    child.stdin?.end();
   });
 }
 
@@ -113,126 +122,168 @@ async function git(args: readonly string[], cwd: string): Promise<string> {
   return result.stdout;
 }
 
-function maskLiterals(line: string): string {
-  return line.replace(LITERAL, LITERAL_MASK);
+function childrenOf(node: AstNode): AstNode[] {
+  const children: AstNode[] = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (!SKIPPED_KEYS.has(key)) {
+      children.push(...(Array.isArray(value) ? value : [value]).filter(isNode));
+    }
+  }
+  return children;
 }
 
-function isLiteralReplacement(from: string, to: string): boolean {
-  const masked = maskLiterals(from);
-  if (masked !== maskLiterals(to) || UNSAFE_LINE.test(masked)) {
+function collect(node: AstNode, wanted: (node: AstNode) => boolean, found: AstNode[] = []): AstNode[] {
+  if (wanted(node)) {
+    found.push(node);
+  }
+  for (const child of childrenOf(node)) {
+    collect(child, wanted, found);
+  }
+  return found;
+}
+
+function lineOf(node: unknown, which: "start" | "end" = "start"): number {
+  const loc = isRecord(node) ? node["loc"] : undefined;
+  const position = isRecord(loc) ? loc[which] : undefined;
+  const line = isRecord(position) ? position["line"] : undefined;
+  return typeof line === "number" ? line : 0;
+}
+
+function nameOf(node: unknown): string | undefined {
+  return isNode(node) && node.type === "Identifier" && typeof node["name"] === "string" ? node["name"] : undefined;
+}
+
+function isMember(node: unknown): node is AstNode {
+  return isNode(node) && node.type === "MemberExpression" && node["computed"] !== true;
+}
+
+function isExpectCall(node: unknown): boolean {
+  if (!isNode(node) || node.type !== "CallExpression") {
     return false;
   }
-  return !masked.includes("(") || ASSERTION_LINE.test(masked);
+  const callee = node["callee"];
+  if (nameOf(callee) === "expect") {
+    return true;
+  }
+  return (
+    isMember(callee) &&
+    nameOf(callee["object"]) === "expect" &&
+    EXPECT_VARIANTS.includes(nameOf(callee["property"]) ?? "")
+  );
 }
 
-function replaceOnly(why: string): Error {
-  return problem(`the patch may only replace one string or number literal with another, line for line (${why})`);
+function isMatcherCall(node: AstNode): boolean {
+  if (node.type !== "CallExpression") {
+    return false;
+  }
+  const callee = node["callee"];
+  if (!isMember(callee) || !(nameOf(callee["property"]) ?? "").startsWith(MATCHER_PREFIX)) {
+    return false;
+  }
+  let current: unknown = callee["object"];
+  while (isMember(current) && MATCHER_CHAIN.includes(nameOf(current["property"]) ?? "")) {
+    current = current["object"];
+  }
+  return isExpectCall(current);
 }
 
-function checkHeader(lines: readonly string[], spec: string): number {
-  const allowed = [`diff --git a/${spec} b/${spec}`, `--- a/${spec}`, `+++ b/${spec}`];
-  let index = 0;
-  const seen = new Set<string>();
-  while (index < lines.length && !(lines[index] ?? "").startsWith("@@")) {
-    const line = lines[index] ?? "";
-    if (allowed.includes(line)) {
-      seen.add(line);
-    } else if (!GIT_HEADER_LINE.test(line)) {
-      throw problem(`the patch may touch only ${spec}`);
+function jsonString(text: string): string {
+  return JSON.stringify(text).replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
+}
+
+function plainTemplateText(argument: AstNode): string | undefined {
+  const quasis = argument["quasis"];
+  const first = Array.isArray(quasis) ? quasis[0] : undefined;
+  const cooked = isRecord(first) && isRecord(first["value"]) ? first["value"]["cooked"] : undefined;
+  const expressions = argument["expressions"];
+  return Array.isArray(expressions) && expressions.length === 0 && typeof cooked === "string" ? cooked : undefined;
+}
+
+function mutationOf(argument: AstNode): string | undefined {
+  const value = argument["value"];
+  if (argument.type === "NumericLiteral" && typeof value === "number") {
+    return Number.isFinite(value) && value + 1 !== value ? String(value + 1) : undefined;
+  }
+  if (argument.type === "StringLiteral" && typeof value === "string") {
+    return jsonString(`${value}${MUTATION_SUFFIX}`);
+  }
+  const text = argument.type === "TemplateLiteral" ? plainTemplateText(argument) : undefined;
+  return text === undefined ? undefined : jsonString(`${text}${MUTATION_SUFFIX}`);
+}
+
+function parseSource(source: string): AstNode {
+  try {
+    const file: unknown = parse(source, { sourceType: "module", plugins: ["typescript"] });
+    if (isRecord(file) && isNode(file["program"])) {
+      return file["program"];
     }
-    index += 1;
+  } catch (error) {
+    throw problem(`the spec cannot be parsed: ${firstLine(error instanceof Error ? error.message : String(error))}`);
   }
-  if (!seen.has(allowed[1] ?? "") || !seen.has(allowed[2] ?? "")) {
-    throw problem(`the patch may touch only ${spec}`);
-  }
-  return index;
+  throw problem("the spec cannot be parsed");
 }
 
-function checkHunks(lines: readonly string[], start: number): void {
-  let removed: string[] = [];
-  let added: string[] = [];
-  const flush = (): void => {
-    if (removed.length + added.length > 0) {
-      const [from] = removed;
-      const [to] = added;
-      if (removed.length !== 1 || added.length !== 1 || from === undefined || to === undefined) {
-        throw replaceOnly("a hunk adds or removes lines");
+function rootName(callee: unknown): string | undefined {
+  let current = callee;
+  while (isMember(current)) {
+    current = current["object"];
+  }
+  return nameOf(current);
+}
+
+function isInsideTest(program: AstNode, testLine: number, line: number): boolean {
+  const calls = collect(
+    program,
+    (node) =>
+      node.type === "CallExpression" &&
+      rootName(node["callee"]) === "test" &&
+      lineOf(node["callee"]) <= testLine &&
+      testLine <= lineOf(node["callee"], "end"),
+  );
+  return calls.some((call) =>
+    (Array.isArray(call["arguments"]) ? call["arguments"] : []).some(
+      (argument) =>
+        isNode(argument) &&
+        TEST_FUNCTIONS.includes(argument.type) &&
+        lineOf(argument) <= line &&
+        line <= lineOf(argument, "end"),
+    ),
+  );
+}
+
+/**
+ * Makes the mutation `proveFails` runs, and nothing else: on `line` of `source`, every string, number and plain
+ * template literal that is a direct argument of an `expect(...).toXxx(...)` call (also `.not`, `.resolves`,
+ * `.rejects`, `expect.soft`, `expect.poll`) is replaced, a number by its value plus one, a string by itself with
+ * `__mutated__` appended. The source is parsed, so a literal in a comment, a regular expression or a template with
+ * substitutions is never a candidate, and no text of the caller enters the result. With `testLine` the line must also
+ * lie inside the body of the test declared there.
+ *
+ * @returns the mutated source and the mutated line.
+ * @throws Error when the source cannot be parsed, the line holds no such literal, or it is outside the test.
+ */
+export function mutateAssertion(source: string, line: number, testLine?: number): { source: string; mutated: string } {
+  const program = parseSource(source);
+  const edits: Edit[] = [];
+  for (const call of collect(program, isMatcherCall)) {
+    for (const argument of (Array.isArray(call["arguments"]) ? call["arguments"] : []).filter(isNode)) {
+      const text = lineOf(argument) === line ? mutationOf(argument) : undefined;
+      if (text !== undefined) {
+        edits.push({ start: argument.start, end: argument.end, text });
       }
-      if (!isLiteralReplacement(from, to)) {
-        throw replaceOnly("a line changes more than a literal, or is not a line a literal may change on");
-      }
-    }
-    removed = [];
-    added = [];
-  };
-  for (const line of lines.slice(start)) {
-    const mark = line.charAt(0);
-    if (HUNK_HEADER.test(line)) {
-      flush();
-    } else if (mark === " " || mark === "\\") {
-      flush();
-    } else if (mark === "-") {
-      if (added.length > 0) {
-        flush();
-      }
-      removed.push(line.slice(1));
-    } else if (mark === "+") {
-      added.push(line.slice(1));
-    } else {
-      throw replaceOnly("a line is not part of a hunk");
     }
   }
-  flush();
-}
-
-function checkPatchText(text: string, spec: string): void {
-  const lines = text.replaceAll("\r\n", "\n").split("\n");
-  if (lines.at(-1) === "") {
-    lines.pop();
+  if (edits.length === 0) {
+    throw problem(`line ${line} has no expect(...).toXxx(...) call with a string or number literal argument`);
   }
-  const start = checkHeader(lines, spec);
-  if (start >= lines.length) {
-    throw problem("the patch has no hunk");
+  if (testLine !== undefined && !isInsideTest(program, testLine, line)) {
+    throw problem(`line ${line} is not inside the test that starts on line ${testLine}`);
   }
-  checkHunks(lines, start);
-}
-
-function targetsOf(numstat: string): string[] {
-  const parts = numstat.split("\0");
-  const targets: string[] = [];
-  for (let index = 0; index < parts.length; index += 1) {
-    const row = NUMSTAT_ROW.exec(parts[index] ?? "");
-    if (row === null) {
-      continue;
-    }
-    if ((row[1] ?? "") === "") {
-      targets.push(parts[index + 1] ?? "", parts[index + 2] ?? "");
-      index += 2;
-    } else {
-      targets.push(row[1] ?? "");
-    }
+  let mutated = source;
+  for (const edit of edits.sort((first, second) => second.start - first.start)) {
+    mutated = `${mutated.slice(0, edit.start)}${edit.text}${mutated.slice(edit.end)}`;
   }
-  return targets.filter((target) => target !== "");
-}
-
-async function checkedPatch(patchFile: string, root: string, spec: string): Promise<string> {
-  const path = resolve(root, patchFile);
-  if (!isInside(resolve(root, JUDGE_DIR), path)) {
-    throw problem(`the patch must be inside ${JUDGE_DIR}`);
-  }
-  if (!existsSync(path) || !statSync(path).isFile()) {
-    throw problem(`the patch ${patchFile} cannot be read`);
-  }
-  checkPatchText(readFileSync(path, "utf8"), spec);
-  const numstat = await run("git", ["apply", "--numstat", "-z", ...APPLY_FLAGS, path], root);
-  if (numstat.failed) {
-    throw problem(`the patch is not a valid patch: ${firstLine(numstat.stderr)}`);
-  }
-  const targets = targetsOf(numstat.stdout);
-  if (targets.length !== 1 || normalize(targets[0] ?? "") !== spec) {
-    throw problem(`the patch may touch only ${spec}`);
-  }
-  return path;
+  return { source: mutated, mutated: mutated.split(/\r\n|[\n\r\u2028\u2029]/)[line - 1] ?? "" };
 }
 
 function checkedSpec(spec: string, root: string): string {
@@ -244,6 +295,12 @@ function checkedSpec(spec: string, root: string): string {
     throw problem(`${spec} is not a file`);
   }
   return normalize(relative(root, path));
+}
+
+function checkedLine(line: number): void {
+  if (!Number.isInteger(line) || line < 1) {
+    throw problem("the line must be a positive whole number");
+  }
 }
 
 function copyInto(root: string, worktree: string, path: string): void {
@@ -371,6 +428,20 @@ function errorMessages(report: unknown): string[] {
   return messages.filter((message) => message.trim() !== "");
 }
 
+/**
+ * The environment of a nested Playwright run: the caller's, without what a Playwright worker sets for its own
+ * children (`PW_*`, worker indexes, a `NODE_OPTIONS` that names Playwright), plus the report file and
+ * the flag that lifts the generated-fixtures ignore.
+ */
+export function childEnv(base: NodeJS.ProcessEnv, reportFile: string): NodeJS.ProcessEnv {
+  const kept = Object.fromEntries(
+    Object.entries(base).filter(
+      ([key, value]) => !INHERITED_PLAYWRIGHT.test(key) && !(key === "NODE_OPTIONS" && /playwright/i.test(value ?? "")),
+    ),
+  );
+  return { ...kept, [FIXTURES_FLAG]: "1", PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile };
+}
+
 async function playwright(
   worktree: string,
   args: readonly string[],
@@ -381,7 +452,7 @@ async function playwright(
     process.execPath,
     [join(worktree, ...PLAYWRIGHT_CLI), "test", ...args, "--reporter=json"],
     worktree,
-    { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile },
+    childEnv(process.env, reportFile),
   );
   if (!existsSync(reportFile)) {
     throw problem(`Playwright wrote no report: ${firstLine(stripAnsi(result.stderr))}`);
@@ -397,7 +468,12 @@ function listedTests(report: unknown, spec: string): TestRef[] {
   const refs: TestRef[] = [];
   entriesOf(report, (specEntry, entry) => {
     if (normalize(textOf(specEntry["file"])) === spec && typeof specEntry["line"] === "number") {
-      refs.push({ project: textOf(entry["projectName"]), title: textOf(specEntry["title"]), line: specEntry["line"] });
+      refs.push({
+        project: textOf(entry["projectName"]),
+        title: textOf(specEntry["title"]),
+        line: specEntry["line"],
+        expectedStatus: textOf(entry["expectedStatus"]),
+      });
     }
   });
   return refs;
@@ -430,6 +506,13 @@ function resolveTest(report: unknown, spec: string, title: string, project: stri
   return first;
 }
 
+function refuseExpectedFailure(title: string, expectedStatus: string): void {
+  if (expectedStatus !== "" && expectedStatus !== "passed") {
+    const expected = expectedStatus === "failed" ? "fail" : expectedStatus;
+    throw problem(`the test "${title}" is expected to ${expected}, so a failure after the change proves nothing`);
+  }
+}
+
 function outcomeOf(report: unknown, target: TestRef): Outcome {
   const found: Outcome[] = [];
   entriesOf(report, (specEntry, entry) => {
@@ -442,7 +525,11 @@ function outcomeOf(report: unknown, target: TestRef): Outcome {
         messages.push(stripAnsi(isRecord(error) ? textOf(error["message"]) : ""));
       }
     }
-    found.push({ status: textOf(entry["status"]), messages: messages.filter((message) => message.trim() !== "") });
+    found.push({
+      status: textOf(entry["status"]),
+      expectedStatus: textOf(entry["expectedStatus"]),
+      messages: messages.filter((message) => message.trim() !== ""),
+    });
   });
   const [only] = found;
   if (only === undefined || found.length > 1) {
@@ -466,6 +553,7 @@ async function runOnce(
   ];
   const { report } = await playwright(worktree, args, reportFile);
   const outcome = outcomeOf(report, target);
+  refuseExpectedFailure(target.title, outcome.expectedStatus);
   if (outcome.status === "expected") {
     return { failed: false, output: "the test passed" };
   }
@@ -473,36 +561,39 @@ async function runOnce(
     return { failed: true, output: outcome.messages.join("\n---\n").slice(0, MAX_OUTPUT) };
   }
   const detail = firstLine(errorMessages(report).join(" "));
-  throw problem(`the test "${target.title}" is ${outcome.status === "flaky" ? "flaky" : outcome.status}: ${detail}`);
+  throw problem(`the test "${target.title}" is ${outcome.status}, not a clean pass or failure: ${detail}`);
 }
 
 /**
- * Proves that one test fails when a literal it checks is changed. Works on a throw-away git worktree in the system
- * temporary directory, outside the repository (the working tree is never touched): the worktree gets the
+ * Proves that one test fails when a value it checks is changed. The script makes the change itself
+ * ({@link mutateAssertion}): nothing the caller writes reaches the copy. It works on a throw-away git worktree in the
+ * system temporary directory, outside the repository (the working tree is never touched): the worktree gets the
  * repository's `HEAD`, the working tree's uncommitted changes and the spec as it is on disk, a link to `node_modules`
- * and the `.env*` files; the test is run once as it is, with no retries, and must pass, then the patch is applied and
- * the same test run again.
+ * and the `.env*` files. The test is run once as it is, with no retries, and must pass; then the literal on `line`
+ * is changed and the same test run again.
  *
- * `failed` is true only when the test passed before the patch and failed after it. A flaky or skipped result is an
- * error, not a proof. The worktree is removed on every path, and the removal never hides the result or the error.
+ * `failed` is true only when the test passed before the change and failed after it. A flaky or skipped result, and a
+ * test that is expected to fail, are errors, not proofs. The worktree is removed on every path, and the removal never
+ * hides the result or the error.
  *
  * @param spec repository-relative path of the spec file.
  * @param title the test's own title, or a part of it that matches exactly one test in the file.
- * @param patchFile a unified diff inside `.qa/judge/` that touches only `spec`, and in it replaces, line for line,
- * one string or number literal with another; any other change is refused.
+ * @param line the line of the assertion (`expect(...).toXxx(...)`) inside that test whose literal is changed.
  * @param project the Playwright project to run; resolved from the spec when omitted and the test is in one project.
- * @throws Error when an input is wrong, the patch is refused or does not apply, the test fails before the patch, is
- * flaky or does not run.
+ * @throws Error when an input is wrong, the line holds no changeable literal, the test fails before the change, is
+ * flaky, expected to fail, or does not run.
  */
 export async function proveFails(
   spec: string,
   title: string,
-  patchFile: string,
+  line: number,
   project?: string,
 ): Promise<ProveFailsResult> {
+  checkedLine(line);
   const root = resolve((await git(["rev-parse", "--show-toplevel"], process.cwd())).trim());
   const specPath = checkedSpec(spec, root);
-  const patch = await checkedPatch(patchFile, root, specPath);
+  const source = readFileSync(join(root, specPath), "utf8");
+  mutateAssertion(source, line);
   const worktree = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
   try {
     await git(["worktree", "add", "--detach", worktree, "HEAD"], root);
@@ -516,38 +607,36 @@ export async function proveFails(
       reportFile,
     );
     const target = resolveTest(listed.report, specPath, title, project);
+    refuseExpectedFailure(target.title, target.expectedStatus);
+    const change = mutateAssertion(source, line, target.line);
     const before = await runOnce(worktree, specPath, target, reportFile);
     if (before.failed) {
-      throw problem(`the test "${target.title}" fails before the patch: ${firstLine(before.output)}`);
+      throw problem(`the test "${target.title}" fails before the change: ${firstLine(before.output)}`);
     }
-    const applied = await run("git", ["apply", ...APPLY_FLAGS, "--ignore-whitespace", patch], worktree);
-    if (applied.failed) {
-      throw problem(`the patch does not apply: ${firstLine(applied.stderr)}`);
-    }
-    return await runOnce(worktree, specPath, target, reportFile);
+    writeFileSync(join(worktree, specPath), change.source);
+    const after = await runOnce(worktree, specPath, target, reportFile);
+    return { ...after, mutated: change.mutated };
   } finally {
     await removeWorktree(root, worktree);
   }
 }
 
 function usage(): Error {
-  return problem("usage is node qa/prove-fails.mts <spec> <title words> <patch> [--project=<name>]");
+  return problem("usage is node qa/prove-fails.mts <spec> <line> <title words> [--project=<name>]");
 }
 
-function parseArguments(args: readonly string[]): { spec: string; title: string; patch: string; project?: string } {
+function parseArguments(args: readonly string[]): { spec: string; line: number; title: string; project?: string } {
   const project = args.map((arg) => PROJECT_FLAG.exec(arg)?.[1]).find((name) => name !== undefined);
-  const words = args.filter((arg) => !PROJECT_FLAG.test(arg));
-  const [spec, ...rest] = words;
-  const patch = rest.pop();
-  if (spec === undefined || patch === undefined || rest.length === 0) {
+  const [spec, lineText, ...words] = args.filter((arg) => !PROJECT_FLAG.test(arg));
+  if (spec === undefined || lineText === undefined || !/^\d+$/.test(lineText) || words.length === 0) {
     throw usage();
   }
-  return { spec, title: rest.join(" "), patch, ...(project === undefined ? {} : { project }) };
+  return { spec, line: Number(lineText), title: words.join(" "), ...(project === undefined ? {} : { project }) };
 }
 
 async function main(args: readonly string[]): Promise<void> {
-  const { spec, title, patch, project } = parseArguments(args);
-  const result = await proveFails(spec, title, patch, project);
+  const { spec, line, title, project } = parseArguments(args);
+  const result = await proveFails(spec, title, line, project);
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 

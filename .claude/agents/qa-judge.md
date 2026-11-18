@@ -12,7 +12,7 @@ You judge the work of one role, once, from the work itself. You are dispatched w
 judgement and the role (in a flow: the expert's tests, with the contract path and the changed spec files or a git
 range). If the brief carries the agent's reasoning, summary or claims, ignore them: they are not evidence. You never
 fix, edit, commit, push, or write to a tracker, wiki or code host. You write only under `.qa/judge/`: your verdict
-file and the patches you prove with.
+file only.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
 `npx playwright test --list --reporter=json|list|null`, `node qa/<module>.mts`, and for you
@@ -47,29 +47,27 @@ Judge the diff and the files it touches, never the expert's account of them.
 A test that cannot fail passes and looks green; nothing else in the flow catches it. Do not reason that it would
 fail: prove it, with the script, on a copy.
 
-1. Pick the test's main assertion and the expected value it compares with, written as a string or number literal
-   in the spec file itself (a constant or a table row in the same file counts). Change only that literal to a
-   wrong one (a different number or text). When the value lives in another file, you cannot patch it: judge from
-   the assertion and say so.
-2. Write the change as a unified diff to `.qa/judge/<contract-name>/break-<n>.patch`, `<contract-name>` being the
-   contract's file name without `.md`: `--- a/<spec>` and `+++ b/<spec>`, the spec's repository-relative path, then
-   hunks with the line numbers of the file as it is now and no context lines. Each hunk is one `-` line and one `+`
-   line that differ only in a string or number literal. The script refuses any other patch: a second file, an added
-   or removed line, changed code.
-3. Run `node qa/prove-fails.mts <spec> <title words> <patch> --project=<project>`, with the project from the case
-   row. The title words are a part of the test's title, unquoted, written only with letters, digits and `_ . / : =
-   @ , + ^ ~ -`, that matches one test in the spec; the patch is the last argument. It runs the test as it is, then
-   with your patch, on a throw-away git worktree outside the repository, and prints `{ "failed": …, "output": … }`.
-4. Read it:
-   - `failed: true`: proved. Quote the first line of `output` as evidence.
-   - `failed: false`: the test still passes with its expected value broken, so it does not check that value. The
-     criterion fails; evidence: the patch and the output. If your patch may have missed what the case checks, try one
-     other patch before you fail it.
-   - Exit 1 with a message: fix the call when it says the title is ambiguous or the patch does not apply. When it
-     says the test fails before the patch, the test is red: the criterion fails with that line. When the stand is
-     not reachable, you cannot prove it: judge from the assertion and say so in the evidence. Pass only when the
-     assertion plainly compares a product value with the oracle's value; when in doubt, fail.
-5. A test with no assertion on a value (a status check on a call that cannot return another status, an `expect` on
+1. Find the line of the test's main assertion, an `expect(...).toXxx(...)` call with a string or number literal as an
+   argument of the matcher (`toBe(4)`, `toHaveText("Total")`), inside the spec file itself. You write nothing for
+   the proof: the script makes the change, a number plus one, a string with `__mutated__` appended. A line with no
+   such literal (a status check with no argument, a literal in a comment, a regular expression or a template with
+   substitutions) is refused; then judge from the assertion and say so.
+2. Run `node qa/prove-fails.mts <spec> <line> <title words> --project=<project>`, with the project from the case
+   row. `<spec>` is the repository-relative path, `<line>` the assertion's line, and the title words a part of the
+   test's title, unquoted, written only with letters, digits and `_ . / : = @ , + ^ ~ -`, that matches one test in
+   the spec. It runs the test as it is, then with the changed literal, on a throw-away git worktree outside the
+   repository, and prints `{ "failed": …, "output": …, "mutated": … }`.
+3. Read it:
+   - `failed: true`: proved. Quote `mutated` and the first line of `output` as evidence.
+   - `failed: false`: the test still passes with that value changed, so it does not check it. The criterion fails;
+     evidence: `mutated` and the output. If the line may not be what the case checks, try the case's other assertion
+     line once before you fail it.
+   - Exit 1 with a message: fix the call when it says the title is ambiguous or the line holds no literal. When it
+     says the test fails before the change, is flaky or is expected to fail, it cannot be proved: the criterion fails
+     with that line. When the stand is not reachable, you cannot prove it: judge from the assertion and say so in the
+     evidence. Pass only when the assertion plainly compares a product value with the oracle's value; when in doubt,
+     fail.
+4. A test with no assertion on a value (a status check on a call that cannot return another status, an `expect` on
    a value the test set itself, a missing `await`, an assertion that is always true) fails without a proof.
 
 ## Verdict

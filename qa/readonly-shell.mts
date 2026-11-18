@@ -18,6 +18,8 @@ const GIT_SUBCOMMANDS = ["diff", "log", "show", "status"];
 const GIT_FORBIDDEN_PREFIXES = ["--output", "--ext-diff", "--textconv", "--no-index", "--open-files", "--exec", "-O"];
 const PLAYWRIGHT_FLAGS = [/^--list$/, /^--reporter=(json|list|null)$/, /^--project=[\w.-]+$/, /^--grep(-invert)?=\S+$/];
 const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
+const PROVE_FAILS_PATH = "qa/prove-fails.mts";
+const PROVE_FAILS_PROJECT = /^--project=[\w.-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
 const JSON_OUTPUT_ASSIGNMENT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/[\w-]+\/review-list\.[\w-]+\.json$/;
 const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
@@ -57,9 +59,28 @@ function isPlaywrightList(tokens: readonly string[]): boolean {
   );
 }
 
+function isProveFailsCall(tokens: readonly string[]): boolean {
+  const [, , spec = "", line = "", ...rest] = tokens;
+  const flags = rest.filter((token) => token.startsWith("-"));
+  const words = rest.filter((token) => !token.startsWith("-"));
+  return (
+    PLAYWRIGHT_PATH.test(spec) &&
+    !spec.startsWith("-") &&
+    !spec.startsWith("/") &&
+    !spec.split("/").includes("..") &&
+    /^\d+$/.test(line) &&
+    words.length > 0 &&
+    flags.length <= 1 &&
+    flags.every((flag) => PROVE_FAILS_PROJECT.test(flag))
+  );
+}
+
 function isQaModule(tokens: readonly string[], agent: string | undefined): boolean {
   const pattern = bareName(agent) === JUDGE_AGENT ? JUDGE_QA_MODULE_PATH : QA_MODULE_PATH;
-  return tokens[0] === "node" && pattern.test(tokens[1] ?? "");
+  if (tokens[0] !== "node" || !pattern.test(tokens[1] ?? "")) {
+    return false;
+  }
+  return tokens[1] !== PROVE_FAILS_PATH || isProveFailsCall(tokens);
 }
 
 function withoutOutputAssignment(tokens: readonly string[]): readonly string[] | undefined {

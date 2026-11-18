@@ -14,41 +14,25 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { proveFails, removeWorktree } from "../../../qa/prove-fails.mts";
+import { childEnv, mutateAssertion, proveFails, removeWorktree } from "../../../qa/prove-fails.mts";
 
 const SPEC = "tests/unit/qa/fixtures/prove-fails-target.test.ts";
 const TITLE = "adds two numbers";
-const JUDGE_DIR = ".qa/judge";
-const SCRATCH = join(JUDGE_DIR, `prove-fails-test-${process.pid}`);
+const ASSERTION_LINE = 6;
 const GENERATED_DIR = "tests/unit/qa/fixtures/generated";
 const TEMP_PREFIX = "prove-fails-";
+const PLAYWRIGHT_CLI = "node_modules/@playwright/test/cli.js";
 const PROVE_TIMEOUT_MS = 240_000;
 const HEADER = 'import { expect, test } from "@playwright/test";\n\n';
-const INJECTED = '    expect(total).toBe(4); process.getBuiltinModule("node:fs").writeFileSync("x", "");';
-const REPLACE_ONLY = "may only replace one string or number literal with another";
+const NO_LITERAL = "has no expect(...).toXxx(...) call with a string or number literal argument";
 
 test.describe.configure({ mode: "serial", timeout: PROVE_TIMEOUT_MS });
-
-function patchLine(file: string, line: number, from: string, to: string): string {
-  return [`--- a/${file}`, `+++ b/${file}`, `@@ -${line},1 +${line},1 @@`, `-${from}`, `+${to}`, ""].join("\n");
-}
-
-function writePatch(name: string, text: string): string {
-  mkdirSync(SCRATCH, { recursive: true });
-  const file = join(SCRATCH, name);
-  writeFileSync(file, text);
-  return file;
-}
 
 function generatedSpec(name: string, body: string): string {
   mkdirSync(GENERATED_DIR, { recursive: true });
   const file = `${GENERATED_DIR}/${name}-${process.pid}.test.ts`;
   writeFileSync(file, `${HEADER}${body}`);
   return file;
-}
-
-function breakExpectedValue(): string {
-  return writePatch("break.patch", patchLine(SPEC, 6, "    expect(total).toBe(4);", "    expect(total).toBe(5);"));
 }
 
 function status(): string {
@@ -65,45 +49,196 @@ function worktrees(): string[] {
     .filter((line) => line.startsWith("worktree "));
 }
 
+function listedFiles(withFixtures: boolean): string[] {
+  const reportDir = mkdtempSync(join(tmpdir(), "prove-fails-list-"));
+  const report = join(reportDir, "list.json");
+  try {
+    const env: NodeJS.ProcessEnv = { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: report };
+    if (withFixtures) {
+      env["PROVE_FAILS_FIXTURES"] = "1";
+    } else {
+      delete env["PROVE_FAILS_FIXTURES"];
+    }
+    spawnSync(
+      process.execPath,
+      [PLAYWRIGHT_CLI, "test", "--list", "--reporter=json", "--project=unit", "tests/unit/qa/fixtures"],
+      { env, encoding: "utf8" },
+    );
+    const parsed: unknown = JSON.parse(readFileSync(report, "utf8"));
+    const suites =
+      typeof parsed === "object" && parsed !== null && "suites" in parsed && Array.isArray(parsed.suites)
+        ? parsed.suites
+        : [];
+    return suites.flatMap((suite: unknown) =>
+      typeof suite === "object" && suite !== null && "file" in suite ? [String(suite.file)] : [],
+    );
+  } finally {
+    rmSync(reportDir, { recursive: true, force: true });
+  }
+}
+
 test.beforeAll(() => {
   rmSync(GENERATED_DIR, { recursive: true, force: true });
 });
 
 test.afterAll(() => {
-  rmSync(SCRATCH, { recursive: true, force: true });
   rmSync(GENERATED_DIR, { recursive: true, force: true });
 });
 
+test.describe("the mutation the script makes (unit)", () => {
+  test("a number argument of a matcher becomes the number plus one, and nothing else changes", () => {
+    const source = readFileSync(SPEC, "utf8");
+    const result = mutateAssertion(source, ASSERTION_LINE);
+    expect(result.mutated).toBe("    expect(total).toBe(5);");
+    expect(result.source).toBe(source.replace("toBe(4)", "toBe(5)"));
+  });
+
+  test("a string or plain template argument gets a suffix", () => {
+    expect(mutateAssertion('expect(a).toBe("abc");', 1)).toEqual({
+      source: 'expect(a).toBe("abc__mutated__");',
+      mutated: 'expect(a).toBe("abc__mutated__");',
+    });
+    expect(mutateAssertion("expect(a).toBe('abc');", 1).mutated).toBe('expect(a).toBe("abc__mutated__");');
+    expect(mutateAssertion("expect(a).toEqual(`abc`);", 1).mutated).toBe('expect(a).toEqual("abc__mutated__");');
+  });
+
+  test("every matcher form is found, and only the matcher's own arguments change", () => {
+    const cases: [string, string][] = [
+      ["expect(a).not.toBe(4);", "expect(a).not.toBe(5);"],
+      ["await expect(a).resolves.toBe(4);", "await expect(a).resolves.toBe(5);"],
+      ['await expect(a).rejects.toThrow("x");', 'await expect(a).rejects.toThrow("x__mutated__");'],
+      ["expect.soft(a).toBe(4);", "expect.soft(a).toBe(5);"],
+      ['await expect.poll(() => a).toBe("x");', 'await expect.poll(() => a).toBe("x__mutated__");'],
+      [
+        'await expect(page.locator("a")).toHaveText("hi");',
+        'await expect(page.locator("a")).toHaveText("hi__mutated__");',
+      ],
+      ["expect(a).toBeCloseTo(1, 2);", "expect(a).toBeCloseTo(2, 3);"],
+      ["expect(a).toBe((4));", "expect(a).toBe((5));"],
+    ];
+    for (const [before, after] of cases) {
+      expect(mutateAssertion(before, 1).mutated).toBe(after);
+    }
+  });
+
+  test("a line whose only literal is not an argument of a matcher is refused", () => {
+    for (const line of [
+      "const total = 4;",
+      "expect(4).toBe(total);",
+      "expect(total).toBeTruthy();",
+      'await page.locator("a").click();',
+      'await page.evaluate("1");',
+      'await request.delete("/x");',
+      "expect(total).toBe(-1);",
+      "expect(total).toBe(1e999);",
+      "expect(total).toBe(9007199254740992);",
+      "expect(total).toBe(4n);",
+      "expect(total).toBe(true);",
+      'export * from "./a";',
+      'import { a } from "./a";',
+      "expect(total).toMatch(/4/);",
+    ]) {
+      expect(() => mutateAssertion(line, 1), line).toThrow(NO_LITERAL);
+    }
+  });
+
+  test("a literal inside a template with substitutions, a regex or a comment is refused", () => {
+    const substitution = ["expect(total).toBe(`a$", "{process.exit(1)}`);"].join("");
+    for (const line of [
+      substitution,
+      "expect(total).toMatch(/a\\/b\\/(?:4)/);",
+      "expect(total).toBe(total); // expect(total).toBe(4)",
+      "// expect(total).toBe(4);",
+      "/* expect(total).toBe(4); */",
+      "const text = '\\' expect(total).toBe(4); ';",
+    ]) {
+      expect(() => mutateAssertion(line, 1), line).toThrow(NO_LITERAL);
+    }
+  });
+
+  test("lines are counted the way the language counts them, so a separator hides nothing", () => {
+    const source = "const a = 1; // c expect(total).toBe(4);\nexpect(total).toBe(4);";
+    expect(() => mutateAssertion(source, 1)).toThrow(NO_LITERAL);
+    expect(mutateAssertion(source, 2).source).toBe(source.replace("toBe(4)", "toBe(5)"));
+    expect(mutateAssertion(source, 3).source).toBe(
+      source.replace("toBe(4);", "toBe(4);").replace(/toBe\(4\);$/, "toBe(5);"),
+    );
+    const carriageReturn = "const a = 1; // c\rexpect(total).toBe(4);";
+    expect(mutateAssertion(carriageReturn, 2).mutated).toBe("expect(total).toBe(5);");
+    expect(() => mutateAssertion(carriageReturn, 1)).toThrow(NO_LITERAL);
+  });
+
+  test("the mutated source is the original with only the literal's characters replaced", () => {
+    const source =
+      'import { expect, test } from "@playwright/test";\n\ntest("t", () => {\n  expect(f("a", 3)).toBe(4);\n});\n';
+    expect(mutateAssertion(source, 4).source).toBe(source.replace("toBe(4)", "toBe(5)"));
+  });
+
+  test("a line outside the test is refused when the test's line is known", () => {
+    const source =
+      'import { expect, test } from "@playwright/test";\n\nfunction helper(): void {\n  expect(1).toBe(1);\n}\n\ntest("t", () => {\n  expect(2).toBe(2);\n  helper();\n});\n';
+    expect(() => mutateAssertion(source, 4, 7)).toThrow("is not inside the test that starts on line 7");
+    expect(mutateAssertion(source, 8, 7).mutated).toBe("  expect(2).toBe(3);");
+    expect(mutateAssertion(source, 4).mutated).toBe("  expect(1).toBe(2);");
+  });
+
+  test("a spec that cannot be parsed is refused", () => {
+    expect(() => mutateAssertion("expect(a).toBe(", 1)).toThrow("cannot be parsed");
+  });
+});
+
+test.describe("the environment of the nested run (unit)", () => {
+  test("drops what a Playwright worker sets for its children and keeps the rest", () => {
+    const base = {
+      PATH: "p",
+      PLAYWRIGHT_BROWSERS_PATH: "b",
+      PW_TEST_SOURCE_TRANSFORM: "x",
+      TEST_WORKER_INDEX: "0",
+      TEST_PARALLEL_INDEX: "0",
+      FORCE_COLOR: "1",
+      NODE_OPTIONS: "--require /repo/node_modules/playwright/lib/preload.js",
+    };
+    expect(childEnv(base, "report.json")).toEqual({
+      PATH: "p",
+      PLAYWRIGHT_BROWSERS_PATH: "b",
+      PROVE_FAILS_FIXTURES: "1",
+      PLAYWRIGHT_JSON_OUTPUT_FILE: "report.json",
+    });
+    expect(childEnv({ NODE_OPTIONS: "--max-old-space-size=4096" }, "r")["NODE_OPTIONS"]).toBe(
+      "--max-old-space-size=4096",
+    );
+  });
+});
+
 test.describe("prove-fails (unit)", () => {
-  test("proveFails leaves the working tree unchanged", async () => {
+  test("proveFails mutates the line itself and leaves the working tree unchanged", async () => {
     const before = status();
     const trees = worktrees();
     const temporary = leftovers();
-    const result = await proveFails(SPEC, TITLE, breakExpectedValue());
+    const result = await proveFails(SPEC, TITLE, ASSERTION_LINE);
     expect(result.failed).toBe(true);
+    expect(result.mutated).toBe("    expect(total).toBe(5);");
+    expect(result.output).toContain("toBe");
     expect(status()).toBe(before);
     expect(worktrees()).toEqual(trees);
     expect(leftovers()).toEqual(temporary);
-    expect(existsSync(JUDGE_DIR) ? readdirSync(JUDGE_DIR).filter((name) => name.startsWith("prove-")) : []).toEqual([
-      `prove-fails-test-${process.pid}`,
-    ]);
     expect(existsSync("node_modules/@playwright/test")).toBe(true);
+    expect(readFileSync(SPEC, "utf8")).toContain("toBe(4)");
   });
 
-  test("proveFails reports failed: true for a patch that breaks the expected value", async () => {
-    const result = await proveFails(SPEC, TITLE, breakExpectedValue(), "unit");
+  test("proveFails takes the project and reports failed: true for a number changed to one more", async () => {
+    const result = await proveFails(SPEC, TITLE, ASSERTION_LINE, "unit");
     expect(result.failed).toBe(true);
-    expect(result.output).toContain("toBe");
     expect(result.output).toContain("5");
   });
 
-  test("proveFails reports failed: false for a patch that keeps the behaviour", async () => {
-    const harmless = writePatch(
-      "harmless.patch",
-      patchLine(SPEC, 5, "    const total = 2 + 2;", "    const total = 1 + 3;"),
+  test("proveFails reports failed: false when the changed literal does not matter", async () => {
+    const spec = generatedSpec(
+      "loose",
+      'test("loose bound", () => {\n  const total = 4;\n  expect(total).toBeLessThan(100);\n});\n',
     );
-    const result = await proveFails(SPEC, TITLE, harmless);
-    expect(result.failed).toBe(false);
+    const result = await proveFails(spec, "loose bound", 5);
+    expect(result).toEqual({ failed: false, output: "the test passed", mutated: "  expect(total).toBeLessThan(101);" });
   });
 
   test("proveFails runs in a worktree outside the repository", async () => {
@@ -113,11 +248,7 @@ test.describe("prove-fails (unit)", () => {
       'test("runs outside the repository", () => {\n  const root = process.env["PROVE_REPO_ROOT"] ?? "";\n  const outside = root !== "" && !process.cwd().startsWith(root) ? 1 : 0;\n  expect(outside).toBe(1);\n});\n',
     );
     try {
-      const patch = writePatch(
-        "outside.patch",
-        patchLine(spec, 6, "  expect(outside).toBe(1);", "  expect(outside).toBe(2);"),
-      );
-      expect((await proveFails(spec, "runs outside the repository", patch)).failed).toBe(true);
+      expect((await proveFails(spec, "runs outside the repository", 6)).failed).toBe(true);
     } finally {
       delete process.env["PROVE_REPO_ROOT"];
     }
@@ -128,134 +259,69 @@ test.describe("prove-fails (unit)", () => {
       "uncommitted",
       'test("subtracts", () => {\n  const left = 5 - 2;\n  expect(left).toBe(3);\n});\n',
     );
-    const patch = writePatch(
-      "uncommitted.patch",
-      patchLine(spec, 5, "  expect(left).toBe(3);", "  expect(left).toBe(4);"),
-    );
-    expect((await proveFails(spec, "subtracts", patch)).failed).toBe(true);
+    expect((await proveFails(spec, "subtracts", 5)).failed).toBe(true);
   });
 
-  test("proveFails accepts a changed string literal", async () => {
+  test("proveFails changes a string literal", async () => {
     const spec = generatedSpec(
       "string",
       'test("names it", () => {\n  const name = "abc";\n  expect(name).toBe("abc");\n});\n',
     );
-    const patch = writePatch(
-      "string.patch",
-      patchLine(spec, 5, '  expect(name).toBe("abc");', "  expect(name).toBe('abd');"),
-    );
-    expect((await proveFails(spec, "names it", patch)).failed).toBe(true);
-  });
-
-  test("proveFails reports failed: false for an assertion that cannot fail", async () => {
-    const spec = generatedSpec(
-      "tautology",
-      'test("always equal", () => {\n  const total = 4;\n  expect(total).toBe(total);\n});\n',
-    );
-    const patch = writePatch("tautology.patch", patchLine(spec, 4, "  const total = 4;", "  const total = 5;"));
-    const result = await proveFails(spec, "always equal", patch);
-    expect(result).toEqual({ failed: false, output: "the test passed" });
+    const result = await proveFails(spec, "names it", 5);
+    expect(result.failed).toBe(true);
+    expect(result.mutated).toBe('  expect(name).toBe("abc__mutated__");');
   });
 
   test("proveFails does not take a flaky result for a proof", async () => {
     const spec = generatedSpec(
       "flaky",
-      'test.describe.configure({ retries: 2 });\n\ntest("flaky one", (_fixtures, testInfo) => {\n  const limit = 0;\n  expect(testInfo.retry).toBeGreaterThanOrEqual(limit);\n});\n',
+      'test.describe.configure({ retries: 2 });\n\ntest("flaky one", ({}, testInfo) => {\n  expect(testInfo.retry).toBeGreaterThanOrEqual(0);\n});\n',
     );
-    const patch = writePatch("flaky.patch", patchLine(spec, 6, "  const limit = 0;", "  const limit = 1;"));
-    await expect(proveFails(spec, "flaky one", patch)).rejects.toThrow("flaky");
+    await expect(proveFails(spec, "flaky one", 6)).rejects.toThrow("is flaky");
   });
 
-  test("proveFails removes its worktree and leaves the working tree alone when the patch does not apply", async () => {
+  test("proveFails refuses a test that is expected to fail", async () => {
+    const spec = generatedSpec("known", 'test.fail("known issue", () => {\n  expect(1).toBe(2);\n});\n');
+    await expect(proveFails(spec, "known issue", 4)).rejects.toThrow("is expected to fail");
+  });
+
+  test("proveFails refuses a line with no literal before it makes a worktree", async () => {
     const before = status();
     const temporary = leftovers();
-    const bad = writePatch("bad.patch", patchLine(SPEC, 6, "    expect(total).toBe(9);", "    expect(total).toBe(5);"));
-    await expect(proveFails(SPEC, TITLE, bad)).rejects.toThrow("prove-fails: the patch does not apply");
+    const spec = generatedSpec(
+      "plain",
+      'test("plain", () => {\n  const total = 4;\n  expect(total).toBeTruthy();\n});\n',
+    );
+    await expect(proveFails(spec, "plain", 5)).rejects.toThrow(NO_LITERAL);
+    await expect(proveFails(spec, "plain", 4)).rejects.toThrow(NO_LITERAL);
     expect(status()).toBe(before);
     expect(leftovers()).toEqual(temporary);
   });
 
-  test("proveFails refuses a test that fails before the patch", async () => {
+  test("proveFails refuses a line that is not inside the test it names", async () => {
+    const spec = generatedSpec(
+      "helper",
+      'function helper(): void {\n  expect(1).toBe(1);\n}\n\ntest("uses it", () => {\n  helper();\n  expect(2).toBe(2);\n});\n',
+    );
+    await expect(proveFails(spec, "uses it", 4)).rejects.toThrow("is not inside the test");
+    expect((await proveFails(spec, "uses it", 9)).failed).toBe(true);
+  });
+
+  test("proveFails refuses a test that fails before the change", async () => {
     const spec = generatedSpec("red", 'test("already red", () => {\n  expect(1).toBe(2);\n});\n');
-    const patch = writePatch("red.patch", patchLine(spec, 4, "  expect(1).toBe(2);", "  expect(1).toBe(3);"));
-    await expect(proveFails(spec, "already red", patch)).rejects.toThrow("fails before the patch");
+    await expect(proveFails(spec, "already red", 4)).rejects.toThrow("fails before the change");
   });
 
   test("proveFails names what is wrong with its inputs", async () => {
-    const patch = breakExpectedValue();
-    await expect(proveFails(SPEC, "no such title", patch)).rejects.toThrow("no test titled");
-    await expect(proveFails("tests/unit/qa/fixtures/absent.test.ts", TITLE, patch)).rejects.toThrow("is not a file");
-    await expect(proveFails("../outside.test.ts", TITLE, patch)).rejects.toThrow("inside the repository");
-    await expect(proveFails(SPEC, TITLE, "package.json")).rejects.toThrow(`inside ${JUDGE_DIR}`);
-    await expect(proveFails(SPEC, TITLE, join(SCRATCH, "missing.patch"))).rejects.toThrow("cannot be read");
-    await expect(proveFails(SPEC, TITLE, patch, "no-such-project")).rejects.toThrow("not found");
-  });
-
-  test("proveFails refuses a patch that touches any file but the spec", async () => {
-    for (const file of ["core/env.ts", "package.json", "playwright.config.ts", ".env.local", "qa/contract.mts"]) {
-      const patch = writePatch("touch.patch", patchLine(file, 1, "a", "b"));
-      await expect(proveFails(SPEC, TITLE, patch)).rejects.toThrow(`may touch only ${SPEC}`);
+    await expect(proveFails(SPEC, "no such title", ASSERTION_LINE)).rejects.toThrow("no test titled");
+    await expect(proveFails("tests/unit/qa/fixtures/absent.test.ts", TITLE, ASSERTION_LINE)).rejects.toThrow(
+      "is not a file",
+    );
+    await expect(proveFails("../outside.test.ts", TITLE, ASSERTION_LINE)).rejects.toThrow("inside the repository");
+    await expect(proveFails(SPEC, TITLE, ASSERTION_LINE, "no-such-project")).rejects.toThrow("not found");
+    for (const line of [0, -1, 1.5, Number.NaN]) {
+      await expect(proveFails(SPEC, TITLE, line)).rejects.toThrow("line must be a positive whole number");
     }
-    const both = writePatch(
-      "both.patch",
-      patchLine(SPEC, 6, "    expect(total).toBe(4);", "    expect(total).toBe(5);") +
-        patchLine("core/env.ts", 1, "a", "b"),
-    );
-    await expect(proveFails(SPEC, TITLE, both)).rejects.toThrow("prove-fails: the patch");
-    const created = writePatch("created.patch", `--- /dev/null\n+++ b/${SPEC}\n@@ -0,0 +1,1 @@\n+x\n`);
-    await expect(proveFails(SPEC, TITLE, created)).rejects.toThrow(`may touch only ${SPEC}`);
-  });
-
-  test("proveFails refuses code injected into the spec", async () => {
-    const injected = writePatch("injected.patch", patchLine(SPEC, 6, "    expect(total).toBe(4);", INJECTED));
-    await expect(proveFails(SPEC, TITLE, injected)).rejects.toThrow(REPLACE_ONLY);
-    const interpolated = writePatch(
-      "interpolated.patch",
-      patchLine(SPEC, 5, "    const total = `4`;", `    const total = \`$\{process.exit(1)}\`;`),
-    );
-    await expect(proveFails(SPEC, TITLE, interpolated)).rejects.toThrow(REPLACE_ONLY);
-    const imported = writePatch(
-      "imported.patch",
-      patchLine(
-        SPEC,
-        1,
-        'import { expect, test } from "@playwright/test";',
-        'import { expect, test } from "/elsewhere/evil.mts";',
-      ),
-    );
-    await expect(proveFails(SPEC, TITLE, imported)).rejects.toThrow(REPLACE_ONLY);
-  });
-
-  test("proveFails refuses a hunk that adds or removes lines", async () => {
-    const header = [`--- a/${SPEC}`, `+++ b/${SPEC}`];
-    const hunks: Record<string, string[]> = {
-      adds: [
-        "@@ -6,1 +6,2 @@",
-        "-    expect(total).toBe(4);",
-        "+    expect(total).toBe(5);",
-        "+    expect(total).toBe(6);",
-      ],
-      removes: [
-        "@@ -5,2 +5,1 @@",
-        "-    const total = 2 + 2;",
-        "-    expect(total).toBe(4);",
-        "+    expect(total).toBe(5);",
-      ],
-      "only removes": ["@@ -6,1 +5,0 @@", "-    expect(total).toBe(4);"],
-      "only adds": ["@@ -6,0 +7,1 @@", "+    process.exit(1);"],
-    };
-    for (const [name, lines] of Object.entries(hunks)) {
-      const patch = writePatch(`${name.replace(" ", "-")}.patch`, [...header, ...lines, ""].join("\n"));
-      await expect(proveFails(SPEC, TITLE, patch)).rejects.toThrow(REPLACE_ONLY);
-    }
-  });
-
-  test("proveFails refuses a patch with lines outside a hunk", async () => {
-    const stray = writePatch(
-      "stray.patch",
-      `${patchLine(SPEC, 6, "    expect(total).toBe(4);", "    expect(total).toBe(5);")}process.exit(1);\n`,
-    );
-    await expect(proveFails(SPEC, TITLE, stray)).rejects.toThrow("prove-fails: the patch");
   });
 
   test("proveFails cleans up without a throw and keeps what a link points at", async () => {
@@ -274,23 +340,30 @@ test.describe("prove-fails (unit)", () => {
     }
   });
 
-  test("the CLI prints the verdict as JSON and the title may be several words", () => {
-    const patch = breakExpectedValue();
-    const result = spawnSync("node", ["qa/prove-fails.mts", SPEC, "adds", "two", "numbers", patch, "--project=unit"], {
-      encoding: "utf8",
-    });
+  test("a normal unit run does not collect a generated fixture, and the prove run does", () => {
+    const spec = generatedSpec("collected", 'test("collected", () => {\n  expect(1).toBe(1);\n});\n');
+    const name = spec.slice(spec.lastIndexOf("/") + 1);
+    expect(listedFiles(false).some((file) => file.endsWith(name))).toBe(false);
+    expect(listedFiles(true).some((file) => file.endsWith(name))).toBe(true);
+    expect(listedFiles(false).some((file) => file.endsWith("prove-fails-target.test.ts"))).toBe(true);
+  });
+
+  test("the CLI prints the verdict as JSON, the title may be several words, the line comes first", () => {
+    const result = spawnSync(
+      "node",
+      ["qa/prove-fails.mts", SPEC, String(ASSERTION_LINE), "adds", "two", "numbers", "--project=unit"],
+      { encoding: "utf8" },
+    );
     expect(result.status).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ failed: true });
+    expect(JSON.parse(result.stdout)).toMatchObject({ failed: true, mutated: "    expect(total).toBe(5);" });
   });
 
   test("the CLI exits 1 with one line on stderr for a wrong call", () => {
-    const result = spawnSync("node", ["qa/prove-fails.mts", SPEC], { encoding: "utf8" });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("usage");
-    const missing = spawnSync("node", ["qa/prove-fails.mts", SPEC, TITLE, join(SCRATCH, "none.patch")], {
-      encoding: "utf8",
-    });
-    expect(missing.status).toBe(1);
-    expect(missing.stderr).toContain("cannot be read");
+    for (const args of [[SPEC], [SPEC, "6"], [SPEC, "six", "adds"], [SPEC, "0", "adds"]]) {
+      const result = spawnSync("node", ["qa/prove-fails.mts", ...args], { encoding: "utf8" });
+      expect(result.status, args.join(" ")).toBe(1);
+      expect(result.stderr.trim()).toMatch(/^[^\n]+$/);
+    }
+    expect(spawnSync("node", ["qa/prove-fails.mts", SPEC], { encoding: "utf8" }).stderr).toContain("usage");
   });
 });

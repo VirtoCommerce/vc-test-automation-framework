@@ -8,10 +8,9 @@ judge proves a test fails with `node qa/prove-fails.mts`; the model does not run
 - `checks-claimed-behaviour`: each test asserts the behaviour its case claims, on the data role and project the
   case names, against the expected value of the case's oracle. A test that asserts something easier or different is
   a fail.
-- `fails-when-behaviour-breaks`: each test fails when that behaviour breaks. Prove it where a patch that changes one
-  literal of the expected value in the spec can be written (evidence: the `prove-fails` output with
-  `failed: true`); where none can, say why and reason from the assertion. An assertion that cannot fail (a
-  tautology, a check on a value the test set itself, a missing await, an assertion on something that is always
-  present) is a fail.
+- `fails-when-behaviour-breaks`: each test fails when that behaviour breaks. Prove it where the script can change a
+  literal of the assertion (evidence: the `prove-fails` output with `failed: true` and the line it changed); where
+  none can, say why and reason from the assertion. An assertion that cannot fail (a tautology, a check on a value the
+  test set itself, a missing await, an assertion on something that is always present) is a fail.
 - `skip-has-reason`: every skip, `fixme` and expected failure carries a reason a reader can act on, a
   `requiresModules`, `requiresFeatures`, `knownIssue` or profile condition. A silent skip is a fail.

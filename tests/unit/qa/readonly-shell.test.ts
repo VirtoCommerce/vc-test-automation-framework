@@ -12,7 +12,7 @@ const SETTINGS_FILE = ".claude/settings.json";
 const PROJECT_DIR = resolve(process.cwd());
 const JUDGE_AREA = join(PROJECT_DIR, ".qa", "judge");
 const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"];
-const JUDGE_COMMAND = "node qa/prove-fails.mts tests/a.spec.ts a title .qa/judge/x/break-1.patch";
+const JUDGE_COMMAND = "node qa/prove-fails.mts tests/a.spec.ts 12 a title";
 
 const ALLOWED = [
   "git diff",
@@ -35,8 +35,24 @@ const ALLOWED = [
 const JUDGE_ONLY = [
   "node qa/judge-verdict.mts check .qa/judge/x/judge-expert.json",
   "node qa/judge-verdict.mts check .qa/judge/x/judge-expert.json expert",
-  "node qa/prove-fails.mts tests/restapi/cart.spec.ts coupon is applied .qa/judge/cart/break-1.patch",
-  "node qa/prove-fails.mts tests/restapi/cart.spec.ts coupon is applied .qa/judge/cart/break-1.patch --project=restapi",
+  "node qa/prove-fails.mts tests/restapi/cart.spec.ts 42 coupon is applied",
+  "node qa/prove-fails.mts tests/restapi/cart.spec.ts 42 coupon is applied --project=restapi",
+  "node qa/prove-fails.mts tests/restapi/cart.spec.ts 42 coupon --project=restapi is applied",
+];
+
+const JUDGE_BAD_SHAPE = [
+  "node qa/prove-fails.mts tests/a.spec.ts",
+  "node qa/prove-fails.mts tests/a.spec.ts 12",
+  "node qa/prove-fails.mts tests/a.spec.ts x title",
+  "node qa/prove-fails.mts tests/a.spec.ts title 12",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 --evil title",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 title --project=a --project=b",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 --project=a",
+  "node qa/prove-fails.mts --project=unit tests/a.spec.ts 12 title",
+  "node qa/prove-fails.mts ../a.spec.ts 12 title",
+  "node qa/prove-fails.mts tests/../../a.spec.ts 12 title",
+  "node qa/prove-fails.mts /abs/a.spec.ts 12 title",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 title .qa/judge/x/break-1.patch --project=",
 ];
 
 const CHAINED = [
@@ -60,10 +76,10 @@ const CHAINED = [
 ];
 
 const JUDGE_CHAINED = [
-  "node qa/prove-fails.mts a b c; rm x",
-  "node qa/prove-fails.mts a b c > out",
-  "node qa/prove-fails.mts 'a b' c",
-  "node qa/prove-fails.mts $HOME",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 a title; rm x",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 a title > out",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 'a b'",
+  "node qa/prove-fails.mts tests/a.spec.ts 12 $HOME",
   "node qa/prove-fails.mts/../evil.mts",
   "node qa/judge-verdict.mts && rm x",
   "git push",
@@ -187,6 +203,12 @@ test.describe("read-only shell (unit)", () => {
         expect(isReadOnlyCommand(command, other)).toBe(false);
       }
       expect(isReadOnlyCommand(command)).toBe(false);
+    });
+  }
+
+  for (const command of JUDGE_BAD_SHAPE) {
+    test(`refuses a prove-fails call of the wrong shape even for qa-judge: ${JSON.stringify(command)}`, () => {
+      expect(isReadOnlyCommand(command, "qa-judge")).toBe(false);
     });
   }
 

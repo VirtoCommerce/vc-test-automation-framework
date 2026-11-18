@@ -7,6 +7,7 @@ import { getEnv } from "@core/env";
 const env = getEnv();
 
 const MODULES_SETUP = ["modules"];
+const GENERATED_FIXTURES = "**/fixtures/generated/**";
 const API_TEST_TIMEOUT_MS = 90_000;
 const BROWSER_TEST_TIMEOUT_MS = 120_000;
 const BROWSER_EXPECT_TIMEOUT_MS = 30_000;
@@ -29,6 +30,7 @@ export default defineConfig<BrowserOptions>({
     {
       name: "unit",
       testDir: "tests/unit",
+      testIgnore: process.env["PROVE_FAILS_FIXTURES"] === "1" ? [] : [GENERATED_FIXTURES],
     },
     {
       name: "modules",

@@ -1,0 +1,562 @@
+{
+  "suites": [
+    {
+      "title": "sample.test.ts",
+      "file": "sample.test.ts",
+      "specs": [],
+      "suites": [
+        {
+          "title": "group",
+          "file": "sample.test.ts",
+          "specs": [
+            {
+              "title": "passes",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "alpha",
+                  "expectedStatus": "passed",
+                  "annotations": [],
+                  "results": [
+                    {
+                      "status": "passed",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ]
+            },
+            {
+              "title": "module skip",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "alpha",
+                  "expectedStatus": "skipped",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "module Foo is not installed"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "skipped",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ]
+            },
+            {
+              "title": "bare skip",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "alpha",
+                  "expectedStatus": "skipped",
+                  "annotations": [
+                    {
+                      "type": "skip"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "skipped",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ]
+            },
+            {
+              "title": "fails",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "alpha",
+                  "expectedStatus": "passed",
+                  "annotations": [],
+                  "results": [
+                    {
+                      "status": "failed",
+                      "retry": 0
+                    },
+                    {
+                      "status": "failed",
+                      "retry": 1
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            },
+            {
+              "title": "expected failure",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "alpha",
+                  "expectedStatus": "failed",
+                  "annotations": [
+                    {
+                      "type": "known issue",
+                      "description": "TKT-1: bug"
+                    },
+                    {
+                      "type": "fail",
+                      "description": "TKT-1: bug"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "failed",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ]
+            },
+            {
+              "title": "known issue fixme",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "alpha",
+                  "expectedStatus": "skipped",
+                  "annotations": [
+                    {
+                      "type": "known issue",
+                      "description": "bug without ticket"
+                    },
+                    {
+                      "type": "fixme",
+                      "description": "bug without ticket"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "skipped",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ]
+            },
+            {
+              "title": "flaky",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "alpha",
+                  "expectedStatus": "passed",
+                  "annotations": [],
+                  "results": [
+                    {
+                      "status": "failed",
+                      "retry": 0
+                    },
+                    {
+                      "status": "passed",
+                      "retry": 1
+                    }
+                  ],
+                  "status": "flaky"
+                }
+              ]
+            },
+            {
+              "title": "passes",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "beta",
+                  "expectedStatus": "passed",
+                  "annotations": [],
+                  "results": [
+                    {
+                      "status": "passed",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ]
+            },
+            {
+              "title": "module skip",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "beta",
+                  "expectedStatus": "skipped",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "module Foo is not installed"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "skipped",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ]
+            },
+            {
+              "title": "bare skip",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "beta",
+                  "expectedStatus": "skipped",
+                  "annotations": [
+                    {
+                      "type": "skip"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "skipped",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ]
+            },
+            {
+              "title": "fails",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "beta",
+                  "expectedStatus": "passed",
+                  "annotations": [],
+                  "results": [
+                    {
+                      "status": "failed",
+                      "retry": 0
+                    },
+                    {
+                      "status": "failed",
+                      "retry": 1
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            },
+            {
+              "title": "expected failure",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "beta",
+                  "expectedStatus": "failed",
+                  "annotations": [
+                    {
+                      "type": "known issue",
+                      "description": "TKT-1: bug"
+                    },
+                    {
+                      "type": "fail",
+                      "description": "TKT-1: bug"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "failed",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ]
+            },
+            {
+              "title": "known issue fixme",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "beta",
+                  "expectedStatus": "skipped",
+                  "annotations": [
+                    {
+                      "type": "known issue",
+                      "description": "bug without ticket"
+                    },
+                    {
+                      "type": "fixme",
+                      "description": "bug without ticket"
+                    }
+                  ],
+                  "results": [
+                    {
+                      "status": "skipped",
+                      "retry": 0
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ]
+            },
+            {
+              "title": "flaky",
+              "file": "sample.test.ts",
+              "tests": [
+                {
+                  "projectName": "beta",
+                  "expectedStatus": "passed",
+                  "annotations": [],
+                  "results": [
+                    {
+                      "status": "failed",
+                      "retry": 0
+                    },
+                    {
+                      "status": "passed",
+                      "retry": 1
+                    }
+                  ],
+                  "status": "flaky"
+                }
+              ]
+            }
+          ],
+          "suites": []
+        }
+      ]
+    },
+    {
+      "title": "second.test.ts",
+      "file": "second.test.ts",
+      "specs": [
+        {
+          "title": "declared skip",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "alpha",
+              "expectedStatus": "passed",
+              "annotations": [
+                {
+                  "type": "serial"
+                }
+              ],
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0
+                },
+                {
+                  "status": "passed",
+                  "retry": 1
+                }
+              ],
+              "status": "expected"
+            }
+          ]
+        },
+        {
+          "title": "declared skip with no body",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "alpha",
+              "expectedStatus": "skipped",
+              "annotations": [
+                {
+                  "type": "serial"
+                },
+                {
+                  "type": "skip"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0
+                },
+                {
+                  "status": "skipped",
+                  "retry": 1
+                }
+              ],
+              "status": "skipped"
+            }
+          ]
+        },
+        {
+          "title": "serial fails",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "alpha",
+              "expectedStatus": "passed",
+              "annotations": [
+                {
+                  "type": "serial"
+                }
+              ],
+              "results": [
+                {
+                  "status": "failed",
+                  "retry": 0
+                },
+                {
+                  "status": "failed",
+                  "retry": 1
+                }
+              ],
+              "status": "unexpected"
+            }
+          ]
+        },
+        {
+          "title": "never runs",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "alpha",
+              "expectedStatus": "passed",
+              "annotations": [
+                {
+                  "type": "serial"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0
+                },
+                {
+                  "status": "skipped",
+                  "retry": 1
+                }
+              ],
+              "status": "skipped"
+            }
+          ]
+        },
+        {
+          "title": "declared skip",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "beta",
+              "expectedStatus": "passed",
+              "annotations": [
+                {
+                  "type": "serial"
+                }
+              ],
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0
+                },
+                {
+                  "status": "passed",
+                  "retry": 1
+                }
+              ],
+              "status": "expected"
+            }
+          ]
+        },
+        {
+          "title": "declared skip with no body",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "beta",
+              "expectedStatus": "skipped",
+              "annotations": [
+                {
+                  "type": "serial"
+                },
+                {
+                  "type": "skip"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0
+                },
+                {
+                  "status": "skipped",
+                  "retry": 1
+                }
+              ],
+              "status": "skipped"
+            }
+          ]
+        },
+        {
+          "title": "serial fails",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "beta",
+              "expectedStatus": "passed",
+              "annotations": [
+                {
+                  "type": "serial"
+                }
+              ],
+              "results": [
+                {
+                  "status": "failed",
+                  "retry": 0
+                },
+                {
+                  "status": "failed",
+                  "retry": 1
+                }
+              ],
+              "status": "unexpected"
+            }
+          ]
+        },
+        {
+          "title": "never runs",
+          "file": "second.test.ts",
+          "tests": [
+            {
+              "projectName": "beta",
+              "expectedStatus": "passed",
+              "annotations": [
+                {
+                  "type": "serial"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0
+                },
+                {
+                  "status": "skipped",
+                  "retry": 1
+                }
+              ],
+              "status": "skipped"
+            }
+          ]
+        }
+      ],
+      "suites": []
+    }
+  ],
+  "errors": []
+}

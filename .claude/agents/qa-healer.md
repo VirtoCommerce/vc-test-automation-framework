@@ -46,8 +46,12 @@ path is a finding of the code check, whatever the edit: specs, `known-issues.jso
 - Setup and cleanup that live in those folders.
 
 A fix that needs a spec change is not yours: put the proposed change in the report and escalate it to the person.
-Besides those files you write only `.qa/reports/` and `.qa/runs/heal-<slug>/`. Change the fewest lines that fix
-the failure and nothing unrelated.
+Besides those files you write only `.qa/reports/heal-<slug>.md`, `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`,
+and never a `.git*` name. A hook enforces this and the shell allowlist (git reads, `node qa/<module>.mts`,
+`npx playwright test` with `--project`, `--repeat-each`, `--retries=0`, `--reporter`, `-g`, `npx tsc --noEmit`,
+`npx biome check <paths>`, `node qa/expectation-guard.mts --base=<sha>`); the git config, index and hooks are out of
+reach, and a refused call is final. Your browser tools are as listed above, under the hook's existing browser rules.
+Change the fewest lines that fix the failure and nothing unrelated.
 
 ## Classes
 

@@ -2,8 +2,11 @@ import { lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { EXTRACTORS } from "./explore-extractors.mts";
+import { PROJECT_FACTS_PATH, readProjectFacts } from "./project-facts.mts";
 
 export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
+
+export const HEALER_AGENT = "qa-healer";
 
 export const ALLOWED_QA_MODULES = ["project-facts", "ticket-card", "contract", "reconcile-run", "rank-gaps"] as const;
 
@@ -16,6 +19,8 @@ export const JUDGE_WRITE_DIR = ".qa/judge";
 export const EXPLORER_AGENT = "qa-explorer";
 
 export const EXPLORER_WRITE_DIR = ".qa/reports";
+
+export const HEALER_RUN_DIR = ".qa/runs";
 
 export const BROWSER_TOOL_PREFIX = "mcp__playwright__browser_";
 
@@ -59,6 +64,20 @@ const REPORT_FILE = /^explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;
 const JUDGE_FILE = /\.json$/;
 const PATH_SEPARATORS = /[\\/]/;
 const WEB_PROTOCOLS = ["http:", "https:"];
+const HEAL_SLUG = /^heal-[a-z0-9]+(-[a-z0-9]+)*$/;
+const HEAL_REPORT = /^(heal-[a-z0-9]+(-[a-z0-9]+)*|flaky)\.md$/;
+const HEAL_JSON_OUTPUT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/heal-[a-z0-9]+(-[a-z0-9]+)*\/[\w.-]+\.json$/;
+const HEALER_PLAYWRIGHT_FLAGS = [
+  /^--project=[\w.-]+$/,
+  /^--repeat-each=\d{1,3}$/,
+  /^--retries=0$/,
+  /^--grep=[\w.+^~,:@/=][\w.+^~,:@/=-]*$/,
+];
+const HEALER_REPORTER = /^--reporter=(list|json|null)(,(list|json))*$/;
+const GREP_VALUE = /^[\w.+^~,:@/=][\w.+^~,:@/=-]*$/;
+const GUARD_BASE = /^--base=[0-9a-f]{7,64}$/;
+const GUARD_PATH = "qa/expectation-guard.mts";
+const DRIVE_PATH = /^[A-Za-z]:/;
 
 function modulePattern(modules: readonly string[]): RegExp {
   return new RegExp(`^qa/(${modules.join("|")})[.]mts$`);
@@ -158,6 +177,83 @@ export function isReadOnlyCommand(command: string, agent?: string): boolean {
   return isQaModule(tokens, agent);
 }
 
+function isRepoPath(token: string): boolean {
+  return (
+    PLAYWRIGHT_PATH.test(token) &&
+    !token.startsWith("-") &&
+    !token.startsWith("/") &&
+    !DRIVE_PATH.test(token) &&
+    !token.split("/").includes("..")
+  );
+}
+
+function isHealerPlaywright(tokens: readonly string[]): boolean {
+  if (tokens[0] !== "npx" || tokens[1] !== "playwright" || tokens[2] !== "test") {
+    return false;
+  }
+  const rest = tokens.slice(3);
+  let reporters = 0;
+  for (let index = 0; index < rest.length; index += 1) {
+    const token = rest[index] ?? "";
+    if (token === "-g") {
+      index += 1;
+      if (!GREP_VALUE.test(rest[index] ?? "")) {
+        return false;
+      }
+    } else if (token === "--list") {
+    } else if (token.startsWith("--reporter=")) {
+      reporters += 1;
+      if (reporters > 1 || !HEALER_REPORTER.test(token)) {
+        return false;
+      }
+    } else if (token.startsWith("-")) {
+      if (!HEALER_PLAYWRIGHT_FLAGS.some((flag) => flag.test(token))) {
+        return false;
+      }
+    } else if (!isRepoPath(token)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * True only for a single plain command the healer may run besides the read-only ones: `npx playwright test` on repository
+ * paths with `--project`, `--repeat-each`, `--retries=0`, `--reporter=list|json|null`, `--grep` or `-g` and `--list`,
+ * optionally led by `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/<name>.json`; `node qa/expectation-guard.mts
+ * --snapshot|--base=<sha>`; `npx tsc --noEmit`; `npx biome check <paths>` with no flag. Nothing that writes to git,
+ * updates snapshots, picks a config or an output folder.
+ */
+export function isHealerCommand(command: string): boolean {
+  const text = command.trim();
+  const tokens = text.split(" ");
+  if (text === "" || !tokens.every((token) => TOKEN.test(token))) {
+    return false;
+  }
+  const [first = "", second, third, ...rest] = tokens;
+  if (first.startsWith("PLAYWRIGHT_JSON_OUTPUT_FILE=")) {
+    return HEAL_JSON_OUTPUT.test(first) && isHealerPlaywright(tokens.slice(1));
+  }
+  if (first === "npx" && second === "playwright") {
+    return isHealerPlaywright(tokens);
+  }
+  if (first === "node") {
+    return (
+      second === GUARD_PATH &&
+      rest.length === 0 &&
+      third !== undefined &&
+      (third === "--snapshot" || GUARD_BASE.test(third))
+    );
+  }
+  if (first === "npx" && second === "tsc") {
+    return third === "--noEmit" && rest.length === 0;
+  }
+  if (first === "npx" && second === "biome") {
+    return third === "check" && rest.length > 0 && rest.every(isRepoPath);
+  }
+  return false;
+}
+
 export function isReadOnlyAgent(name: string | undefined): boolean {
   const bare = bareName(name);
   return READ_ONLY_AGENTS.some((agent) => agent === bare);
@@ -236,6 +332,68 @@ function writeBlockReason(agent: string, toolInput: unknown, projectDir: string)
   return `${agent} may write ${rule.shown}; blocked: ${shown}`;
 }
 
+function cleanHealerSegments(segments: readonly string[] | undefined): readonly string[] | undefined {
+  const bad = segments?.some((name) => name.includes(":") || name.toLowerCase().startsWith(".git"));
+  return bad === false ? segments : undefined;
+}
+
+function healerPathsOf(projectDir: string): readonly string[] | undefined {
+  try {
+    return readProjectFacts(join(projectDir, PROJECT_FACTS_PATH)).healerPaths;
+  } catch {
+    return undefined;
+  }
+}
+
+function healerMayWrite(file: string, projectDir: string, healerPaths: readonly string[]): boolean {
+  if (healerPaths.some((dir) => cleanHealerSegments(pathInside(projectDir, dir, file)) !== undefined)) {
+    return true;
+  }
+  const report = cleanHealerSegments(pathInside(projectDir, EXPLORER_WRITE_DIR, file));
+  if (report?.length === 1 && HEAL_REPORT.test(report[0] ?? "")) {
+    return true;
+  }
+  const run = cleanHealerSegments(pathInside(projectDir, HEALER_RUN_DIR, file));
+  return run !== undefined && run.length >= 2 && HEAL_SLUG.test(run[0] ?? "");
+}
+
+function healerWriteBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
+  const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
+  const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
+  const healerPaths = healerPathsOf(projectDir);
+  if (healerPaths === undefined) {
+    return `${agent} may not write: ${PROJECT_FACTS_PATH} could not be read; blocked: ${shown}`;
+  }
+  if (typeof file === "string" && file !== "" && healerMayWrite(file, projectDir, healerPaths)) {
+    return undefined;
+  }
+  return `${agent} may write only under its healer paths, ${EXPLORER_WRITE_DIR}/heal-<slug>.md, ${EXPLORER_WRITE_DIR}/flaky.md and ${HEALER_RUN_DIR}/heal-<slug>/; blocked: ${shown}`;
+}
+
+function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, projectDir: string): string | undefined {
+  if (tool !== undefined && typeof tool !== "string") {
+    return `${agent} is restricted and its tool could not be identified; blocked`;
+  }
+  if (tool === "Write" || tool === "Edit" || tool === "MultiEdit") {
+    return healerWriteBlockReason(agent, toolInput, projectDir);
+  }
+  if (tool === "NotebookEdit" || tool === "PowerShell") {
+    return `${agent} may not use ${tool}; blocked`;
+  }
+  if (typeof tool === "string" && tool.startsWith("mcp__")) {
+    return browserBlockReason(agent, tool, toolInput);
+  }
+  if (tool !== undefined && tool !== "Bash") {
+    return undefined;
+  }
+  const command = isRecord(toolInput) ? toolInput["command"] : undefined;
+  if (typeof command === "string" && (isReadOnlyCommand(command, agent) || isHealerCommand(command))) {
+    return undefined;
+  }
+  const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
+  return `${agent} may run only git diff|log|show|status, node qa/<module>.mts, npx playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx tsc --noEmit and npx biome check <paths>; blocked: ${shown}`;
+}
+
 function isWebUrl(value: unknown): boolean {
   if (typeof value !== "string") {
     return false;
@@ -291,6 +449,9 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
     return undefined;
   }
   const agent = input["agent_type"];
+  if (typeof agent === "string" && bareName(agent) === HEALER_AGENT) {
+    return healerBlockReason(agent, input["tool_name"], input["tool_input"], projectDir);
+  }
   if (typeof agent !== "string" || !isReadOnlyAgent(agent)) {
     return undefined;
   }

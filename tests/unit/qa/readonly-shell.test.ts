@@ -9,6 +9,7 @@ import { expect, test } from "@playwright/test";
 import { EXTRACTORS, PAGE_EXTRACTOR } from "../../../qa/explore-extractors.mts";
 import {
   BROWSER_TOOLS,
+  HEALER_AGENT,
   hookBlockReason,
   isReadOnlyAgent,
   isReadOnlyCommand,
@@ -500,7 +501,7 @@ test.describe("read-only shell (unit)", () => {
 
   test("lets another agent and the main session use the writing tools", () => {
     for (const tool of WRITING_TOOLS) {
-      expect(hookBlockReason({ agent_type: "qa-healer", tool_name: tool }, PROJECT_DIR)).toBeUndefined();
+      expect(hookBlockReason({ agent_type: "qa-planner", tool_name: tool }, PROJECT_DIR)).toBeUndefined();
       expect(hookBlockReason({ tool_name: tool }, PROJECT_DIR)).toBeUndefined();
     }
   });
@@ -813,7 +814,7 @@ test.describe("read-only shell (unit)", () => {
   test("lets a write by another agent or the main session through", () => {
     const write = { tool_name: "Write", tool_input: { file_path: "tests/a.spec.ts" } };
     expect(hookBlockReason({ agent_type: "qa-automation-expert", ...write }, PROJECT_DIR)).toBeUndefined();
-    expect(hookBlockReason({ agent_type: "qa-healer", ...write }, PROJECT_DIR)).toBeUndefined();
+    expect(hookBlockReason({ agent_type: "qa-planner", ...write }, PROJECT_DIR)).toBeUndefined();
     expect(hookBlockReason(write, PROJECT_DIR)).toBeUndefined();
   });
 
@@ -903,7 +904,7 @@ test.describe("read-only shell hook script (unit)", () => {
     expect(blocked.status).toBe(2);
     expect(blocked.stderr.trim()).toMatch(/^[^\n]+$/);
     expect(write("qa-reviewer", ".qa/judge/x.json").status).toBe(2);
-    expect(write("qa-healer", "tests/restapi/cart.spec.ts").status).toBe(0);
+    expect(write("qa-planner", "tests/restapi/cart.spec.ts").status).toBe(0);
   });
 
   test("lets the explorer write under .qa/reports/ and blocks every other write, by the project directory", () => {
@@ -954,24 +955,25 @@ test.describe("read-only shell hook script (unit)", () => {
 
   test("lets another agent and the main session through when the module cannot be loaded", () => {
     expect(
-      runHook(JSON.stringify({ agent_type: "qa-healer", tool_input: { command: "git push" } }), "./no-such-module.mts")
+      runHook(JSON.stringify({ agent_type: "qa-planner", tool_input: { command: "git push" } }), "./no-such-module.mts")
         .status,
     ).toBe(0);
     expect(runHook(JSON.stringify({ tool_input: { command: "git push" } }), "./no-such-module.mts").status).toBe(0);
   });
 
-  test("names the same read-only agents in the hook script as in the module, in both directions", () => {
-    const listed = /const READ_ONLY_AGENTS = (\[[^\]]*\]);/.exec(readFileSync(HOOK_FILE, "utf8"))?.[1];
+  test("names the same guarded agents (the read-only ones and the healer) in the hook script as in the module, in both directions", () => {
+    const GUARDED = [...READ_ONLY_AGENTS, HEALER_AGENT];
+    const listed = /const GUARDED_AGENTS = (\[[^\]]*\]);/.exec(readFileSync(HOOK_FILE, "utf8"))?.[1];
     expect(listed).toBeDefined();
     const parsed: unknown = JSON.parse(listed ?? "[]");
     const inHook = Array.isArray(parsed) ? parsed.map(String) : [];
     for (const name of inHook) {
-      expect(READ_ONLY_AGENTS).toContain(name);
+      expect(GUARDED).toContain(name);
     }
-    for (const name of READ_ONLY_AGENTS) {
+    for (const name of GUARDED) {
       expect(inHook).toContain(name);
     }
-    expect(inHook).toHaveLength(READ_ONLY_AGENTS.length);
+    expect(inHook).toHaveLength(GUARDED.length);
   });
 
   test("registers the hook for the shell and every writing tool, and for no reading tool", () => {

@@ -7,7 +7,7 @@ type HookBlockReason = typeof hookBlockReason;
 
 const CLI_FILE_NAME = "readonly-shell.mts";
 const MODULE = "../../qa/readonly-shell.mts";
-const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"];
+const GUARDED_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge", "qa-healer"];
 const STDIN = 0;
 const BLOCK_EXIT_CODE = 2;
 
@@ -27,7 +27,7 @@ function parse(text: string): unknown {
   }
 }
 
-function readOnlyAgentOf(input: unknown): string | undefined {
+function guardedAgentOf(input: unknown): string | undefined {
   if (typeof input !== "object" || input === null || !("agent_type" in input)) {
     return undefined;
   }
@@ -35,7 +35,7 @@ function readOnlyAgentOf(input: unknown): string | undefined {
   if (typeof agent !== "string") {
     return undefined;
   }
-  return READ_ONLY_AGENTS.includes(agent.split(":").pop() ?? "") ? agent : undefined;
+  return GUARDED_AGENTS.includes(agent.split(":").pop() ?? "") ? agent : undefined;
 }
 
 function block(reason: string): void {
@@ -45,7 +45,7 @@ function block(reason: string): void {
 
 async function main(): Promise<void> {
   const input = parse(readStdin());
-  const agent = readOnlyAgentOf(input);
+  const agent = guardedAgentOf(input);
   if (agent === undefined) {
     return;
   }
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
       block(reason);
     }
   } catch {
-    block(`${agent} is read-only and its shell check could not run; blocked`);
+    block(`${agent} is restricted and its check could not run; blocked`);
   }
 }
 

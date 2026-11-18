@@ -264,6 +264,20 @@ test.describe("added suppressions", () => {
     "try { await x(); } catch {",
     "await locator.click().catch(() => {});",
     "process.exit(0);",
+    "try { await x(); } catch (e) {}",
+    "try { await x(); } catch (error) { }",
+    "await locator.click().catch((e) => {});",
+    "await locator.click().catch((_error) => undefined);",
+    "await locator.click().catch(async () => {});",
+    "await locator.click().catch(noop);",
+    "await new Promise((r) => setTimeout(r, 500));",
+    "await new Promise(resolve => setTimeout(resolve, 100));",
+    "await locator.click({ force: true });",
+    'test["skip"](true);',
+    "test['fixme']();",
+    'test.describe["configure"]({ retries: 2 });',
+    "const options = { retries: 3 };",
+    "await locator.click({ timeout: 60000 });",
   ];
 
   for (const line of SUPPRESSIONS) {

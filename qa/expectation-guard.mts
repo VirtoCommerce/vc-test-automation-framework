@@ -48,7 +48,13 @@ const SUPPRESSION = [
   /networkidle/,
   /\bexpect\.(?:extend|poll|configure)\b/,
   /\bcatch\s*\{/,
-  /\.catch\(\s*\(\s*\)\s*=>/,
+  /\bcatch\s*\([^)]*\)\s*\{\s*\}/,
+  /\.catch\(\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>/,
+  /\.catch\(\s*noop\b/,
+  /\bsetTimeout\s*\(/,
+  /\bforce\s*:\s*true\b/,
+  /\b(?:test|describe)(?:\.\w+)*\s*\[\s*["'`](?:skip|fixme|fail|slow|setTimeout|configure)["'`]\s*\]/,
+  /\b(?:retries|timeout)\s*:/,
   /\bprocess\.exit\b/,
 ];
 

@@ -17,9 +17,10 @@ one.
    dir=$(mktemp -d) && git archive <baseline tree id> qa | tar -x -C "$dir"
    node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
    ```
-   Exit 1 means it changed a file outside the healer paths, an expectation, or added a skip, wait or similar: stop,
-   show the findings to the person, and do not offer a review. Exit 2 means the guard could not run: report "not
-   checked", never clean, and do not offer a review.
+   Any non-zero result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without
+   `qa/` also gives it). Findings listed (a file outside the healer paths, a changed expectation, an added skip, wait
+   or similar): stop, show them to the person, and do not offer a review. No finding listed: the guard could not run;
+   report "not checked", never clean, and do not offer a review.
 3. Present what it fixed, what it classified as a product defect (a `knownIssue` proposal, never a patch), and what
    it escalated. A stand that was not reachable is "not done".
 

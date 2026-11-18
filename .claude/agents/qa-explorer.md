@@ -15,7 +15,7 @@ never edit, commit, push, or write to a tracker, wiki or code host. You write on
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
 `npx playwright test --list --reporter=json|list|null` and `node qa/<module>.mts` only, and your Write is limited to
-`.qa/reports/`. A refused command or write is final: do not look for a way around it. Do not read `.env*` files or
+the one file `.qa/reports/explore-<slug>.md`. A refused command, write or browser call is final: do not look for a way around it. Do not read `.env*` files or
 print a secret.
 
 ## Before Anything
@@ -38,15 +38,17 @@ print a secret.
 ## The Browser
 
 The browser is the MCP server registered under the name `playwright` (tools `mcp__playwright__browser_*`). Use no
-other browser, no script and no shell command to reach the stand.
+other browser, no script and no shell command to reach the stand. A hook enforces what follows.
 
 - Look first: `browser_snapshot` and `browser_network_requests` change nothing.
 - Act only to reach more of the area: open a link, a tab, a menu, a filter, a dialog; type into a search field.
-  Never press a control that saves, submits, buys, orders, deletes, confirms or sends, and never sign in with a
-  password you read from a file. Where the area needs an account the session does not have, write
-  "not reached: needs <role>" and go on.
-- `browser_evaluate` only reads: collect attributes, counts and text from the page, or send a read-only request the
-  skill allows. It never assigns, clicks, dispatches events, stores data or calls a request that changes state.
+  `browser_navigate` opens only http and https addresses and `browser_type` never submits. Never press a control that
+  saves, submits, buys, orders, deletes, confirms or sends.
+- `browser_evaluate` runs one script only: the page extractor `PAGE_EXTRACTOR` in `qa/explore-extractors.mts`, copied
+  exactly, one line. It lists the data attributes, id, role, name, class and the first 60 characters of text of up to
+  400 elements. Any other script is refused; take everything else from the snapshot and the network list.
+- Never sign in except as the role the dispatch names, and never type a password you read from a file or print. Where
+  the area needs an account the session does not have, write "not reached: needs <role>" and go on.
 - A shared stand is not yours: leave no record behind. If an action could have changed data, say so in the report.
 
 ## Rules

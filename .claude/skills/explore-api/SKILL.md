@@ -1,6 +1,6 @@
 ---
 name: explore-api
-description: "Map an area of an API on the stand: the operations the schema declares, and what the live service answers to read-only calls, with every difference. Read-only; never calls an operation that changes state; writes only the report under .qa/reports/"
+description: "Map an area of an API on the stand: the operations the schema declares, and what the page's own traffic shows the live service answering, with every difference. Read-only; sends no request of its own; writes only the report under .qa/reports/"
 argument-hint: "<api-area>"
 ---
 
@@ -28,30 +28,29 @@ List a mutation and any state-changing request here, but never call one.
 
 ## Step 3: Schema vs Live
 
-Ask the live service only for what reads:
+Your only live source is what the page itself sends: open the pages of the area with the browser and read the
+requests and answers with `browser_network_requests`. You send no request of your own: no `fetch`, no script, no
+call from the shell.
 
-- Only GraphQL `query` operations (and introspection), REST `GET` and `HEAD`, through the browser's own request
-  (`browser_evaluate` with `fetch`, or the requests the page itself made, read from `browser_network_requests`).
-  No mutation, no `POST`, `PUT`, `PATCH` or `DELETE` that writes, no bulk or export call, no call that sends a
-  message or starts a job.
-- Use the session the browser already has. Do not type or look up credentials. An operation that answers 401 or 403
-  is recorded as `not reached: needs <role>`; it is not a difference.
-- Ask for the smallest page of data that shows the shape: a first page, a single id. Keep no response body in the
-  report beyond the field names and types; never copy personal data or a secret.
+- Take the operation, its arguments and the answer's shape from the requests the page made. Use the session the
+  browser already has. Do not type or look up credentials. A request that answered 401 or 403 is recorded as
+  `not reached: needs <role>`; it is not a difference.
+- Keep no response body in the report beyond the field names and types; never copy personal data or a secret.
 
-Compare each answer with the schema and list every difference, one row each: the operation, the field or status,
-what the schema says, what the service answered. Differences to look for: a field the schema declares but the
-service does not return; a field the service returns that the schema lacks; a nullable field that is never null, or
-the other way; a type, enum value or error shape that does not match; an operation the schema declares that the
-service does not know; an operation the service answers that the schema does not declare.
+Compare each observed answer with the schema and list every difference, one row each: the operation, the field or
+status, what the schema says, what the page's traffic showed. Differences to look for: a field the schema declares but
+the answer does not return; a field the answer returns that the schema lacks; a nullable field that is never null, or
+the other way; a type, enum value or error shape that does not match; an operation the page sends that the schema
+does not declare.
 
-An operation not called is listed as `not called: <why>` (changes state, needs a role, no safe id to ask for).
+An operation the page did not send is listed as `not seen: <why>` (the page never uses it, it changes state, it
+needs a role). Never trigger one to see it.
 
 ## Done
 
 The two sections are in the report, each with its rows or `none observed`, and every row says where it was seen:
-schema file, existing client, or a live read-only call. Nothing outside `.qa/reports/` changed (`git status`), and
-no request that changes state was sent.
+schema file, existing client, or the page's traffic. Nothing outside `.qa/reports/` changed (`git status`), and you
+sent no request of your own.
 
 ## Example from this repository
 

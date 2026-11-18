@@ -32,7 +32,8 @@ a row with `not reached: <why>`.
 
 ## Step 3: Selectors
 
-From the page snapshot and a read-only `browser_evaluate` (attributes and counts only), list the elements a test
+From the page snapshot and the shipped page extractor (`browser_evaluate` with `PAGE_EXTRACTOR` from
+`qa/explore-extractors.mts`, the only script the hook allows), list the elements a test
 would use: for each, the best selector in the framework's order from `create-ui-layer` "Locator Conventions":
 
 1. the test id attribute (`getByTestId`);

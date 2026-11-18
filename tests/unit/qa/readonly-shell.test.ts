@@ -2,10 +2,18 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 
 import { expect, test } from "@playwright/test";
 
-import { hookBlockReason, isReadOnlyAgent, isReadOnlyCommand, READ_ONLY_AGENTS } from "../../../qa/readonly-shell.mts";
+import { EXTRACTORS, PAGE_EXTRACTOR } from "../../../qa/explore-extractors.mts";
+import {
+  BROWSER_TOOLS,
+  hookBlockReason,
+  isReadOnlyAgent,
+  isReadOnlyCommand,
+  READ_ONLY_AGENTS,
+} from "../../../qa/readonly-shell.mts";
 
 const HOOK_FILE = ".claude/hooks/readonly-shell.mts";
 const SETTINGS_FILE = ".claude/settings.json";
@@ -14,6 +22,58 @@ const JUDGE_AREA = join(PROJECT_DIR, ".qa", "judge");
 const REPORTS_AREA = join(PROJECT_DIR, ".qa", "reports");
 const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"];
 const JUDGE_COMMAND = "node qa/prove-fails.mts tests/a.spec.ts 12 a title";
+const BROWSER_PREFIX = "mcp__playwright__browser_";
+const EVALUATE = `${BROWSER_PREFIX}evaluate`;
+const READ_ONLY_NAMES = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge", "vc:qa-explorer"];
+const BROWSER_TOOL_NAMES = [
+  "navigate",
+  "navigate_back",
+  "snapshot",
+  "take_screenshot",
+  "click",
+  "hover",
+  "type",
+  "select_option",
+  "press_key",
+  "wait_for",
+  "tabs",
+  "console_messages",
+  "network_requests",
+  "evaluate",
+  "resize",
+  "close",
+].map((name) => `${BROWSER_PREFIX}${name}`);
+const NOT_BROWSER_TOOLS = [
+  `${BROWSER_PREFIX}file_upload`,
+  `${BROWSER_PREFIX}run_code_unsafe`,
+  `${BROWSER_PREFIX}fill_form`,
+  `${BROWSER_PREFIX}drag`,
+  `${BROWSER_PREFIX}drop`,
+  `${BROWSER_PREFIX}handle_dialog`,
+  `${BROWSER_PREFIX}network_request`,
+  `${BROWSER_PREFIX}click_all`,
+  `${BROWSER_PREFIX}`,
+  "mcp__playwright__install",
+  "mcp__playwright-chrome__browser_click",
+  "mcp__plugin_playwright_playwright__browser_click",
+  "mcp__kb__kb_capture",
+  "mcp__github__create_pull_request",
+  "mcp__",
+];
+
+function harmlessInput(tool: string): Record<string, unknown> {
+  if (tool === EVALUATE) {
+    return { function: PAGE_EXTRACTOR };
+  }
+  if (tool === `${BROWSER_PREFIX}navigate`) {
+    return { url: "https://example.com/cart" };
+  }
+  return tool === `${BROWSER_PREFIX}type` ? { ref: "e1", text: "boots" } : {};
+}
+
+function browserCall(agent: string, tool: string, input: unknown): unknown {
+  return { agent_type: agent, tool_name: tool, tool_input: input };
+}
 
 const ALLOWED = [
   "git diff",
@@ -135,18 +195,34 @@ const NOT_LISTED = [
   "PLAYWRIGHT_JSON_OUTPUT_FILE=out.json npx playwright test --list --reporter=json",
   "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/../../x.json npx playwright test --list --reporter=json",
   "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/a/list.json git diff",
+  "npx playwright test --list --reporter=json .qa/reports/x.spec.ts",
+  "npx playwright test --list --reporter=json ./.qa/reports/x.spec.ts",
+  "npx playwright test --list --reporter=json .QA/reports/x.spec.ts",
+  "npx playwright test --list --reporter=json .Qa/judge/cart/x.spec.ts",
+  "npx playwright test --list --reporter=json tests/../.qa/reports/x.spec.ts",
+  "npx playwright test --list --reporter=json .qa",
+  "npx playwright test --list --reporter=json --project=restapi .qa/runs/x.spec.ts",
+  "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/cart/review-list.restapi.json npx playwright test --list --reporter=json .qa/reports/x.spec.ts",
 ];
 
 const JUDGE_WRITES = [
   ".qa/judge/cart/judge-expert.json",
-  ".qa/judge/cart/break-1.patch",
   `${PROJECT_DIR}/.qa/judge/cart/judge-expert.json`,
   ".qa/judge/./cart/x.json",
+  ".qa/judge/cart/deeper/x.json",
 ];
 
 const NOT_JUDGE_WRITES = [
   ".qa/judge",
   ".qa/judge/",
+  ".qa/judge/x.json",
+  ".qa/judge/cart/break-1.patch",
+  ".qa/judge/cart/x.spec.ts",
+  ".qa/judge/cart/x.mts",
+  ".qa/judge/cart/x.js",
+  ".qa/judge/cart/x.json.ts",
+  ".qa/judge/cart/x.JSON",
+  ".qa/judge/cart/json",
   ".qa/judgement/x.json",
   ".qa/judge-x/x.json",
   ".qa/runs/x/judge-expert.json",
@@ -165,7 +241,8 @@ const NOT_JUDGE_WRITES = [
 
 const EXPLORER_WRITES = [
   ".qa/reports/explore-cart.md",
-  ".qa/reports/explore-cart/notes.md",
+  ".qa/reports/explore-cart-page-2.md",
+  ".qa/reports/explore-orders-api.md",
   `${PROJECT_DIR}/.qa/reports/explore-cart.md`,
   ".qa/reports/./explore-cart.md",
 ];
@@ -173,6 +250,18 @@ const EXPLORER_WRITES = [
 const NOT_EXPLORER_WRITES = [
   ".qa/reports",
   ".qa/reports/",
+  ".qa/reports/x.spec.ts",
+  ".qa/reports/x.mts",
+  ".qa/reports/x.md",
+  ".qa/reports/coverage-x.md",
+  ".qa/reports/explore.md",
+  ".qa/reports/explore-.md",
+  ".qa/reports/explore-Cart.md",
+  ".qa/reports/explore-a--b.md",
+  ".qa/reports/explore-cart.md.ts",
+  ".qa/reports/explore-cart.mts",
+  ".qa/reports/explore-cart/notes.md",
+  ".qa/reports/explore-cart/explore-cart.md",
   ".qa/reportsx/x.md",
   ".qa/reports-x/x.md",
   ".qa/report/x.md",
@@ -437,20 +526,199 @@ test.describe("read-only shell (unit)", () => {
 
   test("blocks the explorer writing through a link that leaves .qa/reports/", () => {
     const outside = mkdtempSync(join(tmpdir(), "reports-outside-"));
-    const name = `link-test-${process.pid}`;
-    const area = join(REPORTS_AREA, name);
+    const name = `explore-link-${process.pid}`;
+    const link = join(REPORTS_AREA, `${name}.md`);
     try {
-      mkdirSync(area, { recursive: true });
-      symlinkSync(outside, join(area, "elsewhere"), "junction");
-      for (const file of ["elsewhere/x.md", "elsewhere", "elsewhere/deeper/not-yet/x.md"]) {
-        const reason = hookBlockReason(explorerWrite(`.qa/reports/${name}/${file}`), PROJECT_DIR);
+      mkdirSync(REPORTS_AREA, { recursive: true });
+      symlinkSync(outside, link, "junction");
+      for (const file of [`${name}.md`, `${name}.md/x`, `${name}.md/deeper/not-yet`]) {
+        const reason = hookBlockReason(explorerWrite(`.qa/reports/${file}`), PROJECT_DIR);
         expect(reason, file).toContain(".qa/reports/");
       }
-      expect(hookBlockReason(explorerWrite(`.qa/reports/${name}/real/x.md`), PROJECT_DIR)).toBeUndefined();
+      expect(hookBlockReason(explorerWrite(`.qa/reports/${name}-real.md`), PROJECT_DIR)).toBeUndefined();
     } finally {
-      rmSync(area, { recursive: true, force: true });
+      rmSync(link, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });
     }
+  });
+
+  for (const tool of BROWSER_TOOL_NAMES) {
+    test(`lets every read-only agent use ${tool} with a harmless call`, () => {
+      for (const agent of READ_ONLY_NAMES) {
+        expect(hookBlockReason(browserCall(agent, tool, harmlessInput(tool)), PROJECT_DIR), agent).toBeUndefined();
+      }
+    });
+  }
+
+  for (const tool of NOT_BROWSER_TOOLS) {
+    test(`blocks every read-only agent from ${tool}`, () => {
+      for (const agent of READ_ONLY_NAMES) {
+        const reason = hookBlockReason(browserCall(agent, tool, {}), PROJECT_DIR);
+        expect(reason, agent).toMatch(/^[^\n]+$/);
+        expect(reason, agent).toContain(tool);
+      }
+    });
+  }
+
+  test("lets the browser evaluate only the shipped page extractor", () => {
+    for (const agent of READ_ONLY_NAMES) {
+      for (const text of [PAGE_EXTRACTOR, `  ${PAGE_EXTRACTOR}\n`]) {
+        expect(hookBlockReason(browserCall(agent, EVALUATE, { function: text }), PROJECT_DIR)).toBeUndefined();
+      }
+      expect(
+        hookBlockReason(browserCall(agent, EVALUATE, { function: PAGE_EXTRACTOR, ref: "e1" }), PROJECT_DIR),
+      ).toBeUndefined();
+    }
+    expect(EXTRACTORS).toContain(PAGE_EXTRACTOR);
+  });
+
+  for (const [index, script] of [
+    "() => document.title",
+    "() => fetch('/graphql', { method: 'POST' })",
+    "() => { document.querySelector('button').click(); }",
+    "() => localStorage.clear()",
+    `${PAGE_EXTRACTOR};fetch('/x')`,
+    `${PAGE_EXTRACTOR.slice(0, -1)}`,
+    `() => (${PAGE_EXTRACTOR})()`,
+    PAGE_EXTRACTOR.replace("400", "4000"),
+    "",
+    "   ",
+  ].entries()) {
+    test(`blocks any other script in browser_evaluate (${index}): ${JSON.stringify(script.slice(0, 40))}`, () => {
+      for (const agent of READ_ONLY_NAMES) {
+        const reason = hookBlockReason(browserCall(agent, EVALUATE, { function: script }), PROJECT_DIR);
+        expect(reason, agent).toMatch(/^[^\n]+$/);
+        expect(reason, agent).toContain(EVALUATE);
+      }
+    });
+  }
+
+  test("blocks browser_evaluate with no usable script", () => {
+    for (const input of [
+      {},
+      { function: 1 },
+      { function: null },
+      { function: [PAGE_EXTRACTOR] },
+      { expression: PAGE_EXTRACTOR },
+    ]) {
+      expect(hookBlockReason(browserCall("qa-explorer", EVALUATE, input), PROJECT_DIR)).toBeDefined();
+    }
+    expect(hookBlockReason({ agent_type: "qa-explorer", tool_name: EVALUATE }, PROJECT_DIR)).toBeDefined();
+    expect(
+      hookBlockReason({ agent_type: "qa-explorer", tool_name: EVALUATE, tool_input: "x" }, PROJECT_DIR),
+    ).toBeDefined();
+  });
+
+  test("blocks typing with submit, whatever its value, and lets typing without it through", () => {
+    const type = (extra: Record<string, unknown>): unknown =>
+      browserCall("qa-explorer", `${BROWSER_PREFIX}type`, { ref: "e1", text: "boots", ...extra });
+    expect(hookBlockReason(type({}), PROJECT_DIR)).toBeUndefined();
+    expect(hookBlockReason(type({ submit: false }), PROJECT_DIR)).toBeUndefined();
+    for (const submit of [true, "true", 1, "false", null, {}]) {
+      const reason = hookBlockReason(type({ submit }), PROJECT_DIR);
+      expect(reason, JSON.stringify(submit)).toMatch(/^[^\n]+$/);
+      expect(reason, JSON.stringify(submit)).toContain("submit");
+    }
+  });
+
+  for (const url of [
+    "https://example.com/cart",
+    "http://example.com",
+    "http://localhost:3000/a?b=c#d",
+    "HTTPS://EXAMPLE.COM",
+  ]) {
+    test(`lets the browser open ${url}`, () => {
+      expect(
+        hookBlockReason(browserCall("qa-explorer", `${BROWSER_PREFIX}navigate`, { url }), PROJECT_DIR),
+      ).toBeUndefined();
+    });
+  }
+
+  for (const url of [
+    "javascript:alert(1)",
+    "file:///etc/passwd",
+    "data:text/html,x",
+    "about:blank",
+    "chrome://settings",
+    "blob:https://example.com/x",
+    "ftp://example.com",
+    "view-source:https://example.com",
+    "example.com",
+    "/cart",
+    "not a url",
+    "",
+    3,
+    null,
+    undefined,
+  ]) {
+    test(`blocks the browser opening ${JSON.stringify(url)}`, () => {
+      const reason = hookBlockReason(browserCall("qa-explorer", `${BROWSER_PREFIX}navigate`, { url }), PROJECT_DIR);
+      expect(reason).toMatch(/^[^\n]+$/);
+      expect(reason).toContain("navigate");
+    });
+  }
+
+  test("lets another agent and the main session use any MCP tool", () => {
+    for (const tool of [...NOT_BROWSER_TOOLS, EVALUATE, `${BROWSER_PREFIX}navigate`]) {
+      expect(
+        hookBlockReason({ agent_type: "qa-planner", tool_name: tool, tool_input: {} }, PROJECT_DIR),
+      ).toBeUndefined();
+      expect(hookBlockReason({ tool_name: tool, tool_input: {} }, PROJECT_DIR)).toBeUndefined();
+    }
+  });
+
+  test("ships one extractor that reads the page and changes nothing", () => {
+    expect(EXTRACTORS).toEqual([PAGE_EXTRACTOR]);
+    expect(PAGE_EXTRACTOR).toMatch(/^\(\) => /);
+    expect(PAGE_EXTRACTOR).not.toMatch(/[\n\\`]|\$\{/);
+    expect(PAGE_EXTRACTOR).not.toMatch(
+      /fetch|XMLHttpRequest|sendBeacon|\.click\(|dispatchEvent|submit|Storage|cookie|location|window\.|eval|Function|import|setAttribute|\.value\s*=|innerHTML|remove\(/,
+    );
+  });
+
+  test("the extractor returns data attributes, id, role, name, class and 60 characters of text, up to a fixed count", () => {
+    const element = (attributes: [string, string][], text: string): object => ({
+      tagName: "BUTTON",
+      attributes: attributes.map(([name, value]) => ({ name, value })),
+      textContent: text,
+    });
+    const run = (elements: object[]): unknown =>
+      JSON.parse(
+        JSON.stringify(runInNewContext(`(${PAGE_EXTRACTOR})()`, { document: { querySelectorAll: () => elements } })),
+      );
+    expect(
+      run([
+        element(
+          [
+            ["data-test-id", "add"],
+            ["id", "a"],
+            ["role", "button"],
+            ["name", "n"],
+            ["class", "c d"],
+            ["style", "color: red"],
+            ["onclick", "x()"],
+          ],
+          `  ${"t".repeat(100)}  `,
+        ),
+        element([["style", "x"]], "no kept attribute"),
+        element([["data-sku", "s1"]], ""),
+      ]),
+    ).toEqual([
+      {
+        tag: "button",
+        attributes: [
+          ["data-test-id", "add"],
+          ["id", "a"],
+          ["role", "button"],
+          ["name", "n"],
+          ["class", "c d"],
+        ],
+        text: "t".repeat(60),
+      },
+      { tag: "button", attributes: [["data-sku", "s1"]], text: "" },
+    ]);
+    const many = Array.from({ length: 1000 }, () => element([["id", "x"]], "t"));
+    expect(run(many)).toHaveLength(400);
   });
 
   test("lets a write by another agent or the main session through", () => {
@@ -597,7 +865,58 @@ test.describe("read-only shell hook script (unit)", () => {
 
   test("registers the hook for the shell and every writing tool, and for no reading tool", () => {
     const matcher = /"matcher":\s*"([^"]*)"/.exec(readFileSync(SETTINGS_FILE, "utf8"))?.[1];
-    expect(matcher?.split("|").sort()).toEqual(["Bash", "Edit", "MultiEdit", "NotebookEdit", "PowerShell", "Write"]);
+    expect(matcher?.split("|").sort()).toEqual([
+      "Bash",
+      "Edit",
+      "MultiEdit",
+      "NotebookEdit",
+      "PowerShell",
+      "Write",
+      "mcp__playwright__.*",
+    ]);
+  });
+
+  test("names the browser tools the hook allows, and no others", () => {
+    expect([...BROWSER_TOOLS].sort()).toEqual([...BROWSER_TOOL_NAMES].sort());
+  });
+
+  test("allows the explorer only the browser tools its definition lists", () => {
+    const definition = readFileSync(".claude/agents/qa-explorer.md", "utf8");
+    const listed =
+      /^tools:(.*)$/m
+        .exec(definition)?.[1]
+        ?.split(",")
+        .map((tool) => tool.trim()) ?? [];
+    const browser = listed.filter((tool) => tool.startsWith("mcp__"));
+    expect(browser.length).toBeGreaterThan(0);
+    for (const tool of browser) {
+      expect(BROWSER_TOOLS, tool).toContain(tool);
+    }
+    for (const forbidden of ["Edit", "MultiEdit", "NotebookEdit", "PowerShell", "Monitor"]) {
+      expect(listed).not.toContain(forbidden);
+    }
+  });
+
+  test("blocks the explorer's off-list or unsafe browser calls when run as the hook script", () => {
+    const call = (tool: string, input: unknown): number | null =>
+      runHook(JSON.stringify(browserCall("qa-explorer", tool, input))).status;
+    expect(call(`${BROWSER_PREFIX}snapshot`, {})).toBe(0);
+    expect(call(EVALUATE, { function: PAGE_EXTRACTOR })).toBe(0);
+    expect(call(`${BROWSER_PREFIX}navigate`, { url: "https://example.com" })).toBe(0);
+    expect(call(EVALUATE, { function: "() => fetch('/x')" })).toBe(2);
+    expect(call(`${BROWSER_PREFIX}navigate`, { url: "file:///etc/passwd" })).toBe(2);
+    expect(call(`${BROWSER_PREFIX}type`, { text: "x", submit: true })).toBe(2);
+    expect(call(`${BROWSER_PREFIX}file_upload`, {})).toBe(2);
+    expect(call("mcp__kb__kb_capture", {})).toBe(2);
+    expect(runHook(JSON.stringify(browserCall("qa-planner", EVALUATE, { function: "() => 1" }))).status).toBe(0);
+  });
+
+  test("blocks the explorer's browser calls when the module cannot be loaded", () => {
+    const result = runHook(
+      JSON.stringify(browserCall("qa-explorer", `${BROWSER_PREFIX}snapshot`, {})),
+      "./no-such-module.mts",
+    );
+    expect(result.status).toBe(2);
   });
 
   test("blocks the judge's write through a link when run as the hook script", () => {

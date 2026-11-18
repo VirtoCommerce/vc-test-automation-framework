@@ -1,6 +1,8 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
+import { EXTRACTORS } from "./explore-extractors.mts";
+
 export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
 
 export const ALLOWED_QA_MODULES = ["project-facts", "ticket-card", "contract", "reconcile-run", "rank-gaps"] as const;
@@ -14,6 +16,27 @@ export const JUDGE_WRITE_DIR = ".qa/judge";
 export const EXPLORER_AGENT = "qa-explorer";
 
 export const EXPLORER_WRITE_DIR = ".qa/reports";
+
+export const BROWSER_TOOL_PREFIX = "mcp__playwright__browser_";
+
+export const BROWSER_TOOLS = [
+  "navigate",
+  "navigate_back",
+  "snapshot",
+  "take_screenshot",
+  "click",
+  "hover",
+  "type",
+  "select_option",
+  "press_key",
+  "wait_for",
+  "tabs",
+  "console_messages",
+  "network_requests",
+  "evaluate",
+  "resize",
+  "close",
+].map((name) => `${BROWSER_TOOL_PREFIX}${name}`);
 
 export const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"] as const;
 
@@ -29,6 +52,11 @@ const JSON_OUTPUT_ASSIGNMENT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/[\w-]+\
 const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
 const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_MODULES]);
 const MAX_SHOWN_COMMAND = 80;
+const QA_FOLDER_TOKEN = /(^|\/)\.qa(\/|$)/i;
+const REPORT_FILE = /^explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;
+const JUDGE_FILE = /\.json$/;
+const PATH_SEPARATORS = /[\\/]/;
+const WEB_PROTOCOLS = ["http:", "https:"];
 
 function modulePattern(modules: readonly string[]): RegExp {
   return new RegExp(`^qa/(${modules.join("|")})[.]mts$`);
@@ -53,6 +81,9 @@ function isGitRead(tokens: readonly string[]): boolean {
 function isPlaywrightList(tokens: readonly string[]): boolean {
   const [, , , ...rest] = tokens;
   if (tokens[1] !== "playwright" || tokens[2] !== "test" || !rest.includes("--list")) {
+    return false;
+  }
+  if (rest.some((token) => QA_FOLDER_TOKEN.test(token))) {
     return false;
   }
   if (rest.filter((token) => REPORTER_FLAG.test(token)).length !== 1) {
@@ -155,43 +186,96 @@ function exists(path: string): boolean {
   }
 }
 
-function isInsideDir(projectDir: string, dir: string, file: string): boolean {
+function pathInside(projectDir: string, dir: string, file: string): string[] | undefined {
   const area = realPathOf(resolve(projectDir, dir));
   const target = realPathOf(resolve(projectDir, file));
   if (area === undefined || target === undefined) {
-    return false;
+    return undefined;
   }
   const path = relative(area, target);
-  return path !== "" && !path.startsWith("..") && !isAbsolute(path);
+  if (path === "" || path.startsWith("..") || isAbsolute(path)) {
+    return undefined;
+  }
+  return path.split(PATH_SEPARATORS);
 }
 
-function writeDirOf(agent: string): string | undefined {
+function isReportFile(segments: readonly string[]): boolean {
+  return segments.length === 1 && REPORT_FILE.test(segments[0] ?? "");
+}
+
+function isJudgeFile(segments: readonly string[]): boolean {
+  return segments.length >= 2 && JUDGE_FILE.test(segments.at(-1) ?? "");
+}
+
+function writeRuleOf(
+  agent: string,
+): { dir: string; allows: (segments: readonly string[]) => boolean; shown: string } | undefined {
   const bare = bareName(agent);
   if (bare === JUDGE_AGENT) {
-    return JUDGE_WRITE_DIR;
+    return { dir: JUDGE_WRITE_DIR, allows: isJudgeFile, shown: `only .json files under ${JUDGE_WRITE_DIR}/<name>/` };
   }
-  return bare === EXPLORER_AGENT ? EXPLORER_WRITE_DIR : undefined;
+  if (bare === EXPLORER_AGENT) {
+    return { dir: EXPLORER_WRITE_DIR, allows: isReportFile, shown: `only ${EXPLORER_WRITE_DIR}/explore-<slug>.md` };
+  }
+  return undefined;
 }
 
 function writeBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
-  const dir = writeDirOf(agent);
-  if (dir === undefined) {
+  const rule = writeRuleOf(agent);
+  if (rule === undefined) {
     return `${agent} is read-only and may not write files; blocked`;
   }
   const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
-  if (typeof file === "string" && file !== "" && isInsideDir(projectDir, dir, file)) {
+  const segments = typeof file === "string" && file !== "" ? pathInside(projectDir, rule.dir, file) : undefined;
+  if (segments !== undefined && rule.allows(segments)) {
     return undefined;
   }
   const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may write only under ${dir}/; blocked: ${shown}`;
+  return `${agent} may write ${rule.shown}; blocked: ${shown}`;
+}
+
+function isWebUrl(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  try {
+    return WEB_PROTOCOLS.includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+function isShippedExtractor(script: unknown): boolean {
+  return typeof script === "string" && EXTRACTORS.includes(script.trim());
+}
+
+function browserBlockReason(agent: string, tool: string, toolInput: unknown): string | undefined {
+  if (!BROWSER_TOOLS.includes(tool)) {
+    return `${agent} is read-only and may not use ${tool}; blocked`;
+  }
+  const input = isRecord(toolInput) ? toolInput : {};
+  const name = tool.slice(BROWSER_TOOL_PREFIX.length);
+  if (name === "evaluate" && !isShippedExtractor(input["function"])) {
+    return `${agent} may run only the shipped page extractor in ${tool}; blocked`;
+  }
+  if (name === "type" && input["submit"] !== undefined && input["submit"] !== false) {
+    return `${agent} may not type with submit in ${tool}; blocked`;
+  }
+  if (name === "navigate" && !isWebUrl(input["url"])) {
+    return `${agent} may open only http or https addresses in ${tool}; blocked`;
+  }
+  return undefined;
 }
 
 /**
- * Decides a PreToolUse hook call for the Bash and Write tools: a one-line reason to block it, or undefined to let it
- * pass. Only the read-only agents are limited; the main session and every other agent pass untouched. A read-only
- * agent's Bash call must be on the allowlist, its Write call is allowed for `qa-judge` under the real `.qa/judge/` and for
- * `qa-explorer` under the real `.qa/reports/` of the project directory only (a link that leaves it does not count), the other writing tools are blocked, and the
- * tools that only read pass.
+ * Decides a PreToolUse hook call for the Bash, Write and Playwright browser tools: a one-line reason to block it, or
+ * undefined to let it pass. Only the read-only agents are limited; the main session and every other agent pass
+ * untouched. A read-only agent's Bash call must be on the allowlist. Its Write call is allowed for `qa-judge` only as a
+ * `.json` file under `.qa/judge/<name>/` and for `qa-explorer` only as `.qa/reports/explore-<slug>.md`, both under the
+ * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
+ * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the
+ * shipped page extractor, `browser_type` never submits, `browser_navigate` opens only http and https. The tools that
+ * only read pass.
  */
 export function hookBlockReason(input: unknown, projectDir: string = process.cwd()): string | undefined {
   if (!isRecord(input)) {
@@ -211,6 +295,9 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
   }
   if (WRITING_TOOLS.some((writing) => writing === tool)) {
     return `${agent} is read-only and may not use ${tool}; blocked`;
+  }
+  if (typeof tool === "string" && tool.startsWith("mcp__")) {
+    return browserBlockReason(agent, tool, toolInput);
   }
   if (tool !== undefined && tool !== "Bash") {
     return undefined;

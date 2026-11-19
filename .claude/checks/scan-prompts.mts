@@ -61,7 +61,7 @@ const PURPOSE_WORDS = new Set(
   ROLE_PURPOSES.flatMap((purpose) => [purpose, ...purpose.split(CAMEL_CASE_BREAK)].map((word) => word.toLowerCase())),
 );
 
-type Word = { term: string; pattern: RegExp };
+type Word = { term: string; pattern: RegExp; quotedOnly: boolean };
 type Rules = { accounts: string[]; domains: string[]; terms: string[]; words: Word[] };
 type Heading = { index: number; level: number; text: string };
 type ExampleSection = { start: number; end: number; level: number };
@@ -146,16 +146,29 @@ function domainsOf(accounts: string[]): string[] {
   });
 }
 
+/**
+ * The role and permission names to look for. A name that is a purpose or a word of one (`admin`, `customer`, `other`)
+ * is matched only in its exact spelling, in quotes (see {@link quotedPattern}), and only when that spelling is not all
+ * lower case; an all-lower-case one is not checked (a known limit), since it is the shipped files' own vocabulary.
+ */
 function wordsOf(facts: ProjectFacts): Word[] {
   const names = [
     ...Object.keys(facts.roles),
     ...Object.values(facts.roleFor),
     ...Object.values(facts.rolePermissions ?? {}).flat(),
-  ];
-  return [...new Set(normaliseTerms(names))].map((term) => ({
-    term,
-    pattern: PURPOSE_WORDS.has(term) ? quotedPattern(term) : wordPattern(term),
-  }));
+  ]
+    .map((name) => name.trim())
+    .filter((name) => name !== "" && !name.startsWith("#"));
+  const words = new Map<string, Word>();
+  for (const name of names) {
+    const term = name.toLowerCase();
+    if (!PURPOSE_WORDS.has(term)) {
+      words.set(term, { term, pattern: wordPattern(term), quotedOnly: false });
+    } else if (name !== term) {
+      words.set(name, { term: name, pattern: quotedPattern(name), quotedOnly: true });
+    }
+  }
+  return [...words.values()];
 }
 
 /** The term with its separators (any run of spaces, `_` or `-`) matching any such run, and the rest escaped. */
@@ -178,12 +191,13 @@ function wordPattern(term: string): RegExp {
 }
 
 /**
- * Matches a role named like a purpose or a word of one (`admin`, `customer`, `other`) only where it is written as a
- * name: alone inside quotes or backticks (`"Customer"`, `'admin'`), in any letter case. Prose such as "a customer
- * signs in" and the `roleFor.<purpose>` tokens are left alone.
+ * Matches a role named like a purpose or a word of one only where it is written as a name, in its exact spelling:
+ * alone inside quotes or backticks (`"Customer"` for a role named `Customer`). Prose such as "a customer signs in",
+ * another spelling and the `roleFor.<purpose>` tokens are left alone. Not applied to the `.claude/checks/` modules,
+ * whose code names the purposes themselves.
  */
-function quotedPattern(term: string): RegExp {
-  return new RegExp(`(?<!roleFor\\[)(["'\`])${termBody(term)}\\1`, "iu");
+function quotedPattern(name: string): RegExp {
+  return new RegExp(`(?<!roleFor\\[)(["'\`])${name.replace(REGEX_SPECIALS, "\\$&")}\\1`, "u");
 }
 
 function scanLine(text: string, rules: Rules): string[] {
@@ -252,7 +266,9 @@ function hiddenSections(lines: string[], sections: ExampleSection[], firstHeadin
   return sections.filter((section) => isMisplaced(section, firstHeading) || tooMuch);
 }
 
-function scanFile(file: string, content: string, rules: Rules): PromptFinding[] {
+function scanFile(file: string, content: string, allRules: Rules): PromptFinding[] {
+  const isModule = file.startsWith(`${MODULES_DIR}/`);
+  const rules = isModule ? { ...allRules, words: allRules.words.filter(({ quotedOnly }) => !quotedOnly) } : allRules;
   const findings: PromptFinding[] = [];
   const lines = content.replaceAll("\r\n", "\n").split("\n");
   const headings = headingsOf(lines);
@@ -296,8 +312,9 @@ function shippedFiles(root: string): string[] {
  * accounts and their email domains, any host (URL with any scheme, bare hostname or IPv4 address) outside
  * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, the facts' role names (`roles` keys,
  * `roleFor` values) and `rolePermissions` permission names as whole words in any letter case (see {@link wordPattern};
- * a term split over two lines is a known gap), a role named like a purpose only in quotes or backticks (see
- * {@link quotedPattern}), and agent files over
+ * a term split over two lines is a known gap), a role named like a purpose only in its exact spelling in quotes or
+ * backticks, when that spelling is not all lower case and not in the modules (see {@link quotedPattern}), and agent
+ * files over
  * {@link MAX_AGENT_CHARS} characters. Names in `.claude/checks/ours-only.json` are skipped by exact path; a section under
  * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or
  * holds more than half of its non-empty lines, which is itself a finding.

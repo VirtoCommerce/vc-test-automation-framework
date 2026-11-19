@@ -50,7 +50,8 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.
 - Knowledge snapshot: `knowledgeDir` is the directory where the knowledge snapshot lives; read it before calling a live
   service.
-- Tracker: `tracker.keyPattern` validates a ticket key; `tracker.routes` is the order in which to try to read a ticket,
+- Tracker: `tracker.keyPattern` validates a ticket key (the reader refuses one that matches no sample key of a `jira` or
+  `azure-boards` kind); `tracker.routes` is the order in which to try to read a ticket,
   ending with pasted text.
 - Quality gates: `quality` holds the shape limits (`maxSteps`, `maxLines`, `maxExpects`, `maxNesting`, `maxConditionals`),
   `stableSeries` (the repetitions of a new or changed test, apart from `flakyRunSeries`), `durationBudgetMs` per project,

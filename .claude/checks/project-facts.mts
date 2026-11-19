@@ -43,6 +43,9 @@ const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
 const HEALER_PATH = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\/?$/;
 const FORBIDDEN_HEALER_SEGMENTS = ["qa", "node_modules", ".claude"];
+const PROJECT_KEY_WORD = /\b[A-Z][A-Z0-9_]+\b/g;
+const SAMPLE_NUMBER = "123";
+const SAMPLE_ID = "12345";
 
 export const SHORT_NAME_SEGMENT = /~\d/;
 
@@ -113,13 +116,35 @@ function asWeight(value: unknown, path: string): number {
   return value;
 }
 
+/**
+ * Keys of the tracker kind's shape that a plausible `keyPattern` matches at least one of: `PROJ-123` for jira, with
+ * `PROJ` also replaced by each upper-case word of the pattern (its project key), and `12345` for azure-boards. Empty
+ * for any other kind, which is not checked.
+ */
+function sampleKeys(kind: string, keyPattern: string): string[] {
+  switch (kind) {
+    case "jira":
+      return ["PROJ", ...(keyPattern.match(PROJECT_KEY_WORD) ?? [])].map((project) => `${project}-${SAMPLE_NUMBER}`);
+    case "azure-boards":
+      return [SAMPLE_ID];
+    default:
+      return [];
+  }
+}
+
 function parseTracker(value: unknown): ProjectFacts["tracker"] {
   const tracker = asRecord(value, "tracker");
   const keyPattern = asString(present(tracker, "keyPattern", "tracker.keyPattern"), "tracker.keyPattern");
+  let pattern: RegExp;
   try {
-    new RegExp(keyPattern);
+    pattern = new RegExp(keyPattern);
   } catch {
-    fail("tracker.keyPattern", "is not a valid regular expression");
+    return fail("tracker.keyPattern", "is not a valid regular expression");
+  }
+  const kind = asString(present(tracker, "kind", "tracker.kind"), "tracker.kind");
+  const samples = sampleKeys(kind, keyPattern);
+  if (samples.length > 0 && !samples.some((key) => pattern.test(key))) {
+    fail("tracker.keyPattern", `matches none of the sample ${kind} keys (${samples.join(", ")})`);
   }
   const routes =
     tracker["routes"] === undefined
@@ -128,7 +153,6 @@ function parseTracker(value: unknown): ProjectFacts["tracker"] {
   if (routes.length === 0) {
     fail("tracker.routes", "is empty");
   }
-  const kind = asString(present(tracker, "kind", "tracker.kind"), "tracker.kind");
   const field = tracker["acceptanceCriteriaField"];
   return field === undefined
     ? { kind, keyPattern, routes }

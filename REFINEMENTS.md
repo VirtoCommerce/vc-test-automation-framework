@@ -92,12 +92,11 @@ recorded run only when it is given a previous report, but no command passes one,
 (`durationBudgetMs`) works today. What to change: design a stable location for the last accepted report (for example
 one the dispatcher keeps on an APPROVE) and pass it to the reviewer. Size: small, once the location is decided.
 
-**The evaluation suite has not run against real agents yet.** The first real run shows whether the headless
-permissions and allowed tools are enough for every role and whether a stand's `.env` reaches the agents. Known rough
-edges: `commands.lint` here is `biome check --write`, which the lint check has to undo; the case patches pin context
-lines of two tracked files and go stale when those change; the healer's product-defect case goes stale when the
-build fixes the known issue; the reviewer trap's markers are lenient until calibrated; evidence text is not scrubbed
-of secrets; `compare` does not list cases missing from the current run.
+**The evaluation suite and the unit tests of `qa/` live outside this repository.** Nothing in CI runs them, and
+the evaluation suite costs tokens per run. Its first run (five cases without a stand) passed the reviewer and coverage
+cases and showed two planner calibration gaps: the planner asks its scope questions before writing, so a headless run
+with nobody to answer writes no contract, and one case rejects a rule placed out of scope because an existing test
+covers it. The expert, healer and explorer cases need a stand and have not run yet.
 
 **What waits for the other designs of the client-adaptation stage.**
 

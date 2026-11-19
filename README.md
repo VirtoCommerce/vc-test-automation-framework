@@ -378,7 +378,6 @@ core  →  api  →  dataset  →  fixtures  →  tests
 ├── biome/                   Lint rules, import rules, layer rules, exceptions
 ├── .claude/                 The QA agents, skills, commands and the read-only shell hook (see Agents)
 ├── qa/                      Scripts that check the agents' work without a model; import only `qa/` and `core/`
-├── evals/                   Evaluation cases, code checks and the runner for the agents (see Agents)
 ├── .qa/                     `project.json` (committed) and the agents' git-ignored working folders
 ├── known-issues.json        Known defects of the platform under test, with links to their tickets
 ├── playwright.config.ts     Projects, timeouts, reporters
@@ -806,42 +805,13 @@ the others on.
    repository.
 5. Add the git-ignore lines above.
 
-### Evaluating the agents
+### Checking the agents
 
-The agents ship to clients, so a change to a prompt, skill or command is a release for everyone. `evals/` runs each
-role on fixed cases before a release and whenever one of those files changes. A case (`evals/cases/<role>/<case>/`)
-is a task, the repository state it starts from (`startRef`, an optional patch) and what a good result must satisfy.
-Every role has a normal case and a trap case, where the tempting answer is wrong: a planted defect in a diff, a
-product defect the healer must not paper over, a page without test ids that the explorer must not invent ids for.
+`node qa/scan-prompts.mts` scans every shipped prompt, skill and command for client hosts and terms and caps each
+agent definition at 8,000 characters; it exits 1 on a finding. Run it after changing any of them.
 
-```shell
-node evals/run.mts --cases "evals/cases/*"                   # every case
-node evals/run.mts --cases "evals/cases/planner" --offline   # one role; skips the cases that need a stand
-node evals/compare.mts evals/results/<previous>.json evals/results/<current>.json
-```
-
-- Each case runs in a throw-away git worktree under the system temporary directory, removed afterwards. The role runs
-  headless through the `claude` program; set `CLAUDE_BIN` to its full path when it is not on `PATH`. The program is
-  started without a shell, so on Windows point `CLAUDE_BIN` at the `.exe`, not at a `.cmd` shim.
-- A **code check** comes first (typecheck, lint, contract check, run reconciliation, planted defects found,
-  expectation guard, gap ranking). Then `qa-judge` judges what code cannot, by the criteria in
-  `.claude/skills/judge-criteria/`.
-- `--offline` skips the cases marked `needsStand`; the rest run without a stand. A case that needs one runs against
-  the stand the repository's `.env` names. A role whose cases all need a stand (explorer, healer, expert) selects
-  nothing under `--offline`: no results file is written, yet the run still prints `results:` and exits 0, so it is not a
-  pass.
-- Results go to `evals/results/<version>.json` (the package version) unless `--out` says otherwise, and are written
-  after each case, so a crash keeps what already ran.
-- `compare` reports what changed against a previous results file. A failed code check **blocks**: `run` and `compare`
-  exit 1. A judge criterion that passed before and now fails is a **drop**: it is reported for a person to look at
-  and does not block, until the judge's verdicts have been checked against people's on a few releases.
-- A run evaluates **committed** state only. The worktree starts at the case's `startRef` (`HEAD`), so uncommitted edits
-  to an agent, skill or command are not evaluated. Commit first.
-- A real run starts one agent per case, plus one judge for every role except the reviewer (which code checks decide
-  alone), and **costs tokens**. An expert or healer case that needs a stand can change data on it.
-
-The unit tests in `tests/unit/qa/` also scan every shipped prompt for client hosts and terms and cap each agent
-definition at 8,000 characters.
+The evaluation suite that runs each role on fixed cases, and the unit tests of the `qa/` scripts, are kept outside
+this repository.
 
 ## Scripts
 

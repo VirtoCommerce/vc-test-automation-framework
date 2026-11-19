@@ -46,6 +46,9 @@ const BROWSER_TOOL_KEYS: Readonly<Record<string, readonly string[]>> = {
   click: ["element", "target", "doubleClick", "button", "modifiers"],
   hover: ["element", "target"],
   type: ["element", "target", "text", "submit", "slowly"],
+  fill_form: ["fields"],
+  find: ["text", "regex"],
+  handle_dialog: ["accept", "promptText"],
   select_option: ["element", "target", "values"],
   press_key: ["key"],
   wait_for: ["time", "text", "textGone"],
@@ -59,8 +62,6 @@ const BROWSER_TOOL_KEYS: Readonly<Record<string, readonly string[]>> = {
 };
 
 const RESPONSE_BODY = "response-body";
-
-const COVERAGE_BLOCKED_BROWSER_TOOLS: readonly string[] = ["click", "hover", "press_key", "select_option"];
 
 export const BROWSER_TOOLS = Object.keys(BROWSER_TOOL_KEYS).map((name) => `${BROWSER_TOOL_PREFIX}${name}`);
 
@@ -602,9 +603,6 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown, pro
   if (name === "evaluate" && !isShippedExtractor(input["function"])) {
     return `${agent} may run only the shipped page extractor in ${tool}; blocked`;
   }
-  if (bareName(agent) === COVERAGE_AGENT && COVERAGE_BLOCKED_BROWSER_TOOLS.includes(name)) {
-    return `${agent} may not use ${tool}: it opens pages by address and signs in by typing; blocked`;
-  }
   if (name === "type" && input["submit"] !== undefined && input["submit"] !== false) {
     const text = input["text"];
     if (typeof text !== "string" || !signInSecretNames(projectDir).includes(text)) {
@@ -626,8 +624,7 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown, pro
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the
  * shipped page extractor, `browser_type` submits only a password name from `passwordFor` (a sign-in),
- * `browser_navigate` and a new tab open only the stand's origins (`stand.mts`), `qa-coverage` never clicks, hovers,
- * presses a key or selects an option,
+ * `browser_navigate` and a new tab open only the stand's origins (`stand.mts`),
  * `browser_network_request` is the explorer's only and reads only a response body. The tools that
  * only read pass.
  */

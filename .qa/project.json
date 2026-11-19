@@ -21,7 +21,7 @@
       "all": "npm run test"
     }
   },
-  "critical": [],
+  "critical": ["cart", "order", "security"],
   "knowledgeDir": ".qa/kb",
   "roles": {
     "store administrator": "acme_store_administrator@acme.com",

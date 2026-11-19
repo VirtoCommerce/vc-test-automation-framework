@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { checkJudgeVerdict, criteriaOf, JUDGE_ROLES } from "../qa/judge-verdict.mts";
+import { PROJECT_FACTS_PATH, readProjectFacts } from "../qa/project-facts.mts";
 import { loadCases } from "./case.mts";
 import { runCodeCheck } from "./checks.mts";
 
@@ -76,9 +77,50 @@ const ALLOWED_TOOLS = [
   "Bash(git show*)",
   "Bash(npx --no*)",
   "Bash(npm run*)",
-  "Bash(PLAYWRIGHT_JSON_OUTPUT_FILE=*)",
   "mcp__playwright__*",
-].join(",");
+];
+const RUN_RECORD_PREFIX = "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs";
+const LIST_COMMAND = "npx --no -- playwright test --list *";
+const HEALER_RUN_RULE = `Bash(${RUN_RECORD_PREFIX}/heal-* npx --no -- playwright test *)`;
+const RULE_SAFE_TEXT = /^[\w .:=/@-]+$/;
+
+/**
+ * The allow rules for the commands that lead with `PLAYWRIGHT_JSON_OUTPUT_FILE`, which Claude Code does not strip
+ * before matching. A `*` in a Bash rule matches any text, spaces included, so a `*` before the program would allow
+ * any command behind the assignment; the expert's and the reviewer's rules are therefore literal up to the program,
+ * built from the case's contract and the worktree's `commands.test`, with a `*` only after it. The healer's run
+ * folder `heal-<slug>` is chosen by the agent, so its rule keeps a `*` before the program and rests on the
+ * `PreToolUse` hook, which refuses every other command for `qa-healer`.
+ */
+export function runRecordRules(evalCase: EvalCase, testCommands: Readonly<Record<string, string>>): string[] {
+  if (evalCase.role === "healer") {
+    return [HEALER_RUN_RULE];
+  }
+  if (evalCase.contract === undefined || (evalCase.role !== "expert" && evalCase.role !== "reviewer")) {
+    return [];
+  }
+  const name = basename(evalCase.contract, ".md");
+  const projects = Object.entries(testCommands).filter(
+    ([project, command]) => RULE_SAFE_TEXT.test(project) && RULE_SAFE_TEXT.test(command) && RULE_SAFE_TEXT.test(name),
+  );
+  if (evalCase.role === "reviewer") {
+    return projects.map(
+      ([project]) => `Bash(${RUN_RECORD_PREFIX}/${name}/review-list.${project}.json ${LIST_COMMAND})`,
+    );
+  }
+  return projects.flatMap(([project, command]) => [
+    `Bash(${RUN_RECORD_PREFIX}/${name}/report.${project}.json ${command} *)`,
+    `Bash(${RUN_RECORD_PREFIX}/${name}/list.${project}.json ${LIST_COMMAND})`,
+  ]);
+}
+
+function caseRules(evalCase: EvalCase, worktree: string): string[] {
+  try {
+    return runRecordRules(evalCase, readProjectFacts(join(worktree, PROJECT_FACTS_PATH)).commands.test);
+  } catch {
+    return [];
+  }
+}
 
 function isJudgeRole(role: Role): role is JudgeRole {
   return JUDGE_ROLES.some((judged) => judged === role);
@@ -198,7 +240,7 @@ function recordBaseline(context: RunContext, worktree: string): Baseline {
   return { tree: read("--snapshot"), fingerprint: read("--repo-fingerprint") };
 }
 
-function agentArguments(agent: string): string[] {
+function agentArguments(agent: string, rules: readonly string[]): string[] {
   return [
     "-p",
     "--agent",
@@ -213,7 +255,7 @@ function agentArguments(agent: string): string[] {
     "--setting-sources",
     "project",
     "--allowedTools",
-    ALLOWED_TOOLS,
+    [...ALLOWED_TOOLS, ...rules].join(","),
   ];
 }
 
@@ -221,10 +263,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function runAgent(context: RunContext, agent: string, prompt: string, worktree: string): AgentRun {
+function runAgent(
+  context: RunContext,
+  agent: string,
+  prompt: string,
+  worktree: string,
+  rules: readonly string[] = [],
+): AgentRun {
   const outcome = context.spawn({
     file: context.claude,
-    args: agentArguments(agent),
+    args: agentArguments(agent, rules),
     cwd: worktree,
     input: prompt,
     timeoutMs: context.agentTimeoutMs,
@@ -323,7 +371,7 @@ function execute(loaded: LoadedCase, worktree: string, context: RunContext): Eva
     [DATE_PLACEHOLDER]: context.today,
     [BASELINE_PLACEHOLDER]: baseline?.tree ?? "",
   });
-  const agent = runAgent(context, AGENTS[evalCase.role], evalCase.prompt, worktree);
+  const agent = runAgent(context, AGENTS[evalCase.role], evalCase.prompt, worktree, caseRules(evalCase, worktree));
   const notes: string[] = [];
   const codeChecks: Record<string, boolean> = { [AGENT_RUN_CHECK]: agent.ok };
   if (!agent.ok) {

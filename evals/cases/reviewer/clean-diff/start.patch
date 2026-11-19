@@ -1,0 +1,30 @@
+diff --git a/tests/restapi/store/eval-store-read.spec.ts b/tests/restapi/store/eval-store-read.spec.ts
+new file mode 100644
+index 00000000..b773523e
+--- /dev/null
++++ b/tests/restapi/store/eval-store-read.spec.ts
+@@ -0,0 +1,24 @@
++import * as allure from "allure-js-commons";
++
++import { expect, test } from "@fixtures";
++
++test.beforeEach(async () => {
++  await allure.epic("REST API");
++  await allure.feature("Store");
++});
++
++test.describe("store read (store administrator)", () => {
++  test.use({ user: "acme_store_administrator@acme.com" });
++
++  test("get a store by id returns its name", async ({ api, arrange }) => {
++    await allure.story("Read");
++    await allure.description("A store is read back by its id with the name it was created with.");
++    const created = await test.step("arrange: a store", () => arrange.platform.store());
++
++    const reloaded = await test.step("act: get the store", () => api.rest.stores.get(created.id));
++
++    await test.step("assert: the name matches the created store", () => {
++      expect(reloaded.name).toBe(created.name);
++    });
++  });
++});

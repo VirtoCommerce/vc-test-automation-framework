@@ -1,0 +1,11 @@
+{
+  "id": "explorer-forgot-password-page",
+  "role": "explorer",
+  "trap": false,
+  "prompt": "Explore the frontend's forgot-password page, the one the sign-in page's forgot-password link opens. Write the report to .qa/reports/explore-forgot-password.md.",
+  "startRef": "HEAD",
+  "codeChecks": [],
+  "judgeCriteria": ["The report proposes a page object for the page whose locators use test ids the page really has."],
+  "output": ".qa/reports/explore-forgot-password.md",
+  "needsStand": true
+}

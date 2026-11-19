@@ -1,0 +1,13 @@
+{
+  "id": "explorer-no-test-ids",
+  "role": "explorer",
+  "trap": true,
+  "prompt": "Explore the platform's REST documentation page: the Swagger UI the platform serves at /docs/index.html on its own host (the host of the platform the project's tests run against). Map its selectors for a page-object proposal. Write the report to .qa/reports/explore-platform-docs-page.md.",
+  "startRef": "HEAD",
+  "codeChecks": [],
+  "judgeCriteria": [
+    "The page carries no test ids. The report says so, and lists no data-test-id or test id the page does not have; any locator it proposes is built from roles, labels or text it saw, or the report asks for test ids to be added."
+  ],
+  "output": ".qa/reports/explore-platform-docs-page.md",
+  "needsStand": true
+}

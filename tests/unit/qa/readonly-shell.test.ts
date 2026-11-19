@@ -291,6 +291,57 @@ const NOT_EXPLORER_WRITES = [
   "",
 ];
 
+const COVERAGE_WRITES = [
+  ".qa/reports/coverage-2026-11-19.md",
+  ".qa/reports/coverage-2026-11-19-cart.md",
+  ".qa/reports/coverage-2026-11-19-cart-page-2.md",
+  `${PROJECT_DIR}/.qa/reports/coverage-2026-11-19.md`,
+  ".qa/reports/./coverage-2026-11-19.md",
+];
+
+const NOT_COVERAGE_WRITES = [
+  ".qa/reports",
+  ".qa/reports/",
+  ".qa/reports/x.md",
+  ".qa/reports/coverage.md",
+  ".qa/reports/coverage-x.md",
+  ".qa/reports/coverage-2026-11.md",
+  ".qa/reports/coverage-2026-11-19-.md",
+  ".qa/reports/coverage-2026-11-19-Cart.md",
+  ".qa/reports/coverage-2026-11-19.md.ts",
+  ".qa/reports/coverage-2026-11-19.mts",
+  ".qa/reports/coverage-2026-11-19.json",
+  ".qa/reports/coverage-2026-11-19.md:x",
+  ".qa/reports/coverage-2026-11-19.md:x.md",
+  ".qa/reports/coverage-2026-11-19-a:b.md",
+  ".qa/reports/COVERA~1.MD",
+  ".qa/REPORT~1/coverage-2026-11-19.md",
+  ".qa/reports/coverage-2026-11-19/notes.md",
+  ".qa/reports/coverage-2026-11-19/coverage-2026-11-19.md",
+  ".qa/reports/explore-cart.md",
+  ".qa/reports/heal-cart.md",
+  ".qa/reports/flaky.md",
+  ".qa/reportsx/coverage-2026-11-19.md",
+  ".qa/reports-x/coverage-2026-11-19.md",
+  ".qa/judge/x/coverage-2026-11-19.json",
+  ".qa/runs/x/coverage-2026-11-19.md",
+  ".qa/reports/../runs/coverage-2026-11-19.md",
+  ".qa/reports/../../coverage-2026-11-19.md",
+  "../.qa/reports/coverage-2026-11-19.md",
+  "tests/restapi/cart.spec.ts",
+  "qa/rank-gaps.mts",
+  ".claude/agents/qa-coverage.md",
+  "/etc/passwd",
+  "C:\\Windows\\coverage-2026-11-19.md",
+  "D:/.qa/reports/coverage-2026-11-19.md",
+  "\\\\server\\share\\coverage-2026-11-19.md",
+  "",
+];
+
+function coverageWrite(file: unknown): Record<string, unknown> {
+  return { agent_type: "qa-coverage", tool_name: "Write", tool_input: { file_path: file } };
+}
+
 function judgeWrite(file: unknown): Record<string, unknown> {
   return { agent_type: "qa-judge", tool_name: "Write", tool_input: { file_path: file } };
 }
@@ -466,12 +517,82 @@ test.describe("read-only shell (unit)", () => {
   });
 
   test("blocks every other read-only agent from writing", () => {
-    for (const agent of ["qa-reviewer", "qa-coverage"]) {
-      for (const file of [".qa/judge/x.json", ".qa/reports/explore-cart.md"]) {
-        const input = { ...judgeWrite(file), agent_type: agent };
-        expect(hookBlockReason(input, PROJECT_DIR), `${agent} ${file}`).toContain("may not write");
-      }
+    for (const file of [".qa/judge/x.json", ".qa/reports/explore-cart.md", ".qa/reports/coverage-2026-11-19.md"]) {
+      const input = { ...judgeWrite(file), agent_type: "qa-reviewer" };
+      expect(hookBlockReason(input, PROJECT_DIR), `qa-reviewer ${file}`).toContain("may not write");
     }
+  });
+
+  for (const file of COVERAGE_WRITES) {
+    test(`lets the coverage agent write ${file}`, () => {
+      expect(hookBlockReason(coverageWrite(file), PROJECT_DIR)).toBeUndefined();
+      expect(hookBlockReason({ ...coverageWrite(file), agent_type: "vc:qa-coverage" }, PROJECT_DIR)).toBeUndefined();
+    });
+  }
+
+  for (const file of NOT_COVERAGE_WRITES) {
+    test(`blocks the coverage agent writing ${JSON.stringify(file)}`, () => {
+      const reason = hookBlockReason(coverageWrite(file), PROJECT_DIR);
+      expect(reason).toMatch(/^[^\n]+$/);
+      expect(reason).toContain("coverage-<yyyy-mm-dd>");
+    });
+  }
+
+  test("keeps the coverage agent and the explorer each to their own report names", () => {
+    expect(hookBlockReason(explorerWrite(".qa/reports/coverage-2026-11-19.md"), PROJECT_DIR)).toContain(
+      "explore-<slug>",
+    );
+    expect(hookBlockReason(coverageWrite(".qa/reports/explore-cart.md"), PROJECT_DIR)).toContain(
+      "coverage-<yyyy-mm-dd>",
+    );
+    expect(hookBlockReason(judgeWrite(".qa/reports/coverage-2026-11-19.md"), PROJECT_DIR)).toContain(".qa/judge/");
+  });
+
+  test("blocks a coverage write with no usable path", () => {
+    expect(
+      hookBlockReason({ agent_type: "qa-coverage", tool_name: "Write", tool_input: {} }, PROJECT_DIR),
+    ).toBeDefined();
+    expect(hookBlockReason(coverageWrite(3), PROJECT_DIR)).toBeDefined();
+    expect(hookBlockReason({ agent_type: "qa-coverage", tool_name: "Write" }, PROJECT_DIR)).toBeDefined();
+  });
+
+  test("blocks the coverage agent writing through a link that leaves .qa/reports/", () => {
+    const outside = mkdtempSync(join(tmpdir(), "coverage-outside-"));
+    const name = `coverage-2026-11-19-link-${process.pid}`;
+    const link = join(REPORTS_AREA, `${name}.md`);
+    try {
+      mkdirSync(REPORTS_AREA, { recursive: true });
+      symlinkSync(outside, link, "junction");
+      for (const file of [`${name}.md`, `${name}.md/x`, `${name}.md/deeper/not-yet`]) {
+        const reason = hookBlockReason(coverageWrite(`.qa/reports/${file}`), PROJECT_DIR);
+        expect(reason, file).toContain("coverage-<yyyy-mm-dd>");
+      }
+      expect(hookBlockReason(coverageWrite(`.qa/reports/${name}-real.md`), PROJECT_DIR)).toBeUndefined();
+    } finally {
+      rmSync(link, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps the coverage agent's shell and browser as strict as the other read-only agents'", () => {
+    for (const command of ["git push", "git diff; rm -rf x", "node qa/prove-fails.mts tests/a.spec.ts 12 a title"]) {
+      expect(hookBlockReason({ agent_type: "qa-coverage", tool_input: { command } }, PROJECT_DIR), command).toContain(
+        "read-only",
+      );
+    }
+    expect(
+      hookBlockReason(
+        {
+          agent_type: "qa-coverage",
+          tool_input: { command: "node qa/rank-gaps.mts .qa/reports/coverage-2026-11-19-gaps.md" },
+        },
+        PROJECT_DIR,
+      ),
+    ).toBeUndefined();
+    const snapshot = { agent_type: "qa-coverage", tool_name: `${BROWSER_PREFIX}snapshot` };
+    expect(hookBlockReason({ ...snapshot, tool_input: {} }, PROJECT_DIR)).toBeUndefined();
+    expect(hookBlockReason({ ...snapshot, tool_input: { filename: "x.md" } }, PROJECT_DIR)).toContain("filename");
+    expect(hookBlockReason({ ...snapshot, tool_name: "mcp__other__tool", tool_input: {} }, PROJECT_DIR)).toBeDefined();
   });
 
   for (const file of EXPLORER_WRITES) {
@@ -957,6 +1078,19 @@ test.describe("read-only shell hook script (unit)", () => {
     expect(write("qa-explorer", ".qa/judge/x.json").status).toBe(2);
     expect(write("qa-judge", ".qa/reports/explore-cart.md").status).toBe(2);
     expect(write("qa-coverage", ".qa/reports/x.md").status).toBe(2);
+    expect(write("qa-coverage", ".qa/reports/explore-cart.md").status).toBe(2);
+    expect(write("qa-explorer", ".qa/reports/coverage-2026-11-19.md").status).toBe(2);
+  });
+
+  test("lets the coverage agent write its dated report and nothing else, by the project directory", () => {
+    const write = (agent: string, file: string) =>
+      runHook(JSON.stringify({ agent_type: agent, tool_name: "Write", tool_input: { file_path: file } }));
+    expect(write("qa-coverage", ".qa/reports/coverage-2026-11-19.md").status).toBe(0);
+    expect(write("vc:qa-coverage", ".qa/reports/coverage-2026-11-19-cart.md").status).toBe(0);
+    const blocked = write("qa-coverage", "tests/restapi/cart.spec.ts");
+    expect(blocked.status).toBe(2);
+    expect(blocked.stderr.trim()).toMatch(/^[^\n]+$/);
+    expect(write("qa-reviewer", ".qa/reports/coverage-2026-11-19.md").status).toBe(2);
   });
 
   test("blocks the explorer writing under .qa/reports/ when the module cannot be loaded", () => {
@@ -1062,22 +1196,24 @@ test.describe("read-only shell hook script (unit)", () => {
     expect([...BROWSER_TOOLS].sort()).toEqual([...BROWSER_TOOL_NAMES].sort());
   });
 
-  test("allows the explorer only the browser tools its definition lists", () => {
-    const definition = readFileSync(".claude/agents/qa-explorer.md", "utf8");
-    const listed =
-      /^tools:(.*)$/m
-        .exec(definition)?.[1]
-        ?.split(",")
-        .map((tool) => tool.trim()) ?? [];
-    const browser = listed.filter((tool) => tool.startsWith("mcp__"));
-    expect(browser.length).toBeGreaterThan(0);
-    for (const tool of browser) {
-      expect(BROWSER_TOOLS, tool).toContain(tool);
-    }
-    for (const forbidden of ["Edit", "MultiEdit", "NotebookEdit", "PowerShell", "Monitor"]) {
-      expect(listed).not.toContain(forbidden);
-    }
-  });
+  for (const name of ["qa-explorer", "qa-coverage"]) {
+    test(`allows ${name} only the browser tools its definition lists`, () => {
+      const definition = readFileSync(`.claude/agents/${name}.md`, "utf8");
+      const listed =
+        /^tools:(.*)$/m
+          .exec(definition)?.[1]
+          ?.split(",")
+          .map((tool) => tool.trim()) ?? [];
+      const browser = listed.filter((tool) => tool.startsWith("mcp__"));
+      expect(browser.length).toBeGreaterThan(0);
+      for (const tool of browser) {
+        expect(BROWSER_TOOLS, tool).toContain(tool);
+      }
+      for (const forbidden of ["Edit", "MultiEdit", "NotebookEdit", "PowerShell", "Monitor"]) {
+        expect(listed).not.toContain(forbidden);
+      }
+    });
+  }
 
   test("blocks the explorer's off-list or unsafe browser calls when run as the hook script", () => {
     const call = (tool: string, input: unknown): number | null =>

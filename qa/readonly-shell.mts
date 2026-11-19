@@ -19,6 +19,8 @@ export const JUDGE_WRITE_DIR = ".qa/judge";
 
 export const EXPLORER_AGENT = "qa-explorer";
 
+export const COVERAGE_AGENT = "qa-coverage";
+
 export const EXPLORER_WRITE_DIR = ".qa/reports";
 
 export const HEALER_RUN_DIR = ".qa/runs";
@@ -70,6 +72,7 @@ const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_M
 const MAX_SHOWN_COMMAND = 80;
 const QA_FOLDER_TOKEN = /(^|\/)\.qa(\/|$)/i;
 const REPORT_FILE = /^explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;
+const COVERAGE_FILE = /^coverage-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?\.md$/;
 const JUDGE_FILE = /\.json$/;
 const PATH_SEPARATORS = /[\\/]/;
 const WEB_PROTOCOLS = ["http:", "https:"];
@@ -346,6 +349,10 @@ function isReportFile(segments: readonly string[]): boolean {
   return segments.length === 1 && REPORT_FILE.test(segments[0] ?? "");
 }
 
+function isCoverageFile(segments: readonly string[]): boolean {
+  return segments.length === 1 && COVERAGE_FILE.test(segments[0] ?? "");
+}
+
 function isJudgeFile(segments: readonly string[]): boolean {
   return segments.length >= 2 && JUDGE_FILE.test(segments.at(-1) ?? "") && !segments.some((name) => name.includes(":"));
 }
@@ -359,6 +366,13 @@ function writeRuleOf(
   }
   if (bare === EXPLORER_AGENT) {
     return { dir: EXPLORER_WRITE_DIR, allows: isReportFile, shown: `only ${EXPLORER_WRITE_DIR}/explore-<slug>.md` };
+  }
+  if (bare === COVERAGE_AGENT) {
+    return {
+      dir: EXPLORER_WRITE_DIR,
+      allows: isCoverageFile,
+      shown: `only ${EXPLORER_WRITE_DIR}/coverage-<yyyy-mm-dd>[-<slug>].md`,
+    };
   }
   return undefined;
 }
@@ -511,7 +525,8 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown): st
  * Decides a PreToolUse hook call for the Bash, Write and Playwright browser tools: a one-line reason to block it, or
  * undefined to let it pass. Only the read-only agents are limited; the main session and every other agent pass
  * untouched. A read-only agent's Bash call must be on the allowlist. Its Write call is allowed for `qa-judge` only as a
- * `.json` file under `.qa/judge/<name>/` and for `qa-explorer` only as `.qa/reports/explore-<slug>.md`, both under the
+ * `.json` file under `.qa/judge/<name>/` and for `qa-explorer` only as `.qa/reports/explore-<slug>.md` and `qa-coverage` only as
+ * `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the
  * shipped page extractor, `browser_type` never submits, `browser_navigate` opens only http and https. The tools that

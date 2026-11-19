@@ -107,10 +107,11 @@ contract's case rows, with `<specs>` the changed spec files:
    node qa/test-duration.mts .qa/runs/<name>/report.<project>.json <project> [<previous report>]
    ```
 
-   Give a previous report only when the brief names one. Each line either prints is a finding (test as `file:line`
-   and reason; exit 1). It is **Critical** only for a test the diff adds or changes: its spec is new, or a diff hunk
-   adds or changes a line from the finding's line to that test's closing `});`. A finding in another test of a touched
-   file goes under Suggestions as "already there" and never blocks. The limits are the facts' `quality`; never judge
+   Give a previous report only when the brief names one. Each line either prints is a finding (a shape finding names
+   `file:line`, a duration finding `file › describe › title`: find that test by its title in the spec; exit 1). It is
+   **Critical** only for a test the diff adds or changes: its spec is new, or a diff hunk adds or changes a line from
+   the test's first line to the end of the test call. A finding in another test of a touched file goes under
+   Suggestions as "already there" and never blocks. The limits are the facts' `quality`; never judge
    by your own. A project without a budget is judged only on the slowdown ratio.
 
 APPROVE only when reconciliation exits 0 for every project and there is no Critical finding.

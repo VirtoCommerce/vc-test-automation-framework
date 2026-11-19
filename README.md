@@ -91,6 +91,10 @@ Fill in the values; every variable is validated when a run starts, and a wrong o
 | `SEED_ONLY` | | | Comma-separated dataset collections to seed instead of all |
 | `GOOGLE_MAPS_API_KEY` | | | Written into the seeded store's settings |
 
+The read-only agents never read `.env`: `node .claude/checks/stand.mts` prints only the frontend and backend origins
+(a variable set in the shell wins over `.env`) and whether they may sign in, and the hook lets their browser open
+only those origins.
+
 The last three frontend settings must match how the frontend is configured; page objects adapt to them, so the
 same tests run against any configuration.
 
@@ -787,6 +791,7 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 | `roles` | Map from data role ("store administrator") to the account `test.use({ user })` takes. Plans and reports name roles, never accounts |
 | `roleFor` | Map from a fixed purpose to a key of `roles`: `admin` (the role `arrange` and REST administration tests act as), `customer` (an ordinary signed-in customer account), `otherCustomer` (a customer of another organization, for access tests). `admin` and `customer` are required; `otherCustomer` is optional, and when it is absent the planner and the security skill treat a cross-organization access case as a scope question for the person. When present, it must be another role and another account than `customer`. Ours: `admin` is "store administrator", `customer` "store employee", `otherCustomer` "other store employee" |
 | `rolePermissions` (optional) | Map from a key of `roles` to the full list of permission names that role holds, written exactly as the platform under test names them. A case that needs "a role with (or without) permission P" picks its role here; when the field is absent or does not settle it, the planner asks. The entries describe the seed as committed: a stand seeded before a change to the seed's roles keeps the old permissions until it is re-seeded. Ours lists only what the seed in `dataset/data/roles/` and `dataset/data/users/` shows; the store administrator is left out because its user is also a platform administrator |
+| `passwordFor` (optional) | Map from a key of `roles` to the name of the variable holding that role's password (ours: `USERS_PASSWORD` for every role). An agent signs in as the role by typing that name; the browser server's `--secrets` file holds the value. A role without an entry cannot be signed in as in the browser |
 | `coverageWeights` | `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`: numbers of at least 0 |
 | `flakyRunSeries` | Repetitions that decide "flaky": an integer of at least 2 |
 | `quality.maxSteps`, `quality.maxLines`, `quality.maxExpects`, `quality.maxNesting`, `quality.maxConditionals` | Shape limits of one test, checked by `node .claude/checks/test-shape.mts <spec>…`: `test.step` calls, lines of the `test(...)` call, `expect` calls, depth of blocks in its body, and `if`, `?:`, `switch` and condition-driven loops (`for … of` over a table is not one). Integers; `maxLines` at least 1. A test over a limit is a Critical finding of the reviewer |
@@ -809,7 +814,14 @@ the others on.
    `*.local.*` file) and `.qa/project.json`, then edit the last for the repository. Keep the `.claude/checks/**` rule in `biome/layers.json`: `.claude/checks/` imports nothing outside `.claude/checks/`
    and `core/`.
 2. Register the browser MCP server under the fixed name `playwright`. The explorer, healer and coverage agents name
-   its tools (`mcp__playwright__browser_*`), so a server under another name leaves them without a browser.
+   its tools (`mcp__playwright__browser_*`), so a server under another name leaves them without a browser. For
+   signing in as a role, first run `node .claude/checks/browser-secrets.mts`: it writes the git-ignored
+   `.qa/browser-secrets.local.env` with only the variables `passwordFor` names and their values from the shell or
+   `.env`, and prints names only. Then start the server with `--secrets` and that file's absolute path (the server
+   does not start when the file is missing). An agent types a variable's name and the browser types the value and
+   masks it in what it returns. Rerun the script and restart the server when a password changes;
+   `node .claude/checks/stand.mts` prints `sign-in: ready` only while the file matches. Without `passwordFor` or the
+   file, start the server without `--secrets`: the agents then stay signed out.
 3. Keep `.claude/settings.json`. It registers the `PreToolUse` hook (`.claude/hooks/readonly-shell.mts`) that limits
    the read-only roles to an allowlist of shell commands and confines the healer's writes. The hook command
    (`node "$CLAUDE_PROJECT_DIR/.claude/hooks/readonly-shell.mts" || exit 2`) is bash syntax and must run under bash.
@@ -825,7 +837,7 @@ the others on.
 `node .claude/checks/scan-prompts.mts` scans every shipped prompt, skill and command for client hosts and terms and caps each
 agent definition at 8,000 characters; it exits 1 on a finding. Run it after changing any of them.
 
-It also flags this repository's role names (`roles` keys, `roleFor` values) and `rolePermissions` permission names
+It also flags this repository's role names (`roles` keys, `roleFor` values), `rolePermissions` permission names and `passwordFor` variable names
 outside an "Example from this repository" section, as whole words in any letter case, with a space, `_` or `-` matching
 any of them and an optional plural `s`; a `-` at either edge belongs to the word. A role named like a purpose
 (`admin`, `customer`, `otherCustomer`) or a word of one (`other`) is flagged only in its exact spelling inside quotes or

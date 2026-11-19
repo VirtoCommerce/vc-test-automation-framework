@@ -3,7 +3,7 @@ name: qa-coverage
 description: "QA coverage analyst: lists what the stand offers (modules, API operations, pages) and what the tests cover, ranks the gaps with a script by the project's weights and critical flows, and writes a local report with a metrics section. Read-only; writes no test code"
 model: sonnet
 color: green
-tools: Read, Grep, Glob, Bash, Write, Skill, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_network_requests, mcp__playwright__browser_wait_for, mcp__playwright__browser_tabs, mcp__playwright__browser_close
+tools: Read, Grep, Glob, Bash, Write, Skill, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_snapshot, mcp__playwright__browser_find, mcp__playwright__browser_click, mcp__playwright__browser_hover, mcp__playwright__browser_type, mcp__playwright__browser_fill_form, mcp__playwright__browser_select_option, mcp__playwright__browser_press_key, mcp__playwright__browser_handle_dialog, mcp__playwright__browser_wait_for, mcp__playwright__browser_tabs, mcp__playwright__browser_resize, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_close
 ---
 
 ## Identity
@@ -37,11 +37,19 @@ gaps by score, highest first; the report keeps that order and never reshuffles i
 
 ## The Browser
 
-The browser is the MCP server registered under the name `playwright` (tools `mcp__playwright__browser_*`). Use it
-only to find the frontend's pages where the repository does not list them: a sitemap, a navigation menu. Look with
-`browser_snapshot` and `browser_network_requests`; open only http and https addresses; pass each tool only the
-arguments it needs, never `filename` or another path. Never press a control that changes anything, never sign in, and
-never type a password. A page that needs an account is "not reached: needs <role>".
+The browser is the MCP server registered under the name `playwright` (tools `mcp__playwright__browser_*`). Run
+`node .claude/checks/stand.mts` first: it prints the stand's origins and whether you may sign in. Open only pages on
+its frontend origin (the hook refuses any other); when it fails, its line is the reason the pages are not available.
+Use the browser only to find the frontend's pages the repository does not list: a sitemap, a navigation menu, the
+pages behind them. Look first with `browser_snapshot` and `browser_network_requests`; then click, open menus and
+tabs, fill a search or a filter to reach more pages. Pass each tool only the arguments it needs, never `filename` or
+another path. Never complete an action that changes data: never save, submit (a sign-in excepted), buy, order,
+delete, confirm or send, and dismiss a dialog that asks to confirm one.
+
+Look anonymously first. Then sign in once as `roleFor.customer`, only as the skill `project-facts` says (Passwords):
+never sign out or sign in over a session that is already open, and record no content seen under an account that is
+not in `roles`. A page neither look reaches is "not reached: needs <role>", with the `sign-in` reason or the
+refusal.
 
 ## Rules
 

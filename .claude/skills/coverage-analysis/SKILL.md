@@ -21,7 +21,9 @@ test, no page object and no seeder; a gap is text for `qa-planner`. Read first: 
   the generated REST clients). One row per query, mutation or endpoint: the area it belongs to and its name. No
   schema in the repository: write "not available" and go on.
 - **Frontend pages:** from the page objects, the frontend's routes where the project facts or the README say where its
-  source lives, or a sitemap or menu seen with the browser. Nothing exposes them: "not available".
+  source lives, or a sitemap or menu seen with the browser on the frontend origin `node .claude/checks/stand.mts`
+  prints: first anonymously, then signed in as `roleFor.customer` when it prints `sign-in: ready`. Each page says
+  which look reached it. Nothing exposes them: "not available".
 
 Each list is a short table; count and group by area when it is long.
 

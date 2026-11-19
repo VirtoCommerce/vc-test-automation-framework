@@ -16,6 +16,7 @@ export type ProjectFacts = {
   roles: Record<string, string>;
   roleFor: { admin: string; customer: string; otherCustomer?: string };
   rolePermissions?: Record<string, string[]>;
+  passwordFor?: Record<string, string>;
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
   flakyRunSeries: number;
   quality: {
@@ -272,6 +273,34 @@ function parseRolePermissions(value: unknown, roles: Record<string, string>): Re
   return parsed;
 }
 
+const SECRET_NAME = /^[A-Z][A-Z0-9_]*$/;
+
+function parsePasswordFor(value: unknown, roles: Record<string, string>): Record<string, string> {
+  const parsed: Record<string, string> = Object.fromEntries(
+    Object.entries(asRecord(value, "passwordFor")).map(([role, name]) => {
+      const path = `passwordFor["${role}"]`;
+      if (!Object.hasOwn(roles, role)) {
+        return fail(path, "is not a key of roles");
+      }
+      const secret = asString(name, path);
+      if (!SECRET_NAME.test(secret)) {
+        fail(path, "must be a variable name in upper case letters, digits and _, such as PASSWORD_NAME");
+      }
+      return [role, secret];
+    }),
+  );
+  const listed = Object.keys(parsed);
+  for (const [index, role] of listed.entries()) {
+    const other = listed
+      .slice(index + 1)
+      .find((name) => sameAccount(roles[role], roles[name]) && parsed[role] !== parsed[name]);
+    if (other !== undefined) {
+      fail(`passwordFor["${other}"]`, `differs from passwordFor["${role}"], though both roles are one account`);
+    }
+  }
+  return parsed;
+}
+
 function parseCoverageWeights(value: unknown): ProjectFacts["coverageWeights"] {
   const weights = asRecord(value, "coverageWeights");
   const weight = (key: string): number =>
@@ -378,6 +407,7 @@ export function parseProjectFacts(json: unknown): ProjectFacts {
   const roles = asStringMap(present(root, "roles", "roles"), "roles");
   const roleFor = parseRoleFor(present(root, "roleFor", "roleFor"), roles);
   const permissions = root["rolePermissions"];
+  const passwordFor = root["passwordFor"];
   return {
     tracker: parseTracker(present(root, "tracker", "tracker")),
     docSources: parseDocSources(present(root, "docSources", "docSources")),
@@ -387,6 +417,7 @@ export function parseProjectFacts(json: unknown): ProjectFacts {
     roles,
     roleFor,
     ...(permissions === undefined ? {} : { rolePermissions: parseRolePermissions(permissions, roles) }),
+    ...(passwordFor === undefined ? {} : { passwordFor: parsePasswordFor(passwordFor, roles) }),
     coverageWeights: parseCoverageWeights(present(root, "coverageWeights", "coverageWeights")),
     flakyRunSeries: parseFlakyRunSeries(present(root, "flakyRunSeries", "flakyRunSeries")),
     quality: parseQuality(present(root, "quality", "quality")),

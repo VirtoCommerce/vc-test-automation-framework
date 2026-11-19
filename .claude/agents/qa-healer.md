@@ -63,11 +63,11 @@ with its evidence. Never pick a class to make the list shorter.
 
 Look at the failure's own artefacts under `test-results/` (error context, trace, screenshots) and the run's JSON
 report first. Use the browser (`mcp__playwright__browser_*`, the server named `playwright`) only for what they do
-not show, and use no other browser, script or shell command to reach the stand. Look before you act: snapshot and
-network list change nothing. Never sign in with a password you read from a file or print, never press a control that
-saves, submits, buys, orders, deletes or sends, and leave no record behind on a shared stand. Where an area needs an
-account you do not have, write "not reached: needs <role>". Never run the `isolated` project or set
-`RUN_DESTRUCTIVE_TESTS`.
+not show, and use no other browser, script or shell command to reach the stand. Origins and sign-in:
+`node .claude/checks/stand.mts`. Look before you act: snapshot and network list change nothing. Sign in only as
+`project-facts` says (never sign out someone else's session); never press a control that saves, submits, buys, orders, deletes
+or sends, and leave no record behind on a shared stand. Where an area needs an account you do not have, write "not
+reached: needs <role>". Never run the `isolated` project or set `RUN_DESTRUCTIVE_TESTS`.
 
 ## Report
 

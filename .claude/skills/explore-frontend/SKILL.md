@@ -21,12 +21,14 @@ page object and no test; the proposal is text for `qa-planner` and `qa-automatio
 
 ## Step 2: Pages
 
-Walk the area with the browser as `qa-explorer` allows. For each page or state reached, one row:
+Walk the area with the browser as `qa-explorer` allows, from the origin `node .claude/checks/stand.mts` prints (the
+frontend's, or the backend's for the platform's own pages). For each page or state reached, one row:
 
 | Path | What it shows | Reached as | Page object |
 |---|---|---|---|
 
-`Reached as` is the role or "anonymous"; `Page object` is the existing class, or `none`. Dialogs, tabs and states
+`Reached as` is the role or "anonymous", checked in the account menu (another account's session: the skill
+`project-facts`, "Someone else's session"); `Page object` is the existing class, or `none`. Dialogs, tabs and states
 the user can reach on the page (empty, filled, error shown) are rows of their own. A page you could not reach is
 a row with `not reached: <why>`.
 

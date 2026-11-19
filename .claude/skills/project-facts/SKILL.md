@@ -47,6 +47,17 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   repository's seed or permission files, never from memory, and describe the seed as committed: a stand seeded before
   a change to the seed's roles keeps the old permissions until it is re-seeded. The reader refuses a permission listed
   twice, and two roles of one account with different lists.
+- Passwords (optional): `passwordFor["<role name>"]` is the name of the variable that holds that role's password. To
+  sign in as the role in the browser, type its account from `roles` and, in the password field, that name, never a
+  value: the browser server is started with those variables as secrets and types the value. Sign in only when
+  `node .claude/checks/stand.mts` prints `sign-in: ready`, and never retry a refused sign-in.
+- Someone else's session: before signing in or naming the account a page was seen as, check the account menu. If
+  the browser is already signed in as an account that is not `roles[<the role>]`, never sign it out, switch it or
+  sign in over it: it may be a person's own session. Write "not reached: the browser holds another account's
+  session" for what needed the role. From pages seen under an account that is not in `roles`, record only their
+  structure (paths, controls, test ids, redirects), never a name, id, count, text or other content of that account. A role without an entry cannot be signed in as. The
+  reader refuses a role that is not in `roles`, a name that is not an upper-case variable name, and two roles of one
+  account with different names.
 - Commands: `commands.typecheck`, `commands.lint` and `commands.test["<project>"]`. Run these exactly; do not rebuild
   them from `package.json`.
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.

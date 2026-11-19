@@ -156,6 +156,7 @@ function wordsOf(facts: ProjectFacts): Word[] {
     ...Object.keys(facts.roles),
     ...Object.values(facts.roleFor),
     ...Object.values(facts.rolePermissions ?? {}).flat(),
+    ...Object.values(facts.passwordFor ?? {}),
   ]
     .map((name) => name.trim())
     .filter((name) => name !== "" && !name.startsWith("#"));

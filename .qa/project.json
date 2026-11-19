@@ -48,6 +48,14 @@
       "xapi:my_organization:edit"
     ]
   },
+  "passwordFor": {
+    "store administrator": "USERS_PASSWORD",
+    "store employee": "USERS_PASSWORD",
+    "store manager": "USERS_PASSWORD",
+    "organization maintainer": "USERS_PASSWORD",
+    "purchasing agent": "USERS_PASSWORD",
+    "other store employee": "USERS_PASSWORD"
+  },
   "coverageWeights": { "risk": 1, "callFrequency": 1, "runFrequency": 1, "stability": 1, "cost": 1 },
   "flakyRunSeries": 5,
   "quality": {

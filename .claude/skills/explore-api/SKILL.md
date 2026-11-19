@@ -28,11 +28,12 @@ List a mutation and any state-changing request here, but never call one.
 
 ## Step 3: Schema vs Live
 
-Your only live source is what the page itself sends: open the pages of the area with the browser and read the
-requests and answers with `browser_network_requests`; read one answer's body with `browser_network_request`, passing
-only its `index` and `part: "response-body"` (the hook refuses any other form). Never open the body of a sign-in, token or
-refresh request (`/connect/token`, an `auth` or `login` path): it holds credentials. Never copy personal data from a body into a
-report. You send no request of your own: no `fetch`, no script, no call from the shell.
+Your only live source is what the page itself sends: open the pages of the area with the browser (the stand's origins:
+`node .claude/checks/stand.mts`) and read the requests and answers with `browser_network_requests`; read one answer's
+body with `browser_network_request`, passing only its `index` and `part: "response-body"` (the hook refuses any other
+form). Never open the body of a sign-in, token or refresh request (`/connect/token`, an `auth` or `login` path): it
+holds credentials. Never copy personal data from a body into a report. You send no request of your own: no `fetch`, no
+script, no call from the shell.
 
 - Take the operation, its arguments and the answer's shape from the requests the page made. Use the session the
   browser already has. Do not type or look up credentials. A request that answered 401 or 403 is recorded as

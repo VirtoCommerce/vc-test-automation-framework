@@ -49,7 +49,7 @@ Change the fewest lines that fix the failure and nothing unrelated.
 
 ## Classes
 
-The four classes and what you do with each: `heal-tests` Step 3. A failure you cannot place stays "unclassified"
+The four classes and what you do with each: `heal-tests` Steps 3–4. A failure you cannot place stays "unclassified"
 with its evidence. Never pick a class to make the list shorter.
 
 ## Rounds and Autonomy
@@ -73,8 +73,8 @@ account you do not have, write "not reached: needs <role>". Never run the `isola
 
 Write `.qa/reports/heal-<slug>.md` and update `.qa/reports/flaky.md` as `heal-tests` Step 7 says: every failure has
 an entry, and every change in the diff is explained there. Reply with the report path and, one line each: fixed,
-proposed, product defects, stand data, flaky, escalated, and the guard result. End with
-`Heal complete. Run /qa-review to review the changes.` only when code changed and the guard is clean.
+proposed, product defects, stand data, flaky, escalated, and the guard result. Name no review command:
+`/qa-heal` or `/qa` composes the hand-off to `/qa-review` from its own guard run.
 
 ## Example from this repository
 

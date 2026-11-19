@@ -83,7 +83,7 @@ APPROVE only when reconciliation exits 0 for every project and there is no Criti
 
 ## Report
 
-Output format, unchanged:
+Output format, exactly (this one, not the skill's):
 
 ```
 ## Summary

@@ -61,7 +61,7 @@ const PURPOSE_WORDS = new Set(
   ROLE_PURPOSES.flatMap((purpose) => [purpose, ...purpose.split(CAMEL_CASE_BREAK)].map((word) => word.toLowerCase())),
 );
 
-type Word = { term: string; pattern: RegExp; quotedOnly: boolean };
+type Word = { term: string; pattern: RegExp };
 type Rules = { accounts: string[]; domains: string[]; terms: string[]; words: Word[] };
 type Heading = { index: number; level: number; text: string };
 type ExampleSection = { start: number; end: number; level: number };
@@ -163,9 +163,9 @@ function wordsOf(facts: ProjectFacts): Word[] {
   for (const name of names) {
     const term = name.toLowerCase();
     if (!PURPOSE_WORDS.has(term)) {
-      words.set(term, { term, pattern: wordPattern(term), quotedOnly: false });
+      words.set(term, { term, pattern: wordPattern(term) });
     } else if (name !== term) {
-      words.set(name, { term: name, pattern: quotedPattern(name), quotedOnly: true });
+      words.set(name, { term: name, pattern: quotedPattern(name) });
     }
   }
   return [...words.values()];
@@ -192,9 +192,9 @@ function wordPattern(term: string): RegExp {
 
 /**
  * Matches a role named like a purpose or a word of one only where it is written as a name, in its exact spelling:
- * alone inside quotes or backticks (`"Customer"` for a role named `Customer`). Prose such as "a customer signs in",
- * another spelling and the `roleFor.<purpose>` tokens are left alone. Not applied to the `.claude/checks/` modules,
- * whose code names the purposes themselves.
+ * alone inside quotes or backticks, spelled as the `roles` key is. Prose such as "a customer signs in",
+ * another spelling and the `roleFor.<purpose>` tokens are left alone. It applies to the `.claude/checks/` modules
+ * too: their own purpose names are lower case, so only a role's exact, capitalised spelling is found there.
  */
 function quotedPattern(name: string): RegExp {
   return new RegExp(`(?<!roleFor\\[)(["'\`])${name.replace(REGEX_SPECIALS, "\\$&")}\\1`, "u");
@@ -266,9 +266,7 @@ function hiddenSections(lines: string[], sections: ExampleSection[], firstHeadin
   return sections.filter((section) => isMisplaced(section, firstHeading) || tooMuch);
 }
 
-function scanFile(file: string, content: string, allRules: Rules): PromptFinding[] {
-  const isModule = file.startsWith(`${MODULES_DIR}/`);
-  const rules = isModule ? { ...allRules, words: allRules.words.filter(({ quotedOnly }) => !quotedOnly) } : allRules;
+function scanFile(file: string, content: string, rules: Rules): PromptFinding[] {
   const findings: PromptFinding[] = [];
   const lines = content.replaceAll("\r\n", "\n").split("\n");
   const headings = headingsOf(lines);
@@ -313,7 +311,7 @@ function shippedFiles(root: string): string[] {
  * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, the facts' role names (`roles` keys,
  * `roleFor` values) and `rolePermissions` permission names as whole words in any letter case (see {@link wordPattern};
  * a term split over two lines is a known gap), a role named like a purpose only in its exact spelling in quotes or
- * backticks, when that spelling is not all lower case and not in the modules (see {@link quotedPattern}), and agent
+ * backticks, when that spelling is not all lower case (see {@link quotedPattern}), and agent
  * files over
  * {@link MAX_AGENT_CHARS} characters. Names in `.claude/checks/ours-only.json` are skipped by exact path; a section under
  * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or

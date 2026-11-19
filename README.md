@@ -817,9 +817,9 @@ It also flags this repository's role names (`roles` keys, `roleFor` values) and 
 outside an "Example from this repository" section, as whole words in any letter case, with a space, `_` or `-` matching
 any of them and an optional plural `s`; a `-` at either edge belongs to the word. A role named like a purpose
 (`admin`, `customer`, `otherCustomer`) or a word of one (`other`) is flagged only in its exact spelling inside quotes or
-backticks (`` `Customer` ``), never in prose or in the `.claude/checks/` modules, and not at all when that spelling is
-all lower case (a known limit). A role named with another plain common word (`guest`, `manager`) can still produce findings
-on generic wording; fix them by renaming the role or by moving the line into an example section. A name split over two
+backticks (`` `Customer` ``), in the prompts and the `.claude/checks/` modules alike, never in prose, and not at
+all when that spelling is all lower case (a known limit). A role named with another plain common word (`guest`,
+`manager`) can still produce findings on generic wording; fix them by renaming the role or by moving the line into an example section. A name split over two
 lines is not found.
 
 The evaluation suite that runs each role on fixed cases, and the unit tests of the `.claude/checks/` scripts, are kept outside

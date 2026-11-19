@@ -26,3 +26,4 @@ evals/
 .playwright-mcp/
 
 qa/client-terms.local.txt
+docs/superpowers/

@@ -10,8 +10,9 @@ one.
 1. Record a baseline and a fingerprint first: `node .claude/checks/expectation-guard.mts --snapshot` prints a git tree id of the
    working tree, untracked files included; `node .claude/checks/expectation-guard.mts --repo-fingerprint` prints one sha of
    `.git/config`, `.git/info/`, `.git/hooks/`, the folder `core.hooksPath` names and `.qa/project.json` (it only reads; it is yours, the healer may not
-   run it). When `--repo-fingerprint` exits non-zero or prints anything but 64 hexadecimal characters (a
-   configuration file under a healer path, for one), show its line to the person and do not dispatch the healer. Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
+   run it). When `--repo-fingerprint` exits non-zero or prints anything but 64 lowercase hexadecimal characters (a
+   configuration file under a healer path, for one), show the person "fingerprint could not be computed:" followed by
+   its stderr line, and do not dispatch the healer. Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
    defect, product defect, stand data, flaky), fixes page objects, data and waits, and stops after three rounds.
 2. Run the guard recipe in `.claude/skills/heal-tests/guard-recipe.md` word for word: its shell block with the
    baseline id and the fingerprint of step 1, and what each outcome means. A guard that is not clean ends here: offer

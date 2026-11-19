@@ -80,9 +80,9 @@ Before dispatching `qa-healer`, record a baseline and a fingerprint: `node .clau
 prints a git tree id of the working tree, untracked files included; `node .claude/checks/expectation-guard.mts --repo-fingerprint`
 prints one sha of `.git/config`, `.git/info/`, `.git/hooks/`, the folder `core.hooksPath` names and
 `.qa/project.json` (it only reads; it is yours, the
-healer may not run it). When `--repo-fingerprint` exits non-zero or prints anything but 64 hexadecimal
-characters (a configuration file under a healer path, for one), show its line to the person and do not dispatch
-the healer. Dispatch the healer with the failing spec files or the run record path and that baseline id.
+healer may not run it). When `--repo-fingerprint` exits non-zero or prints anything but 64 lowercase hexadecimal
+characters (a configuration file under a healer path, for one), show the person "fingerprint could not be computed:"
+followed by its stderr line, and do not dispatch the healer. Dispatch the healer with the failing spec files or the run record path and that baseline id.
 When it is done, run the guard recipe in `.claude/skills/heal-tests/guard-recipe.md` word for word: its shell block
 with that baseline id and fingerprint, what each outcome means, and its "After a Clean Guard" re-run. A guard that is
 not clean, or a re-run that exits 1 on a project, stops the flow before the judge and the reviewer. A product defect

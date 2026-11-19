@@ -9,10 +9,17 @@ import { dirname, join, resolve } from "node:path";
  *   user's contact in `dataset/data/contacts/`): the roles of its membership there (`roles` in
  *   `dataset/data/organization-memberships/`) and that organization's own roles (`roles` in
  *   `dataset/data/organizations/`, the field the seeder sends to `/api/members`, typed `OrganizationRole[]` in
- *   `api/rest/generated/rest-api.ts`), and none of them when that membership is locked or blocked. This follows the
- *   Customer module's `OrganizationIdClaimProvider.AddOrgScopedPermissionsAsync` as the review describes it (the
- *   requested organization, otherwise the default one); its source is not in this repository. Roles of the account's
- *   other organizations are never added.
+ *   `api/rest/generated/rest-api.ts`). None of them is added when the contact does not belong to that organization (no
+ *   membership record for it and not in the contact's `organizations`), when the contact's own `status` is blocked,
+ *   or when that membership is locked (`isLocked`, a `lockoutEnd` still ahead) or its `status` is blocked. A blocked
+ *   status is a whole value, in any letter case, of `Blocked`, `Locked` or `Deleted`: `Locked` is the value this
+ *   repository's seed uses for a locked contact (`dataset/data/contacts/acme-store-employee-9.json`, and the
+ *   `STATUSES` of `tests/graphql/customer/contact-search.spec.ts`); `Blocked` and `Deleted` are the values the review
+ *   names for the platform and are not in this repository; the generated REST types type `status` as a plain string.
+ *   `Unlocked`, `Approved`, `Invited` and `New` are not blocked. This follows the Customer module's
+ *   `OrganizationIdClaimProvider.AddOrgScopedPermissionsAsync` as the review describes it (the requested organization,
+ *   otherwise the default one); its source is not in this repository. Roles of the account's other organizations are
+ *   never added.
  * Every role is mapped through `dataset/data/roles/`. Not derived: permissions a sales representative gets for the
  * organizations assigned to them. An account that is a platform administrator (`isAdministrator`) holds every
  * permission and must be absent from `rolePermissions`. Every other role of `roles` must have an entry: an absent entry
@@ -26,7 +33,7 @@ type Json = Record<string, unknown>;
 const ROOT = resolve(dirname(resolve(process.argv[1] ?? "")), "..");
 const FACTS_PATH = join(ROOT, ".qa/project.json");
 const DATA_DIR = join(ROOT, "dataset/data");
-const BLOCKED_STATUS = /block|lock/i;
+const BLOCKED_STATUSES: ReadonlySet<string> = new Set(["blocked", "locked", "deleted"]);
 const OK = "facts:check: rolePermissions matches the seed";
 
 function isRecord(value: unknown): value is Json {
@@ -149,7 +156,12 @@ function effectivePermissions(account: string, seed: Seed): string[] | undefined
     return permissionsOf(roleIds, seed.roles);
   }
   const membership = memberships.find((item) => item["organizationId"] === signedInTo);
-  if (membership !== undefined && isBlocked(membership)) {
+  const belongs = membership !== undefined || list(contact?.["organizations"]).includes(signedInTo);
+  if (
+    !belongs ||
+    (contact !== undefined && hasBlockedStatus(contact)) ||
+    (membership !== undefined && isBlocked(membership))
+  ) {
     return permissionsOf(roleIds, seed.roles);
   }
   const where = `membership of ${account} in ${signedInTo}`;
@@ -165,13 +177,18 @@ function permissionsOf(roleIds: readonly string[], roles: RoleIndex): string[] {
   return [...new Set(roleIds.flatMap((id) => roles.byId.get(id) ?? []))].sort();
 }
 
-/** A membership the platform takes no roles from: `isLocked`, a `lockoutEnd` still ahead, or a blocked or locked status. */
+/** A `status` that is, as a whole value and in any letter case, one of {@link BLOCKED_STATUSES}. */
+function hasBlockedStatus(record: Json): boolean {
+  return BLOCKED_STATUSES.has((text(record["status"]) ?? "").trim().toLowerCase());
+}
+
+/** A membership the platform takes no roles from: `isLocked`, a `lockoutEnd` still ahead, or a blocked status. */
 function isBlocked(membership: Json): boolean {
   const lockoutEnd = text(membership["lockoutEnd"]);
   return (
     membership["isLocked"] === true ||
     (lockoutEnd !== undefined && Date.parse(lockoutEnd) > Date.now()) ||
-    BLOCKED_STATUS.test(text(membership["status"]) ?? "")
+    hasBlockedStatus(membership)
   );
 }
 

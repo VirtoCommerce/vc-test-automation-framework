@@ -13,7 +13,7 @@ prompts.
 ## Step 1: Run the Reader First
 
 ```shell
-node qa/project-facts.mts
+node .claude/qa/project-facts.mts
 ```
 
 It prints the validated JSON. It prints one line and exits with 1 when the file is missing, is not valid JSON or has
@@ -67,7 +67,7 @@ and changed spec files and `<series>` the facts' `quality.stableSeries`:
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/report.<project>.json <commands.test[project]> [--] <specs> --repeat-each=<series> --retries=0 --reporter=list,json
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> --repeat-each=<series> <specs>
-node qa/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+node .claude/qa/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json
 ```
 
 Set the variable the way the shell does it. For an npm script pass the arguments after `--`; for a direct

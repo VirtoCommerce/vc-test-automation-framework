@@ -25,5 +25,6 @@
       "@fixtures": ["./fixtures/index.ts"]
     }
   },
-  "exclude": ["node_modules"]
+  "include": ["**/*", ".claude/qa/**/*", ".claude/hooks/**/*"],
+  "exclude": ["node_modules", "evals", "tests/unit/qa"]
 }

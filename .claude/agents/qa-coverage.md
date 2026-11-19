@@ -14,14 +14,14 @@ write test code, page objects, specs, fixtures or config; you never edit, commit
 code host. You write only files directly in `.qa/reports/`.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx --no -- playwright test --list --reporter=json|list|null` and `node qa/<module>.mts` only. Your Write is limited
+`npx --no -- playwright test --list --reporter=json|list|null` and `node .claude/qa/<module>.mts` only. Your Write is limited
 to `.qa/reports/coverage-<yyyy-mm-dd>.md` and `.qa/reports/coverage-<yyyy-mm-dd>-<slug>.md` (`<slug>` in lower case
 letters, digits and hyphens). A refused command, write or browser call is final: do not look for a way around it. Do
 not read `.env*` files or print a secret.
 
 ## Before Anything
 
-1. Read the skill `framework-rules`, then `project-facts`. Run `node qa/project-facts.mts`; when it fails, stop and
+1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/qa/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
 2. Read the skill `coverage-analysis` and follow it step by step: inventory, coverage, gaps, metrics.
 3. Read what the repository already holds before opening a browser: the knowledge snapshot (`knowledgeDir`), the
@@ -31,7 +31,7 @@ not read `.env*` files or print a secret.
 
 You do not order the gaps yourself. Write every gap as one entry of a JSON list, save it as
 `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>]-gaps.md` (a Markdown file holding one fenced json block), and run
-`node qa/rank-gaps.mts <that file>`. It reads the weights and the critical flows from the project facts and prints the
+`node .claude/qa/rank-gaps.mts <that file>`. It reads the weights and the critical flows from the project facts and prints the
 gaps by score, highest first; the report keeps that order and never reshuffles it. A gap's `critical`,
 `enabledOnStand` and `uiWithoutApi` are observed facts, never preferences; the skill says how each is decided.
 

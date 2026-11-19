@@ -86,13 +86,13 @@ line of its own; everything else (bounds, regular expressions, several assertion
 cheaper model for the judge is not measured yet, and a judge score that drops is only reported until its verdicts have
 been checked against people's on a few releases.
 
-**The slowdown half of the duration gate never fires.** `qa/test-duration.mts` compares a test with its previous
+**The slowdown half of the duration gate never fires.** `.claude/qa/test-duration.mts` compares a test with its previous
 recorded run only when it is given a previous report, but no command passes one, and the expert overwrites
 `.qa/runs/<contract-name>/report.<project>.json` on every run, so no earlier record survives. Only the budget half
 (`durationBudgetMs`) works today. What to change: design a stable location for the last accepted report (for example
 one the dispatcher keeps on an APPROVE) and pass it to the reviewer. Size: small, once the location is decided.
 
-**The evaluation suite and the unit tests of `qa/` live outside this repository.** Nothing in CI runs them, and
+**The evaluation suite and the unit tests of `.claude/qa/` live outside this repository.** Nothing in CI runs them, and
 the evaluation suite costs tokens per run. Its first run (five cases without a stand) passed the reviewer and coverage
 cases and showed two planner calibration gaps: the planner asks its scope questions before writing, so a headless run
 with nobody to answer writes no contract, and one case rejects a rule placed out of scope because an existing test
@@ -107,5 +107,5 @@ covers it. The expert, healer and explorer cases need a stand and have not run y
 | 1.4 extension points | A registry of a client's clients, page objects and `arrange` domains | A search of the repository |
 | 1.4, evaluation | A synthetic client repository in the evaluation suite, and clients' own private cases | Cases run against this repository only |
 | Tracker and code-host adapters | The framework's tracker command as a route, the redactor that masks text before the model, posting plans, creating tasks, publishing coverage, pipeline-failure tickets, the requirement to case map, bug history, call frequency from telemetry | Tickets and pull requests are read over the routes in `project.json`; a client's default is pasted text only |
-| Packaging | Where the agents live in a client repository (a plugin or copied files), and `.claude/` and `qa/` possibly moving to the tests repository with the framework split; `@babel/parser` has to ship as a runtime dependency with `qa/`; which skills stay ours (`qa/ours-only.json`) | Everything lives in this repository, and `@babel/parser` is a dev dependency |
+| Packaging | Where the agents live in a client repository (a plugin or copied files), and `.claude/` (its `.claude/qa/` scripts included) possibly moving to the tests repository with the framework split; `@babel/parser` has to ship as a runtime dependency with `.claude/qa/`; which skills stay ours (`.claude/qa/ours-only.json`) | Everything lives in this repository, and `@babel/parser` is a dev dependency |
 | CI templates | A pipeline that runs the evaluation suite before a package release | None |

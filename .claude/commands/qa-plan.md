@@ -27,7 +27,7 @@ Relay its scope questions to the person and pass the answers back.
 
 ### 2. Check
 
-Run `node qa/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to the planner; do not edit
+Run `node .claude/qa/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to the planner; do not edit
 the contract yourself.
 
 ### 3. Approval

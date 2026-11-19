@@ -1,7 +1,7 @@
 # Criteria: the expert's tests
 
 Judged from the contract, the diff and the files it touches, never from the expert's reasoning or summary. The
-judge proves a test fails with `node qa/prove-fails.mts`; the model does not run the test on a broken copy itself.
+judge proves a test fails with `node .claude/qa/prove-fails.mts`; the model does not run the test on a broken copy itself.
 
 - `case-has-test`: every case row of the contract has a test, or a written reason why it has none (an approved
   amendment, a known issue, a requirement the stand cannot meet). List each case with its test or its reason.

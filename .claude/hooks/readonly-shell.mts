@@ -1,4 +1,4 @@
-import type { hookBlockReason } from "../../qa/readonly-shell.mts";
+import type { hookBlockReason } from "../qa/readonly-shell.mts";
 
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
@@ -6,7 +6,7 @@ import { basename } from "node:path";
 type HookBlockReason = typeof hookBlockReason;
 
 const CLI_FILE_NAME = "readonly-shell.mts";
-const MODULE = "../../qa/readonly-shell.mts";
+const MODULE = "../qa/readonly-shell.mts";
 const GUARDED_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge", "qa-healer"];
 const STDIN = 0;
 const BLOCK_EXIT_CODE = 2;
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
     return;
   }
   try {
-    const shell: { hookBlockReason: HookBlockReason } = await import(process.argv[2] ?? MODULE);
+    const shell: { hookBlockReason: HookBlockReason } = await import(MODULE);
     const reason = shell.hookBlockReason(input, process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd());
     if (reason !== undefined) {
       block(reason);

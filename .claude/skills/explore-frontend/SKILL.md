@@ -8,7 +8,7 @@ argument-hint: "<page-or-area>"
 
 Used by `qa-explorer`. The result is the first four sections of `.qa/reports/explore-<slug>.md`. It writes no
 page object and no test; the proposal is text for `qa-planner` and `qa-automation-expert`. Read first: the skill
-`framework-rules`, then `project-facts` (`node qa/project-facts.mts`).
+`framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`).
 
 ## Step 1: What Exists
 
@@ -33,7 +33,7 @@ a row with `not reached: <why>`.
 ## Step 3: Selectors
 
 From the page snapshot and the shipped page extractor (`browser_evaluate` with `PAGE_EXTRACTOR` from
-`qa/explore-extractors.mts`, the only script the hook allows), list the elements a test
+`.claude/qa/explore-extractors.mts`, the only script the hook allows), list the elements a test
 would use: for each, the best selector in the framework's order from `create-ui-layer` "Locator Conventions":
 
 1. the test id attribute (`getByTestId`);

@@ -37,7 +37,7 @@ cleanup in the plan, registered before the change.
 
 ## Step 4: Check
 
-Run `node qa/contract.mts check .qa/contracts/<file>.md`. It prints `ok <file>` or one line per problem. Fix the
+Run `node .claude/qa/contract.mts check .qa/contracts/<file>.md`. It prints `ok <file>` or one line per problem. Fix the
 contract until it passes; never edit the facts to make it pass.
 
 ## Step 5: Amendments

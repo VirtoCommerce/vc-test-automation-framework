@@ -41,7 +41,7 @@
       }
     },
     {
-      "includes": ["qa/**"],
+      "includes": [".claude/qa/**"],
       "linter": {
         "rules": {
           "style": {

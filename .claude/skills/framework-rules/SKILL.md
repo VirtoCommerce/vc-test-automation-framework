@@ -35,8 +35,8 @@ repository's default style. When two framework rules seem to conflict, stop and 
 
 - Report metadata: `allure.epic` and `allure.feature` in `test.beforeEach`; `allure.story` and `allure.description`
   in each test. One `test.describe("<topic> (<who>)")` per identity: `(<a role from roles>)` or `(anonymous)`. An
-  identity outside `roles` (a customer the test creates, an account the repository configures elsewhere) keeps the
-  name the repository's specs give it. The `"<topic> (<who>)"` describe format and the `arrange:` / `act:` / `assert:` step
+  identity that is not a key of `roles` takes the name the repository's existing specs use; when there is none, ask
+  the person. The `"<topic> (<who>)"` describe format and the `arrange:` / `act:` / `assert:` step
   wording below are structural formats that belong to the framework, so they are not the "naming and wording" style
   that the repository decides.
 - Every phase is a `test.step`: `"arrange: …"`, `"act: …"` or `"assert: …"`.

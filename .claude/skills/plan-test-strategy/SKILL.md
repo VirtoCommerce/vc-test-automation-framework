@@ -45,7 +45,9 @@ builders, dataset records, known issues). A criterion already covered is listed 
    - **A role with or without permission P**: take it from `rolePermissions`, a role whose list holds P or one whose
      list lacks it. When `rolePermissions` is absent, lists no fitting role, or does not settle the question, it is a
      scope question for the person (the planner's Ask). Never infer which role holds a permission from knowledge of
-     the platform.
+     the platform. `rolePermissions["R"]` is the complete list for R. A role in `roles` without an entry has an
+     unknown permission set, never an empty one, and is never "a role without P". Use it only when the person
+     confirms.
    - **Oracle**: where the expected value comes from, written `ticket:`, `doc:`, `schema:` or `observed:` followed by
      the criterion, page or field. If the only source is what the stand did, the oracle is `observed:` and the case
      goes under `## Observed only`.

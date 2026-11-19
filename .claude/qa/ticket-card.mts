@@ -184,7 +184,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const [command, file] = process.argv.slice(2);
     if (command !== "check" || file === undefined) {
-      throw new Error("ticket card: usage is node qa/ticket-card.mts check <file>");
+      throw new Error("ticket card: usage is node .claude/qa/ticket-card.mts check <file>");
     }
     const card = checkFile(file);
     process.stdout.write(`ok ${card.key}\n`);

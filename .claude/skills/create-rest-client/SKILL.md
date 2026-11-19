@@ -10,7 +10,7 @@ Specs never build REST requests. They call `api.rest.<module>.<resource>.<method
 `api/rest/clients/` returns named types from `api/rest/types/`, built on the generated Swagger models. The `api`
 layer imports only `core`.
 
-Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`).
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`).
 
 ## File Locations
 

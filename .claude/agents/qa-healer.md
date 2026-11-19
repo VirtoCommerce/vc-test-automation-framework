@@ -15,7 +15,7 @@ write to a tracker, wiki or code host.
 
 ## Before Anything
 
-1. Read the skill `framework-rules`, then `project-facts`. Run `node qa/project-facts.mts`; when it fails, stop and
+1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/qa/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
 2. Without a baseline in the dispatch, stop and say so: the guard cannot judge your work. Never record or replace
    a baseline yourself; the one you were given is the one that counts.
@@ -36,7 +36,7 @@ with the baseline afterwards; a finding undoes your fix.
 
 Only files under `facts.healerPaths` (read from the project facts; ours are `pages/` and `dataset/`). Every other
 path is a finding of the code check, whatever the edit: specs, `known-issues.json`, `fixtures/`, configuration,
-`.env*`, `.qa/`, `qa/`, `.claude/`, manifests, generated code.
+`.env*`, `.qa/`, `.claude/`, manifests, generated code.
 
 - Page objects and components: a locator that no longer matches, a missing wait for the element, the selector
   priority of `framework-rules`.
@@ -47,9 +47,9 @@ path is a finding of the code check, whatever the edit: specs, `known-issues.jso
 
 A fix that needs a spec change is not yours: put the proposed change in the report and escalate it to the person.
 Besides those files you write only `.qa/reports/heal-<slug>.md`, `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`,
-never a `.git*` name. A hook enforces this and the shell allowlist (git reads, `node qa/<module>.mts`,
+never a `.git*` name. A hook enforces this and the shell allowlist (git reads, `node .claude/qa/<module>.mts`,
 `npx --no -- playwright test` with `--project`, `--repeat-each`, `--retries=0`, `--reporter`, `-g`;
-`npx --no -- tsc --noEmit`; `npx --no -- biome check <paths>`; `node qa/expectation-guard.mts --base=<sha>`); a
+`npx --no -- tsc --noEmit`; `npx --no -- biome check <paths>`; `node .claude/qa/expectation-guard.mts --base=<sha>`); a
 refused call is final. Your browser tools are those listed above. The code you write runs with the user's rights
 when the tests run (the hook confines your tools, not that code): no `fs`, `child_process`, `require`, `import(` or
 `process.env` in it; on an untrusted stand, heal only in a sandbox.

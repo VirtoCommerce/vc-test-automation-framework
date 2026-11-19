@@ -6,7 +6,7 @@ argument-hint: "<spec-file | test-title | .qa/runs/<contract-name>/>"
 
 ## Heal Tests
 
-Used by `qa-healer`. Read first: the skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`).
+Used by `qa-healer`. Read first: the skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`).
 The rule above all others: **an expected value or an assertion never moves toward what the build does.** A failure
 that can only be made green by changing one is a product defect, and it stays red.
 
@@ -15,7 +15,7 @@ that can only be made green by changing one is a product defect, and it stays re
 - The target is a spec file, a test title or a run record folder `.qa/runs/<contract-name>/`. For a run record, the
   failing tests are what this prints under `failures`, for each project whose pair of files the folder holds (the
   names are in `project-facts`, "Hand-off Paths"):
-  `node qa/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json`.
+  `node .claude/qa/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json`.
   No target: stop and say so.
 - `<slug>` is the target in lower case letters, digits and hyphens. Writing `.qa/runs/heal-<slug>/baseline.txt` below
   creates the git-ignored run folder.
@@ -24,7 +24,7 @@ that can only be made green by changing one is a product defect, and it stays re
   this skill. `npx` always carries `--no --`: `--no` stops npm from fetching a package it does not find, `--` stops it
   from reading the tool's own flags. A refused call is final: do not look for a way around it, report it.
 - The dispatch carries a baseline: a git tree id that `/qa` or `/qa-heal` recorded with
-  `node qa/expectation-guard.mts --snapshot` before you started (working tree, untracked files included). It is what
+  `node .claude/qa/expectation-guard.mts --snapshot` before you started (working tree, untracked files included). It is what
   the guard in step 7 compares against. Without one, stop and say so. Never record or replace a baseline yourself: a
   new one would hide the changes made before it. Save the id in `.qa/runs/heal-<slug>/baseline.txt` for the report.
 - You may edit only files under `facts.healerPaths`. A spec is never one of them.
@@ -40,7 +40,7 @@ The leading variable sends the JSON report to your run folder:
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/round-0.<project>.json npx --no -- playwright test <spec> --project=<project> -g <title.words> --reporter=list,json
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/list.<project>.json npx --no -- playwright test --list --reporter=json <spec> --project=<project> -g <title.words>
-node qa/reconcile-run.mts .qa/runs/heal-<slug>/list.<project>.json .qa/runs/heal-<slug>/round-0.<project>.json
+node .claude/qa/reconcile-run.mts .qa/runs/heal-<slug>/list.<project>.json .qa/runs/heal-<slug>/round-0.<project>.json
 ```
 
 Set the variable the way the shell does it. Do not hand-edit either JSON file. If a project's test command in
@@ -75,7 +75,7 @@ way that could be intermittent (a timeout, a wait, an order), and for any test t
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json npx --no -- playwright test <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series-list.<project>.json npx --no -- playwright test --list --reporter=json <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries>
-node qa/reconcile-run.mts .qa/runs/heal-<slug>/series-list.<project>.json .qa/runs/heal-<slug>/series.<project>.json
+node .claude/qa/reconcile-run.mts .qa/runs/heal-<slug>/series-list.<project>.json .qa/runs/heal-<slug>/series.<project>.json
 ```
 
 Count the entries under `failures` against `expected`. Every run failed: deterministic, not flaky; classify it by
@@ -109,7 +109,7 @@ Only a test defect, within the area's autonomy:
 
 After each applied round run the same commands as step 2 (`round-<n>.<project>.json`) and reconcile. Typecheck
 with `npx --no -- tsc --noEmit` (it only reads) must be clean. Lint only the files you changed, in the linter's check mode and
-never with a command that fixes: `commands.lint` here is `biome check --write .`, which rewrites specs and `qa/` and
+never with a command that fixes: `commands.lint` here is `biome check --write .`, which rewrites specs and `.claude/qa/` and
 would create findings, so run `npx --no -- biome check <changed files>` without `--write` (the hook refuses any flag). Fix
 what it reports by hand, inside the healer paths. A fix that makes another test red is
 reverted. After round three, whatever is still red is escalated: do not start a fourth round and do not change the
@@ -120,11 +120,11 @@ class to get out of it.
 Run the guard against the baseline you were given:
 
 ```shell
-node qa/expectation-guard.mts --base=<tree id in .qa/runs/heal-<slug>/baseline.txt>
+node .claude/qa/expectation-guard.mts --base=<tree id in .qa/runs/heal-<slug>/baseline.txt>
 ```
 
-This is your own early check; the hook keeps you from writing `qa/`, and the dispatcher repeats it from the
-baseline's own copy of `qa/`, taken with `git cat-file`, together with a fingerprint of the git configuration and
+This is your own early check; the hook keeps you from writing `.claude/qa/`, and the dispatcher repeats it from the
+baseline's own copy of `.claude/qa/`, taken with `git cat-file`, together with a fingerprint of the git configuration and
 hooks (`/qa`, `/qa-heal`). It compares the working tree, untracked files included, with that tree, and reads `healerPaths` from the baseline's
 `.qa/project.json`. Exit 0: every changed file is under `healerPaths`, no expectation line changed and no added line
 switches a check off. Exit 1 lists `outside healer paths: <file>`, a changed expectation line, or `<file>: added <line>`:

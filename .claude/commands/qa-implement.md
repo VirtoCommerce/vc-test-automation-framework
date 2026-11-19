@@ -17,7 +17,7 @@ contract. The agent receives the contract path and nothing else.
 
 ### 1. Check the Contract
 
-Run `node qa/contract.mts check <path>`. It prints `ok <path>` or one line per problem.
+Run `node .claude/qa/contract.mts check <path>`. It prints `ok <path>` or one line per problem.
 
 When it does not print `ok`, show its lines, say the contract is not ready, and stop. Do not repair the contract
 and do not start the expert on it; the planner fixes it, or a person approves an amendment.

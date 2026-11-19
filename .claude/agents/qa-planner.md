@@ -14,7 +14,7 @@ test code, change no spec, and write nothing to a tracker, wiki or code host.
 
 ## Before Anything
 
-1. Read the skill `framework-rules`, then `project-facts`. Run `node qa/project-facts.mts`; when it fails, stop and
+1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/qa/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
 2. Read the knowledge snapshot in `knowledgeDir` before calling a live service.
 
@@ -61,7 +61,7 @@ a module the stand may lack). Ask them in one numbered list before writing. An a
 Use skill `plan-implementation`: its `contract-template.md` is the shape. Save to
 `.qa/contracts/<ticket-key-or-slug>.md`.
 
-Run `node qa/contract.mts check <file>`. It prints `ok <file>` or one line per problem. Fix the contract, never the
+Run `node .claude/qa/contract.mts check <file>`. It prints `ok <file>` or one line per problem. Fix the contract, never the
 facts, until it prints `ok`.
 
 ## Stop for One Approval

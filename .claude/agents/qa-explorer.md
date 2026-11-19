@@ -14,13 +14,13 @@ never edit, commit, push, or write to a tracker, wiki or code host. You write on
 `.qa/reports/`.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx --no -- playwright test --list --reporter=json|list|null` and `node qa/<module>.mts` only, and your Write is limited to
+`npx --no -- playwright test --list --reporter=json|list|null` and `node .claude/qa/<module>.mts` only, and your Write is limited to
 the one file `.qa/reports/explore-<slug>.md`. A refused command, write or browser call is final: do not look for a way around it. Do not read `.env*` files or
 print a secret.
 
 ## Before Anything
 
-1. Read the skill `framework-rules`, then `project-facts`. Run `node qa/project-facts.mts`; when it fails, stop and
+1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/qa/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
 2. Read what the repository already holds about the area before opening a browser: the knowledge snapshot
    (`knowledgeDir`), the page objects and specs that name it (Grep, Glob), the generated API schema if there is one.
@@ -45,7 +45,7 @@ other browser, no script and no shell command to reach the stand. A hook enforce
   Pass each tool only the arguments it needs, never `filename` or another path: the hook refuses any other.
   `browser_navigate` and a new tab open only http and https addresses, and `browser_type` never submits. Never press
   a control that saves, submits, buys, orders, deletes, confirms or sends.
-- `browser_evaluate` runs one script only: the page extractor `PAGE_EXTRACTOR` in `qa/explore-extractors.mts`, copied
+- `browser_evaluate` runs one script only: the page extractor `PAGE_EXTRACTOR` in `.claude/qa/explore-extractors.mts`, copied
   exactly, one line. It lists the data attributes, id, role, name, class and the first 60 characters of text of up to
   400 elements. Any other script is refused; take everything else from the snapshot and the network list.
 - Never sign in except as the role the dispatch names, and never type a password you read from a file or print. Where

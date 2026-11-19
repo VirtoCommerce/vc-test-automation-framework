@@ -10,7 +10,7 @@ Specs live in `tests/graphql/<area>/<topic>.spec.ts` and run in the GraphQL proj
 `commands.test` in the project facts). A test that changes platform-wide state goes to the repository's isolated
 project.
 
-Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`), then the repository's
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`), then the repository's
 README for its GraphQL test shape. Copy the shape of a neighbouring spec of the same area.
 
 ## Step 1: Find the Building Blocks

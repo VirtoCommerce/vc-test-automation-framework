@@ -10,7 +10,7 @@ There are no hand-written operation classes or model types. An operation is a `.
 Generator turns it into a typed `…Document` constant plus result and variable types, and `api.graphql` executes
 it.
 
-Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`).
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`).
 
 ## File Locations
 

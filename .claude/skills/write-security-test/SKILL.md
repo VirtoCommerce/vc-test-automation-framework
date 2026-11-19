@@ -14,7 +14,7 @@ project) or `tests/graphql/<area>/<topic>.spec.ts` (GraphQL project). Place by t
 behaviour. A test that changes platform-wide state (a global or store-access setting, an index, a restart) goes to
 the isolated project (`tests/isolated/`).
 
-Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`), then the repository's README
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`), then the repository's README
 for its REST and GraphQL test shapes. This skill adds the security cases; the shape of the spec, the steps, the
 metadata and the cleanup come from `/write-rest-api-test` and `/write-graphql-test`: follow them. Copy a neighbouring
 security spec of the same layer.

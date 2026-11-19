@@ -44,7 +44,7 @@ Dispatch `qa-explorer` with the area. Dispatch `qa-coverage` for what is already
 Dispatch `qa-planner` with the request (and the report paths for an area or a gap). It writes
 `.qa/contracts/<ticket-key-or-slug>.md`. Relay its scope questions.
 
-Run `node qa/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its lines back to the
+Run `node .claude/qa/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its lines back to the
 planner; never edit the contract yourself.
 
 ### Approval
@@ -71,12 +71,12 @@ project: the run is red, so go to Heal with the run record path, then to Judge. 
 
 ### Heal
 
-Before dispatching `qa-healer`, record a baseline and a fingerprint: `node qa/expectation-guard.mts --snapshot`
-prints a git tree id of the working tree, untracked files included; `node qa/expectation-guard.mts --repo-fingerprint`
+Before dispatching `qa-healer`, record a baseline and a fingerprint: `node .claude/qa/expectation-guard.mts --snapshot`
+prints a git tree id of the working tree, untracked files included; `node .claude/qa/expectation-guard.mts --repo-fingerprint`
 prints one sha of `.git/config`, `.git/info/`, `.git/hooks/`, the folder `core.hooksPath` names and
 `.qa/project.json` (it only reads; it is yours, the
 healer may not run it). Dispatch the healer with the failing spec files or the run record path and that baseline id.
-When it is done, recompute the fingerprint and run the guard, both from the baseline's own copy of `qa/`, never from
+When it is done, recompute the fingerprint and run the guard, both from the baseline's own copy of `.claude/qa/`, never from
 the working tree (the healer could have changed it), so only the healer's changes are judged. Take that copy with
 `git cat-file blob`, which applies no attributes, filters or hooks, and never with `git archive` or a checkout, which
 run a smudge filter a planted `.git/info/attributes` or a global attributes file names. The fingerprint comes before
@@ -84,7 +84,7 @@ any git command that can run configured code:
 
 ```shell
 dir=$(mktemp -d) && mkdir "$dir/qa" || exit 1
-for m in expectation-guard project-facts; do git -c core.fsmonitor=false cat-file blob <baseline tree id>:qa/$m.mts > "$dir/qa/$m.mts" || { rm -rf "$dir"; exit 1; }; done
+for m in expectation-guard project-facts; do git -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/qa/$m.mts > "$dir/qa/$m.mts" || { rm -rf "$dir"; exit 1; }; done
 test "$(node "$dir/qa/expectation-guard.mts" --repo-fingerprint)" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
 node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?
 test $code -eq 0 && { new=$(node "$dir/qa/expectation-guard.mts" --snapshot) || code=1; }; rm -rf "$dir"; test $code -eq 0 && echo "healed tree: $new"; test $code -eq 0
@@ -95,7 +95,7 @@ with the baseline's copy of the guard.
 
 "repository config changed by the healer": stop there, show it to the person, and run no other git command or test
 in the repository until they have looked; a planted hook or config line runs with their rights. Any other non-zero
-result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two `qa/` files also gives
+result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two `.claude/qa/` files also gives
 it). Findings listed (a file outside the healer paths, a changed expectation, an added skip, wait or
 similar): stop, show them to the person, and do not go on to the judge or the reviewer. No finding listed: the guard
 could not run; report "not checked", do not go on to the judge or the reviewer, and never say clean. A product defect
@@ -115,7 +115,7 @@ role `expert`, the contract path and the expert's spec files: it judges only the
 page-object or data changes, which the guard checks. The verdict is `.qa/judge/<contract-name>/judge-expert.json`.
 Check it:
 
-`node qa/judge-verdict.mts check .qa/judge/<contract-name>/judge-expert.json expert`
+`node .claude/qa/judge-verdict.mts check .qa/judge/<contract-name>/judge-expert.json expert`
 
 - Not `ok`: send the judge the lines and have it fix its file once; never edit the verdict yourself. A second
   malformed verdict stops the flow: show the check's output to the person and wait.
@@ -134,7 +134,7 @@ framework rules and style only. After a heal whose guard ran clean, add the line
 `healer: <baseline tree id> <new tree id>` (the `healed tree` the guard recipe printed). The reviewer spares only the
 hunks of `git diff <baseline tree id> <new tree id>` under the healer paths from the scope rule, so an expert's own
 change in a healed file stays in scope. Without a clean guard, send no such line. Its
-shell is read-only, so run `commands.typecheck` and `commands.lint` from `node qa/project-facts.mts` yourself and
+shell is read-only, so run `commands.typecheck` and `commands.lint` from `node .claude/qa/project-facts.mts` yourself and
 report the result with the review. A failing typecheck or lint means the work is not done, whatever the verdict.
 For a pull request, fetch the diff and metadata with `gh` and pass them as files.
 

@@ -10,7 +10,7 @@ Specs live in `tests/restapi/<platform-module>/<topic>.spec.ts` and run in the `
 the platform module that owns the behaviour. A test that changes platform-wide state
 (global settings, index, restart, store access) goes to `tests/isolated/restapi/` instead.
 
-Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`), then the repository's
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`), then the repository's
 README for its REST test shape. Copy the shape of a neighbouring spec of the same project.
 
 ## Step 1: Find the Building Blocks

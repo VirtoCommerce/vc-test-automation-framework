@@ -10,7 +10,7 @@ Page objects live in `pages/` and import only what the repository's layer config
 layering `core` and Playwright types): locators and user actions, no API calls, no test data. Specs hold no
 selectors, so every locator a test needs lives here.
 
-Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`).
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`).
 
 ## Where Things Live
 

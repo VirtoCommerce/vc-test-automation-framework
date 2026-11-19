@@ -1,7 +1,8 @@
 # Guard Recipe
 
-The dispatcher's check after a heal: `/qa` (stage Heal) and `/qa-heal` (step 2) take this file from the baseline
-with `git cat-file blob`, never from the working tree after the heal, and run it word for word. It is never the
+The dispatcher's check after a heal: `/qa` (stage Heal) and `/qa-heal` (step 2) store this file from the baseline
+with `git cat-file blob` before dispatching the healer, never read it from the working tree after the heal, and run
+the stored copy word for word. It is never the
 healer's: the healer may not run `--repo-fingerprint`, and its own early check is step 7 of `SKILL.md`.
 
 ## Run the Guard

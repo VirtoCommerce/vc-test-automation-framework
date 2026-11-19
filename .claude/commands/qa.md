@@ -86,11 +86,11 @@ followed by its stderr line, and do not dispatch the healer. Then store the guar
 `GIT_NO_LAZY_FETCH=1 git --no-replace-objects -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/skills/heal-tests/guard-recipe.md`
 prints it; keep that text, and when it prints nothing, do not dispatch the healer. Dispatch the healer with the
 failing spec files or the run record path and that baseline id.
-When it is done, take the guard recipe again with the same `cat-file blob` command, from the baseline, and run it word
-for word: its shell block with that baseline id and fingerprint, what each outcome means, and its "After a Clean
-Guard" re-run. Never read `.claude/skills/heal-tests/guard-recipe.md` from the working tree after the heal: the healer
-runs test code, which can rewrite any file, the recipe included. A copy that differs from the one you stored, a guard
-that is not clean, or a re-run that exits 1 on a project, stops the flow before the judge and the reviewer. A product defect
+When it is done, run the recipe you stored word for word: its shell block with that baseline id and fingerprint,
+what each outcome means, and its "After a Clean Guard" re-run. Never read
+`.claude/skills/heal-tests/guard-recipe.md` from the working tree after the heal: the healer runs test code, which
+can rewrite any file, the recipe included. A guard that is not clean, or a re-run that exits 1 on a project, stops
+the flow before the judge and the reviewer. A product defect
 the healer reports is shown to the person, not patched.
 
 In the end-to-end flow this stage runs only when the expert's run is red, and before the judge.

@@ -20,6 +20,7 @@ test code, change no spec, and write nothing to a tracker, wiki or code host.
 
 Everything repository-specific (test projects, roles, critical flows, documentation sources, commands) comes from the
 facts. Name roles by their name in `roles`, never by account.
+Pick roles by `roleFor` purpose; a role with or without a permission comes from `rolePermissions`, else ask (`plan-test-strategy`).
 
 ## Choose the Source
 
@@ -82,6 +83,7 @@ whose `Approved: <who>, <date>` line a person wrote; never write that line yours
 - Test projects (keys of `commands.test`): `graphql`, `restapi`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`.
   Business logic goes through xAPI (`graphql`), platform administration through `restapi`, and the browser shows only
   rendering, navigation and forms. Platform-wide changes go to `isolated`.
-- Roles in `.qa/project.json`: `store administrator`, `store employee`, `store manager`, `purchasing agent`.
+- `roleFor` in `.qa/project.json`: `admin` is `store administrator`, `customer` is `store employee`,
+  `otherCustomer` is `other store employee`; `store manager` and `purchasing agent` are the other roles.
 - Documentation sources: the platform documentation site and the module READMEs, listed in `docSources`.
 - Old-suite tests still to port are listed in `REFINEMENTS.md`; check it for coverage.

@@ -35,7 +35,7 @@ security spec of the same layer.
 | Case | Identity | Expected |
 |---|---|---|
 | No session | anonymous: `api` without `test.use`, or `api.anonymous()` | REST `toBeHttpError(401)`; GraphQL `toBeGraphqlError("<code>")` |
-| Wrong role | `test.use({ user: <roles[R]> })`, R a role without the permission | REST `toBeHttpError(403)`; GraphQL the forbidden code |
+| Wrong role | `test.use({ user: <roles[R]> })`, R a role whose `rolePermissions` list lacks the permission | REST `toBeHttpError(403)`; GraphQL the forbidden code |
 | Another customer's object | two customers from `arrange`; the second reads or changes the first's object | the refusal the oracle names, and the object unchanged |
 | Another organization's object | two organizations from `arrange` (`customerAccount()` makes one each) | same |
 | Colleague in the same organization | `customerAccount({ organizationId })` | what the oracle says a colleague may do |
@@ -45,6 +45,12 @@ security spec of the same layer.
 The identity in the contract is a data role `R`: write `roles[R]`'s account as a string; data role `none` is
 anonymous. Name the identity in the describe: `test.describe("<topic> (anonymous)")`, `(<role>)`,
 `(customer of their own)`.
+
+**A role with or without permission P.** The role comes from `rolePermissions` in the facts: a role whose list holds
+P, or one whose list lacks it. Check the contract's data role against that list. When `rolePermissions` is absent,
+lists no fitting role, or does not settle the question, stop and raise it as an amendment: it is the person's scope
+question, not yours. Never infer which role holds a permission from knowledge of the platform. A customer of another
+organization from the dataset is `roles[roleFor.otherCustomer]`.
 
 ## Step 2: Write the Spec
 
@@ -236,8 +242,10 @@ describes.
   organization's user: data `null`, code `Forbidden`), `tests/graphql/marketing/promotion-coupons.spec.ts` (anonymous
   `Unauthorized`), `tests/isolated/graphql/catalog/anonymous-access.spec.ts` (global switch, isolated),
   `tests/restapi/content/validation.spec.ts` (input table).
-- Roles: `store employee` and `other store employee` (a customer of another organization) are in `roles` of
-  `.qa/project.json`; customers of their own come from `arrange.customers.customerAccount()`.
+- Roles: `roleFor.customer` is `store employee` and `roleFor.otherCustomer` is `other store employee` (a customer of
+  another organization); customers of their own come from `arrange.customers.customerAccount()`. `rolePermissions`
+  lists the store employee's, manager's and purchasing agent's seeded permissions; the store administrator is left
+  out because its user is a platform administrator, so ask before using it as "a role without P".
 - Place by module: users, roles and API keys are `security`, not `customer`.
 - Commands: `npm run typecheck && npm run check`, then
   `npm run test:restapi -- tests/restapi/<platform-module>/<topic>.spec.ts` or

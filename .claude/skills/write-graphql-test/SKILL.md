@@ -142,7 +142,8 @@ facts on the changed spec, with the run record the expert agent describes.
 - Reference spec: `tests/graphql/cart/cart-items.spec.ts`; README "A GraphQL test".
 - Areas: cart, catalog, customer, orders, pickup, quotes, security. Isolated specs: `tests/isolated/graphql/`.
 - A seeded product id: `product-smartphone-apple-iphone-17-256gb-black` (`dataset/data/products/`).
-- An organization maintainer: `arrange.customers.customerAccount({ role: "role-org-maintainer" })`.
+- An organization maintainer: `arrange.customers.customerAccount({ role: "role-org-maintainer" })`, a seeded role id
+  from `dataset/data/roles/`, not a key of `roles`.
 - Commands: `npm run typecheck && npm run check`, then
   `npm run test:graphql -- tests/graphql/<area>/<topic>.spec.ts`.
 

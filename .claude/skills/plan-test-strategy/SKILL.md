@@ -39,7 +39,13 @@ builders, dataset records, known issues). A criterion already covered is listed 
 3. For each case decide:
    - **Project**: a key of `commands.test`. A behaviour is tested once, at the lowest layer that shows it; the UI
      keeps only what only the UI shows.
-   - **Data role**: a role from the facts, or `none`. A test that changes a user's own state creates its own user.
+   - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration,
+     `roleFor.customer` for an ordinary signed-in customer, `roleFor.otherCustomer` for a customer of another
+     organization. A test that changes a user's own state creates its own user.
+   - **A role with or without permission P**: take it from `rolePermissions`, a role whose list holds P or one whose
+     list lacks it. When `rolePermissions` is absent, lists no fitting role, or does not settle the question, it is a
+     scope question for the person (the planner's Ask). Never infer which role holds a permission from knowledge of
+     the platform.
    - **Oracle**: where the expected value comes from, written `ticket:`, `doc:`, `schema:` or `observed:` followed by
      the criterion, page or field. If the only source is what the stand did, the oracle is `observed:` and the case
      goes under `## Observed only`.

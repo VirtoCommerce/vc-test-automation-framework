@@ -771,6 +771,10 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 | `roles` | Map from data role ("store administrator") to the account `test.use({ user })` takes. Plans and reports name roles, never accounts |
 | `coverageWeights` | `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`: numbers of at least 0 |
 | `flakyRunSeries` | Repetitions that decide "flaky": an integer of at least 2 |
+| `quality.maxSteps`, `quality.maxLines`, `quality.maxExpects`, `quality.maxNesting`, `quality.maxConditionals` | Shape limits of one test, checked by `node qa/test-shape.mts <spec>…`: `test.step` calls, lines of the `test(...)` call, `expect` calls, depth of blocks in its body, and `if`, `?:`, `switch` and condition-driven loops (`for … of` over a table is not one). Integers; `maxLines` at least 1. A test over a limit is a Critical finding of the reviewer |
+| `quality.stableSeries` | Repetitions a new or changed test must pass in a row (`--repeat-each=<n> --retries=0`, judged by the run record like any run): an integer of at least 2. Separate from `flakyRunSeries`, which decides "flaky" for the healer |
+| `quality.durationBudgetMs` | Map from Playwright project to the most milliseconds a test of it may take (the median of its repetitions). A project absent from the map has no budget. Checked by `node qa/test-duration.mts <report.json> <project> [<previous report.json>]` |
+| `quality.slowdownRatio` | A test is a finding when its median duration is more than this many times its median in the previous report (a number of at least 1; applies to every project when a previous report is given) |
 | `autonomy` | Map from area to `apply` or `propose`; `"*"` is required and is the default. `propose` means the healer writes the fix into its report and waits |
 | `healerPaths` | Plain directories the healer may change, such as `pages/` or `dataset/`. Never the repository root, `qa`, `.qa`, `.claude`, `node_modules` or a name that starts with `.git` |
 

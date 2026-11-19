@@ -77,12 +77,14 @@ Take every command from the facts: `commands.typecheck`, `commands.lint` and `co
 rebuild them from `package.json`. Let `<name>` be the contract's file name without `.md`, and create
 `.qa/runs/<name>/` (git-ignored).
 
-1. Typecheck and lint are clean.
-2. For each Playwright project the specs belong to, run its test command on the changed specs with the JSON reporter
-   next to the list reporter:
+1. Typecheck and lint are clean, and `node qa/test-shape.mts <specs>` prints `ok`: fix each finding (too many steps,
+   lines, expects, nesting or any conditional) by splitting or simplifying the test, never by editing the limits.
+2. For each Playwright project the specs belong to, run its test command on the new and changed specs as a stable
+   series (`quality.stableSeries` from the facts, not `flakyRunSeries`), with the JSON reporter next to the list
+   reporter:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/report.json <commands.test[project]> [--] <specs> --reporter=list,json
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/report.json <commands.test[project]> [--] <specs> --repeat-each=<quality.stableSeries> --retries=0 --reporter=list,json
    ```
 
    Set the variable in the way the shell does it. For an npm script pass the arguments after `--`; for a direct
@@ -92,14 +94,15 @@ rebuild them from `package.json`. Let `<name>` be the contract's file name witho
 3. Save the list of what should have run, for the same specs and projects:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/list.json npx --no -- playwright test --list --reporter=json <specs>
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/list.json npx --no -- playwright test --list --reporter=json --repeat-each=<quality.stableSeries> <specs>
    ```
 
-   (`list.<project>.json` for several projects.) Do not hand-edit either file: the reviewer reconciles them.
+   (`list.<project>.json` for several projects.) Do not hand-edit either file: the reviewer reconciles them, and a
+   repetition that fails or is flaky fails the run.
 4. When the facts name a `unit` test project and the change touched non-spec framework layers (core, api,
    dataset, pages, fixtures), run the unit project too; it must pass.
-5. Every test passes on every project it belongs to. Passed plus skipped equals tests times projects, and every
-   skip is explained by `requiresModules`, `requiresFeatures`, `knownIssue` or the stand profile. A skip with no
+5. Every test passes in every repetition on every project it belongs to. Passed plus skipped equals tests times
+   projects times the series, and every skip is explained by `requiresModules`, `requiresFeatures`, `knownIssue` or the stand profile. A skip with no
    reason is a failure.
 6. When the stand is not reachable, report the run as not done and leave no run record. Never write one by hand.
 

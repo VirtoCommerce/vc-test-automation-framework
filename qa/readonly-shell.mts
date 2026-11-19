@@ -9,7 +9,15 @@ export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "q
 
 export const HEALER_AGENT = "qa-healer";
 
-export const ALLOWED_QA_MODULES = ["project-facts", "ticket-card", "contract", "reconcile-run", "rank-gaps"] as const;
+export const ALLOWED_QA_MODULES = [
+  "project-facts",
+  "ticket-card",
+  "contract",
+  "reconcile-run",
+  "rank-gaps",
+  "test-shape",
+  "test-duration",
+] as const;
 
 export const JUDGE_AGENT = "qa-judge";
 
@@ -56,6 +64,9 @@ const GIT_FORBIDDEN_PREFIXES = ["--output", "--ext-diff", "--textconv", "--no-in
 const PLAYWRIGHT_FLAGS = [/^--list$/, /^--reporter=(json|list|null)$/, /^--project=[\w.-]+$/, /^--grep(-invert)?=\S+$/];
 const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
 const PROVE_FAILS_PATH = "qa/prove-fails.mts";
+const TEST_SHAPE_PATH = "qa/test-shape.mts";
+const TEST_DURATION_PATH = "qa/test-duration.mts";
+const TEST_DURATION_ARGUMENTS = [2, 3];
 const PROVE_FAILS_PROJECT = /^--project=[\w.-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
 const OUTPUT_VARIABLE = "PLAYWRIGHT_JSON_OUTPUT_FILE=";
@@ -160,10 +171,19 @@ function isProveFailsCall(tokens: readonly string[]): boolean {
   );
 }
 
+function isQualityCall(tokens: readonly string[]): boolean {
+  const [, module, ...args] = tokens;
+  const count = module === TEST_SHAPE_PATH ? args.length > 0 : TEST_DURATION_ARGUMENTS.includes(args.length);
+  return count && args.every(isRepoPath);
+}
+
 function isQaModule(tokens: readonly string[], agent: string | undefined): boolean {
   const pattern = bareName(agent) === JUDGE_AGENT ? JUDGE_QA_MODULE_PATH : QA_MODULE_PATH;
   if (tokens[0] !== "node" || !pattern.test(tokens[1] ?? "")) {
     return false;
+  }
+  if (tokens[1] === TEST_SHAPE_PATH || tokens[1] === TEST_DURATION_PATH) {
+    return isQualityCall(tokens);
   }
   return tokens[1] !== PROVE_FAILS_PATH || isProveFailsCall(tokens);
 }
@@ -186,7 +206,8 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
 
 /**
  * True only for a single plain command on the allowlist: `npx --no playwright test --list --reporter=json|list|null …`,
- * `git diff|log|show|status …`, `node qa/<module>.mts …`; `qa-judge` also has `judge-verdict` and `prove-fails`.
+ * `git diff|log|show|status …`, `node qa/<module>.mts …` (`test-shape` and `test-duration` only with repository
+ * paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and `prove-fails`.
  * `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a flag), so npm never
  * fetches a package. Only `qa-reviewer` may lead the listing with
  * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json`, `<name>` not starting with `heal-`, and

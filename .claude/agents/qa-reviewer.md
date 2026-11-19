@@ -97,6 +97,19 @@ contract's case rows, with `<specs>` the changed spec files:
    `commands.typecheck` and `commands.lint` from the facts for the dispatcher to run; a diff that is clearly
    type-unsafe (`any`, `!`, floating promises) is a finding on its own.
 
+5. Shape and duration of every new or changed test, with `<specs>` the changed spec files and `<project>` each
+   project of the run:
+
+   ```shell
+   node qa/test-shape.mts <specs>
+   node qa/test-duration.mts .qa/runs/<name>/report.<project>.json <project> [<previous report>]
+   ```
+
+   Give a previous report only when the brief names one. Each line either prints is a finding (test and reason; exit
+   1): report it as **Critical**, a test too long, too nested, too branched or over its duration budget or slowdown
+   ratio. The limits are the facts' `quality`; never judge by your own. A project without a budget is judged only on
+   the slowdown ratio.
+
 APPROVE only when reconciliation exits 0 for every project and there is no Critical finding.
 
 ## Report

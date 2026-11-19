@@ -1257,3 +1257,67 @@ test.describe("read-only shell hook script (unit)", () => {
     expect(runHook("").status).toBe(0);
   });
 });
+
+const QUALITY_ALLOWED = [
+  "node qa/test-shape.mts tests/restapi/cart.spec.ts",
+  "node qa/test-shape.mts tests/restapi/cart.spec.ts tests/e2e/order.spec.ts",
+  "node qa/test-duration.mts .qa/runs/cart/report.restapi.json restapi",
+  "node qa/test-duration.mts .qa/runs/cart/report.e2e-frontend.json e2e-frontend .qa/runs/old/report.e2e-frontend.json",
+];
+
+const QUALITY_BLOCKED = [
+  "node qa/test-shape.mts",
+  "node qa/test-shape.mts tests/a.spec.ts > out.txt",
+  "node qa/test-shape.mts tests/a.spec.ts; rm x",
+  "node qa/test-shape.mts $(rm x)",
+  "node qa/test-shape.mts --output=out.txt tests/a.spec.ts",
+  "node qa/test-shape.mts -o tests/a.spec.ts",
+  "node qa/test-shape.mts ../a.spec.ts",
+  "node qa/test-shape.mts tests/../../a.spec.ts",
+  "node qa/test-shape.mts /etc/passwd",
+  "node qa/test-shape.mts C:/Windows/x.ts",
+  "node qa/test-duration.mts",
+  "node qa/test-duration.mts .qa/runs/x/report.json",
+  "node qa/test-duration.mts .qa/runs/x/report.json restapi > out.json",
+  "node qa/test-duration.mts .qa/runs/x/report.json restapi && rm x",
+  "node qa/test-duration.mts --out=x .qa/runs/x/report.json restapi",
+  "node qa/test-duration.mts .qa/runs/x/report.json restapi a.json b.json",
+  "node qa/test-duration.mts ../report.json restapi",
+  "node qa/test-duration.mts /abs/report.json restapi",
+  "node qa/test-duration.mts .qa/runs/x/report.json -x",
+  "node qa/test-shape.mts/../evil.mts tests/a.spec.ts",
+  "node qa/test-shape.mts.sh tests/a.spec.ts",
+];
+
+test.describe("quality gate commands (unit)", () => {
+  for (const command of QUALITY_ALLOWED) {
+    test(`allows every read-only agent to run ${JSON.stringify(command)}`, () => {
+      for (const agent of READ_ONLY_NAMES) {
+        expect(isReadOnlyCommand(command, agent)).toBe(true);
+        expect(
+          hookBlockReason({ agent_type: agent, tool_name: "Bash", tool_input: { command } }),
+          agent,
+        ).toBeUndefined();
+      }
+    });
+  }
+
+  for (const command of QUALITY_BLOCKED) {
+    test(`blocks ${JSON.stringify(command)} even for the reviewer and the judge`, () => {
+      for (const agent of ["qa-reviewer", "qa-judge", "vc:qa-reviewer"]) {
+        expect(isReadOnlyCommand(command, agent)).toBe(false);
+        expect(hookBlockReason({ agent_type: agent, tool_name: "Bash", tool_input: { command } })).toContain("blocked");
+      }
+    });
+  }
+
+  test("the reviewer cannot write the gate modules", () => {
+    for (const file of ["qa/test-shape.mts", "qa/test-duration.mts"]) {
+      for (const tool of ["Write", "Edit"]) {
+        expect(
+          hookBlockReason({ agent_type: "qa-reviewer", tool_name: tool, tool_input: { file_path: file } }),
+        ).toContain("blocked");
+      }
+    }
+  });
+});

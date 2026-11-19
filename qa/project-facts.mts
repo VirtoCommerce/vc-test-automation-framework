@@ -12,6 +12,16 @@ export type ProjectFacts = {
   roles: Record<string, string>;
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
   flakyRunSeries: number;
+  quality: {
+    maxSteps: number;
+    maxLines: number;
+    maxExpects: number;
+    maxNesting: number;
+    maxConditionals: number;
+    stableSeries: number;
+    durationBudgetMs: Record<string, number>;
+    slowdownRatio: number;
+  };
   autonomy: Record<string, "apply" | "propose">;
   healerPaths: string[];
 };
@@ -19,6 +29,8 @@ export type ProjectFacts = {
 export const DEFAULT_CLIENT_ROUTES: readonly Route[] = ["paste"];
 
 const MIN_FLAKY_RUN_SERIES = 2;
+const MIN_STABLE_SERIES = 2;
+const MIN_SLOWDOWN_RATIO = 1;
 export const PROJECT_FACTS_PATH = ".qa/project.json";
 const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
@@ -157,6 +169,44 @@ function parseFlakyRunSeries(value: unknown): number {
   return value;
 }
 
+function asCount(value: unknown, path: string, minimum: number): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < minimum) {
+    fail(path, `must be an integer of at least ${minimum}`);
+  }
+  return value;
+}
+
+function parseDurationBudgets(value: unknown): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(asRecord(value, "quality.durationBudgetMs")).map(([project, budget]) => {
+      if (typeof budget !== "number" || !Number.isFinite(budget) || budget <= 0) {
+        return fail(`quality.durationBudgetMs["${project}"]`, "must be a number above 0");
+      }
+      return [project, budget];
+    }),
+  );
+}
+
+function parseQuality(value: unknown): ProjectFacts["quality"] {
+  const quality = asRecord(value, "quality");
+  const count = (key: string, minimum: number): number =>
+    asCount(present(quality, key, `quality.${key}`), `quality.${key}`, minimum);
+  const ratio = present(quality, "slowdownRatio", "quality.slowdownRatio");
+  if (typeof ratio !== "number" || !Number.isFinite(ratio) || ratio < MIN_SLOWDOWN_RATIO) {
+    fail("quality.slowdownRatio", `must be a number of at least ${MIN_SLOWDOWN_RATIO}`);
+  }
+  return {
+    maxSteps: count("maxSteps", 0),
+    maxLines: count("maxLines", 1),
+    maxExpects: count("maxExpects", 0),
+    maxNesting: count("maxNesting", 0),
+    maxConditionals: count("maxConditionals", 0),
+    stableSeries: count("stableSeries", MIN_STABLE_SERIES),
+    durationBudgetMs: parseDurationBudgets(present(quality, "durationBudgetMs", "quality.durationBudgetMs")),
+    slowdownRatio: ratio,
+  };
+}
+
 function parseAutonomy(value: unknown): ProjectFacts["autonomy"] {
   const autonomy = asRecord(value, "autonomy");
   present(autonomy, DEFAULT_AUTONOMY_KEY, `autonomy["${DEFAULT_AUTONOMY_KEY}"]`);
@@ -210,6 +260,7 @@ export function parseProjectFacts(json: unknown): ProjectFacts {
     roles: asStringMap(present(root, "roles", "roles"), "roles"),
     coverageWeights: parseCoverageWeights(present(root, "coverageWeights", "coverageWeights")),
     flakyRunSeries: parseFlakyRunSeries(present(root, "flakyRunSeries", "flakyRunSeries")),
+    quality: parseQuality(present(root, "quality", "quality")),
     autonomy: parseAutonomy(present(root, "autonomy", "autonomy")),
     healerPaths: parseHealerPaths(present(root, "healerPaths", "healerPaths")),
   };

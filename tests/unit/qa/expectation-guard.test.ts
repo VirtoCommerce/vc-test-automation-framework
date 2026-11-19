@@ -38,6 +38,16 @@ const FACTS_FILE = {
   roles: { admin: "admin@example.com" },
   coverageWeights: { risk: 1, callFrequency: 1, runFrequency: 1, stability: 1, cost: 1 },
   flakyRunSeries: 5,
+  quality: {
+    maxSteps: 8,
+    maxLines: 60,
+    maxExpects: 12,
+    maxNesting: 3,
+    maxConditionals: 0,
+    stableSeries: 3,
+    durationBudgetMs: { restapi: 15000 },
+    slowdownRatio: 1.5,
+  },
   autonomy: { "*": "propose" },
   healerPaths: HEALER_PATHS,
 };

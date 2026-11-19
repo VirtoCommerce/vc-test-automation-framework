@@ -37,6 +37,9 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   service.
 - Tracker: `tracker.keyPattern` validates a ticket key; `tracker.routes` is the order in which to try to read a ticket,
   ending with pasted text.
+- Quality gates: `quality` holds the shape limits (`maxSteps`, `maxLines`, `maxExpects`, `maxNesting`, `maxConditionals`),
+  `stableSeries` (the repetitions of a new or changed test, apart from `flakyRunSeries`), `durationBudgetMs` per project
+  and `slowdownRatio`. Read them; never judge a test by limits of your own.
 - Autonomy: `autonomy["<area>"]`, else `autonomy["*"]`, which the reader requires. `propose` means write the change
   into the report and wait; `apply` means do it.
 - Healer paths: `healerPaths` lists the directories the healer may change (page objects, data). Everything else,

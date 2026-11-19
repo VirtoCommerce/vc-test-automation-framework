@@ -260,7 +260,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const [listFile, reportFile] = process.argv.slice(2);
     if (listFile === undefined || reportFile === undefined) {
-      throw new Error("reconcile: usage is node .claude/qa/reconcile-run.mts <list.json> <report.json>");
+      throw new Error("reconcile: usage is node .claude/checks/reconcile-run.mts <list.json> <report.json>");
     }
     const verdict = reconcileRun(readJson(listFile), readJson(reportFile));
     process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);

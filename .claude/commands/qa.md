@@ -44,7 +44,7 @@ Dispatch `qa-explorer` with the area. Dispatch `qa-coverage` for what is already
 Dispatch `qa-planner` with the request (and the report paths for an area or a gap). It writes
 `.qa/contracts/<ticket-key-or-slug>.md`. Relay its scope questions.
 
-Run `node .claude/qa/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its lines back to the
+Run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its lines back to the
 planner; never edit the contract yourself.
 
 ### Approval
@@ -66,47 +66,34 @@ project even when there is one. When it stops with an amendment request, show it
 has written the `Approved:` line, run the contract check again and dispatch the expert again with the same path
 (not a judge re-dispatch).
 
-In the end-to-end flow, reconcile each project's record with the third command of "Hand-off Paths". Exit 1 on any
-project: the run is red, so go to Heal with the run record path, then to Judge. All exit 0: go to Judge.
+In the end-to-end flow, tell an unreachable stand apart from a red run first. When the expert reported the stand as
+not reachable, or a project of the contract's case rows has no `report.<project>.json`, the run is "not done, stand
+unreachable": stop, tell the person, and go to neither Heal nor Judge. Otherwise reconcile each project's record with
+the third command of "Hand-off Paths". Exit 1 with a verdict whose `failures` list tests (failed, flaky, skipped
+without a reason, missing from the report): the run is red, so go to Heal with the run record path, then to Judge.
+Exit 1 with no verdict (a file it cannot read or parse): "not done"; show its line to the person and stop. All exit
+0: go to Judge.
 
 ### Heal
 
-Before dispatching `qa-healer`, record a baseline and a fingerprint: `node .claude/qa/expectation-guard.mts --snapshot`
-prints a git tree id of the working tree, untracked files included; `node .claude/qa/expectation-guard.mts --repo-fingerprint`
+Before dispatching `qa-healer`, record a baseline and a fingerprint: `node .claude/checks/expectation-guard.mts --snapshot`
+prints a git tree id of the working tree, untracked files included; `node .claude/checks/expectation-guard.mts --repo-fingerprint`
 prints one sha of `.git/config`, `.git/info/`, `.git/hooks/`, the folder `core.hooksPath` names and
 `.qa/project.json` (it only reads; it is yours, the
-healer may not run it). Dispatch the healer with the failing spec files or the run record path and that baseline id.
-When it is done, recompute the fingerprint and run the guard, both from the baseline's own copy of `.claude/qa/`, never from
-the working tree (the healer could have changed it), so only the healer's changes are judged. Take that copy with
-`git cat-file blob`, which applies no attributes, filters or hooks, and never with `git archive` or a checkout, which
-run a smudge filter a planted `.git/info/attributes` or a global attributes file names. The fingerprint comes before
-any git command that can run configured code:
-
-```shell
-dir=$(mktemp -d) && mkdir "$dir/qa" || exit 1
-for m in expectation-guard project-facts; do git -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/qa/$m.mts > "$dir/qa/$m.mts" || { rm -rf "$dir"; exit 1; }; done
-test "$(node "$dir/qa/expectation-guard.mts" --repo-fingerprint)" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
-node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?
-test $code -eq 0 && { new=$(node "$dir/qa/expectation-guard.mts" --snapshot) || code=1; }; rm -rf "$dir"; test $code -eq 0 && echo "healed tree: $new"; test $code -eq 0
-```
-
-On a clean guard the last line prints `healed tree: <new tree id>`, the working tree right after the guard, taken
-with the baseline's copy of the guard.
-
-"repository config changed by the healer": stop there, show it to the person, and run no other git command or test
-in the repository until they have looked; a planted hook or config line runs with their rights. Any other non-zero
-result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two `.claude/qa/` files also gives
-it). Findings listed (a file outside the healer paths, a changed expectation, an added skip, wait or
-similar): stop, show them to the person, and do not go on to the judge or the reviewer. No finding listed: the guard
-could not run; report "not checked", do not go on to the judge or the reviewer, and never say clean. A product defect
+healer may not run it). When `--repo-fingerprint` exits non-zero or prints anything but 64 lowercase hexadecimal
+characters (a configuration file under a healer path, for one), show the person "fingerprint could not be computed:"
+followed by its stderr line, and do not dispatch the healer. Then store the guard recipe as the baseline holds it:
+`GIT_NO_LAZY_FETCH=1 git --no-replace-objects -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/skills/heal-tests/guard-recipe.md`
+prints it; keep that text, and when it prints nothing, do not dispatch the healer. Dispatch the healer with the
+failing spec files or the run record path and that baseline id.
+When it is done, run the recipe you stored word for word: its shell block with that baseline id and fingerprint,
+what each outcome means, and its "After a Clean Guard" re-run. Never read
+`.claude/skills/heal-tests/guard-recipe.md` from the working tree after the heal: the healer runs test code, which
+can rewrite any file, the recipe included. A guard that is not clean, or a re-run that exits 1 on a project, stops
+the flow before the judge and the reviewer. A product defect
 the healer reports is shown to the person, not patched.
 
-In the end-to-end flow this stage runs only when the expert's run is red, and before the judge. After a clean guard,
-re-run the definition of done's commands yourself (a mechanical re-run, not a role's work), so that the reviewer
-reconciles the healed state and not the expert's red record: for each project of the contract's case rows, with the
-expert's spec files, the stable series and the list into the same `report.<project>.json` and `list.<project>.json`,
-then reconcile ("Hand-off Paths", all three commands). Exit 1 on a project: the run is not done; show the reconcile
-lines to the person and stop before the judge.
+In the end-to-end flow this stage runs only when the expert's run is red, and before the judge.
 
 ### Judge
 
@@ -115,7 +102,7 @@ role `expert`, the contract path and the expert's spec files: it judges only the
 page-object or data changes, which the guard checks. The verdict is `.qa/judge/<contract-name>/judge-expert.json`.
 Check it:
 
-`node .claude/qa/judge-verdict.mts check .qa/judge/<contract-name>/judge-expert.json expert`
+`node .claude/checks/judge-verdict.mts check .qa/judge/<contract-name>/judge-expert.json expert`
 
 - Not `ok`: send the judge the lines and have it fix its file once; never edit the verdict yourself. A second
   malformed verdict stops the flow: show the check's output to the person and wait.
@@ -134,7 +121,7 @@ framework rules and style only. After a heal whose guard ran clean, add the line
 `healer: <baseline tree id> <new tree id>` (the `healed tree` the guard recipe printed). The reviewer spares only the
 hunks of `git diff <baseline tree id> <new tree id>` under the healer paths from the scope rule, so an expert's own
 change in a healed file stays in scope. Without a clean guard, send no such line. Its
-shell is read-only, so run `commands.typecheck` and `commands.lint` from `node .claude/qa/project-facts.mts` yourself and
+shell is read-only, so run `commands.typecheck` and `commands.lint` from `node .claude/checks/project-facts.mts` yourself and
 report the result with the review. A failing typecheck or lint means the work is not done, whatever the verdict.
 For a pull request, fetch the diff and metadata with `gh` and pass them as files.
 

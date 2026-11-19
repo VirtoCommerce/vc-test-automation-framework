@@ -41,7 +41,7 @@
       }
     },
     {
-      "includes": [".claude/qa/**"],
+      "includes": [".claude/checks/**"],
       "linter": {
         "rules": {
           "style": {
@@ -70,7 +70,7 @@
                       "**/tests",
                       "**/tests/**"
                     ],
-                    "message": "qa may depend only on core and its own files."
+                    "message": ".claude/checks may depend only on core and its own files."
                   }
                 ]
               }

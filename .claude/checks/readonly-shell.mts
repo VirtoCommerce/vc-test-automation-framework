@@ -69,11 +69,11 @@ const PLAYWRIGHT_FLAGS = [
   /^--repeat-each=\d{1,2}$/,
 ];
 const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
-const QA_DIR = ".claude/qa";
-const QA_DIR_PATTERN = QA_DIR.replace(/[.]/g, "[.]");
-const PROVE_FAILS_PATH = `${QA_DIR}/prove-fails.mts`;
-const TEST_SHAPE_PATH = `${QA_DIR}/test-shape.mts`;
-const TEST_DURATION_PATH = `${QA_DIR}/test-duration.mts`;
+const CHECKS_DIR = ".claude/checks";
+const CHECKS_DIR_PATTERN = CHECKS_DIR.replace(/[.]/g, "[.]");
+const PROVE_FAILS_PATH = `${CHECKS_DIR}/prove-fails.mts`;
+const TEST_SHAPE_PATH = `${CHECKS_DIR}/test-shape.mts`;
+const TEST_DURATION_PATH = `${CHECKS_DIR}/test-duration.mts`;
 const TEST_DURATION_ARGUMENTS = [2, 3];
 const PROVE_FAILS_PROJECT = /^--project=[\w.-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
@@ -107,7 +107,7 @@ const HEALER_PLAYWRIGHT_FLAGS = [
 const HEALER_REPORTER = /^--reporter=(list|json|null)(,(list|json))*$/;
 const GREP_VALUE = /^[\w.+^~,:@/=][\w.+^~,:@/=-]*$/;
 const GUARD_BASE = /^--base=[0-9a-f]{7,64}$/;
-const GUARD_PATH = `${QA_DIR}/expectation-guard.mts`;
+const GUARD_PATH = `${CHECKS_DIR}/expectation-guard.mts`;
 const DRIVE_PATH = /^[A-Za-z]:/;
 const GIT_DIR = ".git";
 const NO_HOOKS_FOLDER = "";
@@ -121,7 +121,7 @@ const GIT_HOOKS_FOLDER_ARGS = [
 ];
 
 function modulePattern(modules: readonly string[]): RegExp {
-  return new RegExp(`^${QA_DIR_PATTERN}/(${modules.join("|")})[.]mts$`);
+  return new RegExp(`^${CHECKS_DIR_PATTERN}/(${modules.join("|")})[.]mts$`);
 }
 
 function bareName(agent: string | undefined): string | undefined {
@@ -215,7 +215,7 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
 /**
  * True only for a single plain command on the allowlist: `npx --no playwright test --list --reporter=json|list|null …`
  * (`--repeat-each=<1-2 digits>` allowed there, so a reviewer can list a series),
- * `git diff|log|show|status …`, `node .claude/qa/<module>.mts …` (`test-shape` and `test-duration` only with repository
+ * `git diff|log|show|status …`, `node .claude/checks/<module>.mts …` (`test-shape` and `test-duration` only with repository
  * paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and `prove-fails`.
  * `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a flag), so npm never
  * fetches a package. Only `qa-reviewer` may lead the listing with
@@ -292,7 +292,7 @@ function isHealerPlaywright(tokens: readonly string[]): boolean {
  * True only for a single plain command the healer may run besides the read-only ones: `npx --no playwright test` on
  * repository paths with `--project`, `--repeat-each`, `--retries=0`, `--reporter=list|json|null`, `--grep` or `-g`
  * and `--list`, optionally led by `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/<name>.json`; `node
- * .claude/qa/expectation-guard.mts --snapshot|--base=<sha>`; `npx --no tsc --noEmit`; `npx --no biome check <paths>` with no
+ * .claude/checks/expectation-guard.mts --snapshot|--base=<sha>`; `npx --no tsc --noEmit`; `npx --no biome check <paths>` with no
  * flag. Nothing that fetches a package, writes to git, updates snapshots, picks a config or an output folder, and not
  * the main session's `--repo-fingerprint`.
  */
@@ -516,7 +516,7 @@ function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, pro
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may run only git diff|log|show|status, node ${QA_DIR}/<module>.mts, npx --no playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx --no tsc --noEmit and npx --no biome check <paths>; blocked: ${shown}`;
+  return `${agent} may run only git diff|log|show|status, node ${CHECKS_DIR}/<module>.mts, npx --no playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx --no tsc --noEmit and npx --no biome check <paths>; blocked: ${shown}`;
 }
 
 function isWebUrl(value: unknown): boolean {
@@ -603,5 +603,5 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} is read-only and may run only git diff|log|show|status, npx --no playwright test --list --reporter=json|list|null and node ${QA_DIR}/<module>.mts; blocked: ${shown}`;
+  return `${agent} is read-only and may run only git diff|log|show|status, npx --no playwright test --list --reporter=json|list|null and node ${CHECKS_DIR}/<module>.mts; blocked: ${shown}`;
 }

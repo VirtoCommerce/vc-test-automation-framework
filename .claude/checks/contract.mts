@@ -221,7 +221,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const [command, file] = process.argv.slice(2);
     if (command !== "check" || file === undefined) {
-      throw new Error("contract: usage is node .claude/qa/contract.mts check <file>");
+      throw new Error("contract: usage is node .claude/checks/contract.mts check <file>");
     }
     let text: string;
     try {

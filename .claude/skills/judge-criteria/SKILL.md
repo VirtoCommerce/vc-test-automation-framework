@@ -37,4 +37,4 @@ evaluation suite, the folder the brief names), nowhere else:
 ```
 
 `verdict` is `pass` only when every criterion passes, and `fail` otherwise. Then run
-`node .claude/qa/judge-verdict.mts check <file>`; it must print `ok`. Fix the file, not the criteria, until it does.
+`node .claude/checks/judge-verdict.mts check <file>`; it must print `ok`. Fix the file, not the criteria, until it does.

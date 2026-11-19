@@ -8,7 +8,7 @@ argument-hint: "<api-area>"
 
 Used by `qa-explorer`. The result is the two API sections of `.qa/reports/explore-<slug>.md`. It writes no client,
 no query and no test. Read first: the skill `framework-rules`, then `project-facts`
-(`node .claude/qa/project-facts.mts`).
+(`node .claude/checks/project-facts.mts`).
 
 ## Step 1: The Schema
 

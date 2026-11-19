@@ -68,8 +68,9 @@ Run `node .claude/checks/contract.mts check <file>`. It prints `ok <file>` or on
 facts, until it prints `ok`. When the only lines left are `no recorded value` ones, stop and reply
 `needs observation: <case ids>` instead of asking for approval, plus `api-only: <case ids>` for those whose value
 no page of the stand sends. Dispatched with `observed <contract> <report>`, copy each recorded value into its oracle
-exactly, with the report path. A case the report did not reach: drop only its `observed:` part when it has another
-oracle source, else move the case to Out of scope as `not reached: <reason>`.
+exactly, with the report path. A case not reached follows the person's answer: (a) `observed: at first run <what
+to observe>`; (b) the source they name; (c) drop its `observed:` part, or the case (to Out of scope as `not reached:
+<reason>`) when no other source remains.
 
 ## Stop for One Approval
 

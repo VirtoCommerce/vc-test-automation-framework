@@ -28,11 +28,15 @@ Relay its scope questions to the person and pass the answers back.
 ### 2. Check
 
 First, when the planner replies `needs observation`, spawn `qa-explorer` (read-only) with `observe <contract path>`,
-then the planner with `observed <contract path> <report path>`. Cases it lists as `api-only` skip the explorer (an
-API-only area cannot be observed yet, `REFINEMENTS.md`): put them to the person as a scope question at once.
+then the planner with `observed <contract path> <report path>`. Cases the report lists as `not reached: needs <role>` (the explorer observes only as the session the browser holds),
+and cases the planner lists as `api-only` (no page sends their request; an API-only area cannot be observed until the
+observe probe exists, `REFINEMENTS.md`), go to the person at once as a scope question: (a) observe at the expert's
+first green run, and confirm the value before the judge; (b) name another oracle source; (c) drop the case. Pass
+the answers to the planner with `observed <contract path> <report path>`.
 
 Otherwise run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to
-the planner; do not edit the contract yourself.
+the planner; do not edit the contract yourself. Lines `at first run awaits the person's approval` do not stop the
+approval question; they clear once the approval line is written.
 
 ### 3. Approval
 

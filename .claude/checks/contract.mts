@@ -27,6 +27,7 @@ const APPROVAL_SECTION = "Approval";
 const CONFIRMATION = /^(characterization|confirmed by \S.*)$/;
 const OBSERVED = "observed:";
 const PENDING = /^pending\b/;
+const AT_FIRST_RUN = /^at first run\s+\S/;
 const RECORDED = /^(.*?)\s*\(([^()]*)\)$/;
 const ESCAPED_PIPE = /\\\|/g;
 const REPORTS_DIR = ".qa/";
@@ -173,6 +174,9 @@ function isRecordedIn(report: string, caseId: string, value: string): boolean {
 
 type OraclePart = { text: string; splitOnSemicolon: boolean };
 
+/** What an observed part is checked against: the report reader, and whether the contract has its approval line. */
+type ObservedContext = { readReport: ((path: string) => string | undefined) | undefined; approved: boolean };
+
 /** The Oracle's parts; a part that starts with no source prefix is joined back to the part before it. */
 function sourceParts(oracle: string): OraclePart[] {
   const parts: OraclePart[] = [];
@@ -192,11 +196,15 @@ function checkObservedPart(
   label: string,
   caseId: string,
   part: OraclePart,
-  readReport: ((path: string) => string | undefined) | undefined,
+  context: ObservedContext,
 ): string | undefined {
+  const { readReport, approved } = context;
   const rest = part.text.slice(OBSERVED.length).trim();
   if (part.splitOnSemicolon) {
     return `${label} observed: the value holds an unquoted ;: write the value in double quotes`;
+  }
+  if (AT_FIRST_RUN.test(rest)) {
+    return approved ? undefined : `${label} observed: at first run awaits the person's approval (## Approval)`;
   }
   const match = RECORDED.exec(rest);
   const value = match?.[1]?.trim();
@@ -227,16 +235,13 @@ function checkObservedPart(
     : `${label} observed: ${path} has no line "- ${caseId}: ${rawValue(value)} (" under ## ${OBSERVED_VALUES}`;
 }
 
-function checkObservedValues(
-  rows: CaseRow[],
-  readReport: ((path: string) => string | undefined) | undefined,
-): string[] {
+function checkObservedValues(rows: CaseRow[], context: ObservedContext): string[] {
   const problems: string[] = [];
   for (const row of rows) {
     const label = row.name === "" ? "a case" : `case "${row.name}"`;
     const caseId = row.name.split(/\s+/)[0] ?? "";
     for (const part of sourceParts(row.oracle).filter((item) => item.text.startsWith(OBSERVED))) {
-      const found = checkObservedPart(label, caseId, part, readReport);
+      const found = checkObservedPart(label, caseId, part, context);
       if (found !== undefined) {
         problems.push(problem(found));
       }
@@ -347,7 +352,7 @@ export function checkContract(
   const checked = cases !== undefined && hasText(cases) ? checkCases(cases, roles) : { problems: [], rows: [] };
   problems.push(
     ...checked.problems,
-    ...checkObservedValues(checked.rows, readReport),
+    ...checkObservedValues(checked.rows, { readReport, approved: sections.has(APPROVAL_SECTION) }),
     ...checkObservedOnly(sections.get("Observed only"), checked.rows),
   );
   const approval = sections.get(APPROVAL_SECTION);

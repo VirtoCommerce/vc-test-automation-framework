@@ -29,7 +29,9 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
   data (records, builders, `arrange` methods), then known issues, then specs. Search before adding: reuse what exists.
 - One spec per case row, or one table-driven test for rows of one shape. The case's Project column is the
   Playwright project; its Oracle column is where the expected value comes from. Take expected values from the
-  oracle's source, never from running the build.
+  oracle's source, never from running the build, except `observed: at first run <what>`: after the first green run,
+  add `- <case id>: <value seen> (first run)` under `## Observed values` in
+  `.qa/reports/explore-<contract-name slug>-observed.md` and put `<value> (<that path>)` in its place.
 - Identity: read `roles` from the facts. For a case with data role `R` write `test.use({ user: <roles[R]> })`,
   that account as a string. Name roles in `test.describe("<topic> (<role>)")`, never accounts.
   Data role `none` means anonymous. Never take an account from a prompt, a skill example or memory.

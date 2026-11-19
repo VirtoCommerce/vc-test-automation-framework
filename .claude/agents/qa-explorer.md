@@ -49,7 +49,7 @@ other browser, no script and no shell command to reach the stand. A hook enforce
   a control that saves, submits, buys, orders, deletes, confirms or sends.
 - `browser_evaluate` runs one script only: the page extractor `PAGE_EXTRACTOR` in `.claude/checks/explore-extractors.mts`, copied
   exactly, one line. Any other script is refused; take everything else from the snapshot and the network list.
-- Never sign in except as the role the dispatch names (when observing, the case's data role), and never type a
+- Never sign in except as the role the dispatch names (when observing, never: use the browser's session), nor type a
   password you read from a file or print. Where the area needs an account the session does not have, write "not
   reached: needs <role>" and go on.
 - A shared stand is not yours: leave no record behind. If an action could have changed data, say so in the report.

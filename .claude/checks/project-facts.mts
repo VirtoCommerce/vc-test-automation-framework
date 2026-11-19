@@ -47,7 +47,7 @@ const PROJECT_KEY_WORD = /(?<!\\)[A-Z][A-Z0-9_]+/g;
 const PROJECT_KEY_SUFFIXES = ["", "1", "12"];
 const SAMPLE_NUMBERS = ["1", "12", "123", "1234", "12345", "123456", "1234567"];
 const WORK_ITEM_PREFIXES = ["", "AB#", "#"];
-const LOST_ESCAPE = /(?<!\\)[dws][+*{]/;
+const LOST_ESCAPE = /(?<![\\A-Za-z0-9])[dws][+*{]/;
 
 export const SHORT_NAME_SEGMENT = /~\d/;
 

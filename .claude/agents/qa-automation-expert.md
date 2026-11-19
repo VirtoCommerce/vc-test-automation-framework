@@ -63,6 +63,7 @@ the amendment and wait. Do not continue on your reading of what the person will 
 |---|---|
 | A REST API spec | `/write-rest-api-test` |
 | A GraphQL spec | `/write-graphql-test` |
+| A security spec: no session, wrong role, another customer's object, headers, input validation | `/write-security-test` |
 | An e2e spec | `/write-e2e-test` |
 | A REST client method, client or named type | `/create-rest-client` |
 | A `.graphql` operation or fragment | `/create-graphql-layer` |

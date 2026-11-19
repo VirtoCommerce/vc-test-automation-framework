@@ -145,7 +145,7 @@ node .claude/checks/expectation-guard.mts --base=<tree id in .qa/runs/heal-<slug
 
 This is your own early check; the hook keeps you from writing `.claude/checks/`, and the dispatcher repeats it from the
 baseline's own copy of `.claude/checks/`, taken with `git cat-file`, together with a fingerprint of the git configuration and
-hooks (`/qa`, `/qa-heal`). It compares the working tree, untracked files included, with that tree, and reads `healerPaths` from the baseline's
+hooks (`/qa`, `/qa-heal`, with `guard-recipe.md` in this folder, which is theirs and not yours to run). It compares the working tree, untracked files included, with that tree, and reads `healerPaths` from the baseline's
 `.qa/project.json`. Exit 0: every changed file is under `healerPaths`, no expectation line changed and no added line
 switches a check off. Exit 1 lists `outside healer paths: <file>`, a changed expectation line, or `<file>: added <line>`:
 undo the edit that caused each one (a finding is your mistake, not a style matter), re-run the guard until clean, and

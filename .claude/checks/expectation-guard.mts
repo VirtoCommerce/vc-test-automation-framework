@@ -2,9 +2,9 @@ import type { ProjectFacts } from "./project-facts.mts";
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 import { PROJECT_FACTS_PATH, parseProjectFacts } from "./project-facts.mts";
 
@@ -34,6 +34,7 @@ const MAX_BUFFER = 256 * 1024 * 1024;
 const NO_FILE = "/dev/null";
 const TEMP_PREFIX = "expectation-guard-index-";
 const OUTSIDE_PREFIX = "outside healer paths: ";
+const FILE_ORIGIN = "file:";
 const ADDED_PREFIX = "added ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
@@ -219,6 +220,7 @@ function execGit(args: readonly string[], index?: string): string {
   return execFileSync(
     "git",
     [
+      "--no-replace-objects",
       "-c",
       "core.quotepath=off",
       "-c",
@@ -236,6 +238,7 @@ function execGit(args: readonly string[], index?: string): string {
         ...process.env,
         GIT_OPTIONAL_LOCKS: "0",
         GIT_ATTR_NOSYSTEM: "1",
+        GIT_NO_LAZY_FETCH: "1",
         ...(index === undefined ? {} : { GIT_INDEX_FILE: index }),
       },
       stdio: ["ignore", "pipe", "ignore"],
@@ -274,7 +277,8 @@ function switchedOff(git: Git): string[] {
 }
 
 /**
- * Runs `work` with a git that reads the repository and runs no command the repository or the user configured: no
+ * Runs `work` with a git that reads the repository and runs no command the repository or the user configured, reads
+ * no replace ref (`--no-replace-objects`) and fetches no missing object of a partial clone (`GIT_NO_LAZY_FETCH`): no
  * fsmonitor, hook scripts from an empty folder, every hook defined in the configuration (`hook.<name>.command`) and
  * the hook events the guard's own commands raise disabled, no global or system attributes file, and every filter
  * driver git knows switched off, so a planted `.git/config` or `.git/info/attributes` cannot run a command or rewrite
@@ -409,10 +413,55 @@ function configuredHooksFolder(): string {
   }
 }
 
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+}
+
+function isUnder(path: string, directory: string): boolean {
+  const inside = relative(directory.toLowerCase(), path.toLowerCase());
+  return inside === "" || (!inside.startsWith("..") && !isAbsolute(inside));
+}
+
+/**
+ * Returns the configuration files git reads (`git config --list --show-origin`, includes followed) that lie under one
+ * of the healer paths of the facts file in the working tree, compared by real path and without regard to case. The
+ * healer may write there, so such a file could change the configuration without changing the fingerprint.
+ */
+function configFilesUnderHealerPaths(git: Git, top: string): string[] {
+  let facts: ProjectFacts;
+  try {
+    facts = parseProjectFacts(JSON.parse(readFileSync(join(top, PROJECT_FACTS_PATH), "utf8")));
+  } catch (error) {
+    throw new Error(`expectation-guard: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  let listing: string;
+  try {
+    listing = git(["config", "--list", "--show-origin", "--name-only", "-z"]);
+  } catch {
+    throw new Error("expectation-guard: git config --list --show-origin failed");
+  }
+  const origins = new Set(
+    listing
+      .split("\0")
+      .filter((field, index) => index % 2 === 0 && field.startsWith(FILE_ORIGIN))
+      .map((field) => field.slice(FILE_ORIGIN.length)),
+  );
+  const healerDirs = facts.healerPaths.map((path) => canonical(resolve(top, path.replace(TRAILING_SLASHES, ""))));
+  return [...origins].filter((origin) => {
+    const file = canonical(resolve(top, origin));
+    return healerDirs.some((directory) => isUnder(file, directory));
+  });
+}
+
 /**
  * Hashes `.git/config`, `config.worktree`, every file under `.git/info/` and `.git/hooks/`, every file in the folder
  * git runs hooks from (`core.hooksPath`, wherever it points), and `.qa/project.json` into one sha256, missing files
- * included, so adding a hook or a config line changes it. Reads only.
+ * included, so adding a hook or a config line changes it. Refuses, as an error, when git reads a configuration file
+ * under a healer path (`configFilesUnderHealerPaths`), since the healer could change that file unseen. Reads only.
  */
 function repoFingerprint(git: Git): string {
   let paths: string[];
@@ -426,6 +475,10 @@ function repoFingerprint(git: Git): string {
   const [gitDir = "", commonDir = "", top = ""] = paths;
   if (gitDir === "" || commonDir === "" || top === "") {
     throw new Error("expectation-guard: not inside a git repository");
+  }
+  const planted = configFilesUnderHealerPaths(git, top);
+  if (planted.length > 0) {
+    throw new Error(`expectation-guard: git reads configuration under a healer path: ${planted.join(", ")}`);
   }
   const entries = [
     ...fingerprintEntries("config", join(commonDir, "config")),

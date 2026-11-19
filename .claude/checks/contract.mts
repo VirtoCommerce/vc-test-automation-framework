@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { readProjectFacts } from "./project-facts.mts";
+import { CREDENTIAL_SHAPE } from "./readonly-shell.mts";
 
 const CLI_FILE_NAME = "contract.mts";
 const SOURCE_KINDS = ["ticket", "doc", "area", "gap"] as const;
@@ -209,6 +210,9 @@ function checkObservedPart(
   }
   if (value === "") {
     return `${label} observed: oracle names a report but no value before it`;
+  }
+  if (CREDENTIAL_SHAPE.test(value)) {
+    return `${label} observed: the value looks like a credential (a token, a password field or a Bearer header); never record one`;
   }
   if (readReport === undefined) {
     return undefined;

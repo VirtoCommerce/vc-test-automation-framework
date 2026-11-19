@@ -92,6 +92,13 @@ const END_OF_OPTIONS = "--";
 const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
 const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_MODULES]);
 const MAX_SHOWN_COMMAND = 80;
+
+/**
+ * Text shaped like a credential: a JSON Web Token, an `access_token` or `refresh_token` field, a `"password"` field
+ * or a `Bearer` header. The explorer's report and an observed value in a contract never hold one.
+ */
+export const CREDENTIAL_SHAPE = /\beyJ[\w-]+\.[\w-]+\.[\w-]+|access_token|refresh_token|"password"|\bBearer\s/i;
+
 const QA_FOLDER_TOKEN = /(^|\/)\.qa(\/|$)/i;
 const REPORT_FILE = /^explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;
 const COVERAGE_FILE = /^coverage-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?\.md$/;
@@ -422,7 +429,10 @@ function writeBlockReason(agent: string, toolInput: unknown, projectDir: string)
   const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
   const segments = typeof file === "string" && file !== "" ? pathInside(projectDir, rule.dir, file) : undefined;
   if (segments !== undefined && rule.allows(segments)) {
-    return undefined;
+    const content = isRecord(toolInput) ? toolInput["content"] : undefined;
+    return bareName(agent) === EXPLORER_AGENT && typeof content === "string" && CREDENTIAL_SHAPE.test(content)
+      ? `${agent} may not write a token, password or Bearer header into a report; blocked`
+      : undefined;
   }
   const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
   return `${agent} may write ${rule.shown}; blocked: ${shown}`;

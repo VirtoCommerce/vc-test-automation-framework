@@ -21,10 +21,29 @@ const CLI_FILE_NAME = "scan-prompts.mts";
 const SKILLS_DIR = ".claude/skills";
 const AGENTS_DIR = ".claude/agents/";
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
-const FENCE = /^\s*(```|~~~)/;
+const FENCE_OPEN = /^\s*(`{3,}|~{3,})/;
+const FENCE_CLOSE = /^\s*(`{3,}|~{3,})\s*$/;
 const URL_HOST = /\b[a-z][a-z0-9+.-]*:\/\/(?:[^/@\s]*@)?(\[[0-9a-f:.]+\]|[^\s/:?#)"'`>\]<\\]+)/gi;
-const BARE_HOST =
-  /\b[a-z0-9-]+(?:\.[a-z0-9-]+)+\.(?:com|net|org|io|dev|app|cloud|biz|info|co|us|eu|br|pl|nl|de|uk)\b/gi;
+const BARE_HOST = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)+(?![a-z0-9-]|\.[a-z0-9-]|\()/gi;
+const TOP_LEVEL_DOMAINS = [
+  "com",
+  "net",
+  "org",
+  "io",
+  "dev",
+  "app",
+  "cloud",
+  "biz",
+  "info",
+  "co",
+  "us",
+  "eu",
+  "br",
+  "pl",
+  "nl",
+  "de",
+  "uk",
+];
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
 const MARKDOWN_EXTENSION = /\.md$/i;
 const EXTENSION = /\.[^./]+$/;
@@ -60,7 +79,9 @@ function hostFindings(text: string): string[] {
     consider(match[1] ?? "");
   }
   for (const match of text.matchAll(BARE_HOST)) {
-    consider(match[0]);
+    if (TOP_LEVEL_DOMAINS.includes((match[0].split(".").pop() ?? "").toLowerCase())) {
+      consider(match[0]);
+    }
   }
   for (const match of text.matchAll(IPV4)) {
     consider(match[0]);
@@ -130,13 +151,21 @@ function scanLine(text: string, rules: Rules): string[] {
 
 function headingsOf(lines: string[]): Heading[] {
   const headings: Heading[] = [];
-  let inFence = false;
+  let fence = "";
   lines.forEach((text, index) => {
-    if (FENCE.test(text)) {
-      inFence = !inFence;
+    if (fence !== "") {
+      const closing = FENCE_CLOSE.exec(text)?.[1] ?? "";
+      if (closing.startsWith(fence.charAt(0)) && closing.length >= fence.length) {
+        fence = "";
+      }
       return;
     }
-    const heading = inFence ? null : HEADING.exec(text);
+    const opening = FENCE_OPEN.exec(text)?.[1];
+    if (opening !== undefined) {
+      fence = opening;
+      return;
+    }
+    const heading = HEADING.exec(text);
     if (heading !== null) {
       headings.push({ index, level: (heading[1] ?? "").length, text: heading[2] ?? "" });
     }
@@ -159,23 +188,30 @@ function exampleSections(lines: string[], headings: Heading[]): ExampleSection[]
   return sections;
 }
 
-function hidesFile(section: ExampleSection, lines: string[], firstHeadingIndex: number): boolean {
-  if (section.level < MIN_EXAMPLE_LEVEL || section.level > MAX_EXAMPLE_LEVEL || section.start === firstHeadingIndex) {
-    return true;
-  }
-  const nonEmpty = (from: number, to: number): number =>
-    lines.slice(from, to).filter((line) => line.trim() !== "").length;
-  return nonEmpty(section.start, section.end) > nonEmpty(0, lines.length) * MAX_EXAMPLE_SHARE;
+function isMisplaced(section: ExampleSection, firstHeadingIndex: number): boolean {
+  return section.level < MIN_EXAMPLE_LEVEL || section.level > MAX_EXAMPLE_LEVEL || section.start === firstHeadingIndex;
+}
+
+function nonEmptyLines(lines: string[], from: number, to: number): number {
+  return lines.slice(from, to).filter((line) => line.trim() !== "").length;
+}
+
+function hiddenSections(lines: string[], sections: ExampleSection[], firstHeading: number): ExampleSection[] {
+  const placed = sections.filter((section) => !isMisplaced(section, firstHeading));
+  const covered = placed.reduce((sum, section) => sum + nonEmptyLines(lines, section.start, section.end), 0);
+  const tooMuch = covered > nonEmptyLines(lines, 0, lines.length) * MAX_EXAMPLE_SHARE;
+  return sections.filter((section) => isMisplaced(section, firstHeading) || tooMuch);
 }
 
 function scanFile(file: string, content: string, rules: Rules): PromptFinding[] {
   const findings: PromptFinding[] = [];
   const lines = content.replaceAll("\r\n", "\n").split("\n");
   const headings = headingsOf(lines);
-  const firstHeading = headings[0]?.index ?? -1;
   const ignored = new Set<number>();
-  for (const section of exampleSections(lines, headings)) {
-    if (hidesFile(section, lines, firstHeading)) {
+  const sections = exampleSections(lines, headings);
+  const refused = new Set(hiddenSections(lines, sections, headings[0]?.index ?? -1));
+  for (const section of sections) {
+    if (refused.has(section)) {
       findings.push({ file, line: section.start + 1, finding: HIDES_FILE });
       continue;
     }

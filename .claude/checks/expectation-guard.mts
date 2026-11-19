@@ -3,8 +3,8 @@ import type { ProjectFacts } from "./project-facts.mts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { PROJECT_FACTS_PATH, parseProjectFacts } from "./project-facts.mts";
 
@@ -35,6 +35,9 @@ const NO_FILE = "/dev/null";
 const TEMP_PREFIX = "expectation-guard-index-";
 const OUTSIDE_PREFIX = "outside healer paths: ";
 const FILE_ORIGIN = "file:";
+const INCLUDE_PATH_KEYS = "^include(if\\..*)?\\.path$";
+const NO_MATCH_EXIT_CODE = 1;
+const HOME_PREFIX = /^~[/\\]/;
 const ADDED_PREFIX = "added ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
@@ -413,23 +416,76 @@ function configuredHooksFolder(): string {
   }
 }
 
+/**
+ * The real path of the deepest part of `path` that exists, with the rest appended, so a file that does not exist yet
+ * is still compared through the real folders above it.
+ */
 function canonical(path: string): string {
-  try {
-    return realpathSync.native(path);
-  } catch {
-    return path;
+  const rest: string[] = [];
+  let existing = path;
+  for (;;) {
+    try {
+      return join(realpathSync.native(existing), ...rest);
+    } catch {
+      const parent = dirname(existing);
+      if (parent === existing) {
+        return path;
+      }
+      rest.unshift(basename(existing));
+      existing = parent;
+    }
   }
 }
 
 function isUnder(path: string, directory: string): boolean {
   const inside = relative(directory.toLowerCase(), path.toLowerCase());
-  return inside === "" || (!inside.startsWith("..") && !isAbsolute(inside));
+  return inside === "" || !(inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside));
+}
+
+function exitStatus(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
+}
+
+function originFolder(top: string, origin: string): string {
+  return origin.startsWith(FILE_ORIGIN) ? dirname(resolve(top, origin.slice(FILE_ORIGIN.length))) : top;
 }
 
 /**
- * Returns the configuration files git reads (`git config --list --show-origin`, includes followed) that lie under one
- * of the healer paths of the facts file in the working tree, compared by real path and without regard to case. The
- * healer may write there, so such a file could change the configuration without changing the fingerprint.
+ * The files every `include.path` and `includeIf.<condition>.path` names, resolved the way git does: relative to the
+ * folder of the configuration file that holds it, `~/` from the home folder. A target is listed whether or not it
+ * exists or holds anything, since the healer could create or fill it.
+ */
+function includeTargets(git: Git, top: string): string[] {
+  let listing = "";
+  try {
+    listing = git(["config", "--show-origin", "-z", "--get-regexp", INCLUDE_PATH_KEYS]);
+  } catch (error) {
+    if (exitStatus(error) !== NO_MATCH_EXIT_CODE) {
+      throw new Error("expectation-guard: git config --get-regexp for the include paths failed");
+    }
+  }
+  const fields = listing.split("\0");
+  const targets: string[] = [];
+  for (let index = 0; index + 1 < fields.length; index += 2) {
+    const entry = fields[index + 1] ?? "";
+    const newline = entry.indexOf("\n");
+    if (newline < 0) {
+      continue;
+    }
+    const value = entry.slice(newline + 1);
+    const home = process.env["HOME"] ?? homedir();
+    targets.push(
+      HOME_PREFIX.test(value) ? join(home, value.slice(2)) : resolve(originFolder(top, fields[index] ?? ""), value),
+    );
+  }
+  return targets;
+}
+
+/**
+ * Returns the configuration files git reads (`git config --list --show-origin`, includes followed) and the targets of
+ * every include path (`includeTargets`) that lie under one of the healer paths of the facts file in the working tree,
+ * compared by real path and without regard to case. The healer may write there, so such a file could change the
+ * configuration without changing the fingerprint.
  */
 function configFilesUnderHealerPaths(git: Git, top: string): string[] {
   let facts: ProjectFacts;
@@ -444,17 +500,13 @@ function configFilesUnderHealerPaths(git: Git, top: string): string[] {
   } catch {
     throw new Error("expectation-guard: git config --list --show-origin failed");
   }
-  const origins = new Set(
-    listing
-      .split("\0")
-      .filter((field, index) => index % 2 === 0 && field.startsWith(FILE_ORIGIN))
-      .map((field) => field.slice(FILE_ORIGIN.length)),
-  );
+  const origins = listing
+    .split("\0")
+    .filter((field, index) => index % 2 === 0 && field.startsWith(FILE_ORIGIN))
+    .map((field) => resolve(top, field.slice(FILE_ORIGIN.length)));
+  const files = [...new Set([...origins, ...includeTargets(git, top)])];
   const healerDirs = facts.healerPaths.map((path) => canonical(resolve(top, path.replace(TRAILING_SLASHES, ""))));
-  return [...origins].filter((origin) => {
-    const file = canonical(resolve(top, origin));
-    return healerDirs.some((directory) => isUnder(file, directory));
-  });
+  return files.filter((file) => healerDirs.some((directory) => isUnder(canonical(file), directory)));
 }
 
 /**
@@ -476,7 +528,7 @@ function repoFingerprint(git: Git): string {
   if (gitDir === "" || commonDir === "" || top === "") {
     throw new Error("expectation-guard: not inside a git repository");
   }
-  const planted = configFilesUnderHealerPaths(git, top);
+  const planted = configFilesUnderHealerPaths(git, top).map((file) => relative(top, file).split(sep).join("/"));
   if (planted.length > 0) {
     throw new Error(`expectation-guard: git reads configuration under a healer path: ${planted.join(", ")}`);
   }

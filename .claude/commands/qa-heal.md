@@ -20,8 +20,14 @@ one.
 3. Present what it fixed, what it classified as a product defect (a `knownIssue` proposal, never a patch), and what
    it escalated. A stand that was not reachable is "not done".
 
-When the target was a run record `.qa/runs/<contract-name>/` and `.qa/contracts/<contract-name>.md` exists, do what
-`/qa` does after a heal: the recipe's "After a Clean Guard", word for word.
+The heal belongs to a run record when the target is a run record `.qa/runs/<contract-name>/` and
+`.qa/contracts/<contract-name>.md` exists. When the target is a spec file or a test title (take the spec that holds
+the test), look before step 1 for run records under `.qa/runs/<contract-name>/` whose `list.<project>.json` names that
+spec. Exactly one of them with its `.qa/contracts/<contract-name>.md`: the heal belongs to that record. None, or more
+than one: say so to the person; the review then runs without a contract and skips the definition of done.
+
+When the heal belongs to a run record, do what `/qa` does after a heal: the recipe's "After a Clean Guard", word for
+word, with that record and contract.
 
 When code changed and the guard is clean, end with the review command, its `healer:` line filled in from the guard
 recipe (the baseline id, then the `healed tree`). Put the contract path first only when that re-run reconciled with

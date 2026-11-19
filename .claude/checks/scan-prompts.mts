@@ -3,7 +3,7 @@ import type { ProjectFacts } from "./project-facts.mts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
-import { readProjectFacts } from "./project-facts.mts";
+import { ROLE_PURPOSES, readProjectFacts } from "./project-facts.mts";
 
 export type PromptFinding = { file: string; line: number; finding: string };
 
@@ -54,6 +54,12 @@ const MAX_EXAMPLE_LEVEL = 3;
 const MAX_EXAMPLE_SHARE = 0.5;
 const NUL = "\0";
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
+const SPACES = /\s+/;
+const LETTERS_AND_SPACES = /^[\p{L} ]+$/u;
+const CAMEL_CASE_BREAK = /(?=[A-Z])/;
+const PURPOSE_WORDS = new Set(
+  ROLE_PURPOSES.flatMap((purpose) => [purpose, ...purpose.split(CAMEL_CASE_BREAK)].map((word) => word.toLowerCase())),
+);
 
 type Word = { term: string; pattern: RegExp };
 type Rules = { accounts: string[]; domains: string[]; terms: string[]; words: Word[] };
@@ -146,10 +152,22 @@ function wordsOf(facts: ProjectFacts): Word[] {
     ...Object.values(facts.roleFor),
     ...Object.values(facts.rolePermissions ?? {}).flat(),
   ];
-  return [...new Set(normaliseTerms(names))].map((term) => ({
-    term,
-    pattern: new RegExp(`(?<![\\p{L}\\p{N}_])${term.replace(REGEX_SPECIALS, "\\$&")}(?![\\p{L}\\p{N}_])`, "iu"),
-  }));
+  return [...new Set(normaliseTerms(names))]
+    .filter((term) => !PURPOSE_WORDS.has(term))
+    .map((term) => ({ term, pattern: wordPattern(term) }));
+}
+
+/**
+ * Matches `term` as a whole word in any letter case: a space in it matches any run of spaces, `_` or `-`, and a term
+ * of letters and spaces also matches with a trailing `s`. A term split over two lines is not found.
+ */
+function wordPattern(term: string): RegExp {
+  const body = term
+    .split(SPACES)
+    .map((part) => part.replace(REGEX_SPECIALS, "\\$&"))
+    .join("[\\s_-]+");
+  const plural = LETTERS_AND_SPACES.test(term) ? "s?" : "";
+  return new RegExp(`(?<![\\p{L}\\p{N}_])${body}${plural}(?![\\p{L}\\p{N}_])`, "iu");
 }
 
 function scanLine(text: string, rules: Rules): string[] {
@@ -261,7 +279,8 @@ function shippedFiles(root: string): string[] {
  * Scans the shipped agents, skills, commands, hooks, settings and `.claude/checks/*.mts` modules for client facts: role
  * accounts and their email domains, any host (URL with any scheme, bare hostname or IPv4 address) outside
  * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, the facts' role names (`roles` keys,
- * `roleFor` values) and `rolePermissions` permission names as whole words in any letter case, and agent files over
+ * `roleFor` values, except a purpose name or a word of one) and `rolePermissions` permission names as whole words in any
+ * letter case (see {@link wordPattern}; a term split over two lines is a known gap), and agent files over
  * {@link MAX_AGENT_CHARS} characters. Names in `.claude/checks/ours-only.json` are skipped by exact path; a section under
  * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or
  * holds more than half of its non-empty lines, which is itself a finding.

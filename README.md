@@ -813,6 +813,13 @@ the others on.
 `node .claude/checks/scan-prompts.mts` scans every shipped prompt, skill and command for client hosts and terms and caps each
 agent definition at 8,000 characters; it exits 1 on a finding. Run it after changing any of them.
 
+It also flags this repository's role names (`roles` keys, `roleFor` values) and `rolePermissions` permission names
+outside an "Example from this repository" section, as whole words in any letter case, with `_` or `-` for a space and
+an optional plural `s`. A role named exactly like a purpose (`admin`, `customer`, `otherCustomer`) or a word of one
+(`other`) is not checked. A role named with another plain common word (`guest`, `manager`) can still produce findings
+on generic wording; fix them by renaming the role or by moving the line into an example section. A name split over two
+lines is not found.
+
 The evaluation suite that runs each role on fixed cases, and the unit tests of the `.claude/checks/` scripts, are kept outside
 this repository.
 

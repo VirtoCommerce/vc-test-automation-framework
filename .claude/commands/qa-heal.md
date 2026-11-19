@@ -21,8 +21,12 @@ one.
    dir=$(mktemp -d) && mkdir "$dir/checks" || exit 1
    for m in expectation-guard project-facts; do git -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/checks/$m.mts > "$dir/checks/$m.mts" || { rm -rf "$dir"; exit 1; }; done
    test "$(node "$dir/checks/expectation-guard.mts" --repo-fingerprint)" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
-   node "$dir/checks/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
+   node "$dir/checks/expectation-guard.mts" --base=<baseline tree id>; code=$?
+   test $code -eq 0 && { new=$(node "$dir/checks/expectation-guard.mts" --snapshot) || code=1; }; rm -rf "$dir"; test $code -eq 0 && echo "healed tree: $new"; test $code -eq 0
    ```
+   On a clean guard the last line prints `healed tree: <new tree id>`, the working tree right after the guard, taken
+   with the baseline's copy of the guard.
+
    "repository config changed by the healer": stop there, show it to the person, and run no other git command or
    test in the repository until they have looked; a planted hook or config line runs with their rights. Any other
    non-zero result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two `.claude/checks/` files
@@ -32,7 +36,10 @@ one.
 3. Present what it fixed, what it classified as a product defect (a `knownIssue` proposal, never a patch), and what
    it escalated. A stand that was not reachable is "not done".
 
-When code changed and the guard is clean, end with:
+When code changed and the guard is clean, end with the review command, its `healer:` line filled in from the guard
+recipe (the baseline id, then the `healed tree`). Put the contract path first when the target was a run record
+`.qa/runs/<contract-name>/` and `.qa/contracts/<contract-name>.md` exists; otherwise leave it out:
 ```
-Heal complete. Run /qa-review to review the changes.
+Heal complete. Run /qa-review <contract path or nothing> healer: <baseline tree id> <new tree id> to review the changes.
 ```
+Without a clean guard, name no `healer:` line and offer no review.

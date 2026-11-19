@@ -23,3 +23,5 @@ allure-report/
 .qa/judge/
 tests/unit/qa/fixtures/generated/
 .playwright-mcp/
+
+qa/client-terms.local.txt

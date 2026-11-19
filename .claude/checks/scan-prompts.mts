@@ -54,8 +54,8 @@ const MAX_EXAMPLE_LEVEL = 3;
 const MAX_EXAMPLE_SHARE = 0.5;
 const NUL = "\0";
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
-const SPACES = /\s+/;
-const LETTERS_AND_SPACES = /^[\p{L} ]+$/u;
+const SEPARATORS = /[\s_-]+/;
+const LETTERS_AND_SEPARATORS = /^[\p{L}\s_-]+$/u;
 const CAMEL_CASE_BREAK = /(?=[A-Z])/;
 const PURPOSE_WORDS = new Set(
   ROLE_PURPOSES.flatMap((purpose) => [purpose, ...purpose.split(CAMEL_CASE_BREAK)].map((word) => word.toLowerCase())),
@@ -152,22 +152,38 @@ function wordsOf(facts: ProjectFacts): Word[] {
     ...Object.values(facts.roleFor),
     ...Object.values(facts.rolePermissions ?? {}).flat(),
   ];
-  return [...new Set(normaliseTerms(names))]
-    .filter((term) => !PURPOSE_WORDS.has(term))
-    .map((term) => ({ term, pattern: wordPattern(term) }));
+  return [...new Set(normaliseTerms(names))].map((term) => ({
+    term,
+    pattern: PURPOSE_WORDS.has(term) ? quotedPattern(term) : wordPattern(term),
+  }));
+}
+
+/** The term with its separators (any run of spaces, `_` or `-`) matching any such run, and the rest escaped. */
+function termBody(term: string): string {
+  return term
+    .split(SEPARATORS)
+    .filter((part) => part !== "")
+    .map((part) => part.replace(REGEX_SPECIALS, "\\$&"))
+    .join("[\\s_-]+");
 }
 
 /**
- * Matches `term` as a whole word in any letter case: a space in it matches any run of spaces, `_` or `-`, and a term
- * of letters and spaces also matches with a trailing `s`. A term split over two lines is not found.
+ * Matches `term` as a whole word in any letter case: a space, `_` or `-` in it matches any run of spaces, `_` or `-`,
+ * and a term of letters and those separators also matches with a trailing `s`. A `-` counts as part of a word at
+ * the edges, so "pre-sales rep" is not "sales rep". A term split over two lines is not found.
  */
 function wordPattern(term: string): RegExp {
-  const body = term
-    .split(SPACES)
-    .map((part) => part.replace(REGEX_SPECIALS, "\\$&"))
-    .join("[\\s_-]+");
-  const plural = LETTERS_AND_SPACES.test(term) ? "s?" : "";
-  return new RegExp(`(?<![\\p{L}\\p{N}_])${body}${plural}(?![\\p{L}\\p{N}_])`, "iu");
+  const plural = LETTERS_AND_SEPARATORS.test(term) ? "s?" : "";
+  return new RegExp(`(?<![\\p{L}\\p{N}_-])${termBody(term)}${plural}(?![\\p{L}\\p{N}_-])`, "iu");
+}
+
+/**
+ * Matches a role named like a purpose or a word of one (`admin`, `customer`, `other`) only where it is written as a
+ * name: alone inside quotes or backticks (`"Customer"`, `'admin'`), in any letter case. Prose such as "a customer
+ * signs in" and the `roleFor.<purpose>` tokens are left alone.
+ */
+function quotedPattern(term: string): RegExp {
+  return new RegExp(`(?<!roleFor\\[)(["'\`])${termBody(term)}\\1`, "iu");
 }
 
 function scanLine(text: string, rules: Rules): string[] {
@@ -279,8 +295,9 @@ function shippedFiles(root: string): string[] {
  * Scans the shipped agents, skills, commands, hooks, settings and `.claude/checks/*.mts` modules for client facts: role
  * accounts and their email domains, any host (URL with any scheme, bare hostname or IPv4 address) outside
  * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, the facts' role names (`roles` keys,
- * `roleFor` values, except a purpose name or a word of one) and `rolePermissions` permission names as whole words in any
- * letter case (see {@link wordPattern}; a term split over two lines is a known gap), and agent files over
+ * `roleFor` values) and `rolePermissions` permission names as whole words in any letter case (see {@link wordPattern};
+ * a term split over two lines is a known gap), a role named like a purpose only in quotes or backticks (see
+ * {@link quotedPattern}), and agent files over
  * {@link MAX_AGENT_CHARS} characters. Names in `.claude/checks/ours-only.json` are skipped by exact path; a section under
  * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or
  * holds more than half of its non-empty lines, which is itself a finding.

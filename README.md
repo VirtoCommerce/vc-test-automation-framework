@@ -789,8 +789,8 @@ the others on.
 3. Keep `.claude/settings.json`. It registers the `PreToolUse` hook (`.claude/hooks/readonly-shell.mts`) that limits
    the read-only roles to an allowlist of shell commands and confines the healer's writes. The hook command
    (`node "$CLAUDE_PROJECT_DIR/.claude/hooks/readonly-shell.mts" || exit 2`) is bash syntax and must run under bash.
-   Under `"shell": "powershell"` it does not run as written and the check fails open, so do not set that for the
-   project. On Windows use Git Bash.
+   Under a PowerShell shell (`"shell": "powershell"`) it does not run as written: the check may not run at all or may
+   block every call, depending on the PowerShell version. Run the hook under bash, and on Windows use Git Bash.
 4. Ship `@babel/parser` as a runtime dependency of whatever carries `qa/`. `qa/prove-fails.mts`, which the judge uses
    to prove that a test fails, imports it. Here it is a dev dependency only because one install serves the whole
    repository.
@@ -806,7 +806,7 @@ product defect the healer must not paper over, a page without test ids that the 
 
 ```shell
 node evals/run.mts --cases "evals/cases/*"                   # every case
-node evals/run.mts --cases "evals/cases/healer" --offline    # one role; skip the cases that need a stand
+node evals/run.mts --cases "evals/cases/planner" --offline   # one role; skips the cases that need a stand
 node evals/compare.mts evals/results/<previous>.json evals/results/<current>.json
 ```
 
@@ -817,7 +817,9 @@ node evals/compare.mts evals/results/<previous>.json evals/results/<current>.jso
   expectation guard, gap ranking). Then `qa-judge` judges what code cannot, by the criteria in
   `.claude/skills/judge-criteria/`.
 - `--offline` skips the cases marked `needsStand`; the rest run without a stand. A case that needs one runs against
-  the stand the repository's `.env` names.
+  the stand the repository's `.env` names. A role whose cases all need a stand (explorer, healer, expert) selects
+  nothing under `--offline`: no results file is written, yet the run still prints `results:` and exits 0, so it is not a
+  pass.
 - Results go to `evals/results/<version>.json` (the package version) unless `--out` says otherwise, and are written
   after each case, so a crash keeps what already ran.
 - `compare` reports what changed against a previous results file. A failed code check **blocks**: `run` and `compare`

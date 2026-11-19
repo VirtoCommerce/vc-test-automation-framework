@@ -53,8 +53,10 @@ const MIN_EXAMPLE_LEVEL = 2;
 const MAX_EXAMPLE_LEVEL = 3;
 const MAX_EXAMPLE_SHARE = 0.5;
 const NUL = "\0";
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 
-type Rules = { accounts: string[]; domains: string[]; terms: string[] };
+type Word = { term: string; pattern: RegExp };
+type Rules = { accounts: string[]; domains: string[]; terms: string[]; words: Word[] };
 type Heading = { index: number; level: number; text: string };
 type ExampleSection = { start: number; end: number; level: number };
 
@@ -138,12 +140,25 @@ function domainsOf(accounts: string[]): string[] {
   });
 }
 
+function wordsOf(facts: ProjectFacts): Word[] {
+  const names = [
+    ...Object.keys(facts.roles),
+    ...Object.values(facts.roleFor),
+    ...Object.values(facts.rolePermissions ?? {}).flat(),
+  ];
+  return [...new Set(normaliseTerms(names))].map((term) => ({
+    term,
+    pattern: new RegExp(`(?<![\\p{L}\\p{N}_])${term.replace(REGEX_SPECIALS, "\\$&")}(?![\\p{L}\\p{N}_])`, "iu"),
+  }));
+}
+
 function scanLine(text: string, rules: Rules): string[] {
   const lower = text.toLowerCase();
   const found = [
     ...rules.accounts.filter((account) => lower.includes(account)).map((account) => `role account "${account}"`),
     ...rules.domains.filter((domain) => lower.includes(domain)).map((domain) => `role domain "${domain}"`),
     ...rules.terms.filter((term) => lower.includes(term)).map((term) => `client term "${term}"`),
+    ...rules.words.filter(({ pattern }) => pattern.test(text)).map(({ term }) => `project term "${term}"`),
     ...hostFindings(text),
   ];
   return [...new Set(found)];
@@ -245,7 +260,8 @@ function shippedFiles(root: string): string[] {
 /**
  * Scans the shipped agents, skills, commands, hooks, settings and `.claude/checks/*.mts` modules for client facts: role
  * accounts and their email domains, any host (URL with any scheme, bare hostname or IPv4 address) outside
- * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, and agent files over
+ * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, the facts' role names (`roles` keys,
+ * `roleFor` values) and `rolePermissions` permission names as whole words in any letter case, and agent files over
  * {@link MAX_AGENT_CHARS} characters. Names in `.claude/checks/ours-only.json` are skipped by exact path; a section under
  * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or
  * holds more than half of its non-empty lines, which is itself a finding.
@@ -257,6 +273,7 @@ export function scanPrompts(root: string, facts: ProjectFacts, extraTerms: strin
     accounts,
     domains: domainsOf(accounts),
     terms: [...readClientTerms(root), ...normaliseTerms(extraTerms)],
+    words: wordsOf(facts),
   };
   return shippedFiles(root)
     .map((path) => relative(root, path).replaceAll("\\", "/"))

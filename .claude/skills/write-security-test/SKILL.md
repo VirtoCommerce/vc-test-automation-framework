@@ -53,7 +53,10 @@ is never "a role without P". Use it only when the person confirms. A test that c
 the account in again before it checks the effect: a session already open can keep the old permissions. Check the contract's data role against that list. When `rolePermissions` is absent,
 lists no fitting role, or does not settle the question, stop and raise it as an amendment: it is the person's scope
 question, not yours. Never infer which role holds a permission from knowledge of the platform. A customer of another
-organization from the dataset is `roles[roleFor.otherCustomer]`.
+organization from the dataset is `roles[roleFor.otherCustomer]`. The list describes the seed as committed: when a role
+chosen from it gets an unexpected 403 or 200, first check whether the stand was seeded from the current seed (a stand
+seeded before a change to the seed's roles keeps the old permissions until it is re-seeded); only then call it a
+product defect.
 
 ## Step 2: Write the Spec
 

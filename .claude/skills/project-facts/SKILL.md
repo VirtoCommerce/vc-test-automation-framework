@@ -42,8 +42,9 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   every source of roles the platform has (roles of the account itself, of its organization, of its membership), not
   only the role it is named after. A role in `roles` without an entry has an unknown permission set, never an empty
   one, and is never "a role without P". Use it only when the person confirms. The entries come only from the
-  repository's seed or permission files, never from memory. The reader refuses a permission listed twice, and two roles of
-  one account with different lists.
+  repository's seed or permission files, never from memory, and describe the seed as committed: a stand seeded before
+  a change to the seed's roles keeps the old permissions until it is re-seeded. The reader refuses a permission listed
+  twice, and two roles of one account with different lists.
 - Commands: `commands.typecheck`, `commands.lint` and `commands.test["<project>"]`. Run these exactly; do not rebuild
   them from `package.json`.
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.

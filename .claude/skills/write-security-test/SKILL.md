@@ -26,7 +26,8 @@ security spec of the same layer.
 - Never write a credential, token or API key as a literal. Accounts come from `roles` in the facts; created users and
   keys come from `arrange`; a secret a test must send is revealed from its `Secret` at the call (`value.reveal()`).
 - A case needs a known result: the status or error code comes from the contract's oracle, never from running the
-  build and copying what it answered. A refusal the oracle does not name is a question for the planner.
+  build and copying what it answered. An `observed:` oracle already written into the contract is fine; the spec
+  author must not observe the build while implementing. A refusal the oracle does not name is a question for the planner.
 - Probing volume stays small: one request per case, no loops of guesses, no brute force.
 
 ## Step 1: Pick the Boundary
@@ -128,6 +129,8 @@ test.describe("shopping lists (customer of their own)", () => {
 });
 ```
 
+- `attempt` is a promise created in the act step and awaited in the assert step, as `promotion-coupons.spec.ts`
+  does, so the rejection is asserted on the call itself.
 - Both customers come from `arrange`; neither is a dataset user, so the test owns them and `arrange` removes them
   and their data after the test. For organizations, each `customerAccount()` creates its own organization; to share
   one, pass `organizationId`.
@@ -209,7 +212,7 @@ for the change to take effect with a poll, not a sleep.
 
 ## Rules
 
-1. `test`, `expect`, `knownIssue` from `@fixtures`; typed `…Document` constants and the REST clients only.
+1. `test`, `expect`, `knownIssue` from `@fixtures`; typed `…Document` constants and the REST clients; `api.http` only for response headers.
 2. Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`.
 3. The expected status or code comes from the oracle and is written explicitly; never a range, never "any error".
 4. Two customers or organizations from `arrange`, never dataset users, for isolation cases; dataset users only for

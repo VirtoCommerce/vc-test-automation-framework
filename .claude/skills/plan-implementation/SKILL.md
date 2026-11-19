@@ -64,4 +64,5 @@ never writes that line.
 - Order: `.graphql` documents then `npm run codegen:graphql`, REST types and clients, page objects, dataset records
   then `npm run seed`, builders, arrange methods, `known-issues.json`, specs, `REFINEMENTS.md` last.
 - Skills for the implementer: `/create-graphql-layer`, `/create-rest-client`, `/create-ui-layer`,
-  `/write-graphql-test`, `/write-rest-api-test`, `/write-e2e-test`.
+  `/write-graphql-test`, `/write-rest-api-test`, `/write-security-test` (no session, wrong role, another customer's
+  object, headers, input validation), `/write-e2e-test`.

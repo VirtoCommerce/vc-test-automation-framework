@@ -47,9 +47,10 @@ anonymous. Name the identity in the describe: `test.describe("<topic> (anonymous
 `(customer of their own)`.
 
 **A role with or without permission P.** The role comes from `rolePermissions` in the facts: a role whose list holds
-P, or one whose list lacks it. `rolePermissions["R"]` is the complete list for R. A role in `roles` without an entry
-has an unknown permission set, never an empty one, and is never "a role without P". Use it only when the person
-confirms. Check the contract's data role against that list. When `rolePermissions` is absent,
+P, or one whose list lacks it. `rolePermissions["R"]` is the complete list for R: everything the account ends up with,
+from every source of roles. A role in `roles` without an entry has an unknown permission set, never an empty one, and
+is never "a role without P". Use it only when the person confirms. A test that changes a role or a permission signs
+the account in again before it checks the effect: a session already open can keep the old permissions. Check the contract's data role against that list. When `rolePermissions` is absent,
 lists no fitting role, or does not settle the question, stop and raise it as an amendment: it is the person's scope
 question, not yours. Never infer which role holds a permission from knowledge of the platform. A customer of another
 organization from the dataset is `roles[roleFor.otherCustomer]`.

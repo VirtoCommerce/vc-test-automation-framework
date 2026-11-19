@@ -27,6 +27,7 @@
     "store administrator": "acme_store_administrator@acme.com",
     "store employee": "acme_store_employee_1@acme.com",
     "store manager": "acme_store_manager_1@acme.com",
+    "organization maintainer": "acme_store_maintainer_1@acme.com",
     "purchasing agent": "acme_store_purchasing_agent_1@acme.com",
     "other store employee": "other_store_employee_1@other-store.com"
   },
@@ -34,8 +35,18 @@
   "rolePermissions": {
     "store employee": ["storefront:organization:view", "storefront:user:view"],
     "other store employee": ["storefront:organization:view", "storefront:user:view"],
-    "store manager": ["storefront:order:changestatus", "storefront:order:view", "storefront:organaization:view"],
-    "purchasing agent": ["storefront:organization:view", "storefront:user:view"]
+    "store manager": ["storefront:order:changestatus", "storefront:order:view", "storefront:organization:view"],
+    "purchasing agent": ["storefront:organization:view", "storefront:user:view"],
+    "organization maintainer": [
+      "storefront:organization:edit",
+      "storefront:user:organization:view",
+      "storefront:user:create",
+      "storefront:user:delete",
+      "storefront:user:edit",
+      "storefront:user:invite",
+      "storefront:user:view",
+      "xapi:my_organization:edit"
+    ]
   },
   "coverageWeights": { "risk": 1, "callFrequency": 1, "runFrequency": 1, "stability": 1, "cost": 1 },
   "flakyRunSeries": 5,

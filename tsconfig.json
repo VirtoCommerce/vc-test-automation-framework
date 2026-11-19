@@ -26,5 +26,5 @@
     }
   },
   "include": ["**/*", ".claude/qa/**/*", ".claude/hooks/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "evals", "tests/unit/qa"]
 }

@@ -50,7 +50,7 @@ async function main(): Promise<void> {
     return;
   }
   try {
-    const shell: { hookBlockReason: HookBlockReason } = await import(process.argv[2] ?? MODULE);
+    const shell: { hookBlockReason: HookBlockReason } = await import(MODULE);
     const reason = shell.hookBlockReason(input, process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd());
     if (reason !== undefined) {
       block(reason);

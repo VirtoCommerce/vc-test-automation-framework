@@ -69,9 +69,11 @@ const PLAYWRIGHT_FLAGS = [
   /^--repeat-each=\d{1,2}$/,
 ];
 const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
-const PROVE_FAILS_PATH = ".claude/qa/prove-fails.mts";
-const TEST_SHAPE_PATH = ".claude/qa/test-shape.mts";
-const TEST_DURATION_PATH = ".claude/qa/test-duration.mts";
+const QA_DIR = ".claude/qa";
+const QA_DIR_PATTERN = QA_DIR.replace(/[.]/g, "[.]");
+const PROVE_FAILS_PATH = `${QA_DIR}/prove-fails.mts`;
+const TEST_SHAPE_PATH = `${QA_DIR}/test-shape.mts`;
+const TEST_DURATION_PATH = `${QA_DIR}/test-duration.mts`;
 const TEST_DURATION_ARGUMENTS = [2, 3];
 const PROVE_FAILS_PROJECT = /^--project=[\w.-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
@@ -105,7 +107,7 @@ const HEALER_PLAYWRIGHT_FLAGS = [
 const HEALER_REPORTER = /^--reporter=(list|json|null)(,(list|json))*$/;
 const GREP_VALUE = /^[\w.+^~,:@/=][\w.+^~,:@/=-]*$/;
 const GUARD_BASE = /^--base=[0-9a-f]{7,64}$/;
-const GUARD_PATH = ".claude/qa/expectation-guard.mts";
+const GUARD_PATH = `${QA_DIR}/expectation-guard.mts`;
 const DRIVE_PATH = /^[A-Za-z]:/;
 const GIT_DIR = ".git";
 const NO_HOOKS_FOLDER = "";
@@ -119,7 +121,7 @@ const GIT_HOOKS_FOLDER_ARGS = [
 ];
 
 function modulePattern(modules: readonly string[]): RegExp {
-  return new RegExp(`^[.]claude/qa/(${modules.join("|")})[.]mts$`);
+  return new RegExp(`^${QA_DIR_PATTERN}/(${modules.join("|")})[.]mts$`);
 }
 
 function bareName(agent: string | undefined): string | undefined {
@@ -426,7 +428,8 @@ function writeBlockReason(agent: string, toolInput: unknown, projectDir: string)
 function cleanHealerSegments(segments: readonly string[] | undefined): readonly string[] | undefined {
   const bad = segments?.some((name) => {
     const lower = name.toLowerCase();
-    return name.includes(":") || lower.startsWith(".git") || lower.startsWith(".claude");
+    const windowsName = lower.replace(/[. ]+$/, "");
+    return name.includes(":") || lower.startsWith(".git") || windowsName === ".claude" || /~\d/.test(name);
   });
   return bad === false ? segments : undefined;
 }
@@ -513,7 +516,7 @@ function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, pro
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may run only git diff|log|show|status, node .claude/qa/<module>.mts, npx --no playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx --no tsc --noEmit and npx --no biome check <paths>; blocked: ${shown}`;
+  return `${agent} may run only git diff|log|show|status, node ${QA_DIR}/<module>.mts, npx --no playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx --no tsc --noEmit and npx --no biome check <paths>; blocked: ${shown}`;
 }
 
 function isWebUrl(value: unknown): boolean {
@@ -600,5 +603,5 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} is read-only and may run only git diff|log|show|status, npx --no playwright test --list --reporter=json|list|null and node .claude/qa/<module>.mts; blocked: ${shown}`;
+  return `${agent} is read-only and may run only git diff|log|show|status, npx --no playwright test --list --reporter=json|list|null and node ${QA_DIR}/<module>.mts; blocked: ${shown}`;
 }

@@ -11,7 +11,7 @@ export const PROMPT_DIRS = [".claude/agents", ".claude/skills", ".claude/command
 export const SETTINGS_PATH = ".claude/settings.json";
 export const MODULES_DIR = ".claude/qa";
 export const OURS_ONLY_PATH = ".claude/qa/ours-only.json";
-export const CLIENT_TERMS_PATH = ".claude/qa/client-terms.local.txt";
+export const CLIENT_TERMS_PATH = ".qa/client-terms.local.txt";
 export const MAX_AGENT_CHARS = 8000;
 export const EXAMPLE_HEADING = "Example from this repository";
 export const HIDES_FILE = "example section hides the file";
@@ -245,7 +245,7 @@ function shippedFiles(root: string): string[] {
 /**
  * Scans the shipped agents, skills, commands, hooks, settings and `.claude/qa/*.mts` modules for client facts: role
  * accounts and their email domains, any host (URL with any scheme, bare hostname or IPv4 address) outside
- * {@link ALLOWED_HOSTS}, terms from `.claude/qa/client-terms.local.txt` and `extraTerms`, and agent files over
+ * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, and agent files over
  * {@link MAX_AGENT_CHARS} characters. Names in `.claude/qa/ours-only.json` are skipped by exact path; a section under
  * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or
  * holds more than half of its non-empty lines, which is itself a finding.

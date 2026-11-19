@@ -77,8 +77,7 @@ A shared stand is not ours alone. For every test the diff adds or changes:
 ## Definition of Done
 
 Do not take the author's word for the run. Follow `review-test-code` "Definition of Done" for each Playwright
-project in the contract's case rows: your own list of the stable series, its reconciliation with the author's
-report, typecheck and lint left to the dispatcher, then the shape and duration of every new or changed test.
+project in the contract's case rows.
 
 APPROVE only when reconciliation exits 0 for every project and there is no Critical finding.
 

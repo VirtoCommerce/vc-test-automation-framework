@@ -69,6 +69,15 @@ Read the failure's message, the error context and trace under `test-results/`, t
 An assertion failure is never "healed". Write down, for each failure, the evidence you saw (message line, snapshot
 fact, status code) and the class. When two classes fit, take the stricter reading: product defect over test defect.
 
+What you do with each class:
+
+| Class | What it is | You |
+|---|---|---|
+| Test defect | The test side is wrong: a stale locator, a missing wait, bad or stale test data, a broken setup | fix (autonomy permitting) |
+| Product defect | The build contradicts a correct expectation, or answers an error to a valid request | edit nothing; `knownIssue` proposal in the report |
+| Stand data | A record, module, account or setting the test needs is missing or changed on the stand | report what is missing; edit nothing |
+| Flaky | Passes and fails in one series of runs with no change | decided only by the series; list it, fix only a cause you can name on the test side |
+
 ## Step 4: The Flaky Series
 
 A failure is called flaky only from a series, never from a single re-run, one pass or one failure. For the tests
@@ -149,7 +158,8 @@ check on it pass), a changed builder or `arrange` default that feeds the expecte
 computation (`price - 2`) in the dataset. For each change under `healerPaths`, the report states what the old and new
 code select or compute and why the test still checks the same behaviour.
 
-Write `.qa/reports/heal-<slug>.md`:
+Write `.qa/reports/heal-<slug>.md`, at most 200 lines. Every failure has an entry: its class, the evidence you saw,
+the fix applied or proposed (or none), and why it is the right one:
 
 ```
 # Heal: <target>

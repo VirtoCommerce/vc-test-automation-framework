@@ -453,12 +453,13 @@ function originFolder(top: string, origin: string): string {
 /**
  * The files every `include.path` and `includeIf.<condition>.path` names, resolved the way git does: relative to the
  * folder of the configuration file that holds it, `~/` from the home folder. A target is listed whether or not it
- * exists or holds anything, since the healer could create or fill it.
+ * exists or holds anything, since the healer could create or fill it. Git runs in `top` (`-C`), so a relative origin
+ * it prints is relative to `top` wherever the guard itself was started.
  */
 function includeTargets(git: Git, top: string): string[] {
   let listing = "";
   try {
-    listing = git(["config", "--show-origin", "-z", "--get-regexp", INCLUDE_PATH_KEYS]);
+    listing = git(["-C", top, "config", "--show-origin", "-z", "--get-regexp", INCLUDE_PATH_KEYS]);
   } catch (error) {
     if (exitStatus(error) !== NO_MATCH_EXIT_CODE) {
       throw new Error("expectation-guard: git config --get-regexp for the include paths failed");
@@ -484,7 +485,8 @@ function includeTargets(git: Git, top: string): string[] {
 /**
  * Returns the configuration files git reads (`git config --list --show-origin`, includes followed) and the targets of
  * every include path (`includeTargets`) that lie under one of the healer paths of the facts file in the working tree,
- * compared by real path and without regard to case. The healer may write there, so such a file could change the
+ * compared by real path (`isUnder`). Git runs in `top` (`-C`), so the relative origins it prints resolve against `top`
+ * even when the guard runs from a subfolder. The healer may write there, so such a file could change the
  * configuration without changing the fingerprint.
  */
 function configFilesUnderHealerPaths(git: Git, top: string): string[] {
@@ -496,7 +498,7 @@ function configFilesUnderHealerPaths(git: Git, top: string): string[] {
   }
   let listing: string;
   try {
-    listing = git(["config", "--list", "--show-origin", "--name-only", "-z"]);
+    listing = git(["-C", top, "config", "--list", "--show-origin", "--name-only", "-z"]);
   } catch {
     throw new Error("expectation-guard: git config --list --show-origin failed");
   }

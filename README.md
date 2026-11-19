@@ -748,7 +748,9 @@ place. A contract holds one row per case (case, technique, Playwright project, d
 role, oracle) and every oracle names its source: `ticket`, `doc`, `schema` or `observed`. A case whose expectation is
 only `observed` may encode a bug the stand already has, so a person confirms it at approval or it is written as a
 characterization test. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
-`node .claude/checks/contract.mts check <file>` fails otherwise.
+`node .claude/checks/contract.mts check <file>` fails otherwise. The approved base contract records its approval in one
+such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`: only the person writes it, or
+the session they answered, quoting their reply word for word; no agent writes it.
 
 **Git-ignore the working folders in a client repository.** Add `.qa/contracts/`, `.qa/runs/`, `.qa/reports/`,
 `.qa/judge/` and `.qa/kb/` (leave the last out only when the repository is private and the snapshot is meant to be

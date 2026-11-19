@@ -49,8 +49,14 @@ ticket: <key>
 
 - <the typecheck, lint and test commands from the facts, then the commands that run the new specs>
 
+<!-- ## Approval
+Left out until a person approves. Written only by that person, or by the session they answered, quoting their reply word for word; never by an agent. One line, the bracket only when relayed:
+
+Approved: <who>, <YYYY-MM-DD> (relayed: "<the person's exact words>")
+-->
+
 <!-- ## Amendments
-Written only by the implementer when the contract turns out to be wrong. It stops and waits; a person approves.
+Written only by the implementer when the contract turns out to be wrong. It stops and waits; a person approves, and the approval line is written as under Approval.
 
 ### A-1 <what changes>
 

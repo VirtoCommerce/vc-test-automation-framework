@@ -33,7 +33,9 @@ the contract yourself.
 ### 3. Approval
 
 Show the contract's cases and its `## Observed only` section, and ask one question: approve this contract. A person's
-approval is the only thing that lets `/qa-implement` start; never approve for them.
+approval is the only thing that lets `/qa-implement` start; never approve for them. Record it: unless the person
+wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed: "<their reply, word for word>")`,
+the only edit you make to the contract, then run the check again.
 
 End with:
 ```

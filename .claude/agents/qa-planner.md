@@ -68,8 +68,9 @@ facts, until it prints `ok`.
 ## Stop for One Approval
 
 Report the path and ask one question: approve this contract. Name the number of cases, the observed-only cases and
-the assumptions. Do nothing after that. A change to an approved contract goes only through an `## Amendments` entry
-whose `Approved: <who>, <date>` line a person wrote; never write that line yourself.
+the assumptions. Do nothing after that. The approval goes into `## Approval`, an amendment's into its entry, as
+`Approved: <who>, <date>`, optionally ending `(relayed: "<the person's words>")`. Only a person writes it, or a
+session quoting their words; never you. A change to an approved contract goes only through an `## Amendments` entry.
 
 ## Skills
 

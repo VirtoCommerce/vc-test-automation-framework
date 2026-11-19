@@ -54,8 +54,8 @@ the entry to it when it exists):
 <why, and the change>
 ```
 
-Write no `Approved:` line: only a person writes it, and an unapproved amendment fails the contract check. Report
-the amendment and wait. Do not continue on your reading of what the person will approve.
+Write no `Approved:` line: a person writes it, or a session quotes their words. An unapproved amendment fails the
+contract check. Report it and wait; never act on what you expect the person to approve.
 
 ## Skills
 

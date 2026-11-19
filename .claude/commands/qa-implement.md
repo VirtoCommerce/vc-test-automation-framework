@@ -35,8 +35,9 @@ extra instructions. It reads `framework-rules` and `project-facts`, implements t
 and leaves its run record under `.qa/runs/<contract-name>/` (`report.<project>.json` and `list.<project>.json` for
 each project).
 
-If it stops with an amendment request, show the amendment to the person. Only a person writes the `Approved:` line;
-never write it yourself. After it is written, run the check again and, when it prints `ok`, spawn the expert again
+If it stops with an amendment request, show the amendment to the person. Only the person writes its `Approved:`
+line, or you write `Approved: <who>, <date> (relayed: "<their reply, word for word>")` quoting them; never without
+their words. After it is written, run the check again and, when it prints `ok`, spawn the expert again
 with the same path.
 
 ### 3. Output

@@ -19,7 +19,9 @@ const REQUIRED_SECTIONS = [
 const CASE_COLUMNS = ["Case", "Technique", "Project", "Data role", "Oracle"] as const;
 const AMENDMENTS_HEADING = /^amendment/i;
 const NO_ROLE = "none";
-const APPROVAL = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}\s*$/m;
+const APPROVAL_LINE = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}(?:\s+\(relayed: "[^\n]+"\))?\s*$/;
+const APPROVAL = new RegExp(APPROVAL_LINE.source, "m");
+const APPROVAL_SECTION = "Approval";
 const CONFIRMATION = /^(characterization|confirmed by \S.*)$/;
 
 type CaseRow = { name: string; dataRole: string; oracle: string };
@@ -152,6 +154,17 @@ function checkObservedOnly(lines: string[] | undefined, rows: CaseRow[]): string
   return problems;
 }
 
+function checkApproval(lines: string[]): string[] {
+  const written = lines.map((line) => line.trim()).filter((line) => line !== "");
+  return written.length === 1 && APPROVAL_LINE.test(written[0] ?? "")
+    ? []
+    : [
+        problem(
+          `## ${APPROVAL_SECTION} must hold one line: Approved: <who>, <date>, optionally ending (relayed: "<the person's words>")`,
+        ),
+      ];
+}
+
 function checkAmendments(heading: string, lines: string[]): string[] {
   const entries: { title: string; body: string[] }[] = [];
   const outside: string[] = [];
@@ -209,6 +222,10 @@ export function checkContract(markdown: string, roles?: string[]): string[] {
   const cases = sections.get("Cases");
   const checked = cases !== undefined && hasText(cases) ? checkCases(cases, roles) : { problems: [], rows: [] };
   problems.push(...checked.problems, ...checkObservedOnly(sections.get("Observed only"), checked.rows));
+  const approval = sections.get(APPROVAL_SECTION);
+  if (approval !== undefined) {
+    problems.push(...checkApproval(approval));
+  }
   for (const { heading, lines } of parsed) {
     if (AMENDMENTS_HEADING.test(heading)) {
       problems.push(...checkAmendments(heading, lines));

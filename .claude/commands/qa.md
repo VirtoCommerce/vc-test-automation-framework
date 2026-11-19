@@ -50,8 +50,10 @@ planner; never edit the contract yourself.
 ### Approval
 
 Show the contract's cases and its `## Observed only` section and ask one question: approve this contract. A
-person's approval is the only thing that lets the expert start. Never approve for them. Only a person writes an
-`Approved:` line on an amendment.
+person's approval is the only thing that lets the expert start. Never approve for them. Record it: unless the
+person wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed: "<their reply, word for
+word>")`. That line, and the same line on an amendment the person approved, are the only edits you make to a
+contract, and only with the person's words to quote. Then run the contract check again.
 
 ### Implement
 
@@ -62,8 +64,9 @@ Before the first expert dispatch of a run, move an earlier run's verdict out of 
 `mv -f .qa/judge/<contract-name>/judge-expert.json .qa/judge/<contract-name>/judge-expert.previous.json` when the
 first file exists. Dispatch `qa-automation-expert` with the contract path only. It leaves its run record under
 `.qa/runs/<contract-name>/`: `report.<project>.json` and `list.<project>.json` for each project, named with the
-project even when there is one. When it stops with an amendment request, show it to the person; after the person
-has written the `Approved:` line, run the contract check again and dispatch the expert again with the same path
+project even when there is one. When it stops with an amendment request, show it to the person; after the
+amendment's `Approved:` line is written (by the person, or by you quoting them as in Approval), run the contract
+check again and dispatch the expert again with the same path
 (not a judge re-dispatch).
 
 In the end-to-end flow, tell an unreachable stand apart from a red run first. When the expert reported the stand as

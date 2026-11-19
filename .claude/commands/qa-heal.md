@@ -25,10 +25,10 @@ one.
    it escalated. A stand that was not reachable is "not done".
 
 The heal belongs to a run record when the target is a run record `.qa/runs/<contract-name>/` and
-`.qa/contracts/<contract-name>.md` exists. When the target is a spec file or a test title (take the spec that holds
-the test), look before step 1 for run records under `.qa/runs/<contract-name>/` whose `list.<project>.json` names that
-spec. Exactly one of them with its `.qa/contracts/<contract-name>.md`: the heal belongs to that record. None, or more
-than one: say so to the person; the review then runs without a contract and skips the definition of done.
+`.qa/contracts/<contract-name>.md` exists. For a spec file or a test title, look before step 1: count the run records
+whose `list.<project>.json` names the spec (or, for a title, a spec that holds it). Exactly one, and
+`.qa/contracts/<contract-name>.md` exists: the heal belongs to it. Otherwise (zero, several, or no contract file): say
+so; the review runs without a contract.
 
 When the heal belongs to a run record, do what `/qa` does after a heal: the recipe's "After a Clean Guard", word for
 word, with that record and contract.

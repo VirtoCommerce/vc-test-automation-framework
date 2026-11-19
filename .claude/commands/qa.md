@@ -27,7 +27,7 @@ When the request fits two rows, say which flow you chose in one line and start i
   `qa-healer`, `qa-reviewer`. Give it the request and the paths it needs (the contract, a report, a diff range,
   spec files). Never paste the previous agent's reasoning or summary.
 - Send an agent only paths, the person's own words and the fixed words this command names (`judge re-dispatch`,
-  "no contract"). Relay its questions to the person and pass the answers back.
+  "no contract", `healer: <baseline tree id> <new tree id>`). Relay its questions to the person and pass the answers back.
 - Stages run in order; one stage's output file is the next stage's input. Do not run two writers on the same files
   at once.
 - A stand that is not reachable is reported as "not done", never as a pass.
@@ -86,8 +86,12 @@ any git command that can run configured code:
 dir=$(mktemp -d) && mkdir "$dir/qa" || exit 1
 for m in expectation-guard project-facts; do git -c core.fsmonitor=false cat-file blob <baseline tree id>:qa/$m.mts > "$dir/qa/$m.mts" || { rm -rf "$dir"; exit 1; }; done
 test "$(node "$dir/qa/expectation-guard.mts" --repo-fingerprint)" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
-node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
+node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?
+test $code -eq 0 && { new=$(node "$dir/qa/expectation-guard.mts" --snapshot) || code=1; }; rm -rf "$dir"; test $code -eq 0 && echo "healed tree: $new"; test $code -eq 0
 ```
+
+On a clean guard the last line prints `healed tree: <new tree id>`, the working tree right after the guard, taken
+with the baseline's copy of the guard.
 
 "repository config changed by the healer": stop there, show it to the person, and run no other git command or test
 in the repository until they have looked; a planted hook or config line runs with their rights. Any other non-zero
@@ -126,7 +130,10 @@ No other role is judged in a flow.
 
 Dispatch `qa-reviewer` with the diff (or the git range) and the contract path when there is one, never the author's
 summary. For "review this branch" with no contract, say so in the dispatch: the reviewer then reviews against the
-framework rules and style only. Its
+framework rules and style only. After a heal whose guard ran clean, add the line
+`healer: <baseline tree id> <new tree id>` (the `healed tree` the guard recipe printed). The reviewer spares only the
+hunks of `git diff <baseline tree id> <new tree id>` under the healer paths from the scope rule, so an expert's own
+change in a healed file stays in scope. Without a clean guard, send no such line. Its
 shell is read-only, so run `commands.typecheck` and `commands.lint` from `node qa/project-facts.mts` yourself and
 report the result with the review. A failing typecheck or lint means the work is not done, whatever the verdict.
 For a pull request, fetch the diff and metadata with `gh` and pass them as files.

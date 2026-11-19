@@ -176,19 +176,54 @@ function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFac
   }
   const role = (purpose: RolePurpose): string =>
     asRoleName(present(roleFor, purpose, `roleFor.${purpose}`), `roleFor.${purpose}`, roles);
-  return { admin: role("admin"), customer: role("customer"), otherCustomer: role("otherCustomer") };
+  const parsed = { admin: role("admin"), customer: role("customer"), otherCustomer: role("otherCustomer") };
+  if (parsed.customer === parsed.otherCustomer) {
+    fail("roleFor.otherCustomer", `is the same role as roleFor.customer ("${parsed.customer}")`);
+  }
+  if (sameAccount(roles[parsed.customer], roles[parsed.otherCustomer])) {
+    fail("roleFor.otherCustomer", `is the same account as roleFor.customer (roles["${parsed.customer}"])`);
+  }
+  return parsed;
+}
+
+/** Accounts are compared without regard to case, as a sign-in name is. */
+function sameAccount(first: string | undefined, second: string | undefined): boolean {
+  return first !== undefined && second !== undefined && first.toLowerCase() === second.toLowerCase();
+}
+
+function parsePermissionList(value: unknown, path: string): string[] {
+  const permissions = asStringList(value, path);
+  const repeated = permissions.find((permission, index) => permissions.indexOf(permission) !== index);
+  if (repeated !== undefined) {
+    fail(path, `lists "${repeated}" twice`);
+  }
+  return permissions;
+}
+
+function sameSet(first: readonly string[], second: readonly string[]): boolean {
+  return first.length === second.length && first.every((item) => second.includes(item));
 }
 
 function parseRolePermissions(value: unknown, roles: Record<string, string>): Record<string, string[]> {
-  return Object.fromEntries(
+  const parsed = Object.fromEntries(
     Object.entries(asRecord(value, "rolePermissions")).map(([role, permissions]) => {
       const path = `rolePermissions["${role}"]`;
       if (!Object.hasOwn(roles, role)) {
         return fail(path, "is not a key of roles");
       }
-      return [role, asStringList(permissions, path)];
+      return [role, parsePermissionList(permissions, path)];
     }),
   );
+  const listed = Object.keys(parsed);
+  for (const [index, role] of listed.entries()) {
+    const other = listed
+      .slice(index + 1)
+      .find((name) => sameAccount(roles[role], roles[name]) && !sameSet(parsed[role] ?? [], parsed[name] ?? []));
+    if (other !== undefined) {
+      fail(`rolePermissions["${other}"]`, `differs from rolePermissions["${role}"], though both roles are one account`);
+    }
+  }
+  return parsed;
 }
 
 function parseCoverageWeights(value: unknown): ProjectFacts["coverageWeights"] {

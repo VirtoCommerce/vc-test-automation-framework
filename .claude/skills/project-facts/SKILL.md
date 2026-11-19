@@ -32,7 +32,9 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   accounts.
 - Role purposes: `roleFor.admin` is the role `arrange` and REST administration tests act as, `roleFor.customer` an
   ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value
-  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires all three.
+  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires all three, and refuses
+  `customer` and `otherCustomer` naming the same role or the same account. The two must also belong to different
+  organizations, which the reader cannot check: take that from the seed, or ask.
 - Role permissions (optional): `rolePermissions["<role name>"]` lists the permissions that role holds, named as the
   platform under test names them. A case that needs a role with or without a permission takes it from here. When the
   field is absent or does not settle the question, ask the person; never infer it from knowledge of the platform.
@@ -40,7 +42,8 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   every source of roles the platform has (roles of the account itself, of its organization, of its membership), not
   only the role it is named after. A role in `roles` without an entry has an unknown permission set, never an empty
   one, and is never "a role without P". Use it only when the person confirms. The entries come only from the
-  repository's seed or permission files, never from memory.
+  repository's seed or permission files, never from memory. The reader refuses a permission listed twice, and two roles of
+  one account with different lists.
 - Commands: `commands.typecheck`, `commands.lint` and `commands.test["<project>"]`. Run these exactly; do not rebuild
   them from `package.json`.
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.

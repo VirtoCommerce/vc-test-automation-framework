@@ -835,3 +835,4 @@ this repository.
 | `npm run lint`, `npm run format` | Lint only, format only |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run codegen` | Regenerates GraphQL and REST types from the running platform |
+| `npm run facts:check` | Derives each role's permissions from the seed (`dataset/data/`) and compares them with `rolePermissions` in `.qa/project.json`; prints every difference and exits 1 (`scripts/check-role-permissions.mts`, this repository only) |

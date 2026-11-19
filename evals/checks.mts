@@ -64,15 +64,69 @@ function nodeModule(name: string, args: string[], context: CheckContext): Outcom
   return context.spawn({ file: "node", args: [`qa/${name}.mts`, ...args], cwd: context.worktree });
 }
 
-function projectCommand(kind: "typecheck" | "lint", context: CheckContext): CheckOutcome {
-  let command: string;
+function readCommand(kind: "typecheck" | "lint", context: CheckContext): string | CheckOutcome {
   try {
-    command = readProjectFacts(join(context.worktree, PROJECT_FACTS_PATH)).commands[kind];
+    return readProjectFacts(join(context.worktree, PROJECT_FACTS_PATH)).commands[kind];
   } catch (error) {
     return { pass: false, note: error instanceof Error ? error.message : String(error) };
   }
+}
+
+function snapshotTree(context: CheckContext): string | undefined {
+  const outcome = nodeModule("expectation-guard", ["--snapshot"], context);
+  const tree = outcome.stdout.trim();
+  return succeeded(outcome) && tree !== "" ? tree : undefined;
+}
+
+function restoreTree(tree: string, changes: readonly string[], context: CheckContext): void {
+  const kept: string[] = [];
+  for (const line of changes) {
+    const [status = "", ...rest] = line.split("\t");
+    const path = rest.join("\t");
+    if (status === "A") {
+      rmSync(join(context.worktree, path), { force: true });
+    } else {
+      kept.push(path);
+    }
+  }
+  if (kept.length > 0) {
+    context.spawn({
+      file: "git",
+      args: ["restore", `--source=${tree}`, "--worktree", "--", ...kept],
+      cwd: context.worktree,
+    });
+  }
+}
+
+function projectCommand(kind: "typecheck" | "lint", context: CheckContext): CheckOutcome {
+  const command = readCommand(kind, context);
+  if (typeof command !== "string") {
+    return command;
+  }
+  const before = kind === "lint" ? snapshotTree(context) : undefined;
+  if (kind === "lint" && before === undefined) {
+    return { pass: false, note: "lint: the tree could not be snapshotted before the command" };
+  }
   const outcome = context.spawn({ file: command, args: [], cwd: context.worktree, shell: true });
-  return { pass: succeeded(outcome), note: `${kind}: ${tail(outcome)}` };
+  if (before === undefined) {
+    return { pass: succeeded(outcome), note: `${kind}: ${tail(outcome)}` };
+  }
+  const after = snapshotTree(context);
+  if (after === before) {
+    return { pass: succeeded(outcome), note: `lint: ${tail(outcome)}` };
+  }
+  if (after === undefined) {
+    return { pass: false, note: "lint: the tree could not be snapshotted after the command" };
+  }
+  const diff = context.spawn({
+    file: "git",
+    args: ["diff-tree", "--no-renames", "-r", "--name-status", before, after],
+    cwd: context.worktree,
+  });
+  const changes = diff.stdout.split(/\r?\n/).filter(Boolean);
+  restoreTree(before, changes, context);
+  const files = changes.map((line) => line.split("\t").slice(1).join("\t"));
+  return { pass: false, note: `lint would rewrite: ${files.join(", ")}` };
 }
 
 function contractCheck(context: CheckContext): CheckOutcome {

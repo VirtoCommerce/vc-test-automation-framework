@@ -56,6 +56,8 @@ const DEFAULT_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 const GIT_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_BUFFER = 256 * 1024 * 1024;
 const MAX_EVIDENCE = 2000;
+const REMOVE_RETRIES = 5;
+const REMOVE_RETRY_DELAY_MS = 200;
 const ENV_FILE = /^\.env(\..+)?$/;
 const ENV_EXAMPLE = ".env.example";
 const BASELINE_PLACEHOLDER = "{{BASELINE}}";
@@ -140,11 +142,27 @@ function unlinkQuietly(path: string): boolean {
   }
 }
 
-function removeWorktree(context: RunContext, worktree: string): void {
+function attempt(failures: string[], step: string, action: () => void): void {
+  try {
+    action();
+  } catch (error) {
+    failures.push(`${step}: ${errorText(error)}`);
+  }
+}
+
+function removeWorktree(context: RunContext, worktree: string): string | undefined {
+  const failures: string[] = [];
   unlinkQuietly(join(worktree, "node_modules"));
-  git(context, ["worktree", "remove", "--force", worktree], context.root);
-  rmSync(worktree, { recursive: true, force: true });
-  git(context, ["worktree", "prune"], context.root);
+  attempt(failures, "git worktree remove", () => {
+    git(context, ["worktree", "remove", "--force", worktree], context.root);
+  });
+  attempt(failures, "removing the folder", () => {
+    rmSync(worktree, { recursive: true, force: true, maxRetries: REMOVE_RETRIES, retryDelay: REMOVE_RETRY_DELAY_MS });
+  });
+  attempt(failures, "git worktree prune", () => {
+    git(context, ["worktree", "prune"], context.root);
+  });
+  return failures.length === 0 ? undefined : `worktree ${worktree} not removed: ${failures.join("; ")}`;
 }
 
 function applyPatch(context: RunContext, patch: string, worktree: string): void {
@@ -339,18 +357,52 @@ function execute(loaded: LoadedCase, worktree: string, context: RunContext): Eva
  */
 export function runCase(loaded: LoadedCase, context: RunContext): EvalResult {
   const worktree = mkdtempSync(join(tmpdir(), WORKTREE_PREFIX));
+  let result: EvalResult;
   try {
-    return execute(loaded, worktree, context);
+    result = execute(loaded, worktree, context);
   } catch (error) {
-    return {
+    result = {
       caseId: loaded.evalCase.id,
       codeChecks: { [AGENT_RUN_CHECK]: false },
       judge: {},
       evidence: errorText(error).slice(0, MAX_EVIDENCE),
     };
-  } finally {
-    removeWorktree(context, worktree);
   }
+  const leftover = removeWorktree(context, worktree);
+  return leftover === undefined
+    ? result
+    : { ...result, evidence: [result.evidence, leftover].filter(Boolean).join("\n") };
+}
+
+/**
+ * Runs the cases one after another and writes the results file after each, so a crash keeps what already ran. A case
+ * that throws anyway is a failed `agent-run` result.
+ */
+export function runCases(
+  cases: readonly LoadedCase[],
+  context: RunContext,
+  out: string,
+  onResult: (result: EvalResult) => void = () => undefined,
+): EvalResult[] {
+  const results: EvalResult[] = [];
+  for (const entry of cases) {
+    let result: EvalResult;
+    try {
+      result = runCase(entry, context);
+    } catch (error) {
+      result = {
+        caseId: entry.evalCase.id,
+        codeChecks: { [AGENT_RUN_CHECK]: false },
+        judge: {},
+        evidence: errorText(error).slice(0, MAX_EVIDENCE),
+      };
+    }
+    results.push(result);
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, `${JSON.stringify(results, null, 2)}\n`);
+    onResult(result);
+  }
+  return results;
 }
 
 function flagValue(args: readonly string[], flag: string): string | undefined {
@@ -388,14 +440,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
       agentTimeoutMs: DEFAULT_AGENT_TIMEOUT_MS,
     };
     const loaded = loadCases(pattern, root).filter(({ evalCase }) => !(offline && evalCase.needsStand === true));
-    const results: EvalResult[] = [];
-    for (const entry of loaded) {
-      const result = runCase(entry, context);
-      results.push(result);
-      process.stdout.write(`${summary(result)}\n`);
-    }
-    mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, `${JSON.stringify(results, null, 2)}\n`);
+    const results = runCases(loaded, context, out, (result) => process.stdout.write(`${summary(result)}\n`));
     process.stdout.write(`results: ${out}\n`);
     process.exitCode = results.some(({ codeChecks }) => Object.values(codeChecks).includes(false)) ? 1 : 0;
   } catch (error) {

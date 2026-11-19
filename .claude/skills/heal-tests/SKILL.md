@@ -21,8 +21,11 @@ that can only be made green by changing one is a product defect, and it stays re
   creates the git-ignored run folder.
 - A hook confines you: Write, Edit and MultiEdit work only under `facts.healerPaths`, `.qa/reports/heal-<slug>.md`,
   `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`, never on a `.git*` name or in the folder git runs hooks from; Bash runs only the commands shown in
-  this skill. `npx` always carries `--no --`: `--no` stops npm from fetching a package it does not find, `--` stops it
-  from reading the tool's own flags. A refused call is final: do not look for a way around it, report it.
+  this skill (git reads, `node .claude/qa/<module>.mts`, `npx --no -- playwright test` with `--project`,
+  `--repeat-each`, `--retries=0`, `--reporter`, `-g`; `npx --no -- tsc --noEmit`; `npx --no -- biome check <paths>`;
+  `node .claude/qa/expectation-guard.mts --base=<sha>`). `npx` always carries `--no --`: `--no` stops npm from
+  fetching a package it does not find, `--` stops it from reading the tool's own flags. A refused call is final: do
+  not look for a way around it, report it.
 - The dispatch carries a baseline: a git tree id that `/qa` or `/qa-heal` recorded with
   `node .claude/qa/expectation-guard.mts --snapshot` before you started (working tree, untracked files included). It is what
   the guard in step 7 compares against. Without one, stop and say so. Never record or replace a baseline yourself: a
@@ -68,9 +71,9 @@ fact, status code) and the class. When two classes fit, take the stricter readin
 
 ## Step 4: The Flaky Series
 
-A failure is called flaky only from a series, never from a single re-run. For the tests whose first run failed in a
-way that could be intermittent (a timeout, a wait, an order), and for any test the person named as flaky, run
-`facts.flakyRunSeries` times per project:
+A failure is called flaky only from a series, never from a single re-run, one pass or one failure. For the tests
+whose first run failed in a way that could be intermittent (a timeout, a wait, an order), and for any test the
+person named as flaky, run `facts.flakyRunSeries` times per project:
 
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json npx --no -- playwright test <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
@@ -90,7 +93,15 @@ Only a test defect, within the area's autonomy:
 - Any key of `autonomy` other than `*` that matches the area: it equals a directory name in the spec's path or a word
   of its `allure.epic` / `allure.feature`. One match: its value. Two or more matches: `propose`. No match: `autonomy["*"]`.
   An area named in `critical` with no key of its own is `propose`.
-- `apply`: make the fix. `propose`: edit nothing; the report holds the exact change as a diff.
+- `apply`: make the fix and re-run. `propose`: edit nothing; the report holds the exact change as a diff, and you
+  wait.
+- What a fix may change, only under `facts.healerPaths`:
+  - Page objects and components: a locator that no longer matches, a missing wait for the element, the selector
+    priority of `framework-rules`.
+  - Data: a builder, record or `arrange` method that is stale or invalid, never a value the test asserts against.
+  - Waits: `arrange` index-wait methods where a read lags behind a write; never `waitForTimeout`, `networkidle` or
+    `expect.poll`.
+  - Setup and cleanup that live in those folders.
 - A locator is fixed in the page object (selector priority: `framework-rules`, `create-ui-layer` "Locator
   Conventions"). A lagging read is fixed in `arrange` (the dataset's index-wait methods). Never `waitForTimeout`,
   `networkidle`, `expect.poll`, a raised retry count, a blanket timeout, a skip, `fixme` or an annotation that hides

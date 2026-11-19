@@ -1,6 +1,6 @@
 ---
 name: review-test-code
-description: "Review spec files and test infrastructure (clients, page objects, builders, arrange, fixtures) for convention compliance, isolation, correctness, coverage gaps and best practices — produces actionable feedback"
+description: "Review spec files and test infrastructure (clients, page objects, builders, arrange, fixtures) for convention compliance, isolation, correctness, coverage gaps and best practices — produces actionable feedback; holds the reviewer's definition-of-done check of a contract's run"
 argument-hint: "<file-path-or-pattern>"
 ---
 
@@ -100,6 +100,50 @@ page object; UI sign-in only when sign-in is under test.
 - [ ] Happy path, and error cases (invalid input, unauthorized identity, missing record).
 - [ ] Identities where behavior differs.
 - [ ] The test fails when the feature is broken (no vacuous assertions).
+
+## Definition of Done
+
+Used by `qa-reviewer` with a contract. Do not take the author's word for the run. The author left Playwright's
+JSON report per project under `.qa/runs/<contract-name>/` (names: `project-facts`, "Hand-off Paths"). For each
+Playwright project in the contract's case rows, with `<specs>` the changed spec files:
+
+1. Make your own list of what should have run, as the stable series the author had to run
+   (`quality.stableSeries` from the facts), so that every missing repetition fails the reconciliation:
+
+   ```shell
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
+   ```
+
+2. Reconcile it with the author's report:
+
+   ```shell
+   node .claude/qa/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+   ```
+
+   Exit 1 means not done; copy each failure (test, project, why) into Critical, missing repetitions
+   included. A missing report file, a stand that was not reachable and no record, or a report you cannot read is
+   also not done.
+3. Do not read the author's own `list.<project>.json` as the truth: it is theirs.
+4. Your read-only shell cannot run typecheck and lint. Say in the Summary that they were not checked and name
+   `commands.typecheck` and `commands.lint` from the facts for the dispatcher to run; a diff that is clearly
+   type-unsafe (`any`, `!`, floating promises) is a finding on its own.
+
+5. Shape and duration of every new or changed test, with `<specs>` the changed spec files and `<project>` each
+   project of the run:
+
+   ```shell
+   node .claude/qa/test-shape.mts <specs>
+   node .claude/qa/test-duration.mts .qa/runs/<contract-name>/report.<project>.json <project> [<previous report>]
+   ```
+
+   Give a previous report only when the brief names one. Each line either prints is a finding (a shape finding names
+   `file:line`, a duration finding `file › describe › title`: find that test by its title in the spec; exit 1). It is
+   **Critical** only for a test the diff adds or changes: its spec is new, or a diff hunk adds or changes a line from
+   the test's first line to the end of the test call. A finding in another test of a touched file goes under
+   Suggestions as "already there" and never blocks. The limits are the facts' `quality`, never
+   your own. A project without a budget is judged only on the slowdown ratio.
+
+APPROVE only when reconciliation exits 0 for every project and there is no Critical finding.
 
 ## Severity Levels
 

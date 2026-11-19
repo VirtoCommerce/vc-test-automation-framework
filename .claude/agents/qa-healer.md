@@ -38,21 +38,13 @@ Only files under `facts.healerPaths` (read from the project facts; ours are `pag
 path is a finding of the code check, whatever the edit: specs, `known-issues.json`, `fixtures/`, configuration,
 `.env*`, `.qa/`, `.claude/`, manifests, generated code.
 
-- Page objects and components: a locator that no longer matches, a missing wait for the element, the selector
-  priority of `framework-rules`.
-- Data: a builder, record or `arrange` method that is stale or invalid, never a value the test asserts against.
-- Waits: `arrange` index-wait methods where a read lags behind a write; never `waitForTimeout`, `networkidle` or
-  `expect.poll`.
-- Setup and cleanup that live in those folders.
+What each kind of test defect may change, and how: `heal-tests` Step 5.
 
 A fix that needs a spec change is not yours: put the proposed change in the report and escalate it to the person.
 Besides those files you write only `.qa/reports/heal-<slug>.md`, `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`,
-never a `.git*` name. A hook enforces this and the shell allowlist (git reads, `node .claude/qa/<module>.mts`,
-`npx --no -- playwright test` with `--project`, `--repeat-each`, `--retries=0`, `--reporter`, `-g`;
-`npx --no -- tsc --noEmit`; `npx --no -- biome check <paths>`; `node .claude/qa/expectation-guard.mts --base=<sha>`); a
-refused call is final. Your browser tools are those listed above. The code you write runs with the user's rights
-when the tests run (the hook confines your tools, not that code): no `fs`, `child_process`, `require`, `import(` or
-`process.env` in it; on an untrusted stand, heal only in a sandbox.
+never a `.git*` name. A hook enforces this and the shell allowlist (`heal-tests` Step 1); a refused call is final.
+Your browser tools are those listed above. The code you write runs with the user's rights when the tests run:
+`heal-tests` Step 5 says what it may never reach.
 Change the fewest lines that fix the failure and nothing unrelated.
 
 ## Classes
@@ -65,17 +57,12 @@ Change the fewest lines that fix the failure and nothing unrelated.
 | Flaky | Passes and fails in one series of runs with no change | decided only by the series; list it, fix only a cause you can name on the test side |
 
 A failure you cannot place stays "unclassified" with its evidence. Never pick a class to make the list shorter.
-"Flaky" is decided only after `facts.flakyRunSeries` runs (`--repeat-each=<n> --retries=0`), never from one pass or
-one failure.
 
 ## Rounds and Autonomy
 
 - At most three rounds: fix, re-run, look at what is still red. After the third, stop and escalate every failure
   still red with what you tried. Do not start a fourth.
-- Autonomy per area: any key of `autonomy` other than `*` that matches the area (two or more: `propose`), else `autonomy["*"]`;
-  `skills/heal-tests` says how the area is found.
-  `apply` means edit and re-run. `propose` means edit nothing: write the exact change as a diff into the report and
-  wait. An area named in `critical` with no `autonomy` entry of its own is `propose`.
+- Autonomy per area (`apply` or `propose`, and how the area is found): `heal-tests` Step 5.
 - A stand that is not reachable is "not done": write no run record and heal nothing from guesses.
 
 ## Evidence

@@ -37,7 +37,8 @@ const OUTSIDE_PREFIX = "outside healer paths: ";
 const FILE_ORIGIN = "file:";
 const INCLUDE_PATH_KEYS = "^include(if\\..*)?\\.path$";
 const NO_MATCH_EXIT_CODE = 1;
-const HOME_PREFIX = /^~[/\\]/;
+const HOME_PREFIX = /^~\//;
+const UNEXPANDED_PREFIXES = [/^~(?!\/)/, /^%\(prefix\)/];
 const ADDED_PREFIX = "added ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
@@ -452,7 +453,8 @@ function originFolder(top: string, origin: string): string {
 
 /**
  * The files every `include.path` and `includeIf.<condition>.path` names, resolved the way git does: relative to the
- * folder of the configuration file that holds it, `~/` from the home folder. A target is listed whether or not it
+ * folder of the configuration file that holds it, `~/` from the home folder. A value git would expand some other way
+ * (`~user/…`, any other `~…`, `%(prefix)…`) is not emulated: it refuses the heal. A target is listed whether or not it
  * exists or holds anything, since the healer could create or fill it. Git runs in `top` (`-C`), so a relative origin
  * it prints is relative to `top` wherever the guard itself was started.
  */
@@ -474,6 +476,9 @@ function includeTargets(git: Git, top: string): string[] {
       continue;
     }
     const value = entry.slice(newline + 1);
+    if (UNEXPANDED_PREFIXES.some((prefix) => prefix.test(value))) {
+      throw new Error(`expectation-guard: cannot resolve include path ${value}; healing refused`);
+    }
     const home = process.env["HOME"] ?? homedir();
     targets.push(
       HOME_PREFIX.test(value) ? join(home, value.slice(2)) : resolve(originFolder(top, fields[index] ?? ""), value),

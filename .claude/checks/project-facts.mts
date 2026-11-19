@@ -276,7 +276,7 @@ function parseRolePermissions(value: unknown, roles: Record<string, string>): Re
 const SECRET_NAME = /^[A-Z][A-Z0-9_]*$/;
 
 function parsePasswordFor(value: unknown, roles: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(
+  const parsed: Record<string, string> = Object.fromEntries(
     Object.entries(asRecord(value, "passwordFor")).map(([role, name]) => {
       const path = `passwordFor["${role}"]`;
       if (!Object.hasOwn(roles, role)) {
@@ -289,6 +289,16 @@ function parsePasswordFor(value: unknown, roles: Record<string, string>): Record
       return [role, secret];
     }),
   );
+  const listed = Object.keys(parsed);
+  for (const [index, role] of listed.entries()) {
+    const other = listed
+      .slice(index + 1)
+      .find((name) => sameAccount(roles[role], roles[name]) && parsed[role] !== parsed[name]);
+    if (other !== undefined) {
+      fail(`passwordFor["${other}"]`, `differs from passwordFor["${role}"], though both roles are one account`);
+    }
+  }
+  return parsed;
 }
 
 function parseCoverageWeights(value: unknown): ProjectFacts["coverageWeights"] {

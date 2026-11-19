@@ -20,7 +20,7 @@ npm run codegen                      # regenerate REST + GraphQL types from the 
 ```
 
 Settings come from `.env` (template `.env.example`), validated by `core/env.ts`. A shell variable wins over `.env`,
-e.g. `VERIFY_SSL=false npm run test:e2e:frontend` for a self-signed local frontend. Never edit or print `.env`.
+e.g. `VERIFY_SSL=false npm run test:e2e:frontend` for a self-signed local frontend. Never edit or print `.env`; the one exception is `node .claude/checks/stand.mts`, which prints only the stand's origins.
 
 ## Layers
 

@@ -49,7 +49,10 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   twice, and two roles of one account with different lists.
 - Passwords (optional): `passwordFor["<role name>"]` is the name of the variable that holds that role's password. To
   sign in as the role in the browser, type that name in the password field, never a value: the browser server is
-  started with those variables as secrets and types the value. A role without an entry cannot be signed in as.
+  started with those variables as secrets and types the value. Sign in only when `node .claude/checks/stand.mts`
+  prints `sign-in: ready`, and never retry a refused sign-in. A role without an entry cannot be signed in as. The
+  reader refuses a role that is not in `roles`, a name that is not an upper-case variable name, and two roles of one
+  account with different names.
 - Commands: `commands.typecheck`, `commands.lint` and `commands.test["<project>"]`. Run these exactly; do not rebuild
   them from `package.json`.
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.

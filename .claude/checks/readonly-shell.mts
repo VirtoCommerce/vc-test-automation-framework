@@ -2,8 +2,10 @@ import { execFileSync } from "node:child_process";
 import { lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
+import { passwordNames, runVariables } from "./browser-secrets.mts";
 import { EXTRACTORS } from "./explore-extractors.mts";
 import { PROJECT_FACTS_PATH, readProjectFacts, SHORT_NAME_SEGMENT } from "./project-facts.mts";
+import { standOrigins } from "./stand.mts";
 
 export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
 
@@ -57,6 +59,8 @@ const BROWSER_TOOL_KEYS: Readonly<Record<string, readonly string[]>> = {
 };
 
 const RESPONSE_BODY = "response-body";
+
+const COVERAGE_BLOCKED_BROWSER_TOOLS: readonly string[] = ["click", "hover", "press_key", "select_option"];
 
 export const BROWSER_TOOLS = Object.keys(BROWSER_TOOL_KEYS).map((name) => `${BROWSER_TOOL_PREFIX}${name}`);
 
@@ -521,7 +525,7 @@ function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, pro
     return `${agent} may not use ${tool}; blocked`;
   }
   if (typeof tool === "string" && tool.startsWith("mcp__")) {
-    return browserBlockReason(agent, tool, toolInput);
+    return browserBlockReason(agent, tool, toolInput, projectDir);
   }
   if (tool !== undefined && tool !== "Bash") {
     return undefined;
@@ -549,7 +553,37 @@ function isShippedExtractor(script: unknown): boolean {
   return typeof script === "string" && EXTRACTORS.includes(script.trim());
 }
 
-function browserBlockReason(agent: string, tool: string, toolInput: unknown): string | undefined {
+function standOriginList(projectDir: string): string[] | string {
+  try {
+    return Object.values(standOrigins(runVariables(projectDir)));
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+function signInSecretNames(projectDir: string): string[] {
+  try {
+    return passwordNames(readProjectFacts(join(projectDir, PROJECT_FACTS_PATH)).passwordFor);
+  } catch {
+    return [];
+  }
+}
+
+function openBlockReason(agent: string, tool: string, url: unknown, projectDir: string): string | undefined {
+  if (!isWebUrl(url)) {
+    return `${agent} may open only http or https addresses in ${tool}; blocked`;
+  }
+  const origins = standOriginList(projectDir);
+  if (typeof origins === "string") {
+    return `${agent} may open only the stand, whose origins are unknown (${origins}); blocked`;
+  }
+  const origin = new URL(String(url)).origin;
+  return origins.includes(origin)
+    ? undefined
+    : `${agent} may open only the stand (${origins.join(", ")}), not ${origin}; blocked`;
+}
+
+function browserBlockReason(agent: string, tool: string, toolInput: unknown, projectDir: string): string | undefined {
   if (!BROWSER_TOOLS.includes(tool)) {
     return `${agent} is read-only and may not use ${tool}; blocked`;
   }
@@ -568,11 +602,17 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown): st
   if (name === "evaluate" && !isShippedExtractor(input["function"])) {
     return `${agent} may run only the shipped page extractor in ${tool}; blocked`;
   }
-  if (name === "type" && input["submit"] !== undefined && input["submit"] !== false) {
-    return `${agent} may not type with submit in ${tool}; blocked`;
+  if (bareName(agent) === COVERAGE_AGENT && COVERAGE_BLOCKED_BROWSER_TOOLS.includes(name)) {
+    return `${agent} may not use ${tool}: it opens pages by address and signs in by typing; blocked`;
   }
-  if ((name === "navigate" || (name === "tabs" && input["url"] !== undefined)) && !isWebUrl(input["url"])) {
-    return `${agent} may open only http or https addresses in ${tool}; blocked`;
+  if (name === "type" && input["submit"] !== undefined && input["submit"] !== false) {
+    const text = input["text"];
+    if (typeof text !== "string" || !signInSecretNames(projectDir).includes(text)) {
+      return `${agent} may type with submit in ${tool} only a password name from passwordFor, to sign in; blocked`;
+    }
+  }
+  if (name === "navigate" || (name === "tabs" && input["url"] !== undefined)) {
+    return openBlockReason(agent, tool, input["url"], projectDir);
   }
   return undefined;
 }
@@ -585,7 +625,9 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown): st
  * `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the
- * shipped page extractor, `browser_type` never submits, `browser_navigate` opens only http and https,
+ * shipped page extractor, `browser_type` submits only a password name from `passwordFor` (a sign-in),
+ * `browser_navigate` and a new tab open only the stand's origins (`stand.mts`), `qa-coverage` never clicks, hovers,
+ * presses a key or selects an option,
  * `browser_network_request` is the explorer's only and reads only a response body. The tools that
  * only read pass.
  */
@@ -612,7 +654,7 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
     return `${agent} is read-only and may not use ${tool}; blocked`;
   }
   if (typeof tool === "string" && tool.startsWith("mcp__")) {
-    return browserBlockReason(agent, tool, toolInput);
+    return browserBlockReason(agent, tool, toolInput, projectDir);
   }
   if (tool !== undefined && tool !== "Bash") {
     return undefined;

@@ -92,7 +92,8 @@ Fill in the values; every variable is validated when a run starts, and a wrong o
 | `GOOGLE_MAPS_API_KEY` | | | Written into the seeded store's settings |
 
 The read-only agents never read `.env`: `node .claude/checks/stand.mts` prints only the frontend and backend origins
-(a variable set in the shell wins over `.env`), and that is where their browser goes.
+(a variable set in the shell wins over `.env`) and whether they may sign in, and the hook lets their browser open
+only those origins.
 
 The last three frontend settings must match how the frontend is configured; page objects adapt to them, so the
 same tests run against any configuration.
@@ -813,11 +814,14 @@ the others on.
    `*.local.*` file) and `.qa/project.json`, then edit the last for the repository. Keep the `.claude/checks/**` rule in `biome/layers.json`: `.claude/checks/` imports nothing outside `.claude/checks/`
    and `core/`.
 2. Register the browser MCP server under the fixed name `playwright`. The explorer, healer and coverage agents name
-   its tools (`mcp__playwright__browser_*`), so a server under another name leaves them without a browser. Start it
-   with `--secrets .qa/browser-secrets.local.env`, a git-ignored file that holds only the variables `passwordFor`
-   names, with their values from `.env`: an agent signs in as a role by typing that name, and the browser types the
-   value and masks it in what it returns. Put nothing else in that file, since every value in it is masked wherever it
-   appears.
+   its tools (`mcp__playwright__browser_*`), so a server under another name leaves them without a browser. For
+   signing in as a role, first run `node .claude/checks/browser-secrets.mts`: it writes the git-ignored
+   `.qa/browser-secrets.local.env` with only the variables `passwordFor` names and their values from the shell or
+   `.env`, and prints names only. Then start the server with `--secrets` and that file's absolute path (the server
+   does not start when the file is missing). An agent types a variable's name and the browser types the value and
+   masks it in what it returns. Rerun the script and restart the server when a password changes;
+   `node .claude/checks/stand.mts` prints `sign-in: ready` only while the file matches. Without `passwordFor` or the
+   file, start the server without `--secrets`: the agents then stay signed out.
 3. Keep `.claude/settings.json`. It registers the `PreToolUse` hook (`.claude/hooks/readonly-shell.mts`) that limits
    the read-only roles to an allowlist of shell commands and confines the healer's writes. The hook command
    (`node "$CLAUDE_PROJECT_DIR/.claude/hooks/readonly-shell.mts" || exit 2`) is bash syntax and must run under bash.

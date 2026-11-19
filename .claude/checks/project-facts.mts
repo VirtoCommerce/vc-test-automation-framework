@@ -3,6 +3,10 @@ import { basename } from "node:path";
 
 export type Route = "command" | "cli" | "api" | "mcp" | "paste";
 
+export const ROLE_PURPOSES = ["admin", "customer", "otherCustomer"] as const;
+
+export type RolePurpose = (typeof ROLE_PURPOSES)[number];
+
 export type ProjectFacts = {
   tracker: { kind: string; keyPattern: string; acceptanceCriteriaField?: string; routes: Route[] };
   docSources: { name: string; route: Route; where: string }[];
@@ -10,6 +14,8 @@ export type ProjectFacts = {
   critical: string[];
   knowledgeDir: string;
   roles: Record<string, string>;
+  roleFor: Record<RolePurpose, string>;
+  rolePermissions?: Record<string, string[]>;
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
   flakyRunSeries: number;
   quality: {
@@ -150,6 +156,76 @@ function parseCommands(value: unknown): ProjectFacts["commands"] {
   };
 }
 
+function asRoleName(value: unknown, path: string, roles: Record<string, string>): string {
+  const name = asString(value, path);
+  if (!Object.hasOwn(roles, name)) {
+    fail(path, "is not a key of roles");
+  }
+  return name;
+}
+
+function isRolePurpose(key: string): key is RolePurpose {
+  return ROLE_PURPOSES.some((purpose) => purpose === key);
+}
+
+function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFacts["roleFor"] {
+  const roleFor = asRecord(value, "roleFor");
+  const stray = Object.keys(roleFor).find((key) => !isRolePurpose(key));
+  if (stray !== undefined) {
+    fail(`roleFor["${stray}"]`, `is not a purpose (${ROLE_PURPOSES.join(", ")})`);
+  }
+  const role = (purpose: RolePurpose): string =>
+    asRoleName(present(roleFor, purpose, `roleFor.${purpose}`), `roleFor.${purpose}`, roles);
+  const parsed = { admin: role("admin"), customer: role("customer"), otherCustomer: role("otherCustomer") };
+  if (parsed.customer === parsed.otherCustomer) {
+    fail("roleFor.otherCustomer", `is the same role as roleFor.customer ("${parsed.customer}")`);
+  }
+  if (sameAccount(roles[parsed.customer], roles[parsed.otherCustomer])) {
+    fail("roleFor.otherCustomer", `is the same account as roleFor.customer (roles["${parsed.customer}"])`);
+  }
+  return parsed;
+}
+
+/** Accounts are compared without regard to case, as a sign-in name is. */
+function sameAccount(first: string | undefined, second: string | undefined): boolean {
+  return first !== undefined && second !== undefined && first.toLowerCase() === second.toLowerCase();
+}
+
+function parsePermissionList(value: unknown, path: string): string[] {
+  const permissions = asStringList(value, path);
+  const repeated = permissions.find((permission, index) => permissions.indexOf(permission) !== index);
+  if (repeated !== undefined) {
+    fail(path, `lists "${repeated}" twice`);
+  }
+  return permissions;
+}
+
+function sameSet(first: readonly string[], second: readonly string[]): boolean {
+  return first.length === second.length && first.every((item) => second.includes(item));
+}
+
+function parseRolePermissions(value: unknown, roles: Record<string, string>): Record<string, string[]> {
+  const parsed = Object.fromEntries(
+    Object.entries(asRecord(value, "rolePermissions")).map(([role, permissions]) => {
+      const path = `rolePermissions["${role}"]`;
+      if (!Object.hasOwn(roles, role)) {
+        return fail(path, "is not a key of roles");
+      }
+      return [role, parsePermissionList(permissions, path)];
+    }),
+  );
+  const listed = Object.keys(parsed);
+  for (const [index, role] of listed.entries()) {
+    const other = listed
+      .slice(index + 1)
+      .find((name) => sameAccount(roles[role], roles[name]) && !sameSet(parsed[role] ?? [], parsed[name] ?? []));
+    if (other !== undefined) {
+      fail(`rolePermissions["${other}"]`, `differs from rolePermissions["${role}"], though both roles are one account`);
+    }
+  }
+  return parsed;
+}
+
 function parseCoverageWeights(value: unknown): ProjectFacts["coverageWeights"] {
   const weights = asRecord(value, "coverageWeights");
   const weight = (key: string): number =>
@@ -253,13 +329,18 @@ function parseHealerPaths(value: unknown): string[] {
  */
 export function parseProjectFacts(json: unknown): ProjectFacts {
   const root = asRecord(json, "file");
+  const roles = asStringMap(present(root, "roles", "roles"), "roles");
+  const roleFor = parseRoleFor(present(root, "roleFor", "roleFor"), roles);
+  const permissions = root["rolePermissions"];
   return {
     tracker: parseTracker(present(root, "tracker", "tracker")),
     docSources: parseDocSources(present(root, "docSources", "docSources")),
     commands: parseCommands(present(root, "commands", "commands")),
     critical: asStringList(present(root, "critical", "critical"), "critical"),
     knowledgeDir: asString(present(root, "knowledgeDir", "knowledgeDir"), "knowledgeDir"),
-    roles: asStringMap(present(root, "roles", "roles"), "roles"),
+    roles,
+    roleFor,
+    ...(permissions === undefined ? {} : { rolePermissions: parseRolePermissions(permissions, roles) }),
     coverageWeights: parseCoverageWeights(present(root, "coverageWeights", "coverageWeights")),
     flakyRunSeries: parseFlakyRunSeries(present(root, "flakyRunSeries", "flakyRunSeries")),
     quality: parseQuality(present(root, "quality", "quality")),

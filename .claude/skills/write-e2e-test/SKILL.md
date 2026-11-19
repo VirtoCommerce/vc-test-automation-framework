@@ -72,8 +72,9 @@ test.describe("cart (customer of their own)", () => {
 
 - `allure.epic("E2E")` and `allure.feature("<App> / <Area>")` in `beforeEach`; `allure.story` and
   `allure.description` first in each test.
-- `test.describe("<topic> (<who>)")`, named by role: `(anonymous)`, `(customer of their own)`, or the role of the
-  admin account (`roles["<role>"]` in the project facts).
+- `test.describe("<topic> (<who>)")`: `(<a role from roles>)`, `(anonymous)`, `(customer of their own)`, or for an
+  admin UI test the identity the repository signs the admin UI in as (`roleFor.admin` when that is a role from
+  `roles`; otherwise the name its neighbouring specs use).
 - `frontend` builds page objects for the configured frontend. The page objects hide the frontend's own settings
   (control kinds, checkout mode, filter type): specs never read those settings and never skip on them. Find the
   action in the page object; when it is missing, add it with `/create-ui-layer`.

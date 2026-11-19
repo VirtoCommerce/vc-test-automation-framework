@@ -773,6 +773,8 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 | `critical` | Names of critical flows; a gap in one ranks above all others. May be empty |
 | `knowledgeDir` | Directory of the knowledge snapshot |
 | `roles` | Map from data role ("store administrator") to the account `test.use({ user })` takes. Plans and reports name roles, never accounts |
+| `roleFor` | Map from a fixed purpose to a key of `roles`: `admin` (the role `arrange` and REST administration tests act as), `customer` (an ordinary signed-in customer account), `otherCustomer` (a customer of another organization, for access tests). All three are required. Ours: `admin` is "store administrator", `customer` "store employee", `otherCustomer` "other store employee" |
+| `rolePermissions` (optional) | Map from a key of `roles` to the full list of permission names that role holds, written exactly as the platform under test names them. A case that needs "a role with (or without) permission P" picks its role here; when the field is absent or does not settle it, the planner asks. The entries describe the seed as committed: a stand seeded before a change to the seed's roles keeps the old permissions until it is re-seeded. Ours lists only what the seed in `dataset/data/roles/` and `dataset/data/users/` shows; the store administrator is left out because its user is also a platform administrator |
 | `coverageWeights` | `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`: numbers of at least 0 |
 | `flakyRunSeries` | Repetitions that decide "flaky": an integer of at least 2 |
 | `quality.maxSteps`, `quality.maxLines`, `quality.maxExpects`, `quality.maxNesting`, `quality.maxConditionals` | Shape limits of one test, checked by `node .claude/checks/test-shape.mts <spec>…`: `test.step` calls, lines of the `test(...)` call, `expect` calls, depth of blocks in its body, and `if`, `?:`, `switch` and condition-driven loops (`for … of` over a table is not one). Integers; `maxLines` at least 1. A test over a limit is a Critical finding of the reviewer |
@@ -811,6 +813,15 @@ the others on.
 `node .claude/checks/scan-prompts.mts` scans every shipped prompt, skill and command for client hosts and terms and caps each
 agent definition at 8,000 characters; it exits 1 on a finding. Run it after changing any of them.
 
+It also flags this repository's role names (`roles` keys, `roleFor` values) and `rolePermissions` permission names
+outside an "Example from this repository" section, as whole words in any letter case, with a space, `_` or `-` matching
+any of them and an optional plural `s`; a `-` at either edge belongs to the word. A role named like a purpose
+(`admin`, `customer`, `otherCustomer`) or a word of one (`other`) is flagged only in its exact spelling inside quotes or
+backticks (`` `Customer` ``), in the prompts and the `.claude/checks/` modules alike, never in prose, and not at
+all when that spelling is all lower case (a known limit). A role named with another plain common word (`guest`,
+`manager`) can still produce findings on generic wording; fix them by renaming the role or by moving the line into an example section. A name split over two
+lines is not found.
+
 The evaluation suite that runs each role on fixed cases, and the unit tests of the `.claude/checks/` scripts, are kept outside
 this repository.
 
@@ -826,3 +837,4 @@ this repository.
 | `npm run lint`, `npm run format` | Lint only, format only |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run codegen` | Regenerates GraphQL and REST types from the running platform |
+| `npm run facts:check` | Derives each role's permissions from the seed (`dataset/data/`) and compares them with `rolePermissions` in `.qa/project.json`; prints every difference and exits 1 (`scripts/check-role-permissions.mts`, this repository only) |

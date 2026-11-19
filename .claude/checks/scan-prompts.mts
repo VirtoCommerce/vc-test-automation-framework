@@ -3,7 +3,7 @@ import type { ProjectFacts } from "./project-facts.mts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
-import { readProjectFacts } from "./project-facts.mts";
+import { ROLE_PURPOSES, readProjectFacts } from "./project-facts.mts";
 
 export type PromptFinding = { file: string; line: number; finding: string };
 
@@ -53,8 +53,16 @@ const MIN_EXAMPLE_LEVEL = 2;
 const MAX_EXAMPLE_LEVEL = 3;
 const MAX_EXAMPLE_SHARE = 0.5;
 const NUL = "\0";
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
+const SEPARATORS = /[\s_-]+/;
+const LETTERS_AND_SEPARATORS = /^[\p{L}\s_-]+$/u;
+const CAMEL_CASE_BREAK = /(?=[A-Z])/;
+const PURPOSE_WORDS = new Set(
+  ROLE_PURPOSES.flatMap((purpose) => [purpose, ...purpose.split(CAMEL_CASE_BREAK)].map((word) => word.toLowerCase())),
+);
 
-type Rules = { accounts: string[]; domains: string[]; terms: string[] };
+type Word = { term: string; pattern: RegExp };
+type Rules = { accounts: string[]; domains: string[]; terms: string[]; words: Word[] };
 type Heading = { index: number; level: number; text: string };
 type ExampleSection = { start: number; end: number; level: number };
 
@@ -138,12 +146,67 @@ function domainsOf(accounts: string[]): string[] {
   });
 }
 
+/**
+ * The role and permission names to look for. A name that is a purpose or a word of one (`admin`, `customer`, `other`)
+ * is matched only in its exact spelling, in quotes (see {@link quotedPattern}), and only when that spelling is not all
+ * lower case; an all-lower-case one is not checked (a known limit), since it is the shipped files' own vocabulary.
+ */
+function wordsOf(facts: ProjectFacts): Word[] {
+  const names = [
+    ...Object.keys(facts.roles),
+    ...Object.values(facts.roleFor),
+    ...Object.values(facts.rolePermissions ?? {}).flat(),
+  ]
+    .map((name) => name.trim())
+    .filter((name) => name !== "" && !name.startsWith("#"));
+  const words = new Map<string, Word>();
+  for (const name of names) {
+    const term = name.toLowerCase();
+    if (!PURPOSE_WORDS.has(term)) {
+      words.set(term, { term, pattern: wordPattern(term) });
+    } else if (name !== term) {
+      words.set(name, { term: name, pattern: quotedPattern(name) });
+    }
+  }
+  return [...words.values()];
+}
+
+/** The term with its separators (any run of spaces, `_` or `-`) matching any such run, and the rest escaped. */
+function termBody(term: string): string {
+  return term
+    .split(SEPARATORS)
+    .filter((part) => part !== "")
+    .map((part) => part.replace(REGEX_SPECIALS, "\\$&"))
+    .join("[\\s_-]+");
+}
+
+/**
+ * Matches `term` as a whole word in any letter case: a space, `_` or `-` in it matches any run of spaces, `_` or `-`,
+ * and a term of letters and those separators also matches with a trailing `s`. A `-` counts as part of a word at
+ * the edges, so "pre-sales rep" is not "sales rep". A term split over two lines is not found.
+ */
+function wordPattern(term: string): RegExp {
+  const plural = LETTERS_AND_SEPARATORS.test(term) ? "s?" : "";
+  return new RegExp(`(?<![\\p{L}\\p{N}_-])${termBody(term)}${plural}(?![\\p{L}\\p{N}_-])`, "iu");
+}
+
+/**
+ * Matches a role named like a purpose or a word of one only where it is written as a name, in its exact spelling:
+ * alone inside quotes or backticks, spelled as the `roles` key is. Prose such as "a customer signs in",
+ * another spelling and the `roleFor.<purpose>` tokens are left alone. It applies to the `.claude/checks/` modules
+ * too: their own purpose names are lower case, so only a role's exact, capitalised spelling is found there.
+ */
+function quotedPattern(name: string): RegExp {
+  return new RegExp(`(?<!roleFor\\[)(["'\`])${name.replace(REGEX_SPECIALS, "\\$&")}\\1`, "u");
+}
+
 function scanLine(text: string, rules: Rules): string[] {
   const lower = text.toLowerCase();
   const found = [
     ...rules.accounts.filter((account) => lower.includes(account)).map((account) => `role account "${account}"`),
     ...rules.domains.filter((domain) => lower.includes(domain)).map((domain) => `role domain "${domain}"`),
     ...rules.terms.filter((term) => lower.includes(term)).map((term) => `client term "${term}"`),
+    ...rules.words.filter(({ pattern }) => pattern.test(text)).map(({ term }) => `project term "${term}"`),
     ...hostFindings(text),
   ];
   return [...new Set(found)];
@@ -245,7 +308,11 @@ function shippedFiles(root: string): string[] {
 /**
  * Scans the shipped agents, skills, commands, hooks, settings and `.claude/checks/*.mts` modules for client facts: role
  * accounts and their email domains, any host (URL with any scheme, bare hostname or IPv4 address) outside
- * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, and agent files over
+ * {@link ALLOWED_HOSTS}, terms from `.qa/client-terms.local.txt` and `extraTerms`, the facts' role names (`roles` keys,
+ * `roleFor` values) and `rolePermissions` permission names as whole words in any letter case (see {@link wordPattern};
+ * a term split over two lines is a known gap), a role named like a purpose only in its exact spelling in quotes or
+ * backticks, when that spelling is not all lower case (see {@link quotedPattern}), and agent
+ * files over
  * {@link MAX_AGENT_CHARS} characters. Names in `.claude/checks/ours-only.json` are skipped by exact path; a section under
  * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or
  * holds more than half of its non-empty lines, which is itself a finding.
@@ -257,6 +324,7 @@ export function scanPrompts(root: string, facts: ProjectFacts, extraTerms: strin
     accounts,
     domains: domainsOf(accounts),
     terms: [...readClientTerms(root), ...normaliseTerms(extraTerms)],
+    words: wordsOf(facts),
   };
   return shippedFiles(root)
     .map((path) => relative(root, path).replaceAll("\\", "/"))

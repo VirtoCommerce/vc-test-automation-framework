@@ -73,9 +73,9 @@ test.describe("pricelists (<role>)", () => {
   `(customer of their own)`.
 - `test.use({ user: "<account>" })` signs `api` in; the account is `roles["<role>"]` from the project facts, as a
   string. Without it `api` is anonymous. Another identity in the same test: `await api.as(account)`,
-  `api.anonymous()`.
-- `arrange` creates as the administrator the repository configures and removes the data after the test. `arrange.admin` reads platform
-  state in assertions when `api` is a less privileged user.
+  `api.anonymous()`. An administration test runs as `roles[roleFor.admin]`.
+- `arrange` creates as `roleFor.admin` and removes the data after the test. `arrange.admin` reads platform state in
+  assertions when `api` is a less privileged user.
 - When the create is the action under test, build the draft (`newX()` sets a client-side `id`) and push the
   undo on `cleanup` before the call.
 
@@ -160,8 +160,8 @@ facts on the changed spec, with the run record the expert agent describes.
 ## Example from this repository
 
 - Reference spec: `tests/restapi/pricing/pricelists.spec.ts`; README "A REST test" and "Cleaning up".
-- Identities: `(store administrator)`, `(anonymous)`, `(customer of their own)`; the account of a role is
-  `roles["store administrator"]` in `.qa/project.json`.
+- Identities: `(store administrator)`, which is our `roleFor.admin`, `(anonymous)`, `(customer of their own)`; its
+  account is `roles["store administrator"]` in `.qa/project.json`.
 - Place by module: users, roles and API keys are `security`, not `customer`.
 - Commands: `npm run typecheck && npm run check`, then
   `npm run test:restapi -- tests/restapi/<platform-module>/<topic>.spec.ts`.

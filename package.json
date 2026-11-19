@@ -16,6 +16,7 @@
     "codegen": "npm run codegen:graphql && npm run codegen:rest",
     "codegen:graphql": "graphql-codegen --config codegen-graphql.ts",
     "codegen:rest": "node --env-file-if-exists=.env codegen-rest.mts",
+    "facts:check": "node scripts/check-role-permissions.mts",
     "seed": "playwright test --project=seed --reporter=list",
     "test": "playwright test --project=restapi --project=graphql --project=e2e-frontend --project=e2e-backend",
     "test:unit": "playwright test --project=unit",

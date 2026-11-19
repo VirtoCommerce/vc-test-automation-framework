@@ -34,8 +34,9 @@ repository's default style. When two framework rules seem to conflict, stop and 
 ## Spec Structure
 
 - Report metadata: `allure.epic` and `allure.feature` in `test.beforeEach`; `allure.story` and `allure.description`
-  in each test. One `test.describe("<topic> (<who>)")` per identity, named by role, for example `(anonymous)` or
-  `(store administrator)`. The `"<topic> (<who>)"` describe format and the `arrange:` / `act:` / `assert:` step
+  in each test. One `test.describe("<topic> (<who>)")` per identity: `(<a role from roles>)` or `(anonymous)`. An
+  identity that is not a key of `roles` takes the name the repository's existing specs use; when there is none, ask
+  the person. The `"<topic> (<who>)"` describe format and the `arrange:` / `act:` / `assert:` step
   wording below are structural formats that belong to the framework, so they are not the "naming and wording" style
   that the repository decides.
 - Every phase is a `test.step`: `"arrange: …"`, `"act: …"` or `"assert: …"`.
@@ -56,7 +57,7 @@ repository's default style. When two framework rules seem to conflict, stop and 
 - Read seeded data from the dataset; a spec may name a dataset id as a constant. Create what the test changes with
   `arrange`.
 - A test that changes the acting customer's own state (cart, lists, addresses, locks) creates its own customer.
-- REST administration tests run as the role the project facts name for the store administrator. A test that locks, deletes
+- REST administration tests run as `roleFor.admin`, the role the project facts name for administration. A test that locks, deletes
   or changes the password of the acting user creates its own with `arrange.security.platformUser()`.
 - Find records by search criteria, never by "is listed in the first N" windows.
 - Register cleanup before the change. Builders give drafts a client-side `id` the platform keeps, so the undo can be
@@ -109,7 +110,9 @@ repository's default style. When two framework rules seem to conflict, stop and 
 
 ## Example from this repository
 
-- Our describe identities: `(anonymous)`, `(store administrator)`, `(customer of their own)`.
+- Our describe identities: `(anonymous)`, `(store administrator)` (our `roleFor.admin`), `(customer of their own)`
+  for a customer `arrange` creates, and `(platform admin)` for the admin UI signed in as the environment's
+  administrator.
 - Our index-wait methods in `arrange`: `searchableMemberships`, `pickupLocations`, `cartPickupLocations`,
   `productPickupLocations`, `lockMemberships`.
 - Place by module: users and accounts are `security`, not `customer`.

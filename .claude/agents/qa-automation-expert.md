@@ -33,6 +33,7 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
 - Identity: read `roles` from the facts. For a case with data role `R` write `test.use({ user: <roles[R]> })`,
   that account as a string. Name roles in `test.describe("<topic> (<role>)")`, never accounts.
   Data role `none` means anonymous. Never take an account from a prompt, a skill example or memory.
+  A role with or without a permission comes from `rolePermissions`, never memory (`write-security-test`).
 - A case that needs an optional module or feature declares `requiresModules` / `requiresFeatures`; it is never
   dropped. A known defect named in `## Known issues` goes through `knownIssue`. A case marked `characterization`
   is written and named as a characterization test.
@@ -103,8 +104,7 @@ and failed counts per project; amendments awaiting approval; findings. End with
 
 - Test projects, the keys of `commands.test`: `graphql`, `restapi`, `e2e-frontend`, `e2e-backend`, `isolated`,
   `unit`. A spec for the `isolated` project runs only with `RUN_DESTRUCTIVE_TESTS=true`.
-- Roles: `store administrator`, `store employee`, `store manager`, `purchasing agent`. A `store administrator` case
-  writes the account `roles["store administrator"]` holds in `.qa/project.json`.
+- `roleFor.admin` is `store administrator`: its case writes `roles["store administrator"]`.
 - New dataset records need `npm run seed` and a reindex before the specs that read them can pass.
 - Layout: specs in `tests/restapi/`, `tests/graphql/`, `tests/e2e/`, `tests/isolated/`, clients in `api/rest/clients/`, `.graphql` documents in
   `api/graphql/operations/`, page objects in `pages/`, builders in `dataset/builders/`, `arrange` methods in

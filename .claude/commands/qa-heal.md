@@ -12,19 +12,23 @@ one.
    `.git/config`, `.git/info/`, `.git/hooks/`, the folder `core.hooksPath` names and `.qa/project.json` (it only reads; it is yours, the healer may not
    run it). When `--repo-fingerprint` exits non-zero or prints anything but 64 lowercase hexadecimal characters (a
    configuration file under a healer path, for one), show the person "fingerprint could not be computed:" followed by
-   its stderr line, and do not dispatch the healer. Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
+   its stderr line, and do not dispatch the healer. Then store the guard recipe as the baseline holds it:
+   `GIT_NO_LAZY_FETCH=1 git --no-replace-objects -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/skills/heal-tests/guard-recipe.md`
+   prints it; keep that text, and when it prints nothing, do not dispatch the healer. Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
    defect, product defect, stand data, flaky), fixes page objects, data and waits, and stops after three rounds.
-2. Run the guard recipe in `.claude/skills/heal-tests/guard-recipe.md` word for word: its shell block with the
-   baseline id and the fingerprint of step 1, and what each outcome means. A guard that is not clean ends here: offer
-   no review.
+2. Take the guard recipe again with the same `cat-file blob` command, from the baseline, and run it word for word: its
+   shell block with the baseline id and the fingerprint of step 1, and what each outcome means. Never read
+   `.claude/skills/heal-tests/guard-recipe.md` from the working tree after the heal: the healer runs test code, which
+   can rewrite any file, the recipe included. A copy that differs from the one you stored, or a guard that is not
+   clean, ends here: show it to the person and offer no review.
 3. Present what it fixed, what it classified as a product defect (a `knownIssue` proposal, never a patch), and what
    it escalated. A stand that was not reachable is "not done".
 
 The heal belongs to a run record when the target is a run record `.qa/runs/<contract-name>/` and
-`.qa/contracts/<contract-name>.md` exists. When the target is a spec file or a test title (take the spec that holds
-the test), look before step 1 for run records under `.qa/runs/<contract-name>/` whose `list.<project>.json` names that
-spec. Exactly one of them with its `.qa/contracts/<contract-name>.md`: the heal belongs to that record. None, or more
-than one: say so to the person; the review then runs without a contract and skips the definition of done.
+`.qa/contracts/<contract-name>.md` exists. For a spec file or a test title, look before step 1: count the run records
+whose `list.<project>.json` names the spec (or, for a title, a spec that holds it). Exactly one, and
+`.qa/contracts/<contract-name>.md` exists: the heal belongs to it. Otherwise (zero, several, or no contract file): say
+so; the review runs without a contract.
 
 When the heal belongs to a run record, do what `/qa` does after a heal: the recipe's "After a Clean Guard", word for
 word, with that record and contract.

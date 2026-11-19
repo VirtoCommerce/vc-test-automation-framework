@@ -39,7 +39,8 @@ const INCLUDE_PATH_KEYS = "^include(if\\..*)?\\.path$";
 const NO_MATCH_EXIT_CODE = 1;
 const HOME_PREFIX = /^~\//;
 const UNEXPANDED_PREFIXES = [/^~(?!\/)/, /^%\(prefix\)/];
-const PARTIAL_CLONE_KEYS = "^(extensions\\.partialclone|remote\\..*\\.promisor)$";
+const PARTIAL_CLONE_KEY = "^extensions\\.partialclone$";
+const PROMISOR_KEYS = "^remote\\..*\\.promisor$";
 const GIT_VERSION = /^git version (\d+)\.(\d+)/;
 const LAZY_FETCH_SINCE = { major: 2, minor: 44 };
 const CASE_INSENSITIVE_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(["win32", "darwin"]);
@@ -302,21 +303,30 @@ function installedGitVersion(): string {
   }
 }
 
-/**
- * Refuses a partial clone (`extensions.partialClone` set, or any `remote.<name>.promisor`) when git is older than
- * 2.44: such a git ignores `GIT_NO_LAZY_FETCH`, so a read could fetch a missing object from a promisor remote. An
- * ordinary clone works with any git. `version` returns the `git --version` output; it is a parameter for the tests.
- */
-export function refuseLazyFetchOnOldGit(git: Git, version: () => string = installedGitVersion): void {
-  let keys = "";
+/** `git config <args>`, or "" when nothing matches; any other failure is an error. */
+function configListing(git: Git, args: readonly string[]): string {
   try {
-    keys = git(["config", "--name-only", "--get-regexp", PARTIAL_CLONE_KEYS]);
+    return git(["config", ...args]);
   } catch (error) {
     if (exitStatus(error) !== NO_MATCH_EXIT_CODE) {
       throw new Error("expectation-guard: git config --get-regexp for the partial clone settings failed");
     }
+    return "";
   }
-  if (keys.trim() !== "" && !honoursNoLazyFetch(version())) {
+}
+
+/**
+ * Refuses a partial clone (`extensions.partialClone` set, or any `remote.<name>.promisor` that is true) when git is
+ * older than 2.44: such a git ignores `GIT_NO_LAZY_FETCH`, so a read could fetch a missing object from a promisor
+ * remote. An ordinary clone works with any git. `version` returns the `git --version` output; it is a parameter for
+ * the tests.
+ */
+export function refuseLazyFetchOnOldGit(git: Git, version: () => string = installedGitVersion): void {
+  const partialClone = configListing(git, ["--name-only", "--get-regexp", PARTIAL_CLONE_KEY]).trim() !== "";
+  const promisor = configListing(git, ["--type=bool", "--get-regexp", PROMISOR_KEYS])
+    .split("\n")
+    .some((line) => line.trim().endsWith(" true"));
+  if ((partialClone || promisor) && !honoursNoLazyFetch(version())) {
     throw new Error(
       "expectation-guard: this repository is a partial clone and git is older than 2.44, which can fetch missing objects while the guard reads; update git to 2.44 or newer",
     );

@@ -41,6 +41,9 @@ const HOME_PREFIX = /^~\//;
 const UNEXPANDED_PREFIXES = [/^~(?!\/)/, /^%\(prefix\)/];
 const PARTIAL_CLONE_KEY = "^extensions\\.partialclone$";
 const PROMISOR_KEYS = "^remote\\..*\\.promisor$";
+const TRAILING_CARRIAGE_RETURN = /\r$/;
+const TRUE_VALUES: ReadonlySet<string> = new Set(["true", "yes", "on", "1"]);
+const FALSE_VALUES: ReadonlySet<string> = new Set(["false", "no", "off", "0", ""]);
 const GIT_VERSION = /^git version (\d+)\.(\d+)/;
 const LAZY_FETCH_SINCE = { major: 2, minor: 44 };
 const CASE_INSENSITIVE_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(["win32", "darwin"]);
@@ -318,19 +321,40 @@ function configListing(git: Git, args: readonly string[]): string {
 /**
  * Refuses a partial clone (`extensions.partialClone` set, or any `remote.<name>.promisor` that is true) when git is
  * older than 2.44: such a git ignores `GIT_NO_LAZY_FETCH`, so a read could fetch a missing object from a promisor
- * remote. An ordinary clone works with any git. `version` returns the `git --version` output; it is a parameter for
- * the tests.
+ * remote. The promisor values are read raw: `true`, `yes`, `on`, `1` (any case) or no value at all count; `false`,
+ * `no`, `off`, `0` and an empty value do not; any other value does not count either, but on git older than 2.44 it is
+ * named in the error, since such a git may read it as true. An ordinary clone works with any git, and a junk value
+ * never blocks a git 2.44 or newer. `version` returns the `git --version` output; it is a parameter for the tests.
  */
 export function refuseLazyFetchOnOldGit(git: Git, version: () => string = installedGitVersion): void {
   const partialClone = configListing(git, ["--name-only", "--get-regexp", PARTIAL_CLONE_KEY]).trim() !== "";
-  const promisor = configListing(git, ["--type=bool", "--get-regexp", PROMISOR_KEYS])
+  const promisors = configListing(git, ["--get-regexp", PROMISOR_KEYS])
     .split("\n")
-    .some((line) => line.trim().endsWith(" true"));
-  if ((partialClone || promisor) && !honoursNoLazyFetch(version())) {
-    throw new Error(
-      "expectation-guard: this repository is a partial clone and git is older than 2.44, which can fetch missing objects while the guard reads; update git to 2.44 or newer",
-    );
+    .map((line) => line.replace(TRAILING_CARRIAGE_RETURN, ""))
+    .filter((line) => line.trim() !== "")
+    .map((line) => {
+      const space = line.indexOf(" ");
+      return space < 0 ? { key: line, value: undefined } : { key: line.slice(0, space), value: line.slice(space + 1) };
+    });
+  const promisor = promisors.some(({ value }) => value === undefined || TRUE_VALUES.has(value.trim().toLowerCase()));
+  const unreadable = promisors.filter(
+    ({ value }) =>
+      value !== undefined &&
+      !TRUE_VALUES.has(value.trim().toLowerCase()) &&
+      !FALSE_VALUES.has(value.trim().toLowerCase()),
+  );
+  if (!partialClone && !promisor && unreadable.length === 0) {
+    return;
   }
+  if (honoursNoLazyFetch(version())) {
+    return;
+  }
+  const named = unreadable.map(({ key, value }) => `${key}=${JSON.stringify(value)}`).join(", ");
+  throw new Error(
+    partialClone || promisor
+      ? "expectation-guard: this repository is a partial clone and git is older than 2.44, which can fetch missing objects while the guard reads; update git to 2.44 or newer"
+      : `expectation-guard: git is older than 2.44 and these promisor values are neither true nor false: ${named}; fix them or update git to 2.44 or newer`,
+  );
 }
 
 /**

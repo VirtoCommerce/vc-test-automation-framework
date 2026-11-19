@@ -29,7 +29,8 @@ List a mutation and any state-changing request here, but never call one.
 ## Step 3: Schema vs Live
 
 Your only live source is what the page itself sends: open the pages of the area with the browser and read the
-requests and answers with `browser_network_requests`. You send no request of your own: no `fetch`, no script, no
+requests and answers with `browser_network_requests`; read one answer's body with `browser_network_request`, passing
+only its `index` and `part: "response-body"` (the hook refuses any other form). You send no request of your own: no `fetch`, no script, no
 call from the shell.
 
 - Take the operation, its arguments and the answer's shape from the requests the page made. Use the session the

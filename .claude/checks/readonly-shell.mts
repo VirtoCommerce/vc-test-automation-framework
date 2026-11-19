@@ -49,10 +49,13 @@ const BROWSER_TOOL_KEYS: Readonly<Record<string, readonly string[]>> = {
   tabs: ["action", "index", "url"],
   console_messages: ["level", "all"],
   network_requests: ["includeStatic", "static", "filter"],
+  network_request: ["index", "part"],
   evaluate: ["function", "element", "target"],
   resize: ["width", "height"],
   close: [],
 };
+
+const RESPONSE_BODY = "response-body";
 
 export const BROWSER_TOOLS = Object.keys(BROWSER_TOOL_KEYS).map((name) => `${BROWSER_TOOL_PREFIX}${name}`);
 
@@ -547,6 +550,9 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown): st
   if (extra !== undefined) {
     return `${agent} may not pass ${JSON.stringify(extra.slice(0, MAX_SHOWN_COMMAND))} to ${tool}; blocked`;
   }
+  if (name === "network_request" && (bareName(agent) !== EXPLORER_AGENT || input["part"] !== RESPONSE_BODY)) {
+    return `${agent} may read only part "${RESPONSE_BODY}" of a request in ${tool}, and only as ${EXPLORER_AGENT}; blocked`;
+  }
   if (name === "evaluate" && !isShippedExtractor(input["function"])) {
     return `${agent} may run only the shipped page extractor in ${tool}; blocked`;
   }
@@ -567,7 +573,8 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown): st
  * `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the
- * shipped page extractor, `browser_type` never submits, `browser_navigate` opens only http and https. The tools that
+ * shipped page extractor, `browser_type` never submits, `browser_navigate` opens only http and https,
+ * `browser_network_request` is the explorer's only and reads only a response body. The tools that
  * only read pass.
  */
 export function hookBlockReason(input: unknown, projectDir: string = process.cwd()): string | undefined {

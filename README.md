@@ -749,7 +749,9 @@ place. A contract holds one row per case (case, technique, Playwright project, d
 role, oracle) and every oracle names its source: `ticket`, `doc`, `schema` or `observed`. A case whose expectation is
 only `observed` may encode a bug the stand already has, so a person confirms it at approval or it is written as a
 characterization test. An `observed` oracle holds the value the explorer recorded and the report it is in
-(`observed: <value> (.qa/reports/<report>.md)`); the check refuses one without, or whose report does not exist. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
+(`observed: <value> (.qa/reports/explore-<slug>-observed.md)`); the check refuses one without, one whose report is
+not an explorer report or does not exist, and one whose report has no line `- <case id>: <value> (` under
+`## Observed values`. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
 `node .claude/checks/contract.mts check <file>` fails otherwise. The approved base contract records its approval in one
 such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`: only the person writes it, or
 the session they answered, quoting their reply word for word; no agent writes it.

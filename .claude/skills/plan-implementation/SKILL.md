@@ -22,8 +22,9 @@ fill every section:
 - **Scope** and **Out of scope**: what is tested, and what is not and why.
 - **Cases**: the matrix. Every oracle starts with `ticket:`, `doc:`, `schema:` or `observed:`; every data role is a
   role from the facts or `none`. An `observed:` part holds a value the explorer recorded and its report,
-  `observed: <value> (.qa/reports/<report>.md)`; the check refuses one without (`observed: pending <what>` included)
-  or whose report does not exist.
+  `observed: <value> (.qa/reports/explore-<slug>-observed.md)`, the value exactly as the report's line
+  `- <case id>: <value> (` has it (quoted when it holds `;` or `|`). The check refuses one without a report
+  (`observed: pending <what>` included), and one whose report does not exist or does not hold that line.
 - **Observed only**: every case whose oracle is only `observed:`, marked `characterization` or `confirmed by <who>`.
 - **Stand needs**: profile, required modules and flags, data roles.
 - **Building blocks**: what to reuse and what to add, in dependency order, naming the existing file each addition

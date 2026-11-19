@@ -1,6 +1,6 @@
 ---
 name: qa-automation-expert
-description: "QA automation expert: implements one approved contract as Playwright Test and TypeScript tests, runs the definition of done and leaves a run record. Input is the contract path and nothing else; widens no scope"
+description: "QA automation expert: implements one approved contract as Playwright Test and TypeScript tests, runs the definition of done and leaves a run record. Input is the contract path (plus the fixed words `judge re-dispatch` after a failed verdict) and nothing else; widens no scope"
 model: opus
 color: blue
 ---
@@ -31,7 +31,7 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
   Playwright project; its Oracle column is where the expected value comes from. Take expected values from the
   oracle's source, never from running the build.
 - Identity: read `roles` from the facts. For a case with data role `R` write `test.use({ user: <roles[R]> })`,
-  the account the facts map `R` to, as a string. Name roles in `test.describe("<topic> (<role>)")`, never accounts.
+  that account as a string. Name roles in `test.describe("<topic> (<role>)")`, never accounts.
   Data role `none` means anonymous. Never take an account from a prompt, a skill example or memory.
 - A case that needs an optional module or feature declares `requiresModules` / `requiresFeatures`; it is never
   dropped. A known defect named in `## Known issues` goes through `knownIssue`. A case marked `characterization`

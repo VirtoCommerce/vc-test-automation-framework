@@ -775,6 +775,7 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 | `quality.stableSeries` | Repetitions a new or changed test must pass in a row (`--repeat-each=<n> --retries=0`, judged by the run record like any run): an integer of at least 2. Separate from `flakyRunSeries`, which decides "flaky" for the healer |
 | `quality.durationBudgetMs` | Map from Playwright project to the most milliseconds a test of it may take (the median of its repetitions). A project absent from the map has no budget. Checked by `node qa/test-duration.mts <report.json> <project> [<previous report.json>]` |
 | `quality.slowdownRatio` | A test is a finding when its median duration is more than this many times its median in the previous report (a number of at least 1; applies to every project when a previous report is given) |
+| `quality.slowdownMinMs` | A test is compared with the previous report only when its previous median is at least this many milliseconds, so jitter on a fast test is no slowdown: an integer of at least 0 (0 compares every test) |
 | `autonomy` | Map from area to `apply` or `propose`; `"*"` is required and is the default. `propose` means the healer writes the fix into its report and waits |
 | `healerPaths` | Plain directories the healer may change, such as `pages/` or `dataset/`. Never the repository root, `qa`, `.qa`, `.claude`, `node_modules` or a name that starts with `.git` |
 

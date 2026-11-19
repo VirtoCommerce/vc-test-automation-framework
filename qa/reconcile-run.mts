@@ -31,22 +31,35 @@ const SKIP_ANNOTATIONS = ["skip", "fixme"];
 const FAIL_ANNOTATIONS = ["fail"];
 const KNOWN_ISSUE_ANNOTATION = "known issue";
 
-function notPlaywrightJson(label: string): never {
-  throw new Error(`reconcile: the ${label} is not Playwright JSON`);
+/**
+ * An input that is not what the tool reads. `what` is the message without the tool's name, so another module that
+ * reads the same files can say it under its own name.
+ */
+export class InputError extends Error {
+  readonly what: string;
+
+  constructor(what: string) {
+    super(`reconcile: ${what}`);
+    this.what = what;
+  }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function notPlaywrightJson(label: string): never {
+  throw new InputError(`the ${label} is not Playwright JSON`);
+}
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function listOf(value: unknown, label: string): unknown[] {
+export function listOf(value: unknown, label: string): unknown[] {
   if (value === undefined) {
     return [];
   }
   return Array.isArray(value) ? value : notPlaywrightJson(label);
 }
 
-function textOf(value: unknown, label: string): string {
+export function textOf(value: unknown, label: string): string {
   return typeof value === "string" ? value : notPlaywrightJson(label);
 }
 
@@ -100,13 +113,23 @@ function describeError(error: unknown): string {
   return (text.trim().split("\n")[0] ?? "").trim();
 }
 
-function walkRoot(root: unknown, label: string, visit: (test: string, entry: Record<string, unknown>) => void): void {
+/**
+ * Walks every test entry of a Playwright JSON report or list in file order, naming it `<file> › <describe titles> ›
+ * <test title>`: the one name every module that reads these files uses for a test.
+ *
+ * @throws InputError when the input is not Playwright JSON, has no suites or has `errors`.
+ */
+export function walkRoot(
+  root: unknown,
+  label: string,
+  visit: (test: string, entry: Record<string, unknown>) => void,
+): void {
   if (!isRecord(root) || !Array.isArray(root["suites"])) {
-    throw new Error(`reconcile: the ${label} has no suites`);
+    throw new InputError(`the ${label} has no suites`);
   }
   const errors = listOf(root["errors"], label);
   if (errors.length > 0) {
-    throw new Error(`reconcile: the ${label} has errors: ${errors.map(describeError).join("; ")}`);
+    throw new InputError(`the ${label} has errors: ${errors.map(describeError).join("; ")}`);
   }
   for (const fileSuite of root["suites"]) {
     if (!isRecord(fileSuite)) {
@@ -219,17 +242,17 @@ export function reconcileRun(listed: unknown, report: unknown): RunVerdict {
   return verdict;
 }
 
-function readJson(file: string): unknown {
+export function readJson(file: string): unknown {
   let text: string;
   try {
     text = readFileSync(file, "utf8");
   } catch {
-    throw new Error(`reconcile: ${file} cannot be read`);
+    throw new InputError(`${file} cannot be read`);
   }
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`reconcile: ${file} is not valid JSON`);
+    throw new InputError(`${file} is not valid JSON`);
   }
 }
 

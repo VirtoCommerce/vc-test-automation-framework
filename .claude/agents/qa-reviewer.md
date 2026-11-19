@@ -78,10 +78,11 @@ Do not take the author's word for the run. The author left Playwright's JSON rep
 `.qa/runs/<name>/`, where `<name>` is the contract's file name without `.md`. For each Playwright project in the
 contract's case rows, with `<specs>` the changed spec files:
 
-1. Make your own list of what should have run:
+1. Make your own list of what should have run, as the stable series the author had to run
+   (`quality.stableSeries` from the facts), so that every missing repetition fails the reconciliation:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> <specs>
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
    ```
 
 2. Reconcile it with the author's report:
@@ -90,8 +91,9 @@ contract's case rows, with `<specs>` the changed spec files:
    node qa/reconcile-run.mts .qa/runs/<name>/review-list.<project>.json .qa/runs/<name>/report.<project>.json
    ```
 
-   Exit 1 means not done; copy each failure (test, project, why) into Critical. A missing report file, a stand
-   that was not reachable and no record, or a report you cannot read is also not done.
+   Exit 1 means not done; copy each failure (test, project, why) into Critical, a repetition that is missing
+   included. A missing report file, a stand that was not reachable and no record, or a report you cannot read is
+   also not done.
 3. Do not read the author's own `list.<project>.json` as the truth: it is theirs.
 4. You cannot run typecheck and lint with a read-only shell. Say in the Summary that they were not checked and name
    `commands.typecheck` and `commands.lint` from the facts for the dispatcher to run; a diff that is clearly
@@ -105,10 +107,11 @@ contract's case rows, with `<specs>` the changed spec files:
    node qa/test-duration.mts .qa/runs/<name>/report.<project>.json <project> [<previous report>]
    ```
 
-   Give a previous report only when the brief names one. Each line either prints is a finding (test and reason; exit
-   1): report it as **Critical**, a test too long, too nested, too branched or over its duration budget or slowdown
-   ratio. The limits are the facts' `quality`; never judge by your own. A project without a budget is judged only on
-   the slowdown ratio.
+   Give a previous report only when the brief names one. Each line either prints is a finding (test as `file:line`
+   and reason; exit 1). It is **Critical** only for a test the diff adds or changes: its spec is new, or a diff hunk
+   adds or changes a line from the finding's line to that test's closing `});`. A finding in another test of a touched
+   file goes under Suggestions as "already there" and never blocks. The limits are the facts' `quality`; never judge
+   by your own. A project without a budget is judged only on the slowdown ratio.
 
 APPROVE only when reconciliation exits 0 for every project and there is no Critical finding.
 

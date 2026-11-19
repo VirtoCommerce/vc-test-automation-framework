@@ -40,7 +40,8 @@
     "maxConditionals": 0,
     "stableSeries": 3,
     "durationBudgetMs": { "restapi": 15000, "graphql": 15000, "e2e-frontend": 90000, "e2e-backend": 120000 },
-    "slowdownRatio": 1.5
+    "slowdownRatio": 1.5,
+    "slowdownMinMs": 1000
   },
   "autonomy": { "*": "propose" },
   "healerPaths": ["pages/", "dataset/"]

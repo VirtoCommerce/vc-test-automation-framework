@@ -61,7 +61,13 @@ export const WRITING_TOOLS = ["Edit", "MultiEdit", "NotebookEdit", "PowerShell"]
 const TOKEN = /^[A-Za-z0-9_./:=@,+^~-]+$/;
 const GIT_SUBCOMMANDS = ["diff", "log", "show", "status"];
 const GIT_FORBIDDEN_PREFIXES = ["--output", "--ext-diff", "--textconv", "--no-index", "--open-files", "--exec", "-O"];
-const PLAYWRIGHT_FLAGS = [/^--list$/, /^--reporter=(json|list|null)$/, /^--project=[\w.-]+$/, /^--grep(-invert)?=\S+$/];
+const PLAYWRIGHT_FLAGS = [
+  /^--list$/,
+  /^--reporter=(json|list|null)$/,
+  /^--project=[\w.-]+$/,
+  /^--grep(-invert)?=\S+$/,
+  /^--repeat-each=\d{1,2}$/,
+];
 const PLAYWRIGHT_PATH = /^[\w./@-]+$/;
 const PROVE_FAILS_PATH = "qa/prove-fails.mts";
 const TEST_SHAPE_PATH = "qa/test-shape.mts";
@@ -205,7 +211,8 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
 }
 
 /**
- * True only for a single plain command on the allowlist: `npx --no playwright test --list --reporter=json|list|null …`,
+ * True only for a single plain command on the allowlist: `npx --no playwright test --list --reporter=json|list|null …`
+ * (`--repeat-each=<1-2 digits>` allowed there, so a reviewer can list a series),
  * `git diff|log|show|status …`, `node qa/<module>.mts …` (`test-shape` and `test-duration` only with repository
  * paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and `prove-fails`.
  * `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a flag), so npm never

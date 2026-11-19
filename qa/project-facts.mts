@@ -21,6 +21,7 @@ export type ProjectFacts = {
     stableSeries: number;
     durationBudgetMs: Record<string, number>;
     slowdownRatio: number;
+    slowdownMinMs: number;
   };
   autonomy: Record<string, "apply" | "propose">;
   healerPaths: string[];
@@ -204,6 +205,7 @@ function parseQuality(value: unknown): ProjectFacts["quality"] {
     stableSeries: count("stableSeries", MIN_STABLE_SERIES),
     durationBudgetMs: parseDurationBudgets(present(quality, "durationBudgetMs", "quality.durationBudgetMs")),
     slowdownRatio: ratio,
+    slowdownMinMs: count("slowdownMinMs", 0),
   };
 }
 

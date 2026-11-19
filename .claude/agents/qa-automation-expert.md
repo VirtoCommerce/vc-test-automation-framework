@@ -77,8 +77,9 @@ Take every command from the facts: `commands.typecheck`, `commands.lint` and `co
 rebuild them from `package.json`. Let `<name>` be the contract's file name without `.md`, and create
 `.qa/runs/<name>/` (git-ignored).
 
-1. Typecheck and lint are clean, and `node qa/test-shape.mts <specs>` prints `ok`: fix each finding (too many steps,
-   lines, expects, nesting or any conditional) by splitting or simplifying the test, never by editing the limits.
+1. Typecheck and lint are clean, and `node qa/test-shape.mts <specs>` has no finding in a test you added or changed: fix
+   each such finding (too many steps, lines, expects, nesting or any conditional) by splitting or simplifying the test,
+   never by editing the limits. A finding in a test you did not touch is "already there": report it, never change it.
 2. For each Playwright project the specs belong to, run its test command on the new and changed specs as a stable
    series (`quality.stableSeries` from the facts, not `flakyRunSeries`), with the JSON reporter next to the list
    reporter:

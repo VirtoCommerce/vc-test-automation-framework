@@ -30,6 +30,7 @@ const FACTS = {
     stableSeries: 3,
     durationBudgetMs: { restapi: 15000 },
     slowdownRatio: 1.5,
+    slowdownMinMs: 1000,
   },
   autonomy: { "*": "propose" },
   healerPaths: ["pages/", "dataset/"],

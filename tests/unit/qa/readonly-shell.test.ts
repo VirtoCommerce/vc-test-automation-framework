@@ -1321,3 +1321,50 @@ test.describe("quality gate commands (unit)", () => {
     }
   });
 });
+
+const SERIES_LIST = "npx --no -- playwright test --list --reporter=json --project=restapi";
+const SERIES_OUTPUT = "PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/cart/review-list.restapi.json";
+
+test.describe("the reviewer's series listing (unit)", () => {
+  for (const flag of ["--repeat-each=3", "--repeat-each=10", "--repeat-each=1"]) {
+    test(`allows ${flag} on a listing, with or without the review-list output`, () => {
+      expect(isReadOnlyCommand(`${SERIES_LIST} ${flag} tests/restapi/cart.spec.ts`)).toBe(true);
+      expect(
+        isReadOnlyCommand(`${SERIES_OUTPUT} ${SERIES_LIST} ${flag} tests/restapi/cart.spec.ts`, "qa-reviewer"),
+      ).toBe(true);
+      expect(
+        hookBlockReason({
+          agent_type: "qa-reviewer",
+          tool_name: "Bash",
+          tool_input: { command: `${SERIES_OUTPUT} ${SERIES_LIST} ${flag} tests/restapi/cart.spec.ts` },
+        }),
+      ).toBeUndefined();
+    });
+  }
+
+  for (const flag of [
+    "--repeat-each=100",
+    "--repeat-each=1000",
+    "--repeat-each=",
+    "--repeat-each=x",
+    "--repeat-each=-1",
+    "--repeat-each=1.5",
+    "--repeat-each=3x",
+    "--repeat-each",
+    "--repeat-each 3",
+    "--repeat-each=$(rm x)",
+  ]) {
+    test(`rejects ${JSON.stringify(flag)} on a listing`, () => {
+      for (const agent of ["qa-reviewer", "qa-judge", undefined]) {
+        expect(isReadOnlyCommand(`${SERIES_LIST} ${flag} tests/restapi/cart.spec.ts`, agent)).toBe(false);
+      }
+    });
+  }
+
+  test("the series flag does not make a run of the tests read-only", () => {
+    expect(isReadOnlyCommand("npx --no -- playwright test --project=restapi --repeat-each=3 tests/a.spec.ts")).toBe(
+      false,
+    );
+    expect(isReadOnlyCommand(`${SERIES_LIST} --repeat-each=3 --retries=0 tests/a.spec.ts`)).toBe(false);
+  });
+});

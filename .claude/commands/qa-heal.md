@@ -16,11 +16,10 @@ one.
    `GIT_NO_LAZY_FETCH=1 git --no-replace-objects -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/skills/heal-tests/guard-recipe.md`
    prints it; keep that text, and when it prints nothing, do not dispatch the healer. Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
    defect, product defect, stand data, flaky), fixes page objects, data and waits, and stops after three rounds.
-2. Take the guard recipe again with the same `cat-file blob` command, from the baseline, and run it word for word: its
-   shell block with the baseline id and the fingerprint of step 1, and what each outcome means. Never read
-   `.claude/skills/heal-tests/guard-recipe.md` from the working tree after the heal: the healer runs test code, which
-   can rewrite any file, the recipe included. A copy that differs from the one you stored, or a guard that is not
-   clean, ends here: show it to the person and offer no review.
+2. Run the recipe you stored in step 1 word for word: its shell block with the baseline id and the fingerprint of
+   step 1, and what each outcome means. Never read `.claude/skills/heal-tests/guard-recipe.md` from the working tree
+   after the heal: the healer runs test code, which can rewrite any file, the recipe included. A guard that is not
+   clean ends here: show it to the person and offer no review.
 3. Present what it fixed, what it classified as a product defect (a `knownIssue` proposal, never a patch), and what
    it escalated. A stand that was not reachable is "not done".
 

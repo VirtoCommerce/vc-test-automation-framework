@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, posix, relative, resolve, sep, win32 } from "node:path";
 
 import { PROJECT_FACTS_PATH, parseProjectFacts } from "./project-facts.mts";
 
@@ -37,7 +37,12 @@ const OUTSIDE_PREFIX = "outside healer paths: ";
 const FILE_ORIGIN = "file:";
 const INCLUDE_PATH_KEYS = "^include(if\\..*)?\\.path$";
 const NO_MATCH_EXIT_CODE = 1;
-const HOME_PREFIX = /^~[/\\]/;
+const HOME_PREFIX = /^~\//;
+const UNEXPANDED_PREFIXES = [/^~(?!\/)/, /^%\(prefix\)/];
+const PARTIAL_CLONE_KEYS = "^(extensions\\.partialclone|remote\\..*\\.promisor)$";
+const GIT_VERSION = /^git version (\d+)\.(\d+)/;
+const LAZY_FETCH_SINCE = { major: 2, minor: 44 };
+const CASE_INSENSITIVE_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(["win32", "darwin"]);
 const ADDED_PREFIX = "added ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
@@ -190,7 +195,7 @@ export function findOutsideHealerPaths(files: readonly string[], healerPaths: re
 
 type Mode = { kind: "snapshot" } | { kind: "fingerprint" } | { kind: "compare"; base: string };
 
-type Git = (args: readonly string[], index?: string) => string;
+export type Git = (args: readonly string[], index?: string) => string;
 
 function parseMode(args: readonly string[]): Mode {
   let base: string | undefined;
@@ -279,13 +284,53 @@ function switchedOff(git: Git): string[] {
   return [...filters, ...hooks];
 }
 
+/** True when `git --version` output names git 2.44 or newer, the first that honours `GIT_NO_LAZY_FETCH`. */
+export function honoursNoLazyFetch(versionOutput: string): boolean {
+  const match = GIT_VERSION.exec(versionOutput.trim());
+  if (match === null) {
+    return false;
+  }
+  const [major, minor] = [Number(match[1]), Number(match[2])];
+  return major > LAZY_FETCH_SINCE.major || (major === LAZY_FETCH_SINCE.major && minor >= LAZY_FETCH_SINCE.minor);
+}
+
+function installedGitVersion(): string {
+  try {
+    return execGit(["--version"]);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Refuses a partial clone (`extensions.partialClone` set, or any `remote.<name>.promisor`) when git is older than
+ * 2.44: such a git ignores `GIT_NO_LAZY_FETCH`, so a read could fetch a missing object from a promisor remote. An
+ * ordinary clone works with any git. `version` returns the `git --version` output; it is a parameter for the tests.
+ */
+export function refuseLazyFetchOnOldGit(git: Git, version: () => string = installedGitVersion): void {
+  let keys = "";
+  try {
+    keys = git(["config", "--name-only", "--get-regexp", PARTIAL_CLONE_KEYS]);
+  } catch (error) {
+    if (exitStatus(error) !== NO_MATCH_EXIT_CODE) {
+      throw new Error("expectation-guard: git config --get-regexp for the partial clone settings failed");
+    }
+  }
+  if (keys.trim() !== "" && !honoursNoLazyFetch(version())) {
+    throw new Error(
+      "expectation-guard: this repository is a partial clone and git is older than 2.44, which can fetch missing objects while the guard reads; update git to 2.44 or newer",
+    );
+  }
+}
+
 /**
  * Runs `work` with a git that reads the repository and runs no command the repository or the user configured, reads
  * no replace ref (`--no-replace-objects`) and fetches no missing object of a partial clone (`GIT_NO_LAZY_FETCH`): no
  * fsmonitor, hook scripts from an empty folder, every hook defined in the configuration (`hook.<name>.command`) and
  * the hook events the guard's own commands raise disabled, no global or system attributes file, and every filter
  * driver git knows switched off, so a planted `.git/config` or `.git/info/attributes` cannot run a command or rewrite
- * what is hashed. The temporary folder also holds the throw-away index and is removed afterwards.
+ * what is hashed. A partial clone on git older than 2.44, which ignores `GIT_NO_LAZY_FETCH`, is refused before any
+ * work (`refuseLazyFetchOnOldGit`). The temporary folder also holds the throw-away index and is removed afterwards.
  */
 function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
   const scratch = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
@@ -301,7 +346,9 @@ function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
       `core.attributesFile=${join(scratch, "none")}`,
     ];
     const off = switchedOff((args, index) => execGit([...safety, ...args], index));
-    return work((args, index) => execGit([...safety, ...off, ...args], index), scratch);
+    const git: Git = (args, index) => execGit([...safety, ...off, ...args], index);
+    refuseLazyFetchOnOldGit(git);
+    return work(git, scratch);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
@@ -437,9 +484,16 @@ function canonical(path: string): string {
   }
 }
 
-function isUnder(path: string, directory: string): boolean {
-  const inside = relative(directory.toLowerCase(), path.toLowerCase());
-  return inside === "" || !(inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside));
+/**
+ * True when `path` is `directory` or lies inside it. Letter case is ignored only where the file system usually ignores
+ * it (Windows and macOS); elsewhere the paths are compared exactly. The path rules are the platform's own (`win32` or
+ * `posix`). `platform` is a parameter for the tests.
+ */
+export function isUnder(path: string, directory: string, platform: NodeJS.Platform = process.platform): boolean {
+  const paths = platform === "win32" ? win32 : posix;
+  const fold = CASE_INSENSITIVE_PLATFORMS.has(platform) ? (text: string) => text.toLowerCase() : (text: string) => text;
+  const inside = paths.relative(fold(directory), fold(path));
+  return inside === "" || !(inside === ".." || inside.startsWith(`..${paths.sep}`) || paths.isAbsolute(inside));
 }
 
 function exitStatus(error: unknown): unknown {
@@ -452,13 +506,15 @@ function originFolder(top: string, origin: string): string {
 
 /**
  * The files every `include.path` and `includeIf.<condition>.path` names, resolved the way git does: relative to the
- * folder of the configuration file that holds it, `~/` from the home folder. A target is listed whether or not it
- * exists or holds anything, since the healer could create or fill it.
+ * folder of the configuration file that holds it, `~/` from the home folder. A value git would expand some other way
+ * (`~user/…`, any other `~…`, `%(prefix)…`) is not emulated: it refuses the heal. A target is listed whether or not it
+ * exists or holds anything, since the healer could create or fill it. Git runs in `top` (`-C`), so a relative origin
+ * it prints is relative to `top` wherever the guard itself was started.
  */
 function includeTargets(git: Git, top: string): string[] {
   let listing = "";
   try {
-    listing = git(["config", "--show-origin", "-z", "--get-regexp", INCLUDE_PATH_KEYS]);
+    listing = git(["-C", top, "config", "--show-origin", "-z", "--get-regexp", INCLUDE_PATH_KEYS]);
   } catch (error) {
     if (exitStatus(error) !== NO_MATCH_EXIT_CODE) {
       throw new Error("expectation-guard: git config --get-regexp for the include paths failed");
@@ -473,6 +529,9 @@ function includeTargets(git: Git, top: string): string[] {
       continue;
     }
     const value = entry.slice(newline + 1);
+    if (UNEXPANDED_PREFIXES.some((prefix) => prefix.test(value))) {
+      throw new Error(`expectation-guard: cannot resolve include path ${value}; healing refused`);
+    }
     const home = process.env["HOME"] ?? homedir();
     targets.push(
       HOME_PREFIX.test(value) ? join(home, value.slice(2)) : resolve(originFolder(top, fields[index] ?? ""), value),
@@ -484,7 +543,8 @@ function includeTargets(git: Git, top: string): string[] {
 /**
  * Returns the configuration files git reads (`git config --list --show-origin`, includes followed) and the targets of
  * every include path (`includeTargets`) that lie under one of the healer paths of the facts file in the working tree,
- * compared by real path and without regard to case. The healer may write there, so such a file could change the
+ * compared by real path (`isUnder`). Git runs in `top` (`-C`), so the relative origins it prints resolve against `top`
+ * even when the guard runs from a subfolder. The healer may write there, so such a file could change the
  * configuration without changing the fingerprint.
  */
 function configFilesUnderHealerPaths(git: Git, top: string): string[] {
@@ -496,7 +556,7 @@ function configFilesUnderHealerPaths(git: Git, top: string): string[] {
   }
   let listing: string;
   try {
-    listing = git(["config", "--list", "--show-origin", "--name-only", "-z"]);
+    listing = git(["-C", top, "config", "--list", "--show-origin", "--name-only", "-z"]);
   } catch {
     throw new Error("expectation-guard: git config --list --show-origin failed");
   }

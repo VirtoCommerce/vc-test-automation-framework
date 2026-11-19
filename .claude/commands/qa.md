@@ -73,8 +73,9 @@ The hand-off paths (`<contract-name>`, the run record, the verdict) and the stab
 
 Before the first expert dispatch of a run, move an earlier run's verdict out of the way, so it cannot steer this run:
 `mv -f .qa/judge/<contract-name>/judge-expert.json .qa/judge/<contract-name>/judge-expert.previous.json` when the
-first file exists. Dispatch `qa-automation-expert` with the contract path only. It leaves its run record under
-`.qa/runs/<contract-name>/`: `report.<project>.json` and `list.<project>.json` for each project, named with the
+first file exists. Run `node .claude/checks/contract.mts check --approved <contract path>`; when it does not print
+`ok`, the contract is not approved: stop. Dispatch `qa-automation-expert` with the contract path only. It leaves
+its run record under `.qa/runs/<contract-name>/`: `report.<project>.json` and `list.<project>.json` for each project, named with the
 project even when there is one. When it stops with an amendment request, show it to the person; after the
 amendment's `Approved:` line is written (by the person, or by you quoting them as in Approval), run the contract
 check again and dispatch the expert again with the same path

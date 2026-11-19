@@ -755,7 +755,8 @@ characterization test. An `observed` oracle holds the value the explorer recorde
 not an explorer report or does not exist, and one whose report has no line `- <case id>: <value> (` under
 `## Observed values`. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
 `node .claude/checks/contract.mts check <file>` fails otherwise. The approved base contract records its approval in one
-such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`: only the person writes it, or
+such line under `## Approval`, and `contract.mts check --approved <file>`, which `/qa`, `/qa-implement` and the
+expert run before implementing, fails without it. Either line may end `(relayed: "<the person's words>")`: only the person writes it, or
 the session they answered, quoting their reply word for word; no agent writes it.
 
 **Git-ignore the working folders in a client repository.** Add `.qa/contracts/`, `.qa/runs/`, `.qa/reports/`,

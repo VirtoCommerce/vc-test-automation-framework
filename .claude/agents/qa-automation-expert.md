@@ -17,7 +17,7 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
    evidence are the only extra input: fix those, nothing else. Otherwise ignore that file, an earlier run's.
 1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/checks/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
-2. Run `node .claude/checks/contract.mts check <path>`. When it does not print `ok`, stop and report its lines; do not repair
+2. Run `node .claude/checks/contract.mts check --approved <path>`. When it does not print `ok`, stop and report its lines; do not repair
    the contract yourself.
 3. Read the whole contract. Read the repository's `CLAUDE.md` and README for its style and layout, and neighbouring
    specs for the shape to copy.
@@ -106,7 +106,4 @@ and failed counts per project; amendments awaiting approval; findings. End with
   `unit`. A spec for the `isolated` project runs only with `RUN_DESTRUCTIVE_TESTS=true`.
 - `roleFor.admin` is `store administrator`: its case writes `roles["store administrator"]`.
 - New dataset records need `npm run seed` and a reindex before the specs that read them can pass.
-- Layout: specs in `tests/restapi/`, `tests/graphql/`, `tests/e2e/`, `tests/isolated/`, clients in `api/rest/clients/`, `.graphql` documents in
-  `api/graphql/operations/`, page objects in `pages/`, builders in `dataset/builders/`, `arrange` methods in
-  `dataset/arrange/`, known defects in `known-issues.json`. Style: no code comments, `function` declarations, say
-  "frontend", not "storefront" (`CLAUDE.md` "Code style").
+- Layout and style: `CLAUDE.md` "Layers" and "Code style"; known defects in `known-issues.json`.

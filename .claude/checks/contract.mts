@@ -5,6 +5,7 @@ import { readProjectFacts } from "./project-facts.mts";
 import { CREDENTIAL_SHAPE } from "./readonly-shell.mts";
 
 const CLI_FILE_NAME = "contract.mts";
+const APPROVED_FLAG = "--approved";
 const SOURCE_KINDS = ["ticket", "doc", "area", "gap"] as const;
 const ORACLE_SOURCES = ["ticket", "doc", "schema", "observed"] as const;
 const REQUIRED_SECTIONS = [
@@ -309,12 +310,14 @@ function checkAmendments(heading: string, lines: string[]): string[] {
  * @param readReport returns the text of a report an `observed:` oracle names, or `undefined` when it does not exist;
  *   when given, the report must hold the oracle's value for the case. The CLI reads from disk; omitted, only the shape
  *   is checked.
+ * @param requireApproval when true, the contract must also carry its `## Approval` line (`check --approved`).
  * @returns one line per problem, empty when the contract is valid.
  */
 export function checkContract(
   markdown: string,
   roles?: string[],
   readReport?: (path: string) => string | undefined,
+  requireApproval = false,
 ): string[] {
   const parsed = parseSections(markdown);
   const sections = new Map<string, string[]>();
@@ -350,6 +353,8 @@ export function checkContract(
   const approval = sections.get(APPROVAL_SECTION);
   if (approval !== undefined) {
     problems.push(...checkApproval(approval));
+  } else if (requireApproval) {
+    problems.push(problem(`## ${APPROVAL_SECTION} is missing: a person has not approved this contract`));
   }
   for (const { heading, lines } of parsed) {
     if (AMENDMENTS_HEADING.test(heading)) {
@@ -369,10 +374,12 @@ function readReportFile(path: string): string | undefined {
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
-    const [command, file] = process.argv.slice(2);
-    if (command !== "check" || file === undefined) {
+    const [command, ...rest] = process.argv.slice(2);
+    const requireApproval = rest[0] === APPROVED_FLAG;
+    const [file, extra] = requireApproval ? rest.slice(1) : rest;
+    if (command !== "check" || file === undefined || extra !== undefined) {
       throw new Error(
-        "contract: usage is node .claude/checks/contract.mts check <file>, run from the repository root (report paths resolve from it)",
+        `contract: usage is node .claude/checks/contract.mts check [${APPROVED_FLAG}] <file>, run from the repository root (report paths resolve from it)`,
       );
     }
     let text: string;
@@ -381,7 +388,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     } catch {
       throw new Error(`contract: ${file} cannot be read`);
     }
-    const problems = checkContract(text, Object.keys(readProjectFacts().roles), readReportFile);
+    const problems = checkContract(text, Object.keys(readProjectFacts().roles), readReportFile, requireApproval);
     if (problems.length > 0) {
       process.stderr.write(`${problems.join("\n")}\n`);
       process.exitCode = 1;

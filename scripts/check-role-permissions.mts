@@ -3,23 +3,27 @@ import { dirname, join, resolve } from "node:path";
 
 /**
  * Derives each role's permissions from the seed and compares them with `rolePermissions` in `.qa/project.json`, which
- * is copied by hand. For every key of `roles`, the account's permissions are those of:
- * - the user's global roles (`roles` in `dataset/data/users/`);
- * - the organization the account signs in to, which is its default organization (`defaultOrganizationId` of the
- *   user's contact in `dataset/data/contacts/`): the roles of its membership there (`roles` in
- *   `dataset/data/organization-memberships/`) and that organization's own roles (`roles` in
- *   `dataset/data/organizations/`, the field the seeder sends to `/api/members`, typed `OrganizationRole[]` in
- *   `api/rest/generated/rest-api.ts`). None of them is added when the contact does not belong to that organization (no
- *   membership record for it and not in the contact's `organizations`), when the contact's own `status` is blocked,
- *   or when that membership is locked (`isLocked`, a `lockoutEnd` still ahead) or its `status` is blocked. A blocked
- *   status is a whole value, in any letter case, of `Blocked`, `Locked` or `Deleted`: `Locked` is the value this
- *   repository's seed uses for a locked contact (`dataset/data/contacts/acme-store-employee-9.json`, and the
- *   `STATUSES` of `tests/graphql/customer/contact-search.spec.ts`); `Blocked` and `Deleted` are the values the review
- *   names for the platform and are not in this repository; the generated REST types type `status` as a plain string.
- *   `Unlocked`, `Approved`, `Invited` and `New` are not blocked. This follows the Customer module's
- *   `OrganizationIdClaimProvider.AddOrgScopedPermissionsAsync` as the review describes it (the requested organization,
- *   otherwise the default one); its source is not in this repository. Roles of the account's other organizations are
- *   never added.
+ * is copied by hand. For every key of `roles`, the account's permissions are those of the user's global roles (`roles`
+ * in `dataset/data/users/`) plus the organization-scoped roles the Customer module (vc-module-customer) adds to the
+ * token, mirrored from its source:
+ * - the organization: `OrganizationIdClaimProvider.GetMemberOrganizationId` ->
+ *   `OrganizationAccessResolver.ResolveOrganizationIdAsync`: the contact's `currentOrganizationId` if accessible, else
+ *   its `defaultOrganizationId` if accessible, else the first accessible one (the seed sets no current organization).
+ *   Accessible (`GetAccessibleOrganizationIdsAsync`) is one of the contact's `organizations` whose membership is not
+ *   `IsCurrentlyLocked` and whose effective status is not `IsBlocking`. No accessible organization: no such roles.
+ * - the roles: `OrganizationIdClaimProvider.GetOrgScopedRoleIdsAsync`: none when the membership there
+ *   `IsCurrentlyLocked`, none when `ModuleConstants.MembershipStatuses.IsBlocking(effectiveStatus)`, none when there is
+ *   no membership record and the contact's `organizations` lacks the organization; otherwise
+ *   `OrganizationMembershipSearchService.GetRolesByUserAndOrgAsync`, the organization's own `roles` (in
+ *   `dataset/data/organizations/`, typed `OrganizationRole[]` in `api/rest/generated/rest-api.ts`) merged with the
+ *   membership's `roles` (`dataset/data/organization-memberships/`).
+ * - `OrganizationMembership.IsCurrentlyLocked` is `IsLocked && (no LockoutEnd || LockoutEnd > now)`; neither field
+ *   alone locks. `OrganizationMembership.ResolveEffectiveStatus(membershipStatus, memberStatus)` is the membership's
+ *   `status` when not empty, else the contact's, else `Approved`. `IsBlocking` covers exactly `BlockingStatuses` =
+ *   `Invited`, `Rejected`, `Deleted`, compared exactly. "Locked" is not a lifecycle status: it is a contact-list filter
+ *   derived from `IsCurrentlyLocked` (xAPI `ResolveOrganizationStatusFilterQueryHandler`), so a contact whose `status`
+ *   is "Locked" (the seed's `acme-store-employee-9`) is not blocked by it. These names and values were read in the
+ *   module source through VirtoOZ (PlatformBackendSourceCode); nothing in this repository confirms them.
  * Every role is mapped through `dataset/data/roles/`. Not derived: permissions a sales representative gets for the
  * organizations assigned to them. An account that is a platform administrator (`isAdministrator`) holds every
  * permission and must be absent from `rolePermissions`. Every other role of `roles` must have an entry: an absent entry
@@ -33,7 +37,8 @@ type Json = Record<string, unknown>;
 const ROOT = resolve(dirname(resolve(process.argv[1] ?? "")), "..");
 const FACTS_PATH = join(ROOT, ".qa/project.json");
 const DATA_DIR = join(ROOT, "dataset/data");
-const BLOCKED_STATUSES: ReadonlySet<string> = new Set(["blocked", "locked", "deleted"]);
+const APPROVED = "Approved";
+const BLOCKING_STATUSES: readonly string[] = ["Invited", "Rejected", "Deleted"];
 const OK = "facts:check: rolePermissions matches the seed";
 
 function isRecord(value: unknown): value is Json {
@@ -148,27 +153,28 @@ function effectivePermissions(account: string, seed: Seed): string[] | undefined
   const roleIds = list(user["roles"]).map((entry) => roleIdOf(entry, seed.roles, `user ${account}`));
   const memberships = seed.memberships.filter((item) => userId !== undefined && item["userId"] === userId);
   const contact = seed.contacts.find((item) => text(item["id"]) === text(user["memberId"]));
-  const signedInTo = text(contact?.["defaultOrganizationId"]);
+  const membershipIn = (organizationId: string): Json | undefined =>
+    memberships.find((item) => item["organizationId"] === organizationId);
+  const signedInTo = resolveOrganizationId(contact, userId, membershipIn);
   if (signedInTo === undefined) {
-    if (memberships.some((membership) => list(membership["roles"]).length > 0)) {
-      throw new Error(`${account} has membership roles but its contact names no defaultOrganizationId`);
-    }
     return permissionsOf(roleIds, seed.roles);
   }
-  const membership = memberships.find((item) => item["organizationId"] === signedInTo);
-  const belongs = membership !== undefined || list(contact?.["organizations"]).includes(signedInTo);
-  if (
-    !belongs ||
-    (contact !== undefined && hasBlockedStatus(contact)) ||
-    (membership !== undefined && isBlocked(membership))
-  ) {
+  const membership = membershipIn(signedInTo);
+  if (membership !== undefined && isCurrentlyLocked(membership)) {
     return permissionsOf(roleIds, seed.roles);
   }
-  const where = `membership of ${account} in ${signedInTo}`;
-  roleIds.push(...list(membership?.["roles"]).map((entry) => roleIdOf(entry, seed.roles, where)));
+  if (isBlocking(resolveEffectiveStatus(text(membership?.["status"]), text(contact?.["status"])))) {
+    return permissionsOf(roleIds, seed.roles);
+  }
+  if (membership === undefined && !containsIgnoreCase(list(contact?.["organizations"]), signedInTo)) {
+    return permissionsOf(roleIds, seed.roles);
+  }
   const organization = seed.organizations.find((item) => text(item["id"]) === signedInTo);
   roleIds.push(
     ...list(organization?.["roles"]).map((entry) => roleIdOf(entry, seed.roles, `organization ${signedInTo}`)),
+    ...list(membership?.["roles"]).map((entry) =>
+      roleIdOf(entry, seed.roles, `membership of ${account} in ${signedInTo}`),
+    ),
   );
   return permissionsOf(roleIds, seed.roles);
 }
@@ -177,19 +183,57 @@ function permissionsOf(roleIds: readonly string[], roles: RoleIndex): string[] {
   return [...new Set(roleIds.flatMap((id) => roles.byId.get(id) ?? []))].sort();
 }
 
-/** A `status` that is, as a whole value and in any letter case, one of {@link BLOCKED_STATUSES}. */
-function hasBlockedStatus(record: Json): boolean {
-  return BLOCKED_STATUSES.has((text(record["status"]) ?? "").trim().toLowerCase());
+function containsIgnoreCase(values: readonly unknown[], wanted: string): boolean {
+  return values.some((value) => text(value)?.toLowerCase() === wanted.toLowerCase());
 }
 
-/** A membership the platform takes no roles from: `isLocked`, a `lockoutEnd` still ahead, or a blocked status. */
-function isBlocked(membership: Json): boolean {
+/** `OrganizationMembership.ResolveEffectiveStatus`: the membership's status, else the member's, else `Approved`. */
+function resolveEffectiveStatus(membershipStatus: string | undefined, memberStatus: string | undefined): string {
+  return membershipStatus ?? memberStatus ?? APPROVED;
+}
+
+/** `ModuleConstants.MembershipStatuses.IsBlocking`: one of `BlockingStatuses`, compared exactly. */
+function isBlocking(effectiveStatus: string): boolean {
+  return BLOCKING_STATUSES.includes(effectiveStatus);
+}
+
+/** `OrganizationMembership.IsCurrentlyLocked`: `IsLocked && (no LockoutEnd || LockoutEnd > now)`. */
+function isCurrentlyLocked(membership: Json): boolean {
   const lockoutEnd = text(membership["lockoutEnd"]);
-  return (
-    membership["isLocked"] === true ||
-    (lockoutEnd !== undefined && Date.parse(lockoutEnd) > Date.now()) ||
-    hasBlockedStatus(membership)
-  );
+  return membership["isLocked"] === true && (lockoutEnd === undefined || Date.parse(lockoutEnd) > Date.now());
+}
+
+/**
+ * `OrganizationAccessResolver.ResolveOrganizationIdAsync`: the contact's `currentOrganizationId` when accessible, else
+ * its `defaultOrganizationId` when accessible, else the first accessible organization. Accessible
+ * (`GetAccessibleOrganizationIdsAsync`) means one of the contact's `organizations` whose membership is not currently
+ * locked and whose effective status is not blocking; with no user id, every one of them.
+ */
+function resolveOrganizationId(
+  contact: Json | undefined,
+  userId: string | undefined,
+  membershipIn: (organizationId: string) => Json | undefined,
+): string | undefined {
+  if (contact === undefined) {
+    return undefined;
+  }
+  const organizations = list(contact["organizations"]).flatMap((id) => text(id) ?? []);
+  const accessible =
+    userId === undefined
+      ? organizations
+      : organizations.filter((organizationId) => {
+          const membership = membershipIn(organizationId);
+          if (membership !== undefined && isCurrentlyLocked(membership)) {
+            return false;
+          }
+          return !isBlocking(resolveEffectiveStatus(text(membership?.["status"]), text(contact["status"])));
+        });
+  for (const preferred of [text(contact["currentOrganizationId"]), text(contact["defaultOrganizationId"])]) {
+    if (preferred !== undefined && containsIgnoreCase(accessible, preferred)) {
+      return preferred;
+    }
+  }
+  return accessible[0];
 }
 
 function differences(): string[] {

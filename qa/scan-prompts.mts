@@ -7,35 +7,74 @@ import { readProjectFacts } from "./project-facts.mts";
 
 export type PromptFinding = { file: string; line: number; finding: string };
 
-export const PROMPT_DIRS = [".claude/agents", ".claude/skills", ".claude/commands"] as const;
+export const PROMPT_DIRS = [".claude/agents", ".claude/skills", ".claude/commands", ".claude/hooks"] as const;
+export const SETTINGS_PATH = ".claude/settings.json";
+export const MODULES_DIR = "qa";
 export const OURS_ONLY_PATH = "qa/ours-only.json";
 export const CLIENT_TERMS_PATH = "qa/client-terms.local.txt";
 export const MAX_AGENT_CHARS = 8000;
 export const EXAMPLE_HEADING = "Example from this repository";
-export const ALLOWED_HOSTS = ["localhost", "127.0.0.1", "example.com", "api.github.com"] as const;
+export const HIDES_FILE = "example section hides the file";
+export const ALLOWED_HOSTS = ["localhost", "127.0.0.1", "::1", "example.com", "api.github.com"] as const;
 
 const CLI_FILE_NAME = "scan-prompts.mts";
+const SKILLS_DIR = ".claude/skills";
+const AGENTS_DIR = ".claude/agents/";
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const FENCE = /^\s*(```|~~~)/;
-const HOST = /https?:\/\/([^\s/:?#)"'`>\]<]+)/gi;
-const MARKDOWN_EXTENSION = /\.md$/;
-const AGENTS_DIR = ".claude/agents/";
+const URL_HOST = /\b[a-z][a-z0-9+.-]*:\/\/(?:[^/@\s]*@)?(\[[0-9a-f:.]+\]|[^\s/:?#)"'`>\]<\\]+)/gi;
+const BARE_HOST =
+  /\b[a-z0-9-]+(?:\.[a-z0-9-]+)+\.(?:com|net|org|io|dev|app|cloud|biz|info|co|us|eu|br|pl|nl|de|uk)\b/gi;
+const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
+const MARKDOWN_EXTENSION = /\.md$/i;
+const EXTENSION = /\.[^./]+$/;
+const TRAILING_PUNCTUATION = /[.,;:)]+$/;
+const BRACKETS = /^\[|\]$/g;
+const MIN_EXAMPLE_LEVEL = 2;
+const MAX_EXAMPLE_LEVEL = 3;
+const MAX_EXAMPLE_SHARE = 0.5;
+const NUL = "\0";
+
+type Rules = { accounts: string[]; domains: string[]; terms: string[] };
+type Heading = { index: number; level: number; text: string };
+type ExampleSection = { start: number; end: number; level: number };
 
 function isAllowedHost(host: string): boolean {
-  const name = host.toLowerCase();
+  const name = host.toLowerCase().replace(BRACKETS, "");
   return ALLOWED_HOSTS.some((allowed) => name === allowed) || name.endsWith(".example.com");
 }
 
-function listMarkdown(directory: string): string[] {
+function isPlaceholder(host: string): boolean {
+  return host.startsWith("$") || host.includes("{");
+}
+
+function hostFindings(text: string): string[] {
+  const found: string[] = [];
+  const consider = (raw: string): void => {
+    const host = raw.replace(TRAILING_PUNCTUATION, "");
+    if (host !== "" && !isPlaceholder(host) && !isAllowedHost(host)) {
+      found.push(`host "${host.toLowerCase()}"`);
+    }
+  };
+  for (const match of text.matchAll(URL_HOST)) {
+    consider(match[1] ?? "");
+  }
+  for (const match of text.matchAll(BARE_HOST)) {
+    consider(match[0]);
+  }
+  for (const match of text.matchAll(IPV4)) {
+    consider(match[0]);
+  }
+  return found;
+}
+
+function listFiles(directory: string): string[] {
   if (!existsSync(directory)) {
     return [];
   }
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      return listMarkdown(path);
-    }
-    return MARKDOWN_EXTENSION.test(entry.name) ? [path] : [];
+    return entry.isDirectory() ? listFiles(path) : [path];
   });
 }
 
@@ -51,94 +90,146 @@ function readOursOnly(root: string): string[] {
   return parsed.filter((item): item is string => typeof item === "string");
 }
 
+function normaliseTerms(terms: string[]): string[] {
+  return terms.map((term) => term.trim().toLowerCase()).filter((term) => term !== "" && !term.startsWith("#"));
+}
+
 function readClientTerms(root: string): string[] {
   const path = join(root, CLIENT_TERMS_PATH);
-  if (!existsSync(path)) {
-    return [];
-  }
-  return readFileSync(path, "utf8")
-    .split(/\r?\n/)
-    .map((term) => term.trim().toLowerCase())
-    .filter((term) => term !== "");
+  return existsSync(path) ? normaliseTerms(readFileSync(path, "utf8").split(/\r?\n/)) : [];
 }
 
-function isOursOnly(relativePath: string, oursOnly: string[]): boolean {
-  return relativePath.split("/").some((segment) => oursOnly.includes(segment.replace(MARKDOWN_EXTENSION, "")));
+function isOursOnly(path: string, oursOnly: string[]): boolean {
+  return oursOnly.some((name) => {
+    if (path.startsWith(`${SKILLS_DIR}/${name}/`)) {
+      return true;
+    }
+    return PROMPT_DIRS.filter((dir) => dir !== SKILLS_DIR).some(
+      (dir) => path.startsWith(`${dir}/`) && path.slice(dir.length + 1).replace(EXTENSION, "") === name,
+    );
+  });
 }
 
-function scanLine(text: string, accounts: string[], terms: string[]): string[] {
+function domainsOf(accounts: string[]): string[] {
+  return accounts.flatMap((account) => {
+    const at = account.lastIndexOf("@");
+    return at < 0 ? [] : [account.slice(at + 1)];
+  });
+}
+
+function scanLine(text: string, rules: Rules): string[] {
   const lower = text.toLowerCase();
-  const findings: string[] = [];
-  for (const account of accounts) {
-    if (lower.includes(account)) {
-      findings.push(`role account "${account}"`);
-    }
-  }
-  for (const term of terms) {
-    if (lower.includes(term)) {
-      findings.push(`client term "${term}"`);
-    }
-  }
-  for (const match of text.matchAll(HOST)) {
-    const host = match[1] ?? "";
-    if (!isAllowedHost(host)) {
-      findings.push(`host "${host}"`);
-    }
-  }
-  return findings;
+  const found = [
+    ...rules.accounts.filter((account) => lower.includes(account)).map((account) => `role account "${account}"`),
+    ...rules.domains.filter((domain) => lower.includes(domain)).map((domain) => `role domain "${domain}"`),
+    ...rules.terms.filter((term) => lower.includes(term)).map((term) => `client term "${term}"`),
+    ...hostFindings(text),
+  ];
+  return [...new Set(found)];
 }
 
-function scanFile(file: string, content: string, accounts: string[], terms: string[]): PromptFinding[] {
-  const findings: PromptFinding[] = [];
+function headingsOf(lines: string[]): Heading[] {
+  const headings: Heading[] = [];
   let inFence = false;
-  let exampleLevel = 0;
-  content.split(/\r?\n/).forEach((text, index) => {
+  lines.forEach((text, index) => {
     if (FENCE.test(text)) {
       inFence = !inFence;
+      return;
     }
     const heading = inFence ? null : HEADING.exec(text);
     if (heading !== null) {
-      const level = (heading[1] ?? "").length;
-      if (exampleLevel > 0 && level <= exampleLevel) {
-        exampleLevel = 0;
-      }
-      if (exampleLevel === 0 && heading[2] === EXAMPLE_HEADING) {
-        exampleLevel = level;
-        return;
-      }
-    }
-    if (exampleLevel > 0) {
-      return;
-    }
-    for (const finding of scanLine(text, accounts, terms)) {
-      findings.push({ file, line: index + 1, finding });
+      headings.push({ index, level: (heading[1] ?? "").length, text: heading[2] ?? "" });
     }
   });
-  if (file.startsWith(AGENTS_DIR) && content.length > MAX_AGENT_CHARS) {
-    findings.push({
-      file,
-      line: 1,
-      finding: `agent file has ${content.length} characters, at most ${MAX_AGENT_CHARS}`,
-    });
+  return headings;
+}
+
+function exampleSections(lines: string[], headings: Heading[]): ExampleSection[] {
+  const sections: ExampleSection[] = [];
+  let coveredUntil = -1;
+  headings.forEach((heading, position) => {
+    if (heading.text !== EXAMPLE_HEADING || heading.index <= coveredUntil) {
+      return;
+    }
+    const next = headings.slice(position + 1).find((other) => other.level <= heading.level);
+    const end = next === undefined ? lines.length : next.index;
+    coveredUntil = end - 1;
+    sections.push({ start: heading.index, end, level: heading.level });
+  });
+  return sections;
+}
+
+function hidesFile(section: ExampleSection, lines: string[], firstHeadingIndex: number): boolean {
+  if (section.level < MIN_EXAMPLE_LEVEL || section.level > MAX_EXAMPLE_LEVEL || section.start === firstHeadingIndex) {
+    return true;
+  }
+  const nonEmpty = (from: number, to: number): number =>
+    lines.slice(from, to).filter((line) => line.trim() !== "").length;
+  return nonEmpty(section.start, section.end) > nonEmpty(0, lines.length) * MAX_EXAMPLE_SHARE;
+}
+
+function scanFile(file: string, content: string, rules: Rules): PromptFinding[] {
+  const findings: PromptFinding[] = [];
+  const lines = content.replaceAll("\r\n", "\n").split("\n");
+  const headings = headingsOf(lines);
+  const firstHeading = headings[0]?.index ?? -1;
+  const ignored = new Set<number>();
+  for (const section of exampleSections(lines, headings)) {
+    if (hidesFile(section, lines, firstHeading)) {
+      findings.push({ file, line: section.start + 1, finding: HIDES_FILE });
+      continue;
+    }
+    for (let index = section.start; index < section.end; index += 1) {
+      ignored.add(index);
+    }
+  }
+  lines.forEach((text, index) => {
+    if (!ignored.has(index)) {
+      for (const finding of scanLine(text, rules)) {
+        findings.push({ file, line: index + 1, finding });
+      }
+    }
+  });
+  const length = lines.join("\n").length;
+  if (file.startsWith(AGENTS_DIR) && MARKDOWN_EXTENSION.test(file) && length > MAX_AGENT_CHARS) {
+    findings.push({ file, line: 1, finding: `agent file has ${length} characters, at most ${MAX_AGENT_CHARS}` });
   }
   return findings;
 }
 
+function shippedFiles(root: string): string[] {
+  const moduleDir = join(root, MODULES_DIR);
+  const modules = listFiles(moduleDir).filter(
+    (path) => relative(moduleDir, path).split(/[\\/]/).length === 1 && path.endsWith(".mts"),
+  );
+  const settings = existsSync(join(root, SETTINGS_PATH)) ? [join(root, SETTINGS_PATH)] : [];
+  return [...PROMPT_DIRS.flatMap((dir) => listFiles(join(root, dir))), ...settings, ...modules];
+}
+
 /**
- * Scans the shipped prompts (agents, skills, commands) for client facts: role accounts of the facts, any
- * `https?://` host outside the allowlist, terms from `qa/client-terms.local.txt` and `extraTerms`, and
- * agent files over {@link MAX_AGENT_CHARS} characters. Files named in `qa/ours-only.json` and sections under a
- * heading "Example from this repository" are skipped.
+ * Scans the shipped agents, skills, commands, hooks, settings and `qa/*.mts` modules for client facts: role
+ * accounts and their email domains, any host (URL with any scheme, bare hostname or IPv4 address) outside
+ * {@link ALLOWED_HOSTS}, terms from `qa/client-terms.local.txt` and `extraTerms`, and agent files over
+ * {@link MAX_AGENT_CHARS} characters. Names in `qa/ours-only.json` are skipped by exact path; a section under
+ * a level 2 or 3 heading "Example from this repository" is skipped unless it is the file's first heading or
+ * holds more than half of its non-empty lines, which is itself a finding.
  */
 export function scanPrompts(root: string, facts: ProjectFacts, extraTerms: string[] = []): PromptFinding[] {
   const oursOnly = readOursOnly(root);
   const accounts = Object.values(facts.roles).map((account) => account.toLowerCase());
-  const terms = [...readClientTerms(root), ...extraTerms.map((term) => term.toLowerCase())];
-  return PROMPT_DIRS.flatMap((dir) => listMarkdown(join(root, dir)))
+  const rules: Rules = {
+    accounts,
+    domains: domainsOf(accounts),
+    terms: [...readClientTerms(root), ...normaliseTerms(extraTerms)],
+  };
+  return shippedFiles(root)
     .map((path) => relative(root, path).replaceAll("\\", "/"))
     .filter((path) => !isOursOnly(path, oursOnly))
     .sort()
-    .flatMap((path) => scanFile(path, readFileSync(join(root, path), "utf8"), accounts, terms));
+    .flatMap((path) => {
+      const content = readFileSync(join(root, path), "utf8");
+      return content.includes(NUL) ? [] : scanFile(path, content, rules);
+    });
 }
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {

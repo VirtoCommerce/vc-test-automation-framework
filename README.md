@@ -791,8 +791,8 @@ the others on.
 
 ### Setting up in a repository
 
-1. Copy `.claude/` (the check scripts in `.claude/qa/` included) and `.qa/project.json`, then edit the last for the
-   repository. Keep the `.claude/qa/**` rule in `biome/layers.json`: `.claude/qa/` imports nothing outside `.claude/qa/`
+1. Copy the tracked files of `.claude/` (the check scripts in `.claude/qa/` included; never a git-ignored
+   `*.local.*` file) and `.qa/project.json`, then edit the last for the repository. Keep the `.claude/qa/**` rule in `biome/layers.json`: `.claude/qa/` imports nothing outside `.claude/qa/`
    and `core/`.
 2. Register the browser MCP server under the fixed name `playwright`. The explorer, healer and coverage agents name
    its tools (`mcp__playwright__browser_*`), so a server under another name leaves them without a browser.

@@ -424,7 +424,10 @@ function writeBlockReason(agent: string, toolInput: unknown, projectDir: string)
 }
 
 function cleanHealerSegments(segments: readonly string[] | undefined): readonly string[] | undefined {
-  const bad = segments?.some((name) => name.includes(":") || name.toLowerCase().startsWith(".git"));
+  const bad = segments?.some((name) => {
+    const lower = name.toLowerCase();
+    return name.includes(":") || lower.startsWith(".git") || lower.startsWith(".claude");
+  });
   return bad === false ? segments : undefined;
 }
 

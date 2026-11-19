@@ -768,7 +768,7 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 
 | Field | Meaning |
 |---|---|
-| `tracker.kind`, `tracker.keyPattern` | The tracker's name and the regular expression a ticket key must match. For `jira` and `azure-boards` the reader refuses a pattern that matches none of its sample keys of the kind's shape (`PROJ-123`, or the pattern's own project key with `-123`, for `jira`; `12345` for `azure-boards`), such as `^d+$` with its backslash lost |
+| `tracker.kind`, `tracker.keyPattern` | The tracker's name and the regular expression a ticket key must match. The reader refuses a `d`, `w` or `s` followed by `+`, `*` or `{` with no backslash before it (an escape lost in JSON, such as `^d+$`), and, for `jira` and `azure-boards`, a pattern that matches no sample key of the kind's shape: `<project>-<1 to 7 digits>` for `jira`, the project being `PROJ` or an upper-case word of the pattern; an id of 1 to 7 digits, bare or after `AB#` or `#`, for `azure-boards` |
 | `tracker.acceptanceCriteriaField` (optional) | Where the tracker keeps acceptance criteria, when not in the description |
 | `tracker.routes` (optional) | Allowed ways to read a ticket, in order. Absent means pasted text only |
 | `docSources` | List of `{ name, route, where }`: the documentation the planner may read, and how |

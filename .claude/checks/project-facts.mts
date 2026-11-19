@@ -43,9 +43,11 @@ const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
 const HEALER_PATH = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\/?$/;
 const FORBIDDEN_HEALER_SEGMENTS = ["qa", "node_modules", ".claude"];
-const PROJECT_KEY_WORD = /\b[A-Z][A-Z0-9_]+\b/g;
-const SAMPLE_NUMBER = "123";
-const SAMPLE_ID = "12345";
+const PROJECT_KEY_WORD = /(?<!\\)[A-Z][A-Z0-9_]+/g;
+const PROJECT_KEY_SUFFIXES = ["", "1", "12"];
+const SAMPLE_NUMBERS = ["1", "12", "123", "1234", "12345", "123456", "1234567"];
+const WORK_ITEM_PREFIXES = ["", "AB#", "#"];
+const LOST_ESCAPE = /(?<!\\)[dws][+*{]/;
 
 export const SHORT_NAME_SEGMENT = /~\d/;
 
@@ -117,18 +119,27 @@ function asWeight(value: unknown, path: string): number {
 }
 
 /**
- * Keys of the tracker kind's shape that a plausible `keyPattern` matches at least one of: `PROJ-123` for jira, with
- * `PROJ` also replaced by each upper-case word of the pattern (its project key), and `12345` for azure-boards. Empty
- * for any other kind, which is not checked.
+ * Keys of the tracker kind's shape, one of which a plausible `keyPattern` matches, and how to name them in a message.
+ * jira: `<project>-<number>`, the project `PROJ` or an upper-case word of the pattern (also with `1` or `12` after
+ * it), the number 1 to 7 digits. azure-boards: an id of 1 to 7 digits, bare or after `AB#` or `#`. Any other kind:
+ * `undefined`, not checked.
  */
-function sampleKeys(kind: string, keyPattern: string): string[] {
+function sampleKeys(kind: string, keyPattern: string): { keys: string[]; shown: string } | undefined {
   switch (kind) {
-    case "jira":
-      return ["PROJ", ...(keyPattern.match(PROJECT_KEY_WORD) ?? [])].map((project) => `${project}-${SAMPLE_NUMBER}`);
+    case "jira": {
+      const projects = [...new Set(["PROJ", ...(keyPattern.match(PROJECT_KEY_WORD) ?? [])])];
+      const keys = projects.flatMap((project) =>
+        PROJECT_KEY_SUFFIXES.flatMap((suffix) => SAMPLE_NUMBERS.map((number) => `${project}${suffix}-${number}`)),
+      );
+      return { keys, shown: `${projects.join(", ")}, then -1 to -1234567` };
+    }
     case "azure-boards":
-      return [SAMPLE_ID];
+      return {
+        keys: WORK_ITEM_PREFIXES.flatMap((prefix) => SAMPLE_NUMBERS.map((number) => `${prefix}${number}`)),
+        shown: "1 to 1234567, AB#12345, #12345",
+      };
     default:
-      return [];
+      return undefined;
   }
 }
 
@@ -142,9 +153,16 @@ function parseTracker(value: unknown): ProjectFacts["tracker"] {
     return fail("tracker.keyPattern", "is not a valid regular expression");
   }
   const kind = asString(present(tracker, "kind", "tracker.kind"), "tracker.kind");
+  const lostEscape = LOST_ESCAPE.exec(keyPattern)?.[0];
+  if (lostEscape !== undefined) {
+    fail(
+      "tracker.keyPattern",
+      `has "${lostEscape}" with no backslash before it: a lost escape, write "\\${lostEscape}"`,
+    );
+  }
   const samples = sampleKeys(kind, keyPattern);
-  if (samples.length > 0 && !samples.some((key) => pattern.test(key))) {
-    fail("tracker.keyPattern", `matches none of the sample ${kind} keys (${samples.join(", ")})`);
+  if (samples !== undefined && !samples.keys.some((key) => pattern.test(key))) {
+    fail("tracker.keyPattern", `matches no sample ${kind} key (${samples.shown})`);
   }
   const routes =
     tracker["routes"] === undefined

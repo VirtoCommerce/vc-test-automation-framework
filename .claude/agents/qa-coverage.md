@@ -44,7 +44,7 @@ where the repository does not list them: a sitemap, a navigation menu. Look with
 `browser_network_requests`; pass each tool only the arguments it needs, never `filename` or another path.
 
 Look anonymously first, then sign in once as `roleFor.customer` to see the pages behind sign-in: type its account
-from `roles` and, in the password field, the name `USERS_PASSWORD`, never a value (the browser types it). Press only
+from `roles` and, in the password field, the name `passwordFor` gives it, never a value (the browser types it). Press only
 the sign-in button, links, menus and tabs, never a control that changes data. A page neither look reaches is "not
 reached: needs <role>".
 

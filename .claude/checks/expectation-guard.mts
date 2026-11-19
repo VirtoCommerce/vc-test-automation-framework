@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, posix, relative, resolve, sep, win32 } from "node:path";
 
 import { PROJECT_FACTS_PATH, parseProjectFacts } from "./project-facts.mts";
 
@@ -42,6 +42,7 @@ const UNEXPANDED_PREFIXES = [/^~(?!\/)/, /^%\(prefix\)/];
 const PARTIAL_CLONE_KEYS = "^(extensions\\.partialclone|remote\\..*\\.promisor)$";
 const GIT_VERSION = /^git version (\d+)\.(\d+)/;
 const LAZY_FETCH_SINCE = { major: 2, minor: 44 };
+const CASE_INSENSITIVE_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(["win32", "darwin"]);
 const ADDED_PREFIX = "added ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
@@ -483,9 +484,16 @@ function canonical(path: string): string {
   }
 }
 
-function isUnder(path: string, directory: string): boolean {
-  const inside = relative(directory.toLowerCase(), path.toLowerCase());
-  return inside === "" || !(inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside));
+/**
+ * True when `path` is `directory` or lies inside it. Letter case is ignored only where the file system usually ignores
+ * it (Windows and macOS); elsewhere the paths are compared exactly. The path rules are the platform's own (`win32` or
+ * `posix`). `platform` is a parameter for the tests.
+ */
+export function isUnder(path: string, directory: string, platform: NodeJS.Platform = process.platform): boolean {
+  const paths = platform === "win32" ? win32 : posix;
+  const fold = CASE_INSENSITIVE_PLATFORMS.has(platform) ? (text: string) => text.toLowerCase() : (text: string) => text;
+  const inside = paths.relative(fold(directory), fold(path));
+  return inside === "" || !(inside === ".." || inside.startsWith(`..${paths.sep}`) || paths.isAbsolute(inside));
 }
 
 function exitStatus(error: unknown): unknown {

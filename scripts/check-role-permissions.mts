@@ -1,20 +1,32 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 /**
  * Derives each role's permissions from the seed and compares them with `rolePermissions` in `.qa/project.json`, which
- * is copied by hand. For every key of `roles`, the account's effective permissions are the permissions of every role
- * it holds: the user's own roles (`dataset/data/users/`), the roles of its organization memberships
- * (`dataset/data/organization-memberships/`) and the roles of its organizations (`dataset/data/organizations/`, through
- * the memberships and the user's contact), each mapped through `dataset/data/roles/`. An account that is a platform
- * administrator (`isAdministrator`) holds every permission and must be absent from `rolePermissions`. Prints each
- * difference and exits 1; exits 0 when the two agree. Repository-only: it knows this repository's seed layout.
+ * is copied by hand. For every key of `roles`, the account's permissions are those of:
+ * - the user's global roles (`roles` in `dataset/data/users/`);
+ * - the organization the account signs in to, which is its default organization (`defaultOrganizationId` of the
+ *   user's contact in `dataset/data/contacts/`): the roles of its membership there (`roles` in
+ *   `dataset/data/organization-memberships/`) and that organization's own roles (`roles` in
+ *   `dataset/data/organizations/`, the field the seeder sends to `/api/members`, typed `OrganizationRole[]` in
+ *   `api/rest/generated/rest-api.ts`), and none of them when that membership is locked or blocked. This follows the
+ *   Customer module's `OrganizationIdClaimProvider.AddOrgScopedPermissionsAsync` as the review describes it (the
+ *   requested organization, otherwise the default one); its source is not in this repository. Roles of the account's
+ *   other organizations are never added.
+ * Every role is mapped through `dataset/data/roles/`. Not derived: permissions a sales representative gets for the
+ * organizations assigned to them. An account that is a platform administrator (`isAdministrator`) holds every
+ * permission and must be absent from `rolePermissions`. Every other role of `roles` must have an entry: an absent entry
+ * is a failure here, though the facts reader allows one. Prints each difference and exits 1; exits 0 when the two
+ * agree. Paths resolve from the repository root (the folder above this script), not the current folder.
+ * Repository-only: it knows this repository's seed layout.
  */
 
 type Json = Record<string, unknown>;
 
-const FACTS_PATH = ".qa/project.json";
-const DATA_DIR = "dataset/data";
+const ROOT = resolve(dirname(resolve(process.argv[1] ?? "")), "..");
+const FACTS_PATH = join(ROOT, ".qa/project.json");
+const DATA_DIR = join(ROOT, "dataset/data");
+const BLOCKED_STATUS = /block|lock/i;
 const OK = "facts:check: rolePermissions matches the seed";
 
 function isRecord(value: unknown): value is Json {
@@ -83,7 +95,7 @@ function roleIndex(): RoleIndex {
   for (const role of readFolder("roles")) {
     const id = text(role["id"]);
     if (id === undefined) {
-      throw new Error(`a role in ${DATA_DIR}/roles has no id`);
+      throw new Error(`a role in dataset/data/roles has no id`);
     }
     const permissions = list(role["permissions"]).flatMap((permission) =>
       isRecord(permission) ? (text(permission["name"]) ?? []) : (text(permission) ?? []),
@@ -108,7 +120,7 @@ function roleIdOf(entry: unknown, roles: RoleIndex, where: string): string {
   if (byName !== undefined) {
     return byName;
   }
-  throw new Error(`${where} names a role that is not in ${DATA_DIR}/roles: ${JSON.stringify(entry)}`);
+  throw new Error(`${where} names a role that is not in dataset/data/roles: ${JSON.stringify(entry)}`);
 }
 
 type Seed = { users: Json[]; memberships: Json[]; organizations: Json[]; contacts: Json[]; roles: RoleIndex };
@@ -120,34 +132,47 @@ function effectivePermissions(account: string, seed: Seed): string[] | undefined
     [candidate["userName"], candidate["email"]].some((name) => text(name)?.toLowerCase() === lower),
   );
   if (user === undefined) {
-    throw new Error(`no user in ${DATA_DIR}/users signs in as ${account}`);
+    throw new Error(`no user in dataset/data/users signs in as ${account}`);
   }
   if (user["isAdministrator"] === true) {
     return undefined;
   }
   const userId = text(user["id"]);
-  const where = `user ${account}`;
-  const roleIds = list(user["roles"]).map((entry) => roleIdOf(entry, seed.roles, where));
-  const organizationIds = new Set<string>();
-  for (const membership of seed.memberships.filter((item) => userId !== undefined && item["userId"] === userId)) {
-    roleIds.push(...list(membership["roles"]).map((entry) => roleIdOf(entry, seed.roles, `membership of ${account}`)));
-    const organization = text(membership["organizationId"]);
-    if (organization !== undefined) {
-      organizationIds.add(organization);
-    }
-  }
+  const roleIds = list(user["roles"]).map((entry) => roleIdOf(entry, seed.roles, `user ${account}`));
+  const memberships = seed.memberships.filter((item) => userId !== undefined && item["userId"] === userId);
   const contact = seed.contacts.find((item) => text(item["id"]) === text(user["memberId"]));
-  for (const organization of [...list(contact?.["organizations"]), contact?.["defaultOrganizationId"]]) {
-    const id = text(organization);
-    if (id !== undefined) {
-      organizationIds.add(id);
+  const signedInTo = text(contact?.["defaultOrganizationId"]);
+  if (signedInTo === undefined) {
+    if (memberships.some((membership) => list(membership["roles"]).length > 0)) {
+      throw new Error(`${account} has membership roles but its contact names no defaultOrganizationId`);
     }
+    return permissionsOf(roleIds, seed.roles);
   }
-  for (const organization of seed.organizations.filter((item) => organizationIds.has(text(item["id"]) ?? ""))) {
-    const at = `organization ${text(organization["id"])}`;
-    roleIds.push(...list(organization["roles"]).map((entry) => roleIdOf(entry, seed.roles, at)));
+  const membership = memberships.find((item) => item["organizationId"] === signedInTo);
+  if (membership !== undefined && isBlocked(membership)) {
+    return permissionsOf(roleIds, seed.roles);
   }
-  return [...new Set(roleIds.flatMap((id) => seed.roles.byId.get(id) ?? []))].sort();
+  const where = `membership of ${account} in ${signedInTo}`;
+  roleIds.push(...list(membership?.["roles"]).map((entry) => roleIdOf(entry, seed.roles, where)));
+  const organization = seed.organizations.find((item) => text(item["id"]) === signedInTo);
+  roleIds.push(
+    ...list(organization?.["roles"]).map((entry) => roleIdOf(entry, seed.roles, `organization ${signedInTo}`)),
+  );
+  return permissionsOf(roleIds, seed.roles);
+}
+
+function permissionsOf(roleIds: readonly string[], roles: RoleIndex): string[] {
+  return [...new Set(roleIds.flatMap((id) => roles.byId.get(id) ?? []))].sort();
+}
+
+/** A membership the platform takes no roles from: `isLocked`, a `lockoutEnd` still ahead, or a blocked or locked status. */
+function isBlocked(membership: Json): boolean {
+  const lockoutEnd = text(membership["lockoutEnd"]);
+  return (
+    membership["isLocked"] === true ||
+    (lockoutEnd !== undefined && Date.parse(lockoutEnd) > Date.now()) ||
+    BLOCKED_STATUS.test(text(membership["status"]) ?? "")
+  );
 }
 
 function differences(): string[] {

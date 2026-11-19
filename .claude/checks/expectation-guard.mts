@@ -296,7 +296,7 @@ export function honoursNoLazyFetch(versionOutput: string): boolean {
 
 function installedGitVersion(): string {
   try {
-    return execFileSync("git", ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return execGit(["--version"]);
   } catch {
     return "";
   }

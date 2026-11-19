@@ -24,7 +24,8 @@ name, and answer no other.
 
 ## Step 3: Write the Verdict File
 
-Write `.qa/judge/<contract-or-slug>/judge-<role>.json`, nowhere else:
+Write `.qa/judge/<contract-name>/judge-<role>.json` (`<contract-name>`: `project-facts`, "Hand-off Paths"; in the
+evaluation suite, the folder the brief names), nowhere else:
 
 ```json
 {

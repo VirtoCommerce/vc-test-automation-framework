@@ -1,6 +1,6 @@
 ---
 name: project-facts
-description: "Read the facts of the repository the agents work in (tracker, doc sources, commands, roles, critical flows, weights, autonomy) from .qa/project.json through one command, and stop when it fails"
+description: "Read the facts of the repository the agents work in (tracker, doc sources, commands, roles, critical flows, weights, autonomy) from .qa/project.json through one command, and stop when it fails; the hand-off paths between roles (run record, judge verdict) and the stable-series commands"
 ---
 
 ## Project Facts
@@ -46,3 +46,31 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   specs included, is off limits to it. Each is a plain relative directory (`pages/`); the reader refuses the
   repository root, a leading `/` or `\`, a drive or UNC path, `..`, an 8.3 short name (`~1`) and any segment that
   starts with `.git` or `.qa` or is `qa`, `node_modules` or `.claude`.
+
+## Step 4: Hand-off Paths
+
+The roles and the commands hand work to each other through fixed paths. Use exactly these names.
+
+- `<contract-name>` is the contract's file name without `.md`: the `<ticket-key-or-slug>` of
+  `.qa/contracts/<ticket-key-or-slug>.md`.
+- The run record is `.qa/runs/<contract-name>/`, one pair of files per Playwright project, always named with the
+  project, even when the contract has one: `report.<project>.json` (the run) and `list.<project>.json` (what should
+  have run). The reviewer writes its own `review-list.<project>.json` there; the healer's runs go to
+  `.qa/runs/heal-<slug>/`.
+- The judge's verdict is `.qa/judge/<contract-name>/judge-expert.json`. Before the first expert dispatch of a run the
+  dispatcher renames an existing one to `judge-expert.previous.json`. The expert reads the verdict only when its
+  dispatch says `judge re-dispatch`; any other time it ignores the file.
+
+The stable series of the definition of done, for each project `<project>` the specs belong to, with `<specs>` the new
+and changed spec files and `<series>` the facts' `quality.stableSeries`:
+
+```shell
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/report.<project>.json <commands.test[project]> [--] <specs> --repeat-each=<series> --retries=0 --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> --repeat-each=<series> <specs>
+node qa/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+```
+
+Set the variable the way the shell does it. For an npm script pass the arguments after `--`; for a direct
+`playwright test` command append them without `--`, which would make Playwright read them as a file filter. Never
+hand-edit either JSON file. `reconcile-run` exits 1 when a test failed, was flaky, was skipped without a reason or is
+missing a repetition: the run is not done.

@@ -217,9 +217,9 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
  * paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and `prove-fails`.
  * `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a flag), so npm never
  * fetches a package. Only `qa-reviewer` may lead the listing with
- * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json`, `<name>` not starting with `heal-`, and
- * `qa-healer` only with `<name>` = `heal-<slug>`. No chaining, substitution, redirection, quoting, globbing or
- * variable expansion.
+ * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json`, `<contract-name>` not starting
+ * with `heal-`, and `qa-healer` only with the folder `heal-<slug>`. No chaining, substitution, redirection, quoting,
+ * globbing or variable expansion.
  */
 export function isReadOnlyCommand(command: string, agent?: string): boolean {
   const text = command.trim();
@@ -390,7 +390,11 @@ function writeRuleOf(
 ): { dir: string; allows: (segments: readonly string[]) => boolean; shown: string } | undefined {
   const bare = bareName(agent);
   if (bare === JUDGE_AGENT) {
-    return { dir: JUDGE_WRITE_DIR, allows: isJudgeFile, shown: `only .json files under ${JUDGE_WRITE_DIR}/<name>/` };
+    return {
+      dir: JUDGE_WRITE_DIR,
+      allows: isJudgeFile,
+      shown: `only .json files under ${JUDGE_WRITE_DIR}/<contract-name>/`,
+    };
   }
   if (bare === EXPLORER_AGENT) {
     return { dir: EXPLORER_WRITE_DIR, allows: isReportFile, shown: `only ${EXPLORER_WRITE_DIR}/explore-<slug>.md` };
@@ -553,7 +557,7 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown): st
  * Decides a PreToolUse hook call for the Bash, Write and Playwright browser tools: a one-line reason to block it, or
  * undefined to let it pass. Only the read-only agents are limited; the main session and every other agent pass
  * untouched. A read-only agent's Bash call must be on the allowlist. Its Write call is allowed for `qa-judge` only as a
- * `.json` file under `.qa/judge/<name>/` and for `qa-explorer` only as `.qa/reports/explore-<slug>.md` and `qa-coverage` only as
+ * `.json` file under `.qa/judge/<contract-name>/` and for `qa-explorer` only as `.qa/reports/explore-<slug>.md` and `qa-coverage` only as
  * `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the

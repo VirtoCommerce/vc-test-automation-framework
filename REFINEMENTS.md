@@ -86,6 +86,12 @@ line of its own; everything else (bounds, regular expressions, several assertion
 cheaper model for the judge is not measured yet, and a judge score that drops is only reported until its verdicts have
 been checked against people's on a few releases.
 
+**The slowdown half of the duration gate never fires.** `qa/test-duration.mts` compares a test with its previous
+recorded run only when it is given a previous report, but no command passes one, and the expert overwrites
+`.qa/runs/<contract-name>/report.<project>.json` on every run, so no earlier record survives. Only the budget half
+(`durationBudgetMs`) works today. What to change: design a stable location for the last accepted report (for example
+one the dispatcher keeps on an APPROVE) and pass it to the reviewer. Size: small, once the location is decided.
+
 **The evaluation suite has not run against real agents yet.** The first real run shows whether the headless
 permissions and allowed tools are enough for every role and whether a stand's `.env` reaches the agents. Known rough
 edges: `commands.lint` here is `biome check --write`, which the lint check has to undo; the case patches pin context

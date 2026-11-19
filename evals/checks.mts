@@ -3,7 +3,7 @@ import type { CodeCheck, EvalCase } from "./case.mts";
 
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { PROJECT_FACTS_PATH, readProjectFacts } from "../qa/project-facts.mts";
 
@@ -37,7 +37,9 @@ const QA_RUNS_DIR = ".qa/runs";
 const NOTE_LINES = 3;
 const VERDICT_WORD = /\b(?:APPROVE|REQUEST_CHANGES|NEEDS_DISCUSSION)\b/;
 const GAPS_SUFFIX = "-gaps.md";
-const RUN_LIST = /^list(\.[\w-]+)?\.json$/;
+const RUN_LIST = /^list\.([\w-]+)\.json$/;
+const UNNAMED_RUN_RECORD = /^(?:list|report)\.json$/;
+const CONTRACT_EXTENSION = ".md";
 const GUARD_TEMP_PREFIX = "eval-guard-";
 
 function tail(outcome: Outcome): string {
@@ -151,15 +153,28 @@ function filesUnder(directory: string): string[] {
 }
 
 function reconcileCheck(context: CheckContext): CheckOutcome {
-  const runs = join(context.worktree, QA_RUNS_DIR);
-  const lists = filesUnder(runs).filter((file) => RUN_LIST.test(file.split(/[\\/]/).pop() ?? ""));
+  const { contract } = context.evalCase;
+  const runs =
+    contract === undefined
+      ? join(context.worktree, QA_RUNS_DIR)
+      : join(context.worktree, QA_RUNS_DIR, basename(contract, CONTRACT_EXTENSION));
+  const files = filesUnder(runs);
+  const unnamed = files.filter((file) => UNNAMED_RUN_RECORD.test(basename(file)));
+  if (unnamed.length > 0) {
+    const names = unnamed.map((file) => file.slice(runs.length + 1)).join(", ");
+    return { pass: false, note: `reconcile: a run record without its project in the name: ${names}` };
+  }
+  const lists = files.filter((file) => RUN_LIST.test(basename(file)));
   if (lists.length === 0) {
-    return { pass: false, note: "reconcile: the run left no list of what should have run" };
+    return {
+      pass: false,
+      note: `reconcile: the run left no list.<project>.json under ${runs.slice(context.worktree.length + 1)}`,
+    };
   }
   const notes: string[] = [];
   let pass = true;
   for (const list of lists) {
-    const report = list.replace(/list(\.[\w-]+)?\.json$/, "report$1.json");
+    const report = join(dirname(list), basename(list).replace(RUN_LIST, "report.$1.json"));
     const outcome = context.spawn({
       file: "node",
       args: ["qa/reconcile-run.mts", list, report],

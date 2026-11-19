@@ -719,12 +719,15 @@ person. The other commands run one stage.
 | A failing or flaky test | healer, the expectation guard, then reviewer when code changed |
 | "Review this branch" | reviewer |
 | "What is not covered" | coverage |
-| "Do it end to end" | planner, approval, explorer if needed, expert, judge, healer if red, guard, reviewer |
+| "Do it end to end" | planner, approval, explorer if needed, expert, healer if red, guard, judge, reviewer |
 
 Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. A person approves
 the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
 sends the tests back to the expert once, and a second failure goes to a person. After the healer, a code check
-(`qa/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. The reviewer's shell
+(`qa/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
+expert run goes to the healer before the judge, and after a clean guard the command re-runs the stable series into
+the run record, so the reviewer reconciles the healed state. `/qa-implement` ends by naming
+`/qa-review <contract path>`, which passes the contract to the reviewer. The reviewer's shell
 cannot run typecheck or lint, so the command runs `commands.typecheck` and `commands.lint` itself, and the work is not
 done while either fails.
 
@@ -734,13 +737,15 @@ done while either fails.
 |---|---|---|
 | `.qa/project.json` | The facts of this repository (below) | Committed |
 | `.qa/contracts/<ticket-key-or-slug>.md` | The contract: source, scope, case matrix, stand needs, building blocks, known issues, verification. The only hand-off from planning to implementation | Ignored |
-| `.qa/runs/<contract-name>/` | The expert's Playwright JSON report and `--list` output per project; the healer's runs go to `.qa/runs/heal-<slug>/` | Ignored |
+| `.qa/runs/<contract-name>/` | The expert's Playwright JSON report and `--list` output, `report.<project>.json` and `list.<project>.json` for each project (named with the project even when there is one), and the reviewer's `review-list.<project>.json`; the healer's runs go to `.qa/runs/heal-<slug>/` | Ignored |
 | `.qa/reports/` | `explore-<slug>.md`, `coverage-<date>[-<slug>].md`, the healer's `heal-<slug>.md` and `flaky.md` | Ignored |
-| `.qa/judge/<contract-name>/` | The verdict, `judge-expert.json` | Ignored |
+| `.qa/judge/<contract-name>/` | The verdict, `judge-expert.json`; before the first expert dispatch of a run the command renames an earlier one to `judge-expert.previous.json` | Ignored |
 | `.qa/kb/` | The knowledge snapshot (`knowledgeDir`): ticket cards, change records and documentation the agents fetched, each with its capture date. Agents read it before calling a live service | Ignored here, because it fills with internal ticket text; a private client repository may commit it |
 
-`<contract-name>` is the contract's file name without `.md`, and it is the one term this guide uses for the folder of
-a contract's run record and verdict. A contract holds one row per case (case, technique, Playwright project, data
+`<contract-name>` is the contract's file name without `.md`, so it equals the `<ticket-key-or-slug>` of
+`.qa/contracts/<ticket-key-or-slug>.md`. It is the one term the agents, skills, commands and this guide use for the
+folder of a contract's run record and verdict; the skill `project-facts` ("Hand-off Paths") holds these names in one
+place. A contract holds one row per case (case, technique, Playwright project, data
 role, oracle) and every oracle names its source: `ticket`, `doc`, `schema` or `observed`. A case whose expectation is
 only `observed` may encode a bug the stand already has, so a person confirms it at approval or it is written as a
 characterization test. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;

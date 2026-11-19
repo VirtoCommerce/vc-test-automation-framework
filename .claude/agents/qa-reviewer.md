@@ -75,20 +75,20 @@ A shared stand is not ours alone. For every test the diff adds or changes:
 ## Definition of Done
 
 Do not take the author's word for the run. The author left Playwright's JSON report per project under
-`.qa/runs/<name>/`, where `<name>` is the contract's file name without `.md`. For each Playwright project in the
+`.qa/runs/<contract-name>/` (names: `project-facts`, "Hand-off Paths"). For each Playwright project in the
 contract's case rows, with `<specs>` the changed spec files:
 
 1. Make your own list of what should have run, as the stable series the author had to run
    (`quality.stableSeries` from the facts), so that every missing repetition fails the reconciliation:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<name>/review-list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json npx --no -- playwright test --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
    ```
 
 2. Reconcile it with the author's report:
 
    ```shell
-   node qa/reconcile-run.mts .qa/runs/<name>/review-list.<project>.json .qa/runs/<name>/report.<project>.json
+   node qa/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json
    ```
 
    Exit 1 means not done; copy each failure (test, project, why) into Critical, a repetition that is missing
@@ -104,7 +104,7 @@ contract's case rows, with `<specs>` the changed spec files:
 
    ```shell
    node qa/test-shape.mts <specs>
-   node qa/test-duration.mts .qa/runs/<name>/report.<project>.json <project> [<previous report>]
+   node qa/test-duration.mts .qa/runs/<contract-name>/report.<project>.json <project> [<previous report>]
    ```
 
    Give a previous report only when the brief names one. Each line either prints is a finding (a shape finding names

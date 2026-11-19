@@ -26,9 +26,14 @@ Confirm with the person that this contract is the approved one. Never approve it
 
 ### 2. Implement
 
+First move an earlier run's judge verdict out of the way, so it cannot steer this run:
+`mv -f .qa/judge/<contract-name>/judge-expert.json .qa/judge/<contract-name>/judge-expert.previous.json` when the
+first file exists (`<contract-name>` and the other hand-off paths: the skill `project-facts`, "Hand-off Paths").
+
 Spawn the `qa-automation-expert` agent with the contract path only: no plan, no summary of the conversation, no
 extra instructions. It reads `framework-rules` and `project-facts`, implements the cases, runs the definition of done
-and leaves its run record under `.qa/runs/<contract-name>/`.
+and leaves its run record under `.qa/runs/<contract-name>/` (`report.<project>.json` and `list.<project>.json` for
+each project).
 
 If it stops with an amendment request, show the amendment to the person. Only a person writes the `Approved:` line;
 never write it yourself. After it is written, run the check again and, when it prints `ok`, spawn the expert again
@@ -45,7 +50,8 @@ Present the expert's report:
 When the stand was not reachable, say that the run was not done.
 
 When an amendment awaits approval, end by naming it and say that implementation is paused. When the run was not
-done, end by saying so. Only when nothing awaits approval and the run was done, end with:
+done, end by saying so. Only when nothing awaits approval and the run was done, end with the contract's own path in
+place of `<contract path>`:
 ```
-Implementation complete. Run /qa-review to review the code.
+Implementation complete. Run /qa-review <contract path> to review the code.
 ```

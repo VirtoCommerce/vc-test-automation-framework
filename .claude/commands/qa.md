@@ -17,7 +17,7 @@ cart"), a failing test, "review this branch", "what is not covered". Empty: ask 
 | A failing or flaky test | healer -> guard, then reviewer when it changed code |
 | "Review this branch" | reviewer |
 | "What is not covered / what next" | coverage; its gaps can be handed to the planner |
-| "Do it end to end" | planner -> approval -> explorer if needed -> expert -> judge -> healer if red -> guard -> reviewer |
+| "Do it end to end" | planner -> approval -> explorer if needed -> expert -> healer if red -> guard -> judge -> reviewer |
 
 When the request fits two rows, say which flow you chose in one line and start it. When it fits none, ask.
 
@@ -26,7 +26,8 @@ When the request fits two rows, say which flow you chose in one line and start i
 - Each role is a fresh subagent: `qa-planner`, `qa-explorer`, `qa-coverage`, `qa-automation-expert`, `qa-judge`,
   `qa-healer`, `qa-reviewer`. Give it the request and the paths it needs (the contract, a report, a diff range,
   spec files). Never paste the previous agent's reasoning or summary.
-- Send an agent only paths and the person's own words. Relay its questions to the person and pass the answers back.
+- Send an agent only paths, the person's own words and the fixed words this command names (`judge re-dispatch`,
+  "no contract"). Relay its questions to the person and pass the answers back.
 - Stages run in order; one stage's output file is the next stage's input. Do not run two writers on the same files
   at once.
 - A stand that is not reachable is reported as "not done", never as a pass.
@@ -54,26 +55,19 @@ person's approval is the only thing that lets the expert start. Never approve fo
 
 ### Implement
 
-Dispatch `qa-automation-expert` with the contract path only. It leaves its run record under `.qa/runs/<contract>/`
-(`report.<project>.json` and `list.<project>.json` per project). When it stops with an amendment request, show it
-to the person; after the person has written the `Approved:` line, run the contract check again and dispatch the
-expert again with the same path.
+The hand-off paths (`<contract-name>`, the run record, the verdict) and the stable-series commands are in the skill
+`project-facts`, "Hand-off Paths".
 
-### Judge
+Before the first expert dispatch of a run, move an earlier run's verdict out of the way, so it cannot steer this run:
+`mv -f .qa/judge/<contract-name>/judge-expert.json .qa/judge/<contract-name>/judge-expert.previous.json` when the
+first file exists. Dispatch `qa-automation-expert` with the contract path only. It leaves its run record under
+`.qa/runs/<contract-name>/`: `report.<project>.json` and `list.<project>.json` for each project, named with the
+project even when there is one. When it stops with an amendment request, show it to the person; after the person
+has written the `Approved:` line, run the contract check again and dispatch the expert again with the same path
+(not a judge re-dispatch).
 
-After the expert, once per contract, dispatch `qa-judge` with the role `expert`, the contract path and the changed
-spec files (or the git range). The verdict is `.qa/judge/<contract-or-slug>/judge-expert.json`. Check it:
-
-`node qa/judge-verdict.mts check .qa/judge/<contract-or-slug>/judge-expert.json expert`
-
-- Not `ok`: send the judge the lines and have it fix its file once; never edit the verdict yourself. A second
-  malformed verdict stops the flow: show the check's output to the person and wait.
-- `pass`: go on to the next stage.
-- `fail`: dispatch `qa-automation-expert` again, once, with the contract path only; it reads the failing verdict
-  at that fixed path itself and fixes only what it names. Then judge again. A second `fail` stops the flow: show both
-  verdicts to the person and wait. Never loop further.
-
-No other role is judged in a flow.
+In the end-to-end flow, reconcile each project's record with the third command of "Hand-off Paths". Exit 1 on any
+project: the run is red, so go to Heal with the run record path, then to Judge. All exit 0: go to Judge.
 
 ### Heal
 
@@ -99,9 +93,34 @@ node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf 
 in the repository until they have looked; a planted hook or config line runs with their rights. Any other non-zero
 result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two `qa/` files also gives
 it). Findings listed (a file outside the healer paths, a changed expectation, an added skip, wait or
-similar): stop, show them to the person, and do not go on to the reviewer. No finding listed: the guard could not
-run; report "not checked", do not go on to the reviewer, and never say clean. A product defect the healer reports is shown to the
-person, not patched.
+similar): stop, show them to the person, and do not go on to the judge or the reviewer. No finding listed: the guard
+could not run; report "not checked", do not go on to the judge or the reviewer, and never say clean. A product defect
+the healer reports is shown to the person, not patched.
+
+In the end-to-end flow this stage runs only when the expert's run is red, and before the judge. After a clean guard,
+re-run the definition of done's commands yourself (a mechanical re-run, not a role's work), so that the reviewer
+reconciles the healed state and not the expert's red record: for each project of the contract's case rows, with the
+expert's spec files, the stable series and the list into the same `report.<project>.json` and `list.<project>.json`,
+then reconcile ("Hand-off Paths", all three commands). Exit 1 on a project: the run is not done; show the reconcile
+lines to the person and stop before the judge.
+
+### Judge
+
+After the expert (and, in the end-to-end flow, after a clean heal), once per contract, dispatch `qa-judge` with the
+role `expert`, the contract path and the expert's spec files: it judges only the expert's tests, never the healer's
+page-object or data changes, which the guard checks. The verdict is `.qa/judge/<contract-name>/judge-expert.json`.
+Check it:
+
+`node qa/judge-verdict.mts check .qa/judge/<contract-name>/judge-expert.json expert`
+
+- Not `ok`: send the judge the lines and have it fix its file once; never edit the verdict yourself. A second
+  malformed verdict stops the flow: show the check's output to the person and wait.
+- `pass`: go on to the reviewer.
+- `fail`: dispatch `qa-automation-expert` again, once, with the contract path and the words `judge re-dispatch`; it
+  reads the failing verdict at that fixed path itself and fixes only what it names. Then judge again. A second
+  `fail` stops the flow: show both verdicts to the person and wait. Never loop further.
+
+No other role is judged in a flow.
 
 ### Review
 

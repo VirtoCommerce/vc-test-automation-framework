@@ -4,7 +4,7 @@ Spawn the `qa-healer` agent once to run failing or flaky specs, classify each fa
 defects in the healer paths of the project facts (page objects and data, never a spec). It never changes an expected
 value or an assertion to match the build.
 
-`$ARGUMENTS` is a spec file, a test title, or a run record path (`.qa/runs/<contract>/`). No arguments: ask for
+`$ARGUMENTS` is a spec file, a test title, or a run record path (`.qa/runs/<contract-name>/`). No arguments: ask for
 one.
 
 1. Record a baseline and a fingerprint first: `node qa/expectation-guard.mts --snapshot` prints a git tree id of the

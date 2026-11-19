@@ -1,7 +1,7 @@
 ---
 name: heal-tests
 description: "Heal failing or flaky specs: reproduce, classify each failure (test defect, product defect, stand data, flaky), fix only test infrastructure under the healer paths (never a spec) within the area's autonomy, at most three rounds, write the heal report and the flaky list, finish with the expectation guard"
-argument-hint: "<spec-file | test-title | .qa/runs/<contract>/>"
+argument-hint: "<spec-file | test-title | .qa/runs/<contract-name>/>"
 ---
 
 ## Heal Tests
@@ -12,8 +12,11 @@ that can only be made green by changing one is a product defect, and it stays re
 
 ## Step 1: Target, Slug, Baseline
 
-- The target is a spec file, a test title or a run record folder. For a run record, the failing tests are what
-  `node qa/reconcile-run.mts <list.json> <report.json>` prints under `failures`. No target: stop and say so.
+- The target is a spec file, a test title or a run record folder `.qa/runs/<contract-name>/`. For a run record, the
+  failing tests are what this prints under `failures`, for each project whose pair of files the folder holds (the
+  names are in `project-facts`, "Hand-off Paths"):
+  `node qa/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json`.
+  No target: stop and say so.
 - `<slug>` is the target in lower case letters, digits and hyphens. Writing `.qa/runs/heal-<slug>/baseline.txt` below
   creates the git-ignored run folder.
 - A hook confines you: Write, Edit and MultiEdit work only under `facts.healerPaths`, `.qa/reports/heal-<slug>.md`,

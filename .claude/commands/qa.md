@@ -66,8 +66,13 @@ project even when there is one. When it stops with an amendment request, show it
 has written the `Approved:` line, run the contract check again and dispatch the expert again with the same path
 (not a judge re-dispatch).
 
-In the end-to-end flow, reconcile each project's record with the third command of "Hand-off Paths". Exit 1 on any
-project: the run is red, so go to Heal with the run record path, then to Judge. All exit 0: go to Judge.
+In the end-to-end flow, tell an unreachable stand apart from a red run first. When the expert reported the stand as
+not reachable, or a project of the contract's case rows has no `report.<project>.json`, the run is "not done, stand
+unreachable": stop, tell the person, and go to neither Heal nor Judge. Otherwise reconcile each project's record with
+the third command of "Hand-off Paths". Exit 1 with a verdict whose `failures` list tests (failed, flaky, skipped
+without a reason, missing from the report): the run is red, so go to Heal with the run record path, then to Judge.
+Exit 1 with no verdict (a file it cannot read or parse): "not done"; show its line to the person and stop. All exit
+0: go to Judge.
 
 ### Heal
 

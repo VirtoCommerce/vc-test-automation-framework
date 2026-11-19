@@ -6,7 +6,7 @@ description: "Read the facts of the repository the agents work in (tracker, doc 
 ## Project Facts
 
 Everything that differs between repositories lives in `.qa/project.json`: the tracker and the ways to read it, the
-documentation sources, the typecheck, lint and test commands, the data roles, the critical flows, the coverage
+documentation sources, the typecheck, lint and test commands, the data roles with their purposes and permissions, the critical flows, the coverage
 weights, the flaky-run series and what an agent may apply on its own. Agents never carry these values in their
 prompts.
 
@@ -30,6 +30,12 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
 
 - Roles: `roles["<role name>"]` is the account to pass to `test.use({ user })`. Name roles in plans and reports, not
   accounts.
+- Role purposes: `roleFor.admin` is the role `arrange` and REST administration tests act as, `roleFor.customer` an
+  ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value
+  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires all three.
+- Role permissions (optional): `rolePermissions["<role name>"]` lists the permissions that role holds, named as the
+  platform under test names them. A case that needs a role with or without a permission takes it from here. When the
+  field is absent or does not settle the question, ask the person; never infer it from knowledge of the platform.
 - Commands: `commands.typecheck`, `commands.lint` and `commands.test["<project>"]`. Run these exactly; do not rebuild
   them from `package.json`.
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.

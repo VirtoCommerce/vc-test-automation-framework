@@ -377,7 +377,7 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │
 ├── biome/                   Lint rules, import rules, layer rules, exceptions
 ├── .claude/                 The QA agents, skills, commands and the read-only shell hook (see Agents)
-│   └── qa/                  Scripts that check the agents' work without a model; import only `.claude/qa/` and `core/`
+│   └── checks/              Scripts that check the agents' work without a model; import only `.claude/checks/` and `core/`
 ├── .qa/                     `project.json` (committed) and the agents' git-ignored working folders
 ├── known-issues.json        Known defects of the platform under test, with links to their tickets
 ├── playwright.config.ts     Projects, timeouts, reporters
@@ -675,10 +675,10 @@ records whose id the platform assigns, `storedIdFrom` finds the stored one by a 
 ## Agents
 
 The repository ships seven Claude Code agents, the skills they read and the commands that run them (`.claude/`),
-plus small scripts that check their work without a model (`.claude/qa/`). The agents carry no facts about a particular stand:
+plus small scripts that check their work without a model (`.claude/checks/`). The agents carry no facts about a particular stand:
 what differs between repositories (commands, data roles, the tracker, critical flows) comes from
 `.qa/project.json`, and style comes from the repository's `CLAUDE.md`. The same files are meant to work in a client's
-test repository unchanged. Running them needs Node 22.18 or newer, because the `.claude/qa/` scripts are TypeScript files that
+test repository unchanged. Running them needs Node 22.18 or newer, because the `.claude/checks/` scripts are TypeScript files that
 Node runs directly.
 
 ### Roles
@@ -703,7 +703,7 @@ The skills behind them: `framework-rules` (read first by every agent), `project-
 `coverage-analysis`, `judge-criteria`, `review-test-code`, `review-pr` and `write-security-test` (access without a
 session, the wrong role, one customer reaching another's objects, response headers, input validation). The
 `migrate-katalon-module` skill and the `/code-review-full` command belong to this repository only
-(`.claude/qa/ours-only.json`).
+(`.claude/checks/ours-only.json`).
 
 ### Commands
 
@@ -723,7 +723,7 @@ person. The other commands run one stage.
 Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. A person approves
 the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
 sends the tests back to the expert once, and a second failure goes to a person. After the healer, a code check
-(`.claude/qa/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
+(`.claude/checks/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
 expert run goes to the healer before the judge, and after a clean guard the command re-runs the stable series into
 the run record, so the reviewer reconciles the healed state. `/qa-implement` ends by naming
 `/qa-review <contract path>`, which passes the contract to the reviewer. The reviewer's shell
@@ -748,7 +748,7 @@ place. A contract holds one row per case (case, technique, Playwright project, d
 role, oracle) and every oracle names its source: `ticket`, `doc`, `schema` or `observed`. A case whose expectation is
 only `observed` may encode a bug the stand already has, so a person confirms it at approval or it is written as a
 characterization test. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
-`node .claude/qa/contract.mts check <file>` fails otherwise.
+`node .claude/checks/contract.mts check <file>` fails otherwise.
 
 **Git-ignore the working folders in a client repository.** Add `.qa/contracts/`, `.qa/runs/`, `.qa/reports/`,
 `.qa/judge/` and `.qa/kb/` (leave the last out only when the repository is private and the snapshot is meant to be
@@ -758,7 +758,7 @@ of them would count as a change outside `healerPaths`.
 
 ### `project.json`
 
-Read through `node .claude/qa/project-facts.mts` by the `project-facts` skill. Every field is required unless marked
+Read through `node .claude/checks/project-facts.mts` by the `project-facts` skill. Every field is required unless marked
 optional. A missing, unreadable or invalid file stops the agents with a line that names the field
 (`project.json: commands.typecheck is missing`); they never fall back to another repository's values.
 
@@ -775,9 +775,9 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 | `roles` | Map from data role ("store administrator") to the account `test.use({ user })` takes. Plans and reports name roles, never accounts |
 | `coverageWeights` | `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`: numbers of at least 0 |
 | `flakyRunSeries` | Repetitions that decide "flaky": an integer of at least 2 |
-| `quality.maxSteps`, `quality.maxLines`, `quality.maxExpects`, `quality.maxNesting`, `quality.maxConditionals` | Shape limits of one test, checked by `node .claude/qa/test-shape.mts <spec>…`: `test.step` calls, lines of the `test(...)` call, `expect` calls, depth of blocks in its body, and `if`, `?:`, `switch` and condition-driven loops (`for … of` over a table is not one). Integers; `maxLines` at least 1. A test over a limit is a Critical finding of the reviewer |
+| `quality.maxSteps`, `quality.maxLines`, `quality.maxExpects`, `quality.maxNesting`, `quality.maxConditionals` | Shape limits of one test, checked by `node .claude/checks/test-shape.mts <spec>…`: `test.step` calls, lines of the `test(...)` call, `expect` calls, depth of blocks in its body, and `if`, `?:`, `switch` and condition-driven loops (`for … of` over a table is not one). Integers; `maxLines` at least 1. A test over a limit is a Critical finding of the reviewer |
 | `quality.stableSeries` | Repetitions a new or changed test must pass in a row (`--repeat-each=<n> --retries=0`, judged by the run record like any run): an integer of at least 2. Separate from `flakyRunSeries`, which decides "flaky" for the healer |
-| `quality.durationBudgetMs` | Map from Playwright project to the most milliseconds a test of it may take (the median of its repetitions). A project absent from the map has no budget. Checked by `node .claude/qa/test-duration.mts <report.json> <project> [<previous report.json>]` |
+| `quality.durationBudgetMs` | Map from Playwright project to the most milliseconds a test of it may take (the median of its repetitions). A project absent from the map has no budget. Checked by `node .claude/checks/test-duration.mts <report.json> <project> [<previous report.json>]` |
 | `quality.slowdownRatio` | A test is a finding when its median duration is more than this many times its median in the previous report (a number of at least 1; applies to every project when a previous report is given) |
 | `quality.slowdownMinMs` | A test is compared with the previous report only when its previous median is at least this many milliseconds, so jitter on a fast test is no slowdown: an integer of at least 0 (0 compares every test) |
 | `autonomy` | Map from area to `apply` or `propose`; `"*"` is required and is the default. `propose` means the healer writes the fix into its report and waits |
@@ -791,8 +791,8 @@ the others on.
 
 ### Setting up in a repository
 
-1. Copy the tracked files of `.claude/` (the check scripts in `.claude/qa/` included; never a git-ignored
-   `*.local.*` file) and `.qa/project.json`, then edit the last for the repository. Keep the `.claude/qa/**` rule in `biome/layers.json`: `.claude/qa/` imports nothing outside `.claude/qa/`
+1. Copy the tracked files of `.claude/` (the check scripts in `.claude/checks/` included; never a git-ignored
+   `*.local.*` file) and `.qa/project.json`, then edit the last for the repository. Keep the `.claude/checks/**` rule in `biome/layers.json`: `.claude/checks/` imports nothing outside `.claude/checks/`
    and `core/`.
 2. Register the browser MCP server under the fixed name `playwright`. The explorer, healer and coverage agents name
    its tools (`mcp__playwright__browser_*`), so a server under another name leaves them without a browser.
@@ -801,17 +801,17 @@ the others on.
    (`node "$CLAUDE_PROJECT_DIR/.claude/hooks/readonly-shell.mts" || exit 2`) is bash syntax and must run under bash.
    Under a PowerShell shell (`"shell": "powershell"`) it does not run as written: the check may not run at all or may
    block every call, depending on the PowerShell version. Run the hook under bash, and on Windows use Git Bash.
-4. Ship `@babel/parser` as a runtime dependency of whatever carries `.claude/qa/`. `.claude/qa/prove-fails.mts`, which the judge uses
+4. Ship `@babel/parser` as a runtime dependency of whatever carries `.claude/checks/`. `.claude/checks/prove-fails.mts`, which the judge uses
    to prove that a test fails, imports it. Here it is a dev dependency only because one install serves the whole
    repository.
 5. Add the git-ignore lines above.
 
 ### Checking the agents
 
-`node .claude/qa/scan-prompts.mts` scans every shipped prompt, skill and command for client hosts and terms and caps each
+`node .claude/checks/scan-prompts.mts` scans every shipped prompt, skill and command for client hosts and terms and caps each
 agent definition at 8,000 characters; it exits 1 on a finding. Run it after changing any of them.
 
-The evaluation suite that runs each role on fixed cases, and the unit tests of the `.claude/qa/` scripts, are kept outside
+The evaluation suite that runs each role on fixed cases, and the unit tests of the `.claude/checks/` scripts, are kept outside
 this repository.
 
 ## Scripts

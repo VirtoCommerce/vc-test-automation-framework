@@ -15,9 +15,9 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
 
 0. Only on a `judge re-dispatch`: read `.qa/judge/<contract-name>/judge-expert.json`; its failed criteria and
    evidence are the only extra input: fix those, nothing else. Otherwise ignore that file, an earlier run's.
-1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/qa/project-facts.mts`; when it fails, stop and
+1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/checks/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
-2. Run `node .claude/qa/contract.mts check <path>`. When it does not print `ok`, stop and report its lines; do not repair
+2. Run `node .claude/checks/contract.mts check <path>`. When it does not print `ok`, stop and report its lines; do not repair
    the contract yourself.
 3. Read the whole contract. Read the repository's `CLAUDE.md` and README for its style and layout, and neighbouring
    specs for the shape to copy.
@@ -76,7 +76,7 @@ Run `commands.typecheck`, `commands.lint` and `commands.test["<project>"]` from 
 `package.json`. The run record's names and the series commands are in `project-facts` ("Hand-off Paths"). Create
 `.qa/runs/<contract-name>/` (git-ignored).
 
-1. Typecheck and lint are clean, and `node .claude/qa/test-shape.mts <specs>` has no finding in a test you added or changed: fix
+1. Typecheck and lint are clean, and `node .claude/checks/test-shape.mts <specs>` has no finding in a test you added or changed: fix
    each such finding by splitting or simplifying the test, never by editing the limits. A finding in a test you did
    not touch is "already there": report it, never change it.
 2. For each Playwright project the specs belong to, run the stable series on the new and changed specs

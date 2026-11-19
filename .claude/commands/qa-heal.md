@@ -7,25 +7,25 @@ value or an assertion to match the build.
 `$ARGUMENTS` is a spec file, a test title, or a run record path (`.qa/runs/<contract-name>/`). No arguments: ask for
 one.
 
-1. Record a baseline and a fingerprint first: `node .claude/qa/expectation-guard.mts --snapshot` prints a git tree id of the
-   working tree, untracked files included; `node .claude/qa/expectation-guard.mts --repo-fingerprint` prints one sha of
+1. Record a baseline and a fingerprint first: `node .claude/checks/expectation-guard.mts --snapshot` prints a git tree id of the
+   working tree, untracked files included; `node .claude/checks/expectation-guard.mts --repo-fingerprint` prints one sha of
    `.git/config`, `.git/info/`, `.git/hooks/`, the folder `core.hooksPath` names and `.qa/project.json` (it only reads; it is yours, the healer may not
    run it). Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
    defect, product defect, stand data, flaky), fixes page objects, data and waits, and stops after three rounds.
-2. Recompute the fingerprint and run the guard, both from the baseline's own copy of `.claude/qa/`, never from the working
+2. Recompute the fingerprint and run the guard, both from the baseline's own copy of `.claude/checks/`, never from the working
    tree (the healer could have changed it). Take that copy with `git cat-file blob`, which applies no attributes,
    filters or hooks, and never with `git archive` or a checkout, which run a smudge filter a planted
    `.git/info/attributes` or a global attributes file names. The fingerprint comes before any git command that can
    run configured code:
    ```shell
-   dir=$(mktemp -d) && mkdir "$dir/qa" || exit 1
-   for m in expectation-guard project-facts; do git -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/qa/$m.mts > "$dir/qa/$m.mts" || { rm -rf "$dir"; exit 1; }; done
-   test "$(node "$dir/qa/expectation-guard.mts" --repo-fingerprint)" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
-   node "$dir/qa/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
+   dir=$(mktemp -d) && mkdir "$dir/checks" || exit 1
+   for m in expectation-guard project-facts; do git -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/checks/$m.mts > "$dir/checks/$m.mts" || { rm -rf "$dir"; exit 1; }; done
+   test "$(node "$dir/checks/expectation-guard.mts" --repo-fingerprint)" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
+   node "$dir/checks/expectation-guard.mts" --base=<baseline tree id>; code=$?; rm -rf "$dir"; test $code -eq 0
    ```
    "repository config changed by the healer": stop there, show it to the person, and run no other git command or
    test in the repository until they have looked; a planted hook or config line runs with their rights. Any other
-   non-zero result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two `.claude/qa/` files
+   non-zero result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two `.claude/checks/` files
    also gives it). Findings listed (a file outside the healer paths, a changed expectation, an added skip, wait
    or similar): stop, show them to the person, and do not offer a review. No finding listed: the guard could not run;
    report "not checked", never clean, and do not offer a review.

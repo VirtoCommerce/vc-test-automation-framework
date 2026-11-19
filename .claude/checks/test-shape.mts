@@ -207,7 +207,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const files = process.argv.slice(2);
     if (files.length === 0) {
-      throw new Error("test-shape: usage is node .claude/qa/test-shape.mts <spec>…");
+      throw new Error("test-shape: usage is node .claude/checks/test-shape.mts <spec>…");
     }
     const { quality } = readProjectFacts();
     const findings = files.flatMap((file) => checkTestShape(readSpec(file), file, quality));

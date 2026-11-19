@@ -148,7 +148,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const [command, file, roleArgument] = process.argv.slice(2);
     if (command !== "check" || file === undefined) {
-      throw new Error(problem("usage is node .claude/qa/judge-verdict.mts check <file> [role]"));
+      throw new Error(problem("usage is node .claude/checks/judge-verdict.mts check <file> [role]"));
     }
     const json = readJson(file);
     const problems = checkJudgeVerdict(json, roleOf(json, roleArgument));

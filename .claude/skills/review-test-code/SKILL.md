@@ -117,7 +117,7 @@ Playwright project in the contract's case rows, with `<specs>` the changed spec 
 2. Reconcile it with the author's report:
 
    ```shell
-   node .claude/qa/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+   node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json
    ```
 
    Exit 1 means not done; copy each failure (test, project, why) into Critical, missing repetitions
@@ -132,8 +132,8 @@ Playwright project in the contract's case rows, with `<specs>` the changed spec 
    project of the run:
 
    ```shell
-   node .claude/qa/test-shape.mts <specs>
-   node .claude/qa/test-duration.mts .qa/runs/<contract-name>/report.<project>.json <project> [<previous report>]
+   node .claude/checks/test-shape.mts <specs>
+   node .claude/checks/test-duration.mts .qa/runs/<contract-name>/report.<project>.json <project> [<previous report>]
    ```
 
    Give a previous report only when the brief names one. Each line either prints is a finding (a shape finding names

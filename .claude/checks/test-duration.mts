@@ -112,7 +112,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     const [reportFile, project, previousFile, ...extra] = process.argv.slice(2);
     if (reportFile === undefined || project === undefined || extra.length > 0) {
       throw new Error(
-        "test-duration: usage is node .claude/qa/test-duration.mts <report.json> <project> [<previous.json>]",
+        "test-duration: usage is node .claude/checks/test-duration.mts <report.json> <project> [<previous.json>]",
       );
     }
     const findings = checkDurations(

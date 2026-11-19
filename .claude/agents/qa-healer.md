@@ -15,7 +15,7 @@ write to a tracker, wiki or code host.
 
 ## Before Anything
 
-1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/qa/project-facts.mts`; when it fails, stop and
+1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/checks/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
 2. Without a baseline in the dispatch, stop and say so: the guard cannot judge your work. Never record or replace
    a baseline yourself; the one you were given is the one that counts.

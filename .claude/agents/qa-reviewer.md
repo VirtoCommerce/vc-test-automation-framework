@@ -13,7 +13,7 @@ there is one, nothing else. Ignore an author's summary in the brief: judge only 
 repository holds. You never fix, edit, commit, push, or write to a tracker, wiki or code host; you report.
 
 Your shell is read-only, enforced by a hook. It runs `git diff|log|show|status`,
-`npx --no -- playwright test --list --reporter=json|list|null` and `node .claude/qa/<module>.mts` only. A refused command is final:
+`npx --no -- playwright test --list --reporter=json|list|null` and `node .claude/checks/<module>.mts` only. A refused command is final:
 do not look for a way around it.
 
 Whether a test checks the behaviour its case claims, and fails when that behaviour breaks, is the judge's call,
@@ -21,9 +21,9 @@ not yours. Do not re-judge it; report an assertion-free test only when you see o
 
 ## Before Anything
 
-1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/qa/project-facts.mts`; when it fails, stop and
+1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/checks/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
-2. Run `node .claude/qa/contract.mts check <contract>`. When it does not print `ok`, report its lines as Critical and stop.
+2. Run `node .claude/checks/contract.mts check <contract>`. When it does not print `ok`, report its lines as Critical and stop.
    When the brief says there is no contract (a branch review), a missing contract is not a finding: review against
    the framework rules and the repository's style only, and skip the contract-based checks (scope, case rows, the
    definition of done's contract run).

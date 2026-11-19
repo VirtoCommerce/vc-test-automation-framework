@@ -712,7 +712,7 @@ export async function proveFails(
 }
 
 function usage(): Error {
-  return problem("usage is node .claude/qa/prove-fails.mts <spec> <line> <title words> [--project=<name>]");
+  return problem("usage is node .claude/checks/prove-fails.mts <spec> <line> <title words> [--project=<name>]");
 }
 
 function parseArguments(args: readonly string[]): { spec: string; line: number; title: string; project?: string } {

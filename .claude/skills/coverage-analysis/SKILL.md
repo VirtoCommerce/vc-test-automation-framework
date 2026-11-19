@@ -8,7 +8,7 @@ argument-hint: "[module | page | api-area]"
 
 Used by `qa-coverage`. The result is `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md` with four sections. It writes no
 test, no page object and no seeder; a gap is text for `qa-planner`. Read first: the skill `framework-rules`, then
-`project-facts` (`node .claude/qa/project-facts.mts`). The argument limits every step to one module, page or API area.
+`project-facts` (`node .claude/checks/project-facts.mts`). The argument limits every step to one module, page or API area.
 
 ## Step 1: Inventory (What the Stand Offers)
 
@@ -61,7 +61,7 @@ Factor evidence: `callFrequency` from endpoint telemetry where the project has i
 of the area; `stability` from known issues on the area (more issues, higher); `cost` from the building blocks the
 planner would still have to create (a missing client, page object or data role: higher). No evidence: leave the key out.
 
-Run `node .claude/qa/rank-gaps.mts <gaps file>`. It marks a gap critical when its name or area matches a critical flow, scores
+Run `node .claude/checks/rank-gaps.mts <gaps file>`. It marks a gap critical when its name or area matches a critical flow, scores
 each gap by the project's weights, and prints them in a strict order: gaps enabled on the stand first, then critical
 flows before the others (a critical gap outranks a non-critical one whatever the scores), then by score, highest first,
 then by name. A gap not enabled on the stand ranks below every enabled one, critical or not. Give the gaps ids `G1`, `G2`, ... in the printed order. In the report each is one row: id, area, surface,

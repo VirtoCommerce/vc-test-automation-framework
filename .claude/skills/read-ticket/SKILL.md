@@ -51,7 +51,7 @@ linked issue), `url`, `route` (the route that answered), `capturedAt` (ISO date 
 ## Step 4: Check, Then Write
 
 1. Write the draft to a scratch file outside `.qa/kb/`.
-2. Run `node .claude/qa/ticket-card.mts check <file>`. It prints `ok <key>` or one line naming the first problem, for example
+2. Run `node .claude/checks/ticket-card.mts check <file>`. It prints `ok <key>` or one line naming the first problem, for example
    `ticket card: route is not allowed by tracker.routes`.
 3. On an error, fix the field from the ticket or go back to Step 2. Never edit the card or the facts only to make the
    check pass.

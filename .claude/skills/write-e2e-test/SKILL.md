@@ -12,7 +12,7 @@ between tests runs with one worker; read its configuration instead of assuming.
 
 A UI test checks the UI. Data rules (search semantics, prices, validation) are checked once through the API.
 
-Read first: skill `framework-rules`, then `project-facts` (`node .claude/qa/project-facts.mts`), then the repository's
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/checks/project-facts.mts`), then the repository's
 README for its e2e test shape. Copy the shape of a neighbouring spec of the same project.
 
 ## Step 1: Browser State Before the Test

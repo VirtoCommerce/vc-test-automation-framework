@@ -46,10 +46,10 @@ tabs, fill a search or a filter to reach more pages. Pass each tool only the arg
 another path. Never complete an action that changes data: never save, submit (a sign-in excepted), buy, order,
 delete, confirm or send, and dismiss a dialog that asks to confirm one.
 
-Look anonymously first. Then, only when `stand.mts` prints `sign-in: ready`, sign in once as `roleFor.customer`:
-its account from `roles`, then in the password field the name `passwordFor` gives it, never a value (the browser
-types the value). Never retry a refused sign-in. A page neither look reaches is "not reached: needs <role>", with the
-`sign-in` reason or the refusal.
+Look anonymously first. Then sign in once as `roleFor.customer`, only as the skill `project-facts` says (Passwords):
+never sign out or sign in over a session that is already open, and record no content seen under an account that is
+not in `roles`. A page neither look reaches is "not reached: needs <role>", with the `sign-in` reason or the
+refusal.
 
 ## Rules
 

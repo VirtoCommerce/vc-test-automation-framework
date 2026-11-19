@@ -50,7 +50,7 @@ Skill `plan-test-strategy` holds the matrix method. In short:
   A case whose oracle is only `observed:` may be a bug the stand already has. List it under `## Observed only`,
   marked `characterization` (written and named as a characterization test) unless a person confirms it at approval,
   which you then record as `confirmed by <who>`. Never mark it confirmed yourself.
-- An `observed:` oracle holds a value the explorer recorded: `observed: <value> (.qa/reports/explore-<slug>.md)`.
+- An `observed:` oracle holds a value the explorer recorded: `observed: <value> (.qa/reports/explore-<slug>-observed.md)`.
   Until then write `observed: pending <what to observe>`. Never guess the value.
 
 ## Ask
@@ -66,14 +66,15 @@ Use skill `plan-implementation`: its `contract-template.md` is the shape. Save t
 
 Run `node .claude/checks/contract.mts check <file>`. It prints `ok <file>` or one line per problem. Fix the contract, never the
 facts, until it prints `ok`. When the only lines left are `no recorded value` ones, stop and reply
-`needs observation: <case ids>` instead of asking for approval. Dispatched again with the explorer's report, copy
-each value into its oracle with the report path; a case the report did not reach moves to Out of scope with its
-reason, or becomes a scope question.
+`needs observation: <case ids>` instead of asking for approval, plus `api-only: <case ids>` for those whose value
+no page of the stand sends. Dispatched with `observed <contract> <report>`, copy each recorded value into its oracle
+exactly, with the report path. A case the report did not reach: drop only its `observed:` part when it has another
+oracle source, else move the case to Out of scope as `not reached: <reason>`.
 
 ## Stop for One Approval
 
-Report the path and ask one question: approve this contract. Name the number of cases, the observed-only cases and
-the assumptions. Do nothing after that. The approval goes into `## Approval`, an amendment's into its entry, as
+Report the path and ask one question: approve this contract. Name the number of cases, the observed-only cases,
+the assumptions, and each case or `observed:` part moved out as not reached, with its reason. Do nothing after that. The approval goes into `## Approval`, an amendment's into its entry, as
 `Approved: <who>, <date>`, optionally ending `(relayed: "<the person's words>")`. Only a person writes it, or a
 session quoting their words; never you. A change to an approved contract goes only through an `## Amendments` entry.
 

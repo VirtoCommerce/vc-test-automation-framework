@@ -718,11 +718,13 @@ person. The other commands run one stage.
 | A failing or flaky test | healer, the expectation guard, then reviewer when code changed |
 | "Review this branch" | reviewer |
 | "What is not covered" | coverage |
-| "Do it end to end" | planner, approval, explorer if needed, expert, healer if red, guard, judge, reviewer |
+| "Do it end to end" | planner, explorer (observe) if an `observed:` oracle is pending, approval, explorer if needed, expert, healer if red, guard, judge, reviewer |
 
 Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. When a contract
-has a pending `observed:` oracle, the read-only explorer records its value on the stand before the approval, the
-planner copies it in, and the approval shows it. A person approves the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
+has a pending `observed:` oracle, the read-only explorer records its value on the stand before the approval
+(`.qa/reports/explore-<slug>-observed.md`), the planner copies it in, and the approval shows it, with every case not
+reached. An API-only area cannot be observed yet (`REFINEMENTS.md`): its pending cases go to the person as a scope
+question. A person approves the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
 sends the tests back to the expert once, and a second failure goes to a person. After the healer, a code check
 (`.claude/checks/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
 expert run goes to the healer before the judge, and after a clean guard the command re-runs the stable series into

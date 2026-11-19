@@ -81,6 +81,8 @@ proof run and the evaluation worktrees run the same kind of code. What to change
 system sandbox (a container or a restricted user with no secrets in reach). Size: medium, and it depends on where the
 agents are packaged.
 
+**An API-only area cannot be observed before approval.** The explorer records an `observed:` value only from what a page of the stand sends and answers, so `/qa` sends an API-only area's pending cases straight to the person as a scope question. What to change: a committed `observe` probe spec (GET only, or GraphQL `query` only, host pinned, signed in through the fixtures) that runs the planner's `probes.json`. Size: medium; it waits for the core split.
+
 **The judge proves a test fails for one assertion per case.** The script mutates one string or number literal on a
 line of its own; everything else (bounds, regular expressions, several assertions on a line) is judged by reading. A
 cheaper model for the judge is not measured yet, and a judge score that drops is only reported until its verdicts have

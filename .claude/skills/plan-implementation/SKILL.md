@@ -48,7 +48,7 @@ contract until it passes; never edit the facts to make it pass.
 When implementation shows the contract is wrong, the implementer stops and adds an `## Amendments` entry. It counts
 only with an `Approved: <who>, <date>` line; an unapproved amendment fails the check. The base contract's approval is
 one such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`. Only a person writes it,
-or a session quoting the person's words verbatim; the planner and the implementer never write it.
+or a session quoting the person's words verbatim (several lines joined with " / "); the planner and the implementer never write it.
 
 ## Example from this repository
 

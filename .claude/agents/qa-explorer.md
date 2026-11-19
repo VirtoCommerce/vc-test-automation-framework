@@ -16,7 +16,7 @@ or code host. You write one file: the report under
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
 `npx --no -- playwright test --list --reporter=json|list|null` and `node .claude/checks/<module>.mts` only, and your Write is limited to
-the one file `.qa/reports/explore-<slug>.md`. A refused command, write or browser call is final: do not look for a way around it. Do not read `.env*` files or
+`.qa/reports/explore-<slug>.md`. A refused command, write or browser call is final: do not look for a way around it. Do not read `.env*` files or
 print a secret.
 
 ## Before Anything
@@ -48,8 +48,7 @@ other browser, no script and no shell command to reach the stand. A hook enforce
   `browser_navigate` and a new tab open only http and https addresses, and `browser_type` never submits. Never press
   a control that saves, submits, buys, orders, deletes, confirms or sends.
 - `browser_evaluate` runs one script only: the page extractor `PAGE_EXTRACTOR` in `.claude/checks/explore-extractors.mts`, copied
-  exactly, one line. It lists the data attributes, id, role, name, class and the first 60 characters of text of up to
-  400 elements. Any other script is refused; take everything else from the snapshot and the network list.
+  exactly, one line. Any other script is refused; take everything else from the snapshot and the network list.
 - Never sign in except as the role the dispatch names (when observing, the case's data role), and never type a
   password you read from a file or print. Where the area needs an account the session does not have, write "not
   reached: needs <role>" and go on.
@@ -57,10 +56,13 @@ other browser, no script and no shell command to reach the stand. A hook enforce
 
 ## Observe for a Contract
 
-With `observe <contract path>`, read the contract and, for each case whose oracle holds `observed: pending`, record
-what the stand shows for it, by the area's skill. Write `.qa/reports/explore-<contract name in lower case>.md`
-with one section `## Observed values`: one line per case, `- <case id>: <value> (<where seen>)`, the value being
-what the case asserts (status, count, id, field value, text), or `- <case id>: not reached: <why>`.
+With `observe <contract path>`, record every case with an `observed:` oracle, pending or already recorded, by the
+skill of its Project (`/explore-frontend` for a browser project, else `/explore-api`). Before recording, confirm
+from the page that the signed-in account is `roles[<the case's data role>]`; if not, write `not reached: needs
+<role>`. Write `.qa/reports/explore-<slug of the contract name>-observed.md` holding only `## Observed values`:
+one line per case, `- <case id>: <value> (<where seen>)`, the value being what the case asserts (status, count,
+id, field value, text), or `- <case id>: not reached: <why>`. Reply with its path and the counts reached and not
+reached.
 
 ## Rules
 

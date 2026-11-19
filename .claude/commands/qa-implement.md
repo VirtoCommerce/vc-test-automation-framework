@@ -36,7 +36,8 @@ and leaves its run record under `.qa/runs/<contract-name>/` (`report.<project>.j
 each project).
 
 If it stops with an amendment request, show the amendment to the person. Only the person writes its `Approved:`
-line, or you write `Approved: <who>, <date> (relayed: "<their reply, word for word>")` quoting them; never without
+line, or you write `Approved: <who>, <date> (relayed: "<their reply, word for word>")` quoting them (several lines joined
+with " / "); never without
 their words. After it is written, run the check again and, when it prints `ok`, spawn the expert again
 with the same path.
 

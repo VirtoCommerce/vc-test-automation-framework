@@ -52,7 +52,7 @@ ticket: <key>
 <!-- ## Approval
 Left out until a person approves. Written only by that person, or by the session they answered, quoting their reply word for word; never by an agent. One line, the bracket only when relayed:
 
-Approved: <who>, <YYYY-MM-DD> (relayed: "<the person's exact words>")
+Approved: <who>, <YYYY-MM-DD> (relayed: "<the person's exact words, several lines joined with / >")
 -->
 
 <!-- ## Amendments

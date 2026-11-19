@@ -27,17 +27,21 @@ Relay its scope questions to the person and pass the answers back.
 
 ### 2. Check
 
-Run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to the planner; do not edit
-the contract yourself. When the planner replies `needs observation`, spawn `qa-explorer` (read-only) with
-`observe <contract path>`, then the planner again with the contract and the explorer's report path, and check again.
+First, when the planner replies `needs observation`, spawn `qa-explorer` (read-only) with `observe <contract path>`,
+then the planner with `observed <contract path> <report path>`. Cases it lists as `api-only` skip the explorer (an
+API-only area cannot be observed yet, `REFINEMENTS.md`): put them to the person as a scope question at once.
+
+Otherwise run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to
+the planner; do not edit the contract yourself.
 
 ### 3. Approval
 
-Show the contract's cases, each `observed:` oracle with its recorded value and report, and its `## Observed only`
-section, and ask one question: approve this contract. A person's
+Show the contract's cases, each `observed:` oracle with its recorded value and report, its `## Observed only`
+section, and every case or `observed:` part moved out as not reached, with the reason; ask one question: approve
+this contract. A person's
 approval is the only thing that lets `/qa-implement` start; never approve for them. Record it: unless the person
-wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed: "<their reply, word for word>")`,
-the only edit you make to the contract, then run the check again.
+wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed: "<their reply, word for word>")`
+(several lines joined with " / "), the only edit you make to the contract, then run the check again.
 
 End with:
 ```

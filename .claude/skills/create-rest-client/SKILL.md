@@ -10,6 +10,8 @@ Specs never build REST requests. They call `api.rest.<module>.<resource>.<method
 `api/rest/clients/` returns named types from `api/rest/types/`, built on the generated Swagger models. The `api`
 layer imports only `core`.
 
+Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`).
+
 ## File Locations
 
 - Clients: `api/rest/clients/<module>-client.ts`, e.g. `PricingClient` (reference: `pricing-client.ts`)
@@ -23,8 +25,7 @@ layer imports only `core`.
 ## Step 1: Verify the Endpoint
 
 Find the path, method, parameters and models in the Swagger (`api/rest/generated/rest-api.ts`) before writing
-code. Paths guessed from names are often wrong (role creation is PUT; API keys live under
-`/api/platform/security/users/apikeys`). Check whether the client already has the method, or a sibling resource
+code. Paths guessed from names are often wrong. Check whether the client already has the method, or a sibling resource
 of the same shape.
 
 ## Step 2: Named Types
@@ -143,12 +144,18 @@ Setup that several specs share goes into `dataset/arrange/<domain>.ts` on top of
    `X.fields`); no `?? []` that hides a missing response.
 4. Named types in `api/rest/types/`; never edit `api/rest/generated/`.
 5. No test logic, assertions or cleanup in clients.
-6. JSDoc only for what the signature cannot say (side effects, guards, which method to use when); no comments.
+6. JSDoc only for what the signature cannot say (side effects, guards, which method to use when); the rest of the
+   style comes from the repository's `CLAUDE.md`.
 7. Remove methods nothing calls.
 
 ## Verify
 
-```shell
-npm run typecheck && npm run check
-npm run test:unit
-```
+Run `commands.typecheck` and `commands.lint` from the project facts, then the unit project
+(`commands.test["unit"]` when the facts name one).
+
+## Example from this repository
+
+- Reference client and types: `api/rest/clients/pricing-client.ts`, `api/rest/types/pricing.ts`.
+- Paths guessed from names that were wrong: role creation is PUT; API keys live under
+  `/api/platform/security/users/apikeys`.
+- Commands: `npm run typecheck && npm run check`, then `npm run test:unit`.

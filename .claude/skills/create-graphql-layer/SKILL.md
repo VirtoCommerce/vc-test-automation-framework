@@ -10,6 +10,8 @@ There are no hand-written operation classes or model types. An operation is a `.
 Generator turns it into a typed `…Document` constant plus result and variable types, and `api.graphql` executes
 it.
 
+Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`).
+
 ## File Locations
 
 - Operations: `api/graphql/operations/<area>/<operation-name>.graphql` (kebab-case, one operation per file)
@@ -125,4 +127,11 @@ row lambda or an inline call, not a helper function.
 3. Reuse and extend fragments instead of duplicating field lists.
 4. Remove documents no spec or arrange method uses, then regenerate.
 5. Methods that create data live in `dataset/arrange` and register their own cleanup.
-6. No code comments; JSDoc only for what the signature cannot say.
+6. JSDoc only for what the signature cannot say; the rest of the style comes from the repository's `CLAUDE.md`.
+
+## Example from this repository
+
+- Reference documents: `api/graphql/operations/cart/add-item.graphql`, `api/graphql/operations/cart/get-cart.graphql`;
+  codegen config `codegen-graphql.ts` (schema from `BACKEND_BASE_URL/graphql`).
+- Regenerate with `npm run codegen:graphql`, then `npm run typecheck`.
+- Reference arrange method: `arrange.carts.cart` in `dataset/arrange/carts.ts`.

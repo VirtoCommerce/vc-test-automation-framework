@@ -2,62 +2,56 @@
 
 **Stage 2 of 3** in the QA workflow: Plan → Implement → Review
 
-You are orchestrating the implementation stage. Spawn the `qa-automation-expert` agent to execute the implementation plan from the previous `/qa-plan` stage.
+You are orchestrating the implementation stage. Spawn the `qa-automation-expert` agent to implement one approved
+contract. The agent receives the contract path and nothing else.
 
 ## Input
 
-The implementation plan should already exist in the conversation from a previous `/qa-plan` run. If no plan exists, ask the user to run `/qa-plan` first or provide a task description.
+`$ARGUMENTS` is the path of a contract: `.qa/contracts/<ticket-key-or-slug>.md`, written by `/qa-plan`.
 
-If `$ARGUMENTS` is provided, use it as additional context or override instructions.
+- No path: ask the person for it, or tell them to run `/qa-plan` first. Do not look for a plan in the conversation
+  and do not take a task description in place of a contract.
+- A path that is not a file: say so and stop.
 
 ## Steps
 
-### 1. Review the Plan
+### 1. Check the Contract
 
-Read the implementation plan from the conversation. Identify:
-- Files to create or modify, in dependency order
-- The skill to invoke for each file
-- The pattern reference for each file
+Run `node qa/contract.mts check <path>`. It prints `ok <path>` or one line per problem.
 
-### 2. Execute Phase by Phase
+When it does not print `ok`, show its lines, say the contract is not ready, and stop. Do not repair the contract
+and do not start the expert on it; the planner fixes it, or a person approves an amendment.
 
-Spawn the `qa-automation-expert` agent and execute the plan in order:
+Confirm with the person that this contract is the approved one. Never approve it for them.
 
-**Phase 1: Infrastructure**
-- `.graphql` operations or fragments → `/create-graphql-layer` (includes `npm run codegen:graphql`)
-- REST client methods, clients or named types → `/create-rest-client`
-- Page objects and components → `/create-ui-layer`
-- Builders (`dataset/builders/`), `arrange` methods (`dataset/arrange/<domain>.ts`), dataset records (`dataset/data/`) and `KNOWN_ISSUES` entries → follow the pattern references in the plan and README.md
+### 2. Implement
 
-**Phase 2: Tests**
-- REST specs → `/write-rest-api-test`
-- GraphQL specs → `/write-graphql-test`
-- e2e specs (frontend or page builder) → `/write-e2e-test`
+First move an earlier run's judge verdict out of the way, so it cannot steer this run:
+`mv -f .qa/judge/<contract-name>/judge-expert.json .qa/judge/<contract-name>/judge-expert.previous.json` when the
+first file exists (`<contract-name>` and the other hand-off paths: the skill `project-facts`, "Hand-off Paths").
 
-### 3. Verify
+Spawn the `qa-automation-expert` agent with the contract path only: no plan, no summary of the conversation, no
+extra instructions. It reads `framework-rules` and `project-facts`, implements the cases, runs the definition of done
+and leaves its run record under `.qa/runs/<contract-name>/` (`report.<project>.json` and `list.<project>.json` for
+each project).
 
-Follow CLAUDE.md "Before handing work over":
+If it stops with an amendment request, show the amendment to the person. Only a person writes the `Approved:` line;
+never write it yourself. After it is written, run the check again and, when it prints `ok`, spawn the expert again
+with the same path.
 
-```shell
-npm run typecheck
-npm run check
-npx playwright test --list                         # every spec and fixture loads
-npm run test:<project> -- <new or changed specs>   # against a seeded platform
-npm run test:unit                                  # when core, api, dataset, pages or fixtures changed
-```
+### 3. Output
 
-New dataset records need `npm run seed` (and a reindex) before the specs that read them can pass. Tests in `tests/isolated/` run only with `RUN_DESTRUCTIVE_TESTS=true npm run test:isolated`.
-
-Fix every type error, lint finding and failing test before reporting. If the platform is not reachable, say so and report the run as not done.
-
-### 4. Output
-
-Present a summary:
+Present the expert's report:
 - Files created or modified
 - Tests added (titles)
-- Verification results, with any failures and their cause
+- Run record path and the passed, skipped and failed counts per project, with every skip's reason
+- Amendments awaiting approval, and findings
 
-End with:
+When the stand was not reachable, say that the run was not done.
+
+When an amendment awaits approval, end by naming it and say that implementation is paused. When the run was not
+done, end by saying so. Only when nothing awaits approval and the run was done, end with the contract's own path in
+place of `<contract path>`:
 ```
-Implementation complete. Run /qa-review to review the code.
+Implementation complete. Run /qa-review <contract path> to review the code.
 ```

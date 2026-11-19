@@ -29,6 +29,7 @@
     "report:open": "allure open allure-report"
   },
   "devDependencies": {
+    "@babel/parser": "7.29.9",
     "@biomejs/biome": "2.5.15",
     "@graphql-codegen/cli": "7.4.6",
     "@graphql-codegen/client-preset": "6.2.3",

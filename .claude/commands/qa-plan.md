@@ -2,46 +2,41 @@
 
 **Stage 1 of 3** in the QA workflow: Plan → Implement → Review
 
-You are orchestrating the planning stage. Spawn the `qa-planner` agent to analyze the requirement and produce both a test strategy and an implementation plan.
+You are orchestrating the planning stage. Spawn the `qa-planner` agent to turn the request into a contract.
 
 ## Input
 
-The user provides a requirement — this can be:
-- A Jira ticket number or URL
-- A feature description
-- A bug report
-- A plain-text requirement
+`$ARGUMENTS` is one of:
+- a ticket key (checked against `tracker.keyPattern` in the project facts)
+- a specification or documentation link
+- an area of existing functionality ("cover the cart") or a gap id from the coverage report
+- a plain-text requirement
 
-Pass `$ARGUMENTS` as the requirement to the agent.
+An area or a gap needs the explorer's report and the coverage report first; when they do not exist, say so and offer
+`/qa-explore` and `/qa-coverage` before planning.
 
 ## Steps
 
-### 1. Test Strategy
+### 1. Plan
 
-Spawn the `qa-planner` agent and ask it to invoke the `/plan-test-strategy` skill with the user's requirement.
+Spawn the `qa-planner` agent with the request. It reads `framework-rules` and `project-facts`, reads the source (a
+ticket through `read-ticket`), designs the case matrix with `/plan-test-strategy`, asks the scope questions the
+matrix leaves open, and writes `.qa/contracts/<ticket-key-or-slug>.md` with `/plan-implementation`.
 
-The agent should:
-- Analyze the requirement
-- Explore existing specs under `tests/`, REFINEMENTS.md, and the reusable building blocks (REST clients, `.graphql` documents, page objects, `dataset/arrange`, `dataset/builders`, `dataset/data`, `known-issues.json`)
-- Produce a structured test strategy (test cases, projects, identities, priorities, data needs, known issues)
+Relay its scope questions to the person and pass the answers back.
 
-### 2. Implementation Plan
+### 2. Check
 
-After the strategy is complete, ask the `qa-planner` agent to invoke the `/plan-implementation` skill using the strategy it just produced.
+Run `node qa/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to the planner; do not edit
+the contract yourself.
 
-The agent should:
-- Identify all files to create or modify
-- Order them by dependency (documents and codegen, clients and types, page objects, builders and `arrange` methods, known issues, then specs, then REFINEMENTS.md)
-- Name the existing file each new file should follow
-- Specify which skill the implementer should use for each file
+### 3. Approval
 
-### 3. Output
-
-Present the combined result to the user:
-1. **Test Strategy** — what to test, priorities, coverage matrix
-2. **Implementation Plan** — file-by-file steps with pattern references and verification commands
+Show the contract's cases and its `## Observed only` section, and ask one question: approve this contract. A person's
+approval is the only thing that lets `/qa-implement` start; never approve for them.
 
 End with:
 ```
-Plan complete. Run /qa-implement to execute this plan.
+Contract: .qa/contracts/<file>.md
+Approved? Run /qa-implement .qa/contracts/<file>.md to build it.
 ```

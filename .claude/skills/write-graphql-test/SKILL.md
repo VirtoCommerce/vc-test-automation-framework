@@ -6,12 +6,12 @@ argument-hint: "<area> <test-scenario>"
 
 ## GraphQL Spec Writing
 
-Specs live in `tests/graphql/<area>/<topic>.spec.ts` (areas: cart, catalog, customer, orders, pickup, quotes,
-security) and run in the `graphql` project. A test that changes platform-wide state goes to
-`tests/isolated/graphql/`.
+Specs live in `tests/graphql/<area>/<topic>.spec.ts` and run in the GraphQL project (a key of
+`commands.test` in the project facts). A test that changes platform-wide state goes to the repository's isolated
+project.
 
-Read first: CLAUDE.md "Writing tests", README "A GraphQL test". Copy the shape of
-`tests/graphql/cart/cart-items.spec.ts`.
+Read first: skill `framework-rules`, then `project-facts` (`node qa/project-facts.mts`), then the repository's
+README for its GraphQL test shape. Copy the shape of a neighbouring spec of the same area.
 
 ## Step 1: Find the Building Blocks
 
@@ -26,9 +26,9 @@ Read first: CLAUDE.md "Writing tests", README "A GraphQL test". Copy the shape o
 | Need | Use |
 |---|---|
 | Anonymous shopper | `api` (fresh user id per test, so carts never collide) |
-| Read-only checks as a dataset user | `test.use({ user: "<dataset user name>" })`, then `api` |
+| Read-only checks as a dataset user | `test.use({ user: "<roles[role] from the project facts>" })`, then `api` |
 | Anything that changes a customer's own state (cart, lists, addresses, locks, orders) | `const customer = await arrange.customers.customerAccount()`, then `customer.api` |
-| An organization maintainer | `arrange.customers.customerAccount({ role: "role-org-maintainer" })` |
+| A customer with a platform role | `arrange.customers.customerAccount({ role: "<role id the contract names>" })` |
 | A colleague in the same organization | `arrange.customers.customerAccount({ organizationId: customer.organizationId })` |
 
 ## Step 3: Write the Spec
@@ -42,7 +42,7 @@ import { requireFields } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
 import { expect, test } from "@fixtures";
 
-const PRODUCT_ID = "product-smartphone-apple-iphone-17-256gb-black";
+const PRODUCT_ID = "<id of a record in dataset/data/products>";
 
 test.beforeEach(async () => {
   await allure.epic("GraphQL");
@@ -130,12 +130,19 @@ query (see `tests/graphql/pickup/pickup-locations.spec.ts`).
    assertion.
 6. Nullable results unwrapped with `requireFields` / `lineItemOf`; never `?? ""` or `?? []`.
 7. No sleeps; `expect.poll` with `INDEX_LAG_TIMEOUT_MS` or an `arrange` wait.
-8. No code comments.
+8. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify
 
-```shell
-npm run typecheck && npm run check
-npm run test:graphql -- tests/graphql/<area>/<topic>.spec.ts
-```
+Run `commands.typecheck`, `commands.lint` and `commands.test["graphql"]` (the GraphQL project's key) from the project
+facts on the changed spec, with the run record the expert agent describes.
+
+## Example from this repository
+
+- Reference spec: `tests/graphql/cart/cart-items.spec.ts`; README "A GraphQL test".
+- Areas: cart, catalog, customer, orders, pickup, quotes, security. Isolated specs: `tests/isolated/graphql/`.
+- A seeded product id: `product-smartphone-apple-iphone-17-256gb-black` (`dataset/data/products/`).
+- An organization maintainer: `arrange.customers.customerAccount({ role: "role-org-maintainer" })`.
+- Commands: `npm run typecheck && npm run check`, then
+  `npm run test:graphql -- tests/graphql/<area>/<topic>.spec.ts`.
 

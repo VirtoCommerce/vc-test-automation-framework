@@ -62,8 +62,9 @@ of the area; `stability` from known issues on the area (more issues, higher); `c
 planner would still have to create (a missing client, page object or data role: higher). No evidence: leave the key out.
 
 Run `node qa/rank-gaps.mts <gaps file>`. It marks a gap critical when its name or area matches a critical flow, scores
-each gap by the project's weights, and prints them highest first; a gap not enabled on the stand ranks below every
-enabled one. Give the gaps ids `G1`, `G2`, ... in the printed order. In the report each is one row: id, area, surface,
+each gap by the project's weights, and prints them in a strict order: gaps enabled on the stand first, then critical
+flows before the others (a critical gap outranks a non-critical one whatever the scores), then by score, highest first,
+then by name. A gap not enabled on the stand ranks below every enabled one, critical or not. Give the gaps ids `G1`, `G2`, ... in the printed order. In the report each is one row: id, area, surface,
 name, score, and one sentence a planner can take as a task ("Cover `<name>`: the behaviour no test checks; roles
 `<roles>`"), plus why it is not enabled when it is not.
 
@@ -74,15 +75,20 @@ Counts from Step 2, not from memory:
 | Project | Spec files | Tests | Expected failures | Skipped (no ticket) | Active rate |
 |---|---|---|---|---|---|
 
-- Spec files: count the `*.spec.ts` files under each project's test folder (Glob); framework unit tests on their own
-  line.
+- Spec files: count the `*.spec.ts` files under each project's test folder (Glob). Framework unit tests are on their
+  own line: the `*.test.ts` files under `tests/unit`, with the test count from listing the `unit` project.
+- A project that needs a flag the read-only shell never sets (in this repository `isolated`) does not list: leave it out
+  of every total and say so in one line under the table.
 - **Known-issue tests:** an entry with a tracker key is an expected failure (the test runs); an entry without one is
   skipped as `fixme`. A table row may carry the issue as a field, so count rows, not only call sites. List each:
   project, file, test, entry name, issue link or `none`.
 - Active tests = total tests minus skipped (no ticket); active rate = active / total x 100.
 - Distribution: each project's share of the total, with one line on the balance between API and UI tests.
-- Compared with the newest earlier `.qa/reports/coverage-*.md`, when one exists: change and percent change per
-  project; none: say so.
+- Compared with the newest earlier report `.qa/reports/coverage-*.md`, excluding `*-gaps.md`, when one exists: change
+  and percent change per project; none: say so.
+
+Each run writes the report and one gaps working file (`<report name>-gaps.md`); the working file is never a report to
+compare against.
 
 ## Done
 

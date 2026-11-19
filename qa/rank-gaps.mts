@@ -21,6 +21,7 @@ export type RankedGap = Gap & { score: number };
 
 const CLI_FILE_NAME = "rank-gaps.mts";
 const STDIN = 0;
+const SCORE_PRECISION = 1e9;
 const CRITICAL_RISK = 1;
 const UI_WITHOUT_API_RISK = 0.5;
 const SURFACES: readonly string[] = ["graphql", "rest", "frontend"];
@@ -39,13 +40,13 @@ function factorOf(gap: Gap, key: keyof Weights): number {
 function scoreOf(gap: Gap, weights: Weights): number {
   const risk =
     factorOf(gap, "risk") + (gap.critical ? CRITICAL_RISK : 0) + (gap.uiWithoutApi ? UI_WITHOUT_API_RISK : 0);
-  return (
+  const score =
     weights.risk * risk +
     weights.callFrequency * factorOf(gap, "callFrequency") +
     weights.runFrequency * factorOf(gap, "runFrequency") +
     weights.stability * factorOf(gap, "stability") -
-    weights.cost * factorOf(gap, "cost")
-  );
+    weights.cost * factorOf(gap, "cost");
+  return Math.round(score * SCORE_PRECISION) / SCORE_PRECISION;
 }
 
 function compareText(left: string, right: string): number {
@@ -59,6 +60,9 @@ function compareRanked(left: RankedGap, right: RankedGap): number {
   if (left.enabledOnStand !== right.enabledOnStand) {
     return left.enabledOnStand ? -1 : 1;
   }
+  if (left.critical !== right.critical) {
+    return left.critical ? -1 : 1;
+  }
   return (
     right.score - left.score ||
     compareText(left.name, right.name) ||
@@ -71,8 +75,10 @@ function compareRanked(left: RankedGap, right: RankedGap): number {
  * Ranks the coverage gaps, highest priority first. A gap's score is the weighted sum of its factors, each from 0 to
  * 1: `risk` (raised by 1 when the gap is a critical flow and by 0.5 when a UI test has no API test under it),
  * `callFrequency`, `runFrequency` and `stability` add to it, and `cost` (automation cost) takes from it, so a cheap gap
- * comes first. A gap whose module or flag is not enabled on the stand ranks below every enabled one. Ties go by name,
- * then area, then surface.
+ * comes first; scores are rounded to nine decimals so equal scores tie. The order is strict: gaps enabled on the stand
+ * before gaps that are not (a module or flag that is off), then critical flows before the others, then by score, highest
+ * first, then by name, then area, then surface. A critical gap therefore outranks a non-critical one whatever the
+ * scores and weights.
  *
  * @throws Error when a factor is not a number from 0 to 1.
  */

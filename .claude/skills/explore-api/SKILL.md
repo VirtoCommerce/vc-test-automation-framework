@@ -29,13 +29,16 @@ List a mutation and any state-changing request here, but never call one.
 ## Step 3: Schema vs Live
 
 Your only live source is what the page itself sends: open the pages of the area with the browser and read the
-requests and answers with `browser_network_requests`. You send no request of your own: no `fetch`, no script, no
-call from the shell.
+requests and answers with `browser_network_requests`; read one answer's body with `browser_network_request`, passing
+only its `index` and `part: "response-body"` (the hook refuses any other form). Never open the body of a sign-in, token or
+refresh request (`/connect/token`, an `auth` or `login` path): it holds credentials. Never copy personal data from a body into a
+report. You send no request of your own: no `fetch`, no script, no call from the shell.
 
 - Take the operation, its arguments and the answer's shape from the requests the page made. Use the session the
   browser already has. Do not type or look up credentials. A request that answered 401 or 403 is recorded as
   `not reached: needs <role>`; it is not a difference.
-- Keep no response body in the report beyond the field names and types; never copy personal data or a secret.
+- Keep no response body in the report beyond the field names and types, except, when observing for a contract, the
+  values its cases assert; never copy personal data or a secret.
 
 Compare each observed answer with the schema and list every difference, one row each: the operation, the field or
 status, what the schema says, what the page's traffic showed. Differences to look for: a field the schema declares but
@@ -45,6 +48,14 @@ does not declare.
 
 An operation the page did not send is listed as `not seen: <why>` (the page never uses it, it changes state, it
 needs a role). Never trigger one to see it.
+
+## Observing for a Contract
+
+The explorer's `observe` mode records the value one case asserts. First confirm who is signed in, from the page
+(the account menu) or from the page's own answer that names the current user: it must be `roles[<the case's data
+role>]`, or no account for `none`. Any other account, or none you can confirm: write `not reached: needs <role>`.
+Then take the value from the answer of the request the page sent for that case (`browser_network_request`,
+`part: "response-body"`) and write it raw, never quoted or escaped: a JSON string value without its JSON quotes. A value no request of the page shows is `not reached: no page sends it`.
 
 ## Done
 

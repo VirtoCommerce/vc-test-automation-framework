@@ -62,6 +62,12 @@ not code. Name the class, where it would live under the repository's layer rules
 the selector from step 3), its actions and what each waits for, and which existing page object it extends or reuses.
 Say which proposed locators wait on a missing test id from step 4.
 
+## Observing for a Contract
+
+The explorer's `observe` mode records the value one case asserts, as the page shows it. First confirm from the page
+(the account menu) that the signed-in account is `roles[<the case's data role>]`, or that no one is signed in for
+`none`; otherwise write `not reached: needs <role>`. Write the value raw, never quoted or escaped.
+
 ## Done
 
 The four sections are in the report, each with its items or `none observed`, and every item says where it was seen.

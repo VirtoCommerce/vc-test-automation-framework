@@ -32,8 +32,10 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   accounts.
 - Role purposes: `roleFor.admin` is the role `arrange` and REST administration tests act as, `roleFor.customer` an
   ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value
-  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires all three, and refuses
-  `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the same account. The two must also belong to different
+  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires `admin` and `customer`;
+  `otherCustomer` is optional (a project with one customer organization has none), and when it is absent a
+  cross-organization access case is a scope question for the person, never a role you pick. When present, the reader
+  refuses `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the same account. The two must also belong to different
   organizations, which the reader cannot check: take that from the seed, or ask.
 - Role permissions (optional): `rolePermissions["<role name>"]` lists the permissions that role holds, named as the
   platform under test names them. A case that needs a role with or without a permission takes it from here. When the
@@ -50,7 +52,8 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.
 - Knowledge snapshot: `knowledgeDir` is the directory where the knowledge snapshot lives; read it before calling a live
   service.
-- Tracker: `tracker.keyPattern` validates a ticket key; `tracker.routes` is the order in which to try to read a ticket,
+- Tracker: `tracker.keyPattern` validates a ticket key (the reader refuses a lost escape such as `^d+$`, and one that
+  matches no sample key of a `jira` or `azure-boards` kind); `tracker.routes` is the order in which to try to read a ticket,
   ending with pasted text.
 - Quality gates: `quality` holds the shape limits (`maxSteps`, `maxLines`, `maxExpects`, `maxNesting`, `maxConditionals`),
   `stableSeries` (the repetitions of a new or changed test, apart from `flakyRunSeries`), `durationBudgetMs` per project,

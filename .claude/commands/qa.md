@@ -17,9 +17,10 @@ cart"), a failing test, "review this branch", "what is not covered". Empty: ask 
 | A failing or flaky test | healer -> guard, then reviewer when it changed code |
 | "Review this branch" | reviewer |
 | "What is not covered / what next" | coverage; its gaps can be handed to the planner |
-| "Do it end to end" | planner -> approval -> explorer if needed -> expert -> healer if red -> guard -> judge -> reviewer |
+| "Do it end to end" | planner -> explorer (observe) if an `observed:` oracle is pending -> approval -> explorer if needed -> expert -> healer if red -> guard -> judge -> reviewer |
 
-When the request fits two rows, say which flow you chose in one line and start it. When it fits none, ask.
+When the request fits two rows, say which flow you chose in one line and start it. When it fits none, ask. In every
+flow, a contract with a pending `observed:` oracle is observed before its approval (Plan).
 
 ## Dispatch Rules
 
@@ -27,7 +28,8 @@ When the request fits two rows, say which flow you chose in one line and start i
   `qa-healer`, `qa-reviewer`. Give it the request and the paths it needs (the contract, a report, a diff range,
   spec files). Never paste the previous agent's reasoning or summary.
 - Send an agent only paths, the person's own words and the fixed words this command names (`judge re-dispatch`,
-  "no contract", `healer: <baseline tree id> <new tree id>`). Relay its questions to the person and pass the answers back.
+  "no contract", `healer: <baseline tree id> <new tree id>`, `observe <contract path>`, `observed <contract path>
+  <report path>`). Relay its questions to the person and pass the answers back.
 - Stages run in order; one stage's output file is the next stage's input. Do not run two writers on the same files
   at once.
 - A stand that is not reachable is reported as "not done", never as a pass.
@@ -44,14 +46,28 @@ Dispatch `qa-explorer` with the area. Dispatch `qa-coverage` for what is already
 Dispatch `qa-planner` with the request (and the report paths for an area or a gap). It writes
 `.qa/contracts/<ticket-key-or-slug>.md`. Relay its scope questions.
 
-Run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its lines back to the
-planner; never edit the contract yourself.
+First, when the planner replies `needs observation` (its only check lines are `no recorded value`), observe before
+the approval: dispatch `qa-explorer` with `observe <contract path>`. It is read-only and records every `observed:`
+case in `.qa/reports/explore-<slug>-observed.md`. Then dispatch the planner with `observed <contract path> <report
+path>` to copy the values in. Cases the report lists as `not reached: needs <role>` (the explorer observes only as the session the browser holds),
+and cases the planner lists as `api-only` (no page sends their request; an API-only area cannot be observed until the
+observe probe exists, `REFINEMENTS.md`), go to the person at once as a scope question: (a) observe at the expert's
+first run (it pins the value it sees and asks for it in an amendment the person approves); (b) name another oracle source; (c) drop the case. Pass
+the answers to the planner with `observed <contract path> <report path>`.
+
+Otherwise run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its
+lines back to the planner; never edit the contract yourself. Never ask for approval of a contract the check refuses,
+except for lines `at first run awaits the person's approval`: they clear once the approval line is written.
 
 ### Approval
 
-Show the contract's cases and its `## Observed only` section and ask one question: approve this contract. A
-person's approval is the only thing that lets the expert start. Never approve for them. Only a person writes an
-`Approved:` line on an amendment.
+Show the contract's cases, each `observed:` oracle with its recorded value and report, its `## Observed only`
+section, and every case or `observed:` part moved out as not reached, with the reason; ask one question: approve
+this contract. A person's approval is the only thing that lets the expert start. Never approve for them. Record it:
+unless the person wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed: "<their reply,
+word for word>")`, a reply of several lines joined with " / ". That line, and the same line on an amendment the
+person approved, are the only edits you make to a contract, and only with the person's words to quote. Then run the
+contract check again.
 
 ### Implement
 
@@ -60,10 +76,12 @@ The hand-off paths (`<contract-name>`, the run record, the verdict) and the stab
 
 Before the first expert dispatch of a run, move an earlier run's verdict out of the way, so it cannot steer this run:
 `mv -f .qa/judge/<contract-name>/judge-expert.json .qa/judge/<contract-name>/judge-expert.previous.json` when the
-first file exists. Dispatch `qa-automation-expert` with the contract path only. It leaves its run record under
-`.qa/runs/<contract-name>/`: `report.<project>.json` and `list.<project>.json` for each project, named with the
-project even when there is one. When it stops with an amendment request, show it to the person; after the person
-has written the `Approved:` line, run the contract check again and dispatch the expert again with the same path
+first file exists. Run `node .claude/checks/contract.mts check --approved <contract path>`; when it does not print
+`ok`, the contract is not approved: stop. Dispatch `qa-automation-expert` with the contract path only. It leaves
+its run record under `.qa/runs/<contract-name>/`: `report.<project>.json` and `list.<project>.json` for each project, named with the
+project even when there is one. When it stops with an amendment request, show it to the person; after the
+amendment's `Approved:` line is written (by the person, or by you quoting them as in Approval), run the contract
+check again and dispatch the expert again with the same path
 (not a judge re-dispatch).
 
 In the end-to-end flow, tell an unreachable stand apart from a red run first. When the expert reported the stand as

@@ -718,10 +718,16 @@ person. The other commands run one stage.
 | A failing or flaky test | healer, the expectation guard, then reviewer when code changed |
 | "Review this branch" | reviewer |
 | "What is not covered" | coverage |
-| "Do it end to end" | planner, approval, explorer if needed, expert, healer if red, guard, judge, reviewer |
+| "Do it end to end" | planner, explorer (observe) if an `observed:` oracle is pending, approval, explorer if needed, expert, healer if red, guard, judge, reviewer |
 
-Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. A person approves
-the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
+Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. When a contract
+has a pending `observed:` oracle, the read-only explorer records its value on the stand before the approval
+(`.qa/reports/explore-<slug>-observed.md`), the planner copies it in, and the approval shows it, with every case not
+reached. The explorer observes only as the session the browser holds, and an API-only area cannot be observed yet
+(`REFINEMENTS.md`): such cases go to the person as a scope question, where one answer is `observed: at first run`
+(the expert runs the spec once unpinned, pins the value it saw and stops with an amendment that names it, which the
+person approves; `contract.mts check --approved --implemented`, run by the judge, the reviewer and `/qa-review`,
+refuses a first-run case still unresolved or a first-run value no approved amendment names). A person approves the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
 sends the tests back to the expert once, and a second failure goes to a person. After the healer, a code check
 (`.claude/checks/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
 expert run goes to the healer before the judge, and after a clean guard the command re-runs the stable series into
@@ -747,8 +753,14 @@ folder of a contract's run record and verdict; the skill `project-facts` ("Hand-
 place. A contract holds one row per case (case, technique, Playwright project, data
 role, oracle) and every oracle names its source: `ticket`, `doc`, `schema` or `observed`. A case whose expectation is
 only `observed` may encode a bug the stand already has, so a person confirms it at approval or it is written as a
-characterization test. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
-`node .claude/checks/contract.mts check <file>` fails otherwise.
+characterization test. An `observed` oracle holds the value the explorer recorded and the report it is in
+(`observed: <value> (.qa/reports/explore-<slug>-observed.md)`); the check refuses one without, one whose report is
+not an explorer report or does not exist, and one whose report has no line `- <case id>: <value> (` under
+`## Observed values`. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
+`node .claude/checks/contract.mts check <file>` fails otherwise. The approved base contract records its approval in one
+such line under `## Approval`, and `contract.mts check --approved <file>`, which `/qa`, `/qa-implement` and the
+expert run before implementing, fails without it. Either line may end `(relayed: "<the person's words>")`: only the person writes it, or
+the session they answered, quoting their reply word for word; no agent writes it.
 
 **Git-ignore the working folders in a client repository.** Add `.qa/contracts/`, `.qa/runs/`, `.qa/reports/`,
 `.qa/judge/` and `.qa/kb/` (leave the last out only when the repository is private and the snapshot is meant to be
@@ -764,7 +776,7 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 
 | Field | Meaning |
 |---|---|
-| `tracker.kind`, `tracker.keyPattern` | The tracker's name and the regular expression a ticket key must match |
+| `tracker.kind`, `tracker.keyPattern` | The tracker's name and the regular expression a ticket key must match. The reader refuses a `d`, `w` or `s` followed by `+`, `*` or `{` with neither a backslash nor a letter or digit before it (an escape lost in JSON, such as `^d+$`; `^builds+$` passes), and, for `jira` and `azure-boards`, a pattern that matches no sample key of the kind's shape: `<project>-<1 to 7 digits>` for `jira`, the project being `PROJ` or an upper-case word of the pattern; an id of 1 to 7 digits, bare or after `AB#` or `#`, for `azure-boards` |
 | `tracker.acceptanceCriteriaField` (optional) | Where the tracker keeps acceptance criteria, when not in the description |
 | `tracker.routes` (optional) | Allowed ways to read a ticket, in order. Absent means pasted text only |
 | `docSources` | List of `{ name, route, where }`: the documentation the planner may read, and how |
@@ -773,7 +785,7 @@ optional. A missing, unreadable or invalid file stops the agents with a line tha
 | `critical` | Names of critical flows; a gap in one ranks above all others. May be empty |
 | `knowledgeDir` | Directory of the knowledge snapshot |
 | `roles` | Map from data role ("store administrator") to the account `test.use({ user })` takes. Plans and reports name roles, never accounts |
-| `roleFor` | Map from a fixed purpose to a key of `roles`: `admin` (the role `arrange` and REST administration tests act as), `customer` (an ordinary signed-in customer account), `otherCustomer` (a customer of another organization, for access tests). All three are required. Ours: `admin` is "store administrator", `customer` "store employee", `otherCustomer` "other store employee" |
+| `roleFor` | Map from a fixed purpose to a key of `roles`: `admin` (the role `arrange` and REST administration tests act as), `customer` (an ordinary signed-in customer account), `otherCustomer` (a customer of another organization, for access tests). `admin` and `customer` are required; `otherCustomer` is optional, and when it is absent the planner and the security skill treat a cross-organization access case as a scope question for the person. When present, it must be another role and another account than `customer`. Ours: `admin` is "store administrator", `customer` "store employee", `otherCustomer` "other store employee" |
 | `rolePermissions` (optional) | Map from a key of `roles` to the full list of permission names that role holds, written exactly as the platform under test names them. A case that needs "a role with (or without) permission P" picks its role here; when the field is absent or does not settle it, the planner asks. The entries describe the seed as committed: a stand seeded before a change to the seed's roles keeps the old permissions until it is re-seeded. Ours lists only what the seed in `dataset/data/roles/` and `dataset/data/users/` shows; the store administrator is left out because its user is also a platform administrator |
 | `coverageWeights` | `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`: numbers of at least 0 |
 | `flakyRunSeries` | Repetitions that decide "flaky": an integer of at least 2 |

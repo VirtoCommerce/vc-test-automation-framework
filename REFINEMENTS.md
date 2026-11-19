@@ -81,6 +81,10 @@ proof run and the evaluation worktrees run the same kind of code. What to change
 system sandbox (a container or a restricted user with no secrets in reach). Size: medium, and it depends on where the
 agents are packaged.
 
+**An API-only area cannot be observed before approval.** The explorer records an `observed:` value only from what a page of the stand sends and answers, so `/qa` sends an API-only area's pending cases straight to the person as a scope question. What to change: a committed `observe` probe spec (GET only, or GraphQL `query` only, host pinned, signed in through the fixtures) that runs the planner's `probes.json`. Size: medium; it waits for the core split.
+
+**The explorer can still see a token in a response body.** The hook allows `browser_network_request` with `part: "response-body"` but cannot map a request index to its URL, so "never open a sign-in or token body" is a prompt rule. What is enforced is at the writes: the hook refuses an explorer report that holds a token-shaped string (a JSON Web Token, `access_token`, `refresh_token`, `"password"`, `Bearer `), and `contract.mts` refuses such an observed value. A token the model reads still sits in its context and transcript. What to change: a hook check of the request's URL (the MCP server would have to expose it per index) or a network-level filter. Size: small to medium.
+
 **The judge proves a test fails for one assertion per case.** The script mutates one string or number literal on a
 line of its own; everything else (bounds, regular expressions, several assertions on a line) is judged by reading. A
 cheaper model for the judge is not measured yet, and a judge score that drops is only reported until its verdicts have

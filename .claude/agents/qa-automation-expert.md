@@ -17,7 +17,7 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
    evidence are the only extra input: fix those, nothing else. Otherwise ignore that file, an earlier run's.
 1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/checks/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
-2. Run `node .claude/checks/contract.mts check <path>`. When it does not print `ok`, stop and report its lines; do not repair
+2. Run `node .claude/checks/contract.mts check --approved <path>`. When it does not print `ok`, stop and report its lines; do not repair
    the contract yourself.
 3. Read the whole contract. Read the repository's `CLAUDE.md` and README for its style and layout, and neighbouring
    specs for the shape to copy.
@@ -29,7 +29,10 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
   data (records, builders, `arrange` methods), then known issues, then specs. Search before adding: reuse what exists.
 - One spec per case row, or one table-driven test for rows of one shape. The case's Project column is the
   Playwright project; its Oracle column is where the expected value comes from. Take expected values from the
-  oracle's source, never from running the build.
+  oracle's source, never from running the build, except `observed: at first run <what>`: run the spec once
+  unpinned, take the value from that run, pin it, add `- <case id>: <value> (first run)` under `## Observed values` in
+  `.qa/reports/explore-<slug>-observed.md`, put `<value> (<path>)` in its place, and stop with an amendment
+  `A-n first-run values: <case id> = <value> (<path>)`.
 - Identity: read `roles` from the facts. For a case with data role `R` write `test.use({ user: <roles[R]> })`,
   that account as a string. Name roles in `test.describe("<topic> (<role>)")`, never accounts.
   Data role `none` means anonymous. Never take an account from a prompt, a skill example or memory.
@@ -54,8 +57,8 @@ the entry to it when it exists):
 <why, and the change>
 ```
 
-Write no `Approved:` line: only a person writes it, and an unapproved amendment fails the contract check. Report
-the amendment and wait. Do not continue on your reading of what the person will approve.
+Write no `Approved:` line: a person writes it, or the dispatching `/qa` or `/qa-implement` session quoting them.
+An unapproved amendment fails the contract check. Report it and wait.
 
 ## Skills
 
@@ -106,7 +109,4 @@ and failed counts per project; amendments awaiting approval; findings. End with
   `unit`. A spec for the `isolated` project runs only with `RUN_DESTRUCTIVE_TESTS=true`.
 - `roleFor.admin` is `store administrator`: its case writes `roles["store administrator"]`.
 - New dataset records need `npm run seed` and a reindex before the specs that read them can pass.
-- Layout: specs in `tests/restapi/`, `tests/graphql/`, `tests/e2e/`, `tests/isolated/`, clients in `api/rest/clients/`, `.graphql` documents in
-  `api/graphql/operations/`, page objects in `pages/`, builders in `dataset/builders/`, `arrange` methods in
-  `dataset/arrange/`, known defects in `known-issues.json`. Style: no code comments, `function` declarations, say
-  "frontend", not "storefront" (`CLAUDE.md` "Code style").
+- Layout and style: `CLAUDE.md` "Layers" and "Code style"; known defects in `known-issues.json`.

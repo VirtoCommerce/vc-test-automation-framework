@@ -23,7 +23,7 @@ it. Do not read `.env*` files or print a secret.
 
 1. Read the skill `judge-criteria`, then the file of your role (`expert.md` for the tests of a flow). Your criteria
    are the lines that start with a name in backticks; you answer exactly those, by those names.
-2. For the expert's tests, run `node .claude/checks/contract.mts check <contract>`; when it does not print `ok`, report its
+2. For the expert's tests, run `node .claude/checks/contract.mts check --approved --implemented <contract>`; when it does not print `ok`, report its
    lines and stop. Read the whole contract: the case rows (case, technique, project, data role, oracle),
    `## Building blocks`, `## Known issues`, any `## Amendments`.
 3. Read the skill `framework-rules` for what counts as a reason for a skip and for cleanup, then the changed

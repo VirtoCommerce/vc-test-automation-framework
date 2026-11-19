@@ -2,8 +2,12 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { readProjectFacts } from "./project-facts.mts";
+import { CREDENTIAL_SHAPE } from "./readonly-shell.mts";
 
 const CLI_FILE_NAME = "contract.mts";
+const APPROVED_FLAG = "--approved";
+const IMPLEMENTED_FLAG = "--implemented";
+const FLAGS = [APPROVED_FLAG, IMPLEMENTED_FLAG];
 const SOURCE_KINDS = ["ticket", "doc", "area", "gap"] as const;
 const ORACLE_SOURCES = ["ticket", "doc", "schema", "observed"] as const;
 const REQUIRED_SECTIONS = [
@@ -19,8 +23,20 @@ const REQUIRED_SECTIONS = [
 const CASE_COLUMNS = ["Case", "Technique", "Project", "Data role", "Oracle"] as const;
 const AMENDMENTS_HEADING = /^amendment/i;
 const NO_ROLE = "none";
-const APPROVAL = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}\s*$/m;
+const APPROVAL_LINE = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}(?:\s+\(relayed: "[^\n]+"\))?\s*$/;
+const APPROVAL = new RegExp(APPROVAL_LINE.source, "m");
+const APPROVAL_SECTION = "Approval";
 const CONFIRMATION = /^(characterization|confirmed by \S.*)$/;
+const OBSERVED = "observed:";
+const PENDING = /^pending\b/;
+const AT_FIRST_RUN = /^at first run\s+\S/;
+const FIRST_RUN_LINE = /\(first run\)$/;
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
+const RECORDED = /^(.*?)\s*\(([^()]*)\)$/;
+const ESCAPED_PIPE = /\\\|/g;
+const REPORTS_DIR = ".qa/";
+const REPORT_PATH = /^\.qa\/reports\/explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;
+const OBSERVED_VALUES = "Observed values";
 
 type CaseRow = { name: string; dataRole: string; oracle: string };
 
@@ -53,12 +69,30 @@ function checkSource(lines: string[]): string[] {
   return accepted ? [] : [problem("## Source must start with ticket:, doc:, area: or gap:")];
 }
 
+/** Splits the Oracle cell on `separator` outside double quotes, so a quoted observed value may hold `;`. */
+function splitOutsideQuotes(text: string, separator: string): string[] {
+  const parts = [""];
+  let quoted = false;
+  for (const character of text) {
+    if (character === '"') {
+      quoted = !quoted;
+    }
+    if (character === separator && !quoted) {
+      parts.push("");
+    } else {
+      parts[parts.length - 1] += character;
+    }
+  }
+  return parts;
+}
+
+/** Splits a table row on every `|` that is not escaped as `\|`, the Markdown way to write a pipe in a cell. */
 function splitRow(line: string): string[] {
   return line
     .trim()
     .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
+    .replace(/(?<!\\)\|$/, "")
+    .split(/(?<!\\)\|/)
     .map((cell) => cell.trim());
 }
 
@@ -66,9 +100,12 @@ function isSeparator(cells: string[]): boolean {
   return cells.every((cell) => /^:?-{3,}:?$/.test(cell));
 }
 
+function oracleParts(oracle: string): string[] {
+  return splitOutsideQuotes(oracle, ";").map((part) => part.trim());
+}
+
 function oracleSources(oracle: string): string[] {
-  return oracle
-    .split(";")
+  return oracleParts(oracle)
     .map((part) => ORACLE_SOURCES.find((source) => part.trim().startsWith(`${source}:`)))
     .filter((source) => source !== undefined);
 }
@@ -117,6 +154,9 @@ function checkCases(lines: string[], roles: string[] | undefined): { problems: s
     ) {
       problems.push(problem(`${label} oracle must start with ticket:, doc:, schema: or observed:`));
     }
+    if ((oracle.match(/"/g) ?? []).length % 2 === 1) {
+      problems.push(problem(`${label} oracle has an unbalanced double quote, which hides the parts after it`));
+    }
     const dataRole = cell(cells, "Data role");
     for (const role of dataRole.split(",").map((item) => item.trim())) {
       if (roles !== undefined && role !== "" && role !== NO_ROLE && !roles.includes(role)) {
@@ -126,6 +166,114 @@ function checkCases(lines: string[], roles: string[] | undefined): { problems: s
     rows.push({ name, dataRole, oracle });
   }
   return { problems, rows };
+}
+
+/** The value as the explorer writes it in the report: raw, never quoted, with `\|` unescaped. */
+function rawValue(value: string): string {
+  const unquoted = value.length >= 2 && value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+  return unquoted.replace(ESCAPED_PIPE, "|");
+}
+
+function recordedLine(report: string, caseId: string, value: string): string | undefined {
+  const recorded = parseSections(report).find((section) => section.heading === OBSERVED_VALUES)?.lines ?? [];
+  return recorded.map((line) => line.trim()).find((line) => line.startsWith(`- ${caseId}: ${value} (`));
+}
+
+function namesCase(text: string, caseId: string): boolean {
+  return new RegExp(`(^|[^\\w-])${caseId.replace(REGEX_SPECIALS, "\\$&")}([^\\w-]|$)`).test(text);
+}
+
+type OraclePart = { text: string; splitOnSemicolon: boolean };
+
+/**
+ * What an observed part is checked against: the report reader, whether the contract has its approval line, the text
+ * of its approved amendment entries, and whether the implementation must be finished (`--implemented`).
+ */
+type ObservedContext = {
+  readReport: ((path: string) => string | undefined) | undefined;
+  approved: boolean;
+  approvedAmendments: string;
+  implemented: boolean;
+};
+
+/** The Oracle's parts; a part that starts with no source prefix is joined back to the part before it. */
+function sourceParts(oracle: string): OraclePart[] {
+  const parts: OraclePart[] = [];
+  for (const text of oracleParts(oracle)) {
+    const last = parts.at(-1);
+    if (last !== undefined && !ORACLE_SOURCES.some((source) => text.startsWith(`${source}:`))) {
+      last.text = `${last.text}; ${text}`;
+      last.splitOnSemicolon = true;
+    } else {
+      parts.push({ text, splitOnSemicolon: false });
+    }
+  }
+  return parts;
+}
+
+function checkObservedPart(
+  label: string,
+  caseId: string,
+  part: OraclePart,
+  context: ObservedContext,
+): string | undefined {
+  const { readReport, approved, approvedAmendments, implemented } = context;
+  const rest = part.text.slice(OBSERVED.length).trim();
+  if (part.splitOnSemicolon) {
+    return `${label} observed: the value holds an unquoted ;: write the value in double quotes`;
+  }
+  if (AT_FIRST_RUN.test(rest)) {
+    if (implemented) {
+      return `${label} observed: at first run is unresolved: the expert has not recorded and pinned its value`;
+    }
+    return approved ? undefined : `${label} observed: at first run awaits the person's approval (## Approval)`;
+  }
+  const match = RECORDED.exec(rest);
+  const value = match?.[1]?.trim();
+  const path = match?.[2]?.trim();
+  if (value === undefined || path === undefined || !(path.startsWith(REPORTS_DIR) || path.endsWith(".md"))) {
+    return PENDING.test(rest)
+      ? `${label} observed: oracle has no recorded value: observe it first, then write observed: <value> (.qa/reports/explore-<slug>-observed.md)`
+      : `${label} observed: this contract predates observe-before-approval: re-plan its observed cases (observed: pending <what to observe>)`;
+  }
+  if (!REPORT_PATH.test(path)) {
+    return `${label} observed: report path must be .qa/reports/explore-<slug>[-observed].md, not "${path}"`;
+  }
+  if (value === "") {
+    return `${label} observed: oracle names a report but no value before it`;
+  }
+  if (CREDENTIAL_SHAPE.test(value)) {
+    return `${label} observed: the value looks like a credential (a token, a password field or a Bearer header); never record one`;
+  }
+  if (readReport === undefined) {
+    return undefined;
+  }
+  const report = readReport(path);
+  if (report === undefined) {
+    return `${label} observed: oracle names ${path}, which does not exist`;
+  }
+  const line = recordedLine(report, caseId, rawValue(value));
+  if (line === undefined) {
+    return `${label} observed: ${path} has no line "- ${caseId}: ${rawValue(value)} (" under ## ${OBSERVED_VALUES}`;
+  }
+  return FIRST_RUN_LINE.test(line) && !namesCase(approvedAmendments, caseId)
+    ? `${label} observed: the first-run value of ${caseId} needs an approved amendment naming it (A-n first-run values: ${caseId} = <value> (<report>))`
+    : undefined;
+}
+
+function checkObservedValues(rows: CaseRow[], context: ObservedContext): string[] {
+  const problems: string[] = [];
+  for (const row of rows) {
+    const label = row.name === "" ? "a case" : `case "${row.name}"`;
+    const caseId = row.name.split(/\s+/)[0] ?? "";
+    for (const part of sourceParts(row.oracle).filter((item) => item.text.startsWith(OBSERVED))) {
+      const found = checkObservedPart(label, caseId, part, context);
+      if (found !== undefined) {
+        problems.push(problem(found));
+      }
+    }
+  }
+  return problems;
 }
 
 function checkObservedOnly(lines: string[] | undefined, rows: CaseRow[]): string[] {
@@ -152,8 +300,21 @@ function checkObservedOnly(lines: string[] | undefined, rows: CaseRow[]): string
   return problems;
 }
 
-function checkAmendments(heading: string, lines: string[]): string[] {
-  const entries: { title: string; body: string[] }[] = [];
+function checkApproval(lines: string[]): string[] {
+  const written = lines.map((line) => line.trim()).filter((line) => line !== "");
+  return written.length === 1 && APPROVAL_LINE.test(written[0] ?? "")
+    ? []
+    : [
+        problem(
+          `## ${APPROVAL_SECTION} must hold one line: Approved: <who>, <date>, optionally ending (relayed: "<the person's words>")`,
+        ),
+      ];
+}
+
+type AmendmentEntry = { title: string; body: string[] };
+
+function amendmentEntries(lines: string[]): { entries: AmendmentEntry[]; outside: string[] } {
+  const entries: AmendmentEntry[] = [];
   const outside: string[] = [];
   for (const line of lines) {
     const heading = /^### (\S.*?)\s*$/.exec(line);
@@ -163,6 +324,21 @@ function checkAmendments(heading: string, lines: string[]): string[] {
       (entries.at(-1)?.body ?? outside).push(line);
     }
   }
+  return { entries, outside };
+}
+
+/** The title and text of every amendment entry that carries its approval line, for the first-run values it names. */
+function approvedAmendmentText(sections: Section[]): string {
+  return sections
+    .filter(({ heading }) => AMENDMENTS_HEADING.test(heading))
+    .flatMap(({ lines }) => amendmentEntries(lines).entries)
+    .filter((entry) => APPROVAL.test(entry.body.join("\n")))
+    .map((entry) => [entry.title, ...entry.body].join("\n"))
+    .join("\n");
+}
+
+function checkAmendments(heading: string, lines: string[]): string[] {
+  const { entries, outside } = amendmentEntries(lines);
   const problems: string[] = [];
   if (hasText(outside)) {
     problems.push(problem(`## ${heading} has text outside a ### entry`));
@@ -179,9 +355,20 @@ function checkAmendments(heading: string, lines: string[]): string[] {
  * Checks the shape of a contract. Only the shape: it does not judge whether the cases are good.
  *
  * @param roles when given, every data role in the cases table must be one of them (or `none`).
+ * @param readReport returns the text of a report an `observed:` oracle names, or `undefined` when it does not exist;
+ *   when given, the report must hold the oracle's value for the case. The CLI reads from disk; omitted, only the shape
+ *   is checked.
+ * @param requireApproval when true, the contract must also carry its `## Approval` line (`check --approved`).
+ * @param requireImplemented when true, no `observed: at first run` part may be left (`check --implemented`).
  * @returns one line per problem, empty when the contract is valid.
  */
-export function checkContract(markdown: string, roles?: string[]): string[] {
+export function checkContract(
+  markdown: string,
+  roles?: string[],
+  readReport?: (path: string) => string | undefined,
+  requireApproval = false,
+  requireImplemented = false,
+): string[] {
   const parsed = parseSections(markdown);
   const sections = new Map<string, string[]>();
   const problems: string[] = [];
@@ -208,7 +395,22 @@ export function checkContract(markdown: string, roles?: string[]): string[] {
   }
   const cases = sections.get("Cases");
   const checked = cases !== undefined && hasText(cases) ? checkCases(cases, roles) : { problems: [], rows: [] };
-  problems.push(...checked.problems, ...checkObservedOnly(sections.get("Observed only"), checked.rows));
+  problems.push(
+    ...checked.problems,
+    ...checkObservedValues(checked.rows, {
+      readReport,
+      approved: sections.has(APPROVAL_SECTION),
+      approvedAmendments: approvedAmendmentText(parsed),
+      implemented: requireImplemented,
+    }),
+    ...checkObservedOnly(sections.get("Observed only"), checked.rows),
+  );
+  const approval = sections.get(APPROVAL_SECTION);
+  if (approval !== undefined) {
+    problems.push(...checkApproval(approval));
+  } else if (requireApproval) {
+    problems.push(problem(`## ${APPROVAL_SECTION} is missing: a person has not approved this contract`));
+  }
   for (const { heading, lines } of parsed) {
     if (AMENDMENTS_HEADING.test(heading)) {
       problems.push(...checkAmendments(heading, lines));
@@ -217,11 +419,29 @@ export function checkContract(markdown: string, roles?: string[]): string[] {
   return problems;
 }
 
+function readReportFile(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
-    const [command, file] = process.argv.slice(2);
-    if (command !== "check" || file === undefined) {
-      throw new Error("contract: usage is node .claude/checks/contract.mts check <file>");
+    const [command, ...rest] = process.argv.slice(2);
+    const flags = rest.filter((argument) => argument.startsWith("--"));
+    const [file, extra] = rest.filter((argument) => !argument.startsWith("--"));
+    if (
+      command !== "check" ||
+      file === undefined ||
+      extra !== undefined ||
+      flags.some((flag) => !FLAGS.includes(flag)) ||
+      new Set(flags).size !== flags.length
+    ) {
+      throw new Error(
+        `contract: usage is node .claude/checks/contract.mts check [${APPROVED_FLAG}] [${IMPLEMENTED_FLAG}] <file>, run from the repository root (report paths resolve from it)`,
+      );
     }
     let text: string;
     try {
@@ -229,7 +449,13 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     } catch {
       throw new Error(`contract: ${file} cannot be read`);
     }
-    const problems = checkContract(text, Object.keys(readProjectFacts().roles));
+    const problems = checkContract(
+      text,
+      Object.keys(readProjectFacts().roles),
+      readReportFile,
+      flags.includes(APPROVED_FLAG),
+      flags.includes(IMPLEMENTED_FLAG),
+    );
     if (problems.length > 0) {
       process.stderr.write(`${problems.join("\n")}\n`);
       process.exitCode = 1;

@@ -35,7 +35,7 @@ If the target is empty, detect it from git.
 ### 1. Determine Review Scope
 
 If `$ARGUMENTS` is a contract path (a `.md` file under `.qa/contracts/`):
-- Run `node .claude/checks/contract.mts check <contract path>`; when it does not print `ok`, show its lines and stop
+- Run `node .claude/checks/contract.mts check --approved --implemented <contract path>`; when it does not print `ok`, show its lines and stop
 - Collect the changed files as for no arguments, new untracked files included (`git status --porcelain`)
 - Spawn the `qa-reviewer` agent with `/review-test-code` on those files and the contract path. It runs the
   definition of done on the run record `.qa/runs/<contract-name>/` (the skill `project-facts`, "Hand-off Paths"),

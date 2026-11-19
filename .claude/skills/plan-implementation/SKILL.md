@@ -21,7 +21,14 @@ fill every section:
 - **Source**: first line `ticket: <key>`, `doc: <link>`, `area: <name>` or `gap: <id>`.
 - **Scope** and **Out of scope**: what is tested, and what is not and why.
 - **Cases**: the matrix. Every oracle starts with `ticket:`, `doc:`, `schema:` or `observed:`; every data role is a
-  role from the facts or `none`.
+  role from the facts or `none`. An `observed:` part holds a value the explorer recorded and its report,
+  `observed: <value> (.qa/reports/explore-<slug>-observed.md)`, the value exactly as the report's line
+  `- <case id>: <value> (` has it (in double quotes when it holds `;`, a `|` written `\|`). The check refuses one without a report
+  (`observed: pending <what>` included), and one whose report does not exist or does not hold that line.
+  `observed: at first run <what>` (the person chose to observe at the expert's first run) passes only with the
+  `## Approval` line, and never with `--implemented`. The expert pins the value it saw and stops with an amendment
+  `A-n first-run values: <case id> = <value> (<report>)`; a `(first run)` value passes only once that entry is
+  approved.
 - **Observed only**: every case whose oracle is only `observed:`, marked `characterization` or `confirmed by <who>`.
 - **Stand needs**: profile, required modules and flags, data roles.
 - **Building blocks**: what to reuse and what to add, in dependency order, naming the existing file each addition
@@ -43,8 +50,9 @@ contract until it passes; never edit the facts to make it pass.
 ## Step 5: Amendments
 
 When implementation shows the contract is wrong, the implementer stops and adds an `## Amendments` entry. It counts
-only with an `Approved: <who>, <date>` line written by a person; an unapproved amendment fails the check. The planner
-never writes that line.
+only with an `Approved: <who>, <date>` line; an unapproved amendment fails the check. The base contract's approval is
+one such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`. Only a person writes it,
+or a session quoting the person's words verbatim (several lines joined with " / "); the planner and the implementer never write it.
 
 ## Example from this repository
 

@@ -50,6 +50,8 @@ Skill `plan-test-strategy` holds the matrix method. In short:
   A case whose oracle is only `observed:` may be a bug the stand already has. List it under `## Observed only`,
   marked `characterization` (written and named as a characterization test) unless a person confirms it at approval,
   which you then record as `confirmed by <who>`. Never mark it confirmed yourself.
+- An `observed:` oracle holds a value the explorer recorded: `observed: <value> (.qa/reports/explore-<slug>.md)`.
+  Until then write `observed: pending <what to observe>`. Never guess the value.
 
 ## Ask
 
@@ -63,7 +65,10 @@ Use skill `plan-implementation`: its `contract-template.md` is the shape. Save t
 `.qa/contracts/<ticket-key-or-slug>.md`.
 
 Run `node .claude/checks/contract.mts check <file>`. It prints `ok <file>` or one line per problem. Fix the contract, never the
-facts, until it prints `ok`.
+facts, until it prints `ok`. When the only lines left are `no recorded value` ones, stop and reply
+`needs observation: <case ids>` instead of asking for approval. Dispatched again with the explorer's report, copy
+each value into its oracle with the report path; a case the report did not reach moves to Out of scope with its
+reason, or becomes a scope question.
 
 ## Stop for One Approval
 

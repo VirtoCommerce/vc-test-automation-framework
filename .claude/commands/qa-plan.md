@@ -28,11 +28,13 @@ Relay its scope questions to the person and pass the answers back.
 ### 2. Check
 
 Run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to the planner; do not edit
-the contract yourself.
+the contract yourself. When the planner replies `needs observation`, spawn `qa-explorer` (read-only) with
+`observe <contract path>`, then the planner again with the contract and the explorer's report path, and check again.
 
 ### 3. Approval
 
-Show the contract's cases and its `## Observed only` section, and ask one question: approve this contract. A person's
+Show the contract's cases, each `observed:` oracle with its recorded value and report, and its `## Observed only`
+section, and ask one question: approve this contract. A person's
 approval is the only thing that lets `/qa-implement` start; never approve for them. Record it: unless the person
 wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed: "<their reply, word for word>")`,
 the only edit you make to the contract, then run the check again.

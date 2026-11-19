@@ -720,8 +720,9 @@ person. The other commands run one stage.
 | "What is not covered" | coverage |
 | "Do it end to end" | planner, approval, explorer if needed, expert, healer if red, guard, judge, reviewer |
 
-Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. A person approves
-the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
+Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. When a contract
+has a pending `observed:` oracle, the read-only explorer records its value on the stand before the approval, the
+planner copies it in, and the approval shows it. A person approves the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
 sends the tests back to the expert once, and a second failure goes to a person. After the healer, a code check
 (`.claude/checks/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
 expert run goes to the healer before the judge, and after a clean guard the command re-runs the stable series into
@@ -747,7 +748,8 @@ folder of a contract's run record and verdict; the skill `project-facts` ("Hand-
 place. A contract holds one row per case (case, technique, Playwright project, data
 role, oracle) and every oracle names its source: `ticket`, `doc`, `schema` or `observed`. A case whose expectation is
 only `observed` may encode a bug the stand already has, so a person confirms it at approval or it is written as a
-characterization test. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
+characterization test. An `observed` oracle holds the value the explorer recorded and the report it is in
+(`observed: <value> (.qa/reports/<report>.md)`); the check refuses one without, or whose report does not exist. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
 `node .claude/checks/contract.mts check <file>` fails otherwise. The approved base contract records its approval in one
 such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`: only the person writes it, or
 the session they answered, quoting their reply word for word; no agent writes it.

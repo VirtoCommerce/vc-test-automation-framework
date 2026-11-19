@@ -22,7 +22,7 @@ ticket: <key>
 |---|---|---|---|---|
 | <id> <what it shows> | <equivalence partitioning, boundary value analysis, decision table, state transition, pairwise, error guessing, negative, regression> | <a key of commands.test in the facts> | <a role from the facts> | ticket: <criterion> |
 
-<!-- A case without an account says `none` in Data role; several roles are separated by commas. Every Oracle cell starts with the source of the expected value: `ticket:`, `doc:`, `schema:` or `observed:`. Several sources are separated by `;`, each starting with its own prefix. One row per case. -->
+<!-- A case without an account says `none` in Data role; several roles are separated by commas. Every Oracle cell starts with the source of the expected value: `ticket:`, `doc:`, `schema:` or `observed:`. Several sources are separated by `;`, each starting with its own prefix. An `observed:` part holds the value the explorer recorded and the report it is in, `observed: <value> (.qa/reports/explore-<slug>.md)`; until it is recorded, write `observed: pending <what to observe>`, which the check refuses. One row per case. -->
 
 ## Observed only
 

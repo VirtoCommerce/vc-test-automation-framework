@@ -19,7 +19,8 @@ cart"), a failing test, "review this branch", "what is not covered". Empty: ask 
 | "What is not covered / what next" | coverage; its gaps can be handed to the planner |
 | "Do it end to end" | planner -> approval -> explorer if needed -> expert -> healer if red -> guard -> judge -> reviewer |
 
-When the request fits two rows, say which flow you chose in one line and start it. When it fits none, ask.
+When the request fits two rows, say which flow you chose in one line and start it. When it fits none, ask. In every
+flow, a contract with a pending `observed:` oracle is observed before its approval (Plan).
 
 ## Dispatch Rules
 
@@ -27,7 +28,8 @@ When the request fits two rows, say which flow you chose in one line and start i
   `qa-healer`, `qa-reviewer`. Give it the request and the paths it needs (the contract, a report, a diff range,
   spec files). Never paste the previous agent's reasoning or summary.
 - Send an agent only paths, the person's own words and the fixed words this command names (`judge re-dispatch`,
-  "no contract", `healer: <baseline tree id> <new tree id>`). Relay its questions to the person and pass the answers back.
+  "no contract", `healer: <baseline tree id> <new tree id>`, `observe <contract path>`). Relay its questions to the
+  person and pass the answers back.
 - Stages run in order; one stage's output file is the next stage's input. Do not run two writers on the same files
   at once.
 - A stand that is not reachable is reported as "not done", never as a pass.
@@ -47,9 +49,15 @@ Dispatch `qa-planner` with the request (and the report paths for an area or a ga
 Run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its lines back to the
 planner; never edit the contract yourself.
 
+When the planner replies `needs observation` (its only lines are `no recorded value`), observe before the approval:
+dispatch `qa-explorer` with `observe <contract path>`; it is read-only and records each pending value in
+`.qa/reports/explore-<slug>.md`. Then dispatch the planner again with the contract and that report's path, and check
+again. Never ask for approval of a contract the check refuses.
+
 ### Approval
 
-Show the contract's cases and its `## Observed only` section and ask one question: approve this contract. A
+Show the contract's cases, each `observed:` oracle with its recorded value and report, and its `## Observed only`
+section, and ask one question: approve this contract. A
 person's approval is the only thing that lets the expert start. Never approve for them. Record it: unless the
 person wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed: "<their reply, word for
 word>")`. That line, and the same line on an amendment the person approved, are the only edits you make to a

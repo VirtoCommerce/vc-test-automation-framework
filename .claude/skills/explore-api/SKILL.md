@@ -35,7 +35,8 @@ call from the shell.
 - Take the operation, its arguments and the answer's shape from the requests the page made. Use the session the
   browser already has. Do not type or look up credentials. A request that answered 401 or 403 is recorded as
   `not reached: needs <role>`; it is not a difference.
-- Keep no response body in the report beyond the field names and types; never copy personal data or a secret.
+- Keep no response body in the report beyond the field names and types, except, when observing for a contract, the
+  values its cases assert; never copy personal data or a secret.
 
 Compare each observed answer with the schema and list every difference, one row each: the operation, the field or
 status, what the schema says, what the page's traffic showed. Differences to look for: a field the schema declares but

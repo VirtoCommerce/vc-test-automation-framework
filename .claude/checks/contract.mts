@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { readProjectFacts } from "./project-facts.mts";
@@ -23,6 +23,7 @@ const APPROVAL_LINE = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}(?:\s+\(re
 const APPROVAL = new RegExp(APPROVAL_LINE.source, "m");
 const APPROVAL_SECTION = "Approval";
 const CONFIRMATION = /^(characterization|confirmed by \S.*)$/;
+const RECORDED_OBSERVATION = /^observed:\s*(?!pending\b)\S.*?\s\((\.qa\/reports\/[^\s()]+\.md)\)$/;
 
 type CaseRow = { name: string; dataRole: string; oracle: string };
 
@@ -130,6 +131,29 @@ function checkCases(lines: string[], roles: string[] | undefined): { problems: s
   return { problems, rows };
 }
 
+function checkObservedValues(rows: CaseRow[], reportExists: (path: string) => boolean): string[] {
+  const problems: string[] = [];
+  for (const row of rows) {
+    const label = row.name === "" ? "a case" : `case "${row.name}"`;
+    for (const part of row.oracle.split(";").map((item) => item.trim())) {
+      if (!part.startsWith("observed:")) {
+        continue;
+      }
+      const report = RECORDED_OBSERVATION.exec(part)?.[1];
+      if (report === undefined) {
+        problems.push(
+          problem(
+            `${label} observed: oracle has no recorded value: observe it first, then write observed: <value> (.qa/reports/<report>.md)`,
+          ),
+        );
+      } else if (!reportExists(report)) {
+        problems.push(problem(`${label} observed: oracle names ${report}, which does not exist`));
+      }
+    }
+  }
+  return problems;
+}
+
 function checkObservedOnly(lines: string[] | undefined, rows: CaseRow[]): string[] {
   const observed = rows.filter((row) => row.name !== "" && isObservedOnly(row.oracle));
   if (observed.length === 0) {
@@ -192,9 +216,14 @@ function checkAmendments(heading: string, lines: string[]): string[] {
  * Checks the shape of a contract. Only the shape: it does not judge whether the cases are good.
  *
  * @param roles when given, every data role in the cases table must be one of them (or `none`).
+ * @param reportExists tells whether a report an `observed:` oracle names exists; the CLI looks on disk.
  * @returns one line per problem, empty when the contract is valid.
  */
-export function checkContract(markdown: string, roles?: string[]): string[] {
+export function checkContract(
+  markdown: string,
+  roles?: string[],
+  reportExists: (path: string) => boolean = () => true,
+): string[] {
   const parsed = parseSections(markdown);
   const sections = new Map<string, string[]>();
   const problems: string[] = [];
@@ -221,7 +250,11 @@ export function checkContract(markdown: string, roles?: string[]): string[] {
   }
   const cases = sections.get("Cases");
   const checked = cases !== undefined && hasText(cases) ? checkCases(cases, roles) : { problems: [], rows: [] };
-  problems.push(...checked.problems, ...checkObservedOnly(sections.get("Observed only"), checked.rows));
+  problems.push(
+    ...checked.problems,
+    ...checkObservedValues(checked.rows, reportExists),
+    ...checkObservedOnly(sections.get("Observed only"), checked.rows),
+  );
   const approval = sections.get(APPROVAL_SECTION);
   if (approval !== undefined) {
     problems.push(...checkApproval(approval));
@@ -246,7 +279,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     } catch {
       throw new Error(`contract: ${file} cannot be read`);
     }
-    const problems = checkContract(text, Object.keys(readProjectFacts().roles));
+    const problems = checkContract(text, Object.keys(readProjectFacts().roles), existsSync);
     if (problems.length > 0) {
       process.stderr.write(`${problems.join("\n")}\n`);
       process.exitCode = 1;

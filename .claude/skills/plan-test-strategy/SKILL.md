@@ -52,7 +52,9 @@ builders, dataset records, known issues). A criterion already covered is listed 
      plans a new sign-in before checking its effect.
    - **Oracle**: where the expected value comes from, written `ticket:`, `doc:`, `schema:` or `observed:` followed by
      the criterion, page or field. If the only source is what the stand did, the oracle is `observed:` and the case
-     goes under `## Observed only`.
+     goes under `## Observed only`. An `observed:` oracle holds the value the explorer recorded on the stand, with its
+     report: `observed: <value> (.qa/reports/explore-<slug>.md)`. Never a value you expect; until it is recorded,
+     `observed: pending <what to observe>`.
 4. Priority: a flow listed in `critical` first.
 
 ## Step 4: Data and Infrastructure

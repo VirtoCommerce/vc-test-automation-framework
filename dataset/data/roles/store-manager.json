@@ -10,7 +10,7 @@
       "name": "storefront:order:view"
     },
     {
-      "name": "storefront:organaization:view"
+      "name": "storefront:organization:view"
     }
   ]
 }

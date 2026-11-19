@@ -14,7 +14,7 @@ export type ProjectFacts = {
   critical: string[];
   knowledgeDir: string;
   roles: Record<string, string>;
-  roleFor: Record<RolePurpose, string>;
+  roleFor: { admin: string; customer: string; otherCustomer?: string };
   rolePermissions?: Record<string, string[]>;
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
   flakyRunSeries: number;
@@ -200,14 +200,18 @@ function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFac
   }
   const role = (purpose: RolePurpose): string =>
     asRoleName(present(roleFor, purpose, `roleFor.${purpose}`), `roleFor.${purpose}`, roles);
-  const parsed = { admin: role("admin"), customer: role("customer"), otherCustomer: role("otherCustomer") };
-  if (parsed.customer === parsed.otherCustomer) {
+  const parsed = { admin: role("admin"), customer: role("customer") };
+  if (roleFor["otherCustomer"] === undefined) {
+    return parsed;
+  }
+  const otherCustomer = role("otherCustomer");
+  if (parsed.customer === otherCustomer) {
     fail("roleFor.otherCustomer", `is the same role as roleFor.customer ("${parsed.customer}")`);
   }
-  if (sameAccount(roles[parsed.customer], roles[parsed.otherCustomer])) {
+  if (sameAccount(roles[parsed.customer], roles[otherCustomer])) {
     fail("roleFor.otherCustomer", `is the same account as roleFor.customer (roles["${parsed.customer}"])`);
   }
-  return parsed;
+  return { ...parsed, otherCustomer };
 }
 
 /** Accounts are compared without regard to case, as a sign-in name is. */

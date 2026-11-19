@@ -41,7 +41,8 @@ builders, dataset records, known issues). A criterion already covered is listed 
      keeps only what only the UI shows.
    - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration,
      `roleFor.customer` for an ordinary signed-in customer, `roleFor.otherCustomer` for a customer of another
-     organization. A test that changes a user's own state creates its own user.
+     organization. When the facts have no `roleFor.otherCustomer`, a cross-organization access case is a scope
+     question for the person (the planner's Ask), never a role you pick. A test that changes a user's own state creates its own user.
    - **A role with or without permission P**: take it from `rolePermissions`, a role whose list holds P or one whose
      list lacks it. When `rolePermissions` is absent, lists no fitting role, or does not settle the question, it is a
      scope question for the person (the planner's Ask). Never infer which role holds a permission from knowledge of

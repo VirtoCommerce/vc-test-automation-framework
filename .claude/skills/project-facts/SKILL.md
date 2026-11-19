@@ -32,8 +32,10 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   accounts.
 - Role purposes: `roleFor.admin` is the role `arrange` and REST administration tests act as, `roleFor.customer` an
   ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value
-  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires all three, and refuses
-  `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the same account. The two must also belong to different
+  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires `admin` and `customer`;
+  `otherCustomer` is optional (a project with one customer organization has none), and when it is absent a
+  cross-organization access case is a scope question for the person, never a role you pick. When present, the reader
+  refuses `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the same account. The two must also belong to different
   organizations, which the reader cannot check: take that from the seed, or ask.
 - Role permissions (optional): `rolePermissions["<role name>"]` lists the permissions that role holds, named as the
   platform under test names them. A case that needs a role with or without a permission takes it from here. When the

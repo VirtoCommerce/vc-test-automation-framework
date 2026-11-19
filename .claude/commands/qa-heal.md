@@ -10,8 +10,8 @@ one.
 1. Record a baseline and a fingerprint first: `node .claude/checks/expectation-guard.mts --snapshot` prints a git tree id of the
    working tree, untracked files included; `node .claude/checks/expectation-guard.mts --repo-fingerprint` prints one sha of
    `.git/config`, `.git/info/`, `.git/hooks/`, the folder `core.hooksPath` names and `.qa/project.json` (it only reads; it is yours, the healer may not
-   run it). When the fingerprint refuses because git reads a configuration file under a healer path, show its line
-   to the person and do not dispatch the healer. Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
+   run it). When `--repo-fingerprint` exits non-zero or prints anything but 64 hexadecimal characters (a
+   configuration file under a healer path, for one), show its line to the person and do not dispatch the healer. Dispatch the agent fresh with the target and that baseline id, nothing else. It re-runs, classifies (test
    defect, product defect, stand data, flaky), fixes page objects, data and waits, and stops after three rounds.
 2. Recompute the fingerprint and run the guard, both from the baseline's own copy of `.claude/checks/`, never from the working
    tree (the healer could have changed it). Take that copy with `git cat-file blob`, which applies no attributes,
@@ -22,7 +22,7 @@ one.
    ```shell
    dir=$(mktemp -d) && mkdir "$dir/checks" || exit 1
    for m in expectation-guard project-facts; do GIT_NO_LAZY_FETCH=1 git --no-replace-objects -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/checks/$m.mts > "$dir/checks/$m.mts" || { rm -rf "$dir"; exit 1; }; done
-   test "$(node "$dir/checks/expectation-guard.mts" --repo-fingerprint)" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
+   fp=$(node "$dir/checks/expectation-guard.mts" --repo-fingerprint) && [ ${#fp} -eq 64 ] && case $fp in *[!0-9a-f]*) false;; esac && test "$fp" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
    node "$dir/checks/expectation-guard.mts" --base=<baseline tree id>; code=$?
    test $code -eq 0 && { new=$(node "$dir/checks/expectation-guard.mts" --snapshot) || code=1; }; rm -rf "$dir"; test $code -eq 0 && echo "healed tree: $new"; test $code -eq 0
    ```
@@ -38,9 +38,19 @@ one.
 3. Present what it fixed, what it classified as a product defect (a `knownIssue` proposal, never a patch), and what
    it escalated. A stand that was not reachable is "not done".
 
+When the target was a run record `.qa/runs/<contract-name>/` and `.qa/contracts/<contract-name>.md` exists, do what
+`/qa` does after a heal, in the same words:
+
+After a clean guard, re-run the definition of done's commands yourself (a mechanical re-run, not a role's work), so
+that the reviewer reconciles the healed state and not the expert's red record: for each project of the contract's
+case rows, with the expert's spec files, the stable series and the list into the same `report.<project>.json` and
+`list.<project>.json`, then reconcile ("Hand-off Paths", all three commands).
+The expert's spec files are the ones that record's `list.<project>.json` files name. Exit 1 on a project (a stand
+that is not reachable included): the run is not done; show the reconcile lines to the person.
+
 When code changed and the guard is clean, end with the review command, its `healer:` line filled in from the guard
-recipe (the baseline id, then the `healed tree`). Put the contract path first when the target was a run record
-`.qa/runs/<contract-name>/` and `.qa/contracts/<contract-name>.md` exists; otherwise leave it out:
+recipe (the baseline id, then the `healed tree`). Put the contract path first only when that re-run reconciled with
+exit 0 on every project; otherwise leave it out, since `/qa-review` would reconcile a record that is not the healed one:
 ```
 Heal complete. Run /qa-review <contract path or nothing> healer: <baseline tree id> <new tree id> to review the changes.
 ```

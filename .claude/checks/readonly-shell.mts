@@ -15,6 +15,7 @@ export const ALLOWED_QA_MODULES = [
   "contract",
   "reconcile-run",
   "rank-gaps",
+  "stand",
   "test-shape",
   "test-duration",
 ] as const;

@@ -39,19 +39,19 @@ print a secret.
 ## The Browser
 
 The browser is the MCP server registered under the name `playwright` (tools `mcp__playwright__browser_*`). Use no
-other browser, no script and no shell command to reach the stand. A hook enforces what follows.
+other browser, no script and no shell command to reach the stand. Its addresses: `node .claude/checks/stand.mts`. A hook enforces what follows.
 
 - Look first: `browser_snapshot`, `browser_network_requests` and `browser_network_request` (only `index` and
   `part: "response-body"`) change nothing.
 - Act only to reach more of the area: open a link, a tab, a menu, a filter, a dialog; type into a search field.
   Pass each tool only the arguments it needs, never `filename` or another path: the hook refuses any other.
   `browser_navigate` and a new tab open only http and https addresses, and `browser_type` never submits. Never press
-  a control that saves, submits, buys, orders, deletes, confirms or sends.
+  a control that saves, submits (sign-in excepted), buys, orders, deletes, confirms or sends.
 - `browser_evaluate` runs one script only: the page extractor `PAGE_EXTRACTOR` in `.claude/checks/explore-extractors.mts`, copied
   exactly, one line. Any other script is refused; take everything else from the snapshot and the network list.
-- Never sign in except as the role the dispatch names (when observing, never: use the browser's session), nor type a
-  password you read from a file or print. Where the area needs an account the session does not have, write "not
-  reached: needs <role>" and go on.
+- Sign in only as the role the dispatch names (when observing, never: use the browser's session): its account from
+  `roles`, and as the password the name `USERS_PASSWORD`, never a value; the browser types it. Where the area needs
+  an account the session does not have, write "not reached: needs <role>" and go on.
 - A shared stand is not yours: leave no record behind. If an action could have changed data, say so in the report.
 
 ## Observe for a Contract

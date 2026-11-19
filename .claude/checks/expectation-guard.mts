@@ -39,6 +39,9 @@ const INCLUDE_PATH_KEYS = "^include(if\\..*)?\\.path$";
 const NO_MATCH_EXIT_CODE = 1;
 const HOME_PREFIX = /^~\//;
 const UNEXPANDED_PREFIXES = [/^~(?!\/)/, /^%\(prefix\)/];
+const PARTIAL_CLONE_KEYS = "^(extensions\\.partialclone|remote\\..*\\.promisor)$";
+const GIT_VERSION = /^git version (\d+)\.(\d+)/;
+const LAZY_FETCH_SINCE = { major: 2, minor: 44 };
 const ADDED_PREFIX = "added ";
 const HUNK_HEADER = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const PATH_PREFIX = /^[ab]\//;
@@ -191,7 +194,7 @@ export function findOutsideHealerPaths(files: readonly string[], healerPaths: re
 
 type Mode = { kind: "snapshot" } | { kind: "fingerprint" } | { kind: "compare"; base: string };
 
-type Git = (args: readonly string[], index?: string) => string;
+export type Git = (args: readonly string[], index?: string) => string;
 
 function parseMode(args: readonly string[]): Mode {
   let base: string | undefined;
@@ -280,13 +283,53 @@ function switchedOff(git: Git): string[] {
   return [...filters, ...hooks];
 }
 
+/** True when `git --version` output names git 2.44 or newer, the first that honours `GIT_NO_LAZY_FETCH`. */
+export function honoursNoLazyFetch(versionOutput: string): boolean {
+  const match = GIT_VERSION.exec(versionOutput.trim());
+  if (match === null) {
+    return false;
+  }
+  const [major, minor] = [Number(match[1]), Number(match[2])];
+  return major > LAZY_FETCH_SINCE.major || (major === LAZY_FETCH_SINCE.major && minor >= LAZY_FETCH_SINCE.minor);
+}
+
+function installedGitVersion(): string {
+  try {
+    return execFileSync("git", ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Refuses a partial clone (`extensions.partialClone` set, or any `remote.<name>.promisor`) when git is older than
+ * 2.44: such a git ignores `GIT_NO_LAZY_FETCH`, so a read could fetch a missing object from a promisor remote. An
+ * ordinary clone works with any git. `version` returns the `git --version` output; it is a parameter for the tests.
+ */
+export function refuseLazyFetchOnOldGit(git: Git, version: () => string = installedGitVersion): void {
+  let keys = "";
+  try {
+    keys = git(["config", "--name-only", "--get-regexp", PARTIAL_CLONE_KEYS]);
+  } catch (error) {
+    if (exitStatus(error) !== NO_MATCH_EXIT_CODE) {
+      throw new Error("expectation-guard: git config --get-regexp for the partial clone settings failed");
+    }
+  }
+  if (keys.trim() !== "" && !honoursNoLazyFetch(version())) {
+    throw new Error(
+      "expectation-guard: this repository is a partial clone and git is older than 2.44, which can fetch missing objects while the guard reads; update git to 2.44 or newer",
+    );
+  }
+}
+
 /**
  * Runs `work` with a git that reads the repository and runs no command the repository or the user configured, reads
  * no replace ref (`--no-replace-objects`) and fetches no missing object of a partial clone (`GIT_NO_LAZY_FETCH`): no
  * fsmonitor, hook scripts from an empty folder, every hook defined in the configuration (`hook.<name>.command`) and
  * the hook events the guard's own commands raise disabled, no global or system attributes file, and every filter
  * driver git knows switched off, so a planted `.git/config` or `.git/info/attributes` cannot run a command or rewrite
- * what is hashed. The temporary folder also holds the throw-away index and is removed afterwards.
+ * what is hashed. A partial clone on git older than 2.44, which ignores `GIT_NO_LAZY_FETCH`, is refused before any
+ * work (`refuseLazyFetchOnOldGit`). The temporary folder also holds the throw-away index and is removed afterwards.
  */
 function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
   const scratch = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
@@ -302,7 +345,9 @@ function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
       `core.attributesFile=${join(scratch, "none")}`,
     ];
     const off = switchedOff((args, index) => execGit([...safety, ...args], index));
-    return work((args, index) => execGit([...safety, ...off, ...args], index), scratch);
+    const git: Git = (args, index) => execGit([...safety, ...off, ...args], index);
+    refuseLazyFetchOnOldGit(git);
+    return work(git, scratch);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }

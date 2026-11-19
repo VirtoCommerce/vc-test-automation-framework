@@ -15,7 +15,7 @@ any git command that can run configured code:
 ```shell
 dir=$(mktemp -d) && mkdir "$dir/checks" || exit 1
 for m in expectation-guard project-facts; do GIT_NO_LAZY_FETCH=1 git --no-replace-objects -c core.fsmonitor=false cat-file blob <baseline tree id>:.claude/checks/$m.mts > "$dir/checks/$m.mts" || { rm -rf "$dir"; exit 1; }; done
-fp=$(node "$dir/checks/expectation-guard.mts" --repo-fingerprint 2>"$dir/fp.err") && [ ${#fp} -eq 64 ] && case $fp in *[!0-9a-f]*) false;; esac || { err=$(head -n 1 "$dir/fp.err"); echo "fingerprint could not be computed: ${err:-not 64 lowercase hex characters}"; rm -rf "$dir"; exit 1; }
+fp=$(node "$dir/checks/expectation-guard.mts" --repo-fingerprint 2>"$dir/fp.err") && [ ${#fp} -eq 64 ] && case $fp in *[!0-9a-f]*) false;; esac || { err=$(grep -m1 '^expectation-guard:' "$dir/fp.err" || tail -n 1 "$dir/fp.err"); echo "fingerprint could not be computed: ${err:-not 64 lowercase hex characters}"; rm -rf "$dir"; exit 1; }
 test "$fp" = "<fingerprint>" || { echo "repository config changed by the healer"; rm -rf "$dir"; exit 1; }
 node "$dir/checks/expectation-guard.mts" --base=<baseline tree id>; code=$?
 test $code -eq 0 && { new=$(node "$dir/checks/expectation-guard.mts" --snapshot) || code=1; }; rm -rf "$dir"; test $code -eq 0 && echo "healed tree: $new"; test $code -eq 0
@@ -28,7 +28,8 @@ with the baseline's copy of the guard.
 
 "repository config changed by the healer" (the fingerprint differs from the recorded one) or "fingerprint could not
 be computed: <its stderr line>" (it exited non-zero or printed something other than 64 lowercase hex characters, a
-configuration file under a healer path for one): stop there, show the line to the person, and run no other git
+configuration file under a healer path for one; the line is the guard's `expectation-guard:` line, else the last
+line of its stderr, so a Node warning is not taken for it): stop there, show the line to the person, and run no other git
 command or test in the repository until they have looked; a planted hook or config line runs with their rights. Any other non-zero
 result means "not clean" (the recipe exits 1 whatever the guard's own code, so a baseline without the two
 `.claude/checks/` files also gives it). Findings listed (a file outside the healer paths, a changed expectation, an

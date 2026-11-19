@@ -22,7 +22,7 @@ ticket: <key>
 |---|---|---|---|---|
 | <id> <what it shows> | <equivalence partitioning, boundary value analysis, decision table, state transition, pairwise, error guessing, negative, regression> | <a key of commands.test in the facts> | <a role from the facts> | ticket: <criterion> |
 
-<!-- A case without an account says `none` in Data role; several roles are separated by commas. Every Oracle cell starts with the source of the expected value: `ticket:`, `doc:`, `schema:` or `observed:`. Several sources are separated by `;`, each starting with its own prefix. An `observed:` part holds the value the explorer recorded and the report it is in, `observed: <value> (.qa/reports/explore-<slug>-observed.md)`, the value written exactly as the report's line `- <case id>: <value> (` has it, in double quotes when it holds `;` or `|`; until it is recorded, write `observed: pending <what to observe>` with no report, which the check refuses. One row per case. -->
+<!-- A case without an account says `none` in Data role; several roles are separated by commas. Every Oracle cell starts with the source of the expected value: `ticket:`, `doc:`, `schema:` or `observed:`. Several sources are separated by `;`, each starting with its own prefix. An `observed:` part holds the value the explorer recorded and the report it is in, `observed: <value> (.qa/reports/explore-<slug>-observed.md)`, the value written as the report's line `- <case id>: <value> (` has it, except that a value holding `;` is put in double quotes and a `|` is written `\|` (the report keeps the raw value, never quoted or escaped); until it is recorded, write `observed: pending <what to observe>` with no report, which the check refuses. One row per case. -->
 
 ## Observed only
 

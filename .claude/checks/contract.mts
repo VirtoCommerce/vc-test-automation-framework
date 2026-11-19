@@ -23,7 +23,11 @@ const APPROVAL_LINE = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}(?:\s+\(re
 const APPROVAL = new RegExp(APPROVAL_LINE.source, "m");
 const APPROVAL_SECTION = "Approval";
 const CONFIRMATION = /^(characterization|confirmed by \S.*)$/;
-const RECORDED_OBSERVATION = /^observed:\s*(\S.*?)\s\((\.qa\/reports\/[^\s()]+\.md)\)$/;
+const OBSERVED = "observed:";
+const PENDING = /^pending\b/;
+const RECORDED = /^(.*?)\s*\(([^()]*)\)$/;
+const ESCAPED_PIPE = /\\\|/g;
+const REPORTS_DIR = ".qa/";
 const REPORT_PATH = /^\.qa\/reports\/explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;
 const OBSERVED_VALUES = "Observed values";
 
@@ -58,7 +62,7 @@ function checkSource(lines: string[]): string[] {
   return accepted ? [] : [problem("## Source must start with ticket:, doc:, area: or gap:")];
 }
 
-/** Splits on `separator` outside double quotes, so a quoted observed value may hold `;` or `|`. */
+/** Splits the Oracle cell on `separator` outside double quotes, so a quoted observed value may hold `;`. */
 function splitOutsideQuotes(text: string, separator: string): string[] {
   const parts = [""];
   let quoted = false;
@@ -75,8 +79,14 @@ function splitOutsideQuotes(text: string, separator: string): string[] {
   return parts;
 }
 
+/** Splits a table row on every `|` that is not escaped as `\|`, the Markdown way to write a pipe in a cell. */
 function splitRow(line: string): string[] {
-  return splitOutsideQuotes(line.trim().replace(/^\|/, "").replace(/\|$/, ""), "|").map((cell) => cell.trim());
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/(?<!\\)\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.trim());
 }
 
 function isSeparator(cells: string[]): boolean {
@@ -148,8 +158,10 @@ function checkCases(lines: string[], roles: string[] | undefined): { problems: s
   return { problems, rows };
 }
 
-function unquoted(value: string): string {
-  return value.length >= 2 && value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+/** The value as the explorer writes it in the report: raw, never quoted, with `\|` unescaped. */
+function rawValue(value: string): string {
+  const unquoted = value.length >= 2 && value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+  return unquoted.replace(ESCAPED_PIPE, "|");
 }
 
 function isRecordedIn(report: string, caseId: string, value: string): boolean {
@@ -157,20 +169,46 @@ function isRecordedIn(report: string, caseId: string, value: string): boolean {
   return recorded.some((line) => line.trim().startsWith(`- ${caseId}: ${value} (`));
 }
 
+type OraclePart = { text: string; splitOnSemicolon: boolean };
+
+/** The Oracle's parts; a part that starts with no source prefix is joined back to the part before it. */
+function sourceParts(oracle: string): OraclePart[] {
+  const parts: OraclePart[] = [];
+  for (const text of oracleParts(oracle)) {
+    const last = parts.at(-1);
+    if (last !== undefined && !ORACLE_SOURCES.some((source) => text.startsWith(`${source}:`))) {
+      last.text = `${last.text}; ${text}`;
+      last.splitOnSemicolon = true;
+    } else {
+      parts.push({ text, splitOnSemicolon: false });
+    }
+  }
+  return parts;
+}
+
 function checkObservedPart(
   label: string,
   caseId: string,
-  part: string,
+  part: OraclePart,
   readReport: ((path: string) => string | undefined) | undefined,
 ): string | undefined {
-  const match = RECORDED_OBSERVATION.exec(part);
-  const value = match?.[1];
-  const path = match?.[2];
-  if (value === undefined || path === undefined) {
-    return `${label} observed: oracle has no recorded value: observe it first, then write observed: <value> (.qa/reports/explore-<slug>-observed.md)`;
+  const rest = part.text.slice(OBSERVED.length).trim();
+  if (part.splitOnSemicolon) {
+    return `${label} observed: the value holds an unquoted ;: write the value in double quotes`;
+  }
+  const match = RECORDED.exec(rest);
+  const value = match?.[1]?.trim();
+  const path = match?.[2]?.trim();
+  if (value === undefined || path === undefined || !path.startsWith(REPORTS_DIR)) {
+    return PENDING.test(rest)
+      ? `${label} observed: oracle has no recorded value: observe it first, then write observed: <value> (.qa/reports/explore-<slug>-observed.md)`
+      : `${label} observed: this contract predates observe-before-approval: re-plan its observed cases (observed: pending <what to observe>)`;
   }
   if (!REPORT_PATH.test(path)) {
-    return `${label} observed: oracle names ${path}, which is not .qa/reports/explore-<slug>[-observed].md`;
+    return `${label} observed: report path must be .qa/reports/explore-<slug>[-observed].md, not "${path}"`;
+  }
+  if (value === "") {
+    return `${label} observed: oracle names a report but no value before it`;
   }
   if (readReport === undefined) {
     return undefined;
@@ -179,9 +217,9 @@ function checkObservedPart(
   if (report === undefined) {
     return `${label} observed: oracle names ${path}, which does not exist`;
   }
-  return isRecordedIn(report, caseId, unquoted(value))
+  return isRecordedIn(report, caseId, rawValue(value))
     ? undefined
-    : `${label} observed: ${path} has no line "- ${caseId}: ${unquoted(value)} (" under ## ${OBSERVED_VALUES}`;
+    : `${label} observed: ${path} has no line "- ${caseId}: ${rawValue(value)} (" under ## ${OBSERVED_VALUES}`;
 }
 
 function checkObservedValues(
@@ -192,7 +230,7 @@ function checkObservedValues(
   for (const row of rows) {
     const label = row.name === "" ? "a case" : `case "${row.name}"`;
     const caseId = row.name.split(/\s+/)[0] ?? "";
-    for (const part of oracleParts(row.oracle).filter((item) => item.startsWith("observed:"))) {
+    for (const part of sourceParts(row.oracle).filter((item) => item.text.startsWith(OBSERVED))) {
       const found = checkObservedPart(label, caseId, part, readReport);
       if (found !== undefined) {
         problems.push(problem(found));
@@ -329,7 +367,9 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const [command, file] = process.argv.slice(2);
     if (command !== "check" || file === undefined) {
-      throw new Error("contract: usage is node .claude/checks/contract.mts check <file>");
+      throw new Error(
+        "contract: usage is node .claude/checks/contract.mts check <file>, run from the repository root (report paths resolve from it)",
+      );
     }
     let text: string;
     try {

@@ -55,7 +55,7 @@ The explorer's `observe` mode records the value one case asserts. First confirm 
 (the account menu) or from the page's own answer that names the current user: it must be `roles[<the case's data
 role>]`, or no account for `none`. Any other account, or none you can confirm: write `not reached: needs <role>`.
 Then take the value from the answer of the request the page sent for that case (`browser_network_request`,
-`part: "response-body"`). A value no request of the page shows is `not reached: no page sends it`.
+`part: "response-body"`) and write it raw, never quoted or escaped. A value no request of the page shows is `not reached: no page sends it`.
 
 ## Done
 

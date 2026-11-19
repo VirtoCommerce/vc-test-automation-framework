@@ -60,7 +60,7 @@ With `observe <contract path>`, record every case with an `observed:` oracle, pe
 skill of its Project (`/explore-frontend` for a browser project, else `/explore-api`). Before recording, confirm
 from the page that the signed-in account is `roles[<the case's data role>]`; if not, write `not reached: needs
 <role>`. Write `.qa/reports/explore-<slug of the contract name>-observed.md` holding only `## Observed values`:
-one line per case, `- <case id>: <value> (<where seen>)`, the value being what the case asserts (status, count,
+one line per case, `- <case id>: <value> (<where seen>)`, the raw value (never quoted) the case asserts (status, count,
 id, field value, text), or `- <case id>: not reached: <why>`. Reply with its path and the counts reached and not
 reached.
 

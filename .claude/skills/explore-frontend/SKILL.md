@@ -66,7 +66,7 @@ Say which proposed locators wait on a missing test id from step 4.
 
 The explorer's `observe` mode records the value one case asserts, as the page shows it. First confirm from the page
 (the account menu) that the signed-in account is `roles[<the case's data role>]`, or that no one is signed in for
-`none`; otherwise write `not reached: needs <role>`.
+`none`; otherwise write `not reached: needs <role>`. Write the value raw, never quoted or escaped.
 
 ## Done
 

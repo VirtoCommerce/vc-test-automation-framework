@@ -25,8 +25,10 @@ fill every section:
   `observed: <value> (.qa/reports/explore-<slug>-observed.md)`, the value exactly as the report's line
   `- <case id>: <value> (` has it (in double quotes when it holds `;`, a `|` written `\|`). The check refuses one without a report
   (`observed: pending <what>` included), and one whose report does not exist or does not hold that line.
-  `observed: at first run <what>` (the person chose to observe at the expert's first green run) passes only with
-  the `## Approval` line.
+  `observed: at first run <what>` (the person chose to observe at the expert's first run) passes only with the
+  `## Approval` line, and never with `--implemented`. The expert pins the value it saw and stops with an amendment
+  `A-n first-run values: <case id> = <value> (<report>)`; a `(first run)` value passes only once that entry is
+  approved.
 - **Observed only**: every case whose oracle is only `observed:`, marked `characterization` or `confirmed by <who>`.
 - **Stand needs**: profile, required modules and flags, data roles.
 - **Building blocks**: what to reuse and what to add, in dependency order, naming the existing file each addition

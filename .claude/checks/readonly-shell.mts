@@ -94,10 +94,11 @@ const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_M
 const MAX_SHOWN_COMMAND = 80;
 
 /**
- * Text shaped like a credential: a JSON Web Token, an `access_token` or `refresh_token` field, a `"password"` field
- * or a `Bearer` header. The explorer's report and an observed value in a contract never hold one.
+ * Text shaped like a credential: a JSON Web Token, an `access_token`, `refresh_token` or `id_token` field, a
+ * `"password"` field or a `Bearer` header. The explorer's report and an observed value in a contract never hold one.
  */
-export const CREDENTIAL_SHAPE = /\beyJ[\w-]+\.[\w-]+\.[\w-]+|access_token|refresh_token|"password"|\bBearer\s/i;
+export const CREDENTIAL_SHAPE =
+  /\beyJ[\w-]+\.[\w-]+\.[\w-]+|access_token|refresh_token|id_token|"password"|\bBearer\s/i;
 
 const QA_FOLDER_TOKEN = /(^|\/)\.qa(\/|$)/i;
 const REPORT_FILE = /^explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;

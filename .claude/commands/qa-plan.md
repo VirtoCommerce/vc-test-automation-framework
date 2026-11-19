@@ -31,7 +31,7 @@ First, when the planner replies `needs observation`, spawn `qa-explorer` (read-o
 then the planner with `observed <contract path> <report path>`. Cases the report lists as `not reached: needs <role>` (the explorer observes only as the session the browser holds),
 and cases the planner lists as `api-only` (no page sends their request; an API-only area cannot be observed until the
 observe probe exists, `REFINEMENTS.md`), go to the person at once as a scope question: (a) observe at the expert's
-first green run, and confirm the value before the judge; (b) name another oracle source; (c) drop the case. Pass
+first run (it pins the value it sees and asks for it in an amendment the person approves); (b) name another oracle source; (c) drop the case. Pass
 the answers to the planner with `observed <contract path> <report path>`.
 
 Otherwise run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. On a problem, send the line back to

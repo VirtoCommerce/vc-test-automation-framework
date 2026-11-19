@@ -52,7 +52,7 @@ case in `.qa/reports/explore-<slug>-observed.md`. Then dispatch the planner with
 path>` to copy the values in. Cases the report lists as `not reached: needs <role>` (the explorer observes only as the session the browser holds),
 and cases the planner lists as `api-only` (no page sends their request; an API-only area cannot be observed until the
 observe probe exists, `REFINEMENTS.md`), go to the person at once as a scope question: (a) observe at the expert's
-first green run, and confirm the value before the judge; (b) name another oracle source; (c) drop the case. Pass
+first run (it pins the value it sees and asks for it in an amendment the person approves); (b) name another oracle source; (c) drop the case. Pass
 the answers to the planner with `observed <contract path> <report path>`.
 
 Otherwise run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. When it does not print `ok`, send its
@@ -114,10 +114,6 @@ the healer reports is shown to the person, not patched.
 In the end-to-end flow this stage runs only when the expert's run is red, and before the judge.
 
 ### Judge
-
-When the contract had `observed: at first run` cases, first show the person each value the expert recorded for them
-(`.qa/reports/explore-<slug>-observed.md`, lines ending `(first run)`) and get their confirmation; a value they
-reject is an amendment, not a judge input.
 
 After the expert (and, in the end-to-end flow, after a clean heal), once per contract, dispatch `qa-judge` with the
 role `expert`, the contract path and the expert's spec files: it judges only the expert's tests, never the healer's

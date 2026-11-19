@@ -725,7 +725,9 @@ has a pending `observed:` oracle, the read-only explorer records its value on th
 (`.qa/reports/explore-<slug>-observed.md`), the planner copies it in, and the approval shows it, with every case not
 reached. The explorer observes only as the session the browser holds, and an API-only area cannot be observed yet
 (`REFINEMENTS.md`): such cases go to the person as a scope question, where one answer is `observed: at first run`
-(the expert records the value at its first green run, and the person confirms it before the judge). A person approves the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
+(the expert runs the spec once unpinned, pins the value it saw and stops with an amendment that names it, which the
+person approves; `contract.mts check --approved --implemented`, run by the judge, the reviewer and `/qa-review`,
+refuses a first-run case still unresolved or a first-run value no approved amendment names). A person approves the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
 sends the tests back to the expert once, and a second failure goes to a person. After the healer, a code check
 (`.claude/checks/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
 expert run goes to the healer before the judge, and after a clean guard the command re-runs the stable series into

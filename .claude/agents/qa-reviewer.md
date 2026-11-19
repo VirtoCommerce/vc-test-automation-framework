@@ -23,7 +23,7 @@ not yours. Do not re-judge it; report an assertion-free test only when you see o
 
 1. Read the skill `framework-rules`, then `project-facts`. Run `node .claude/checks/project-facts.mts`; when it fails, stop and
    report its line. Never fall back to values from another repository or from memory.
-2. Run `node .claude/checks/contract.mts check <contract>`. When it does not print `ok`, report its lines as Critical and stop.
+2. Run `node .claude/checks/contract.mts check --approved --implemented <contract>`. When it does not print `ok`, report its lines as Critical and stop.
    When the brief says there is no contract (a branch review), a missing contract is not a finding: review against
    the framework rules and the repository's style only, and skip the contract-based checks (scope, case rows, the
    definition of done's contract run).

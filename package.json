@@ -51,6 +51,16 @@
     ".biome/formatter.json",
     ".biome/rules.json",
     ".biome/imports.json",
+    ".claude/agents",
+    ".claude/commands",
+    "!.claude/commands/code-review-full.md",
+    ".claude/skills",
+    ".claude/checks",
+    "!.claude/checks/ours-only.json",
+    ".claude/hooks",
+    ".claude/settings.json",
+    ".qa/project.example.json",
+    "bin",
     "CHANGELOG.md"
   ],
   "publishConfig": {
@@ -87,6 +97,7 @@
     "pre-commit": "npx biome check --staged --no-errors-on-unmatched"
   },
   "peerDependencies": {
+    "@babel/parser": "^7.29.9",
     "@biomejs/biome": "^2.6.8",
     "@graphql-codegen/cli": "^8.0.0",
     "@graphql-codegen/client-preset": "^7.0.0",
@@ -96,6 +107,9 @@
     "zod": "^4.0.7"
   },
   "peerDependenciesMeta": {
+    "@babel/parser": {
+      "optional": true
+    },
     "@biomejs/biome": {
       "optional": true
     },
@@ -135,5 +149,8 @@
   "overrides": {
     "glob": "14.0.4",
     "minimatch": "11.0.5"
+  },
+  "bin": {
+    "vc-qa-agents": "bin/install-qa-agents.mjs"
   }
 }

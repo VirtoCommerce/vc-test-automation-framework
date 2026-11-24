@@ -15,6 +15,7 @@ suites of Virto Commerce-based solutions. It ships with the package, so it alway
 
 - [Getting started](getting-started.md): set up a test suite and write its first test.
 - [Generating types](guides/generating-types.md): generate types from the GraphQL schema and the OpenAPI documents.
+- [QA agents](guides/qa-agents.md): install the Claude Code agents that plan, write, check and heal the tests.
 
 ## Concepts
 

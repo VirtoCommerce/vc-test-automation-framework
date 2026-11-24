@@ -9,17 +9,21 @@
 | `docs/`          | This documentation, shipped with the package                                               |
 | `virtocommerce/` | The test suite of the Virto Commerce solution, which uses the framework like any suite     |
 | `.biome/`        | The shared Biome configuration and the area boundaries                                     |
-| `.claude/`       | The QA agents, their commands, skills and check scripts, and the guidance for Claude Code  |
-| `.qa/`           | `project.json`, the facts the QA agents work from; their working files are not committed   |
+| `.claude/`       | The QA agents, their commands, skills, check scripts and hook, shipped with the package    |
+| `.qa/`           | The facts the QA agents work from, and the example that the package ships                  |
+| `bin/`           | `vc-qa-agents`, which installs the QA agents into a repository                             |
 | `scripts/`       | Repository scripts, such as the documentation check                                        |
 | `tools/`         | Tools with their own dependencies, such as TypeDoc                                         |
 
-The package publishes only `dist`, `docs`, the shared Biome configuration and the changelog. `virtocommerce/`,
-`tests/`, `src/`, `.claude/` and `.qa/` are never published.
+The package publishes `dist`, `docs`, the shared Biome configuration, the QA agents (`.claude/` without what
+`.claude/checks/ours-only.json` names), `.qa/project.example.json`, `bin` and the changelog. `virtocommerce/`,
+`tests/`, `src/` and this repository's `.qa/project.json` are never published.
 
 The QA agents work on one test suite, which `suiteDir` in `.qa/project.json` names: `virtocommerce` here. Their
-check scripts in `.claude/checks/` import nothing from `src/` or from a test suite, so a partner's repository can take
-them over with its own `project.json`.
+check scripts in `.claude/checks/` import nothing from `src/` or from a test suite, and their prompts name no solution
+(`scan-prompts.mts` checks it), so any repository installs them with `npx vc-qa-agents` and its own
+`project.json`. Files only this repository uses, such as `/code-review-full`, are listed in
+`.claude/checks/ours-only.json` and left out of the package.
 
 The repository has one `package.json`, which is also the framework package. The `virtocommerce` test suite lives in
 this repository, so that the CI pipelines of the Virto Commerce platform, frontend and modules run it against the

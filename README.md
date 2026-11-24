@@ -50,6 +50,7 @@ The documentation ships with the package, in `node_modules/@virtocommerce/test-a
 always matches the installed version.
 
 - [Getting started](docs/getting-started.md): set up a test suite and write its first test.
+- [QA agents](docs/guides/qa-agents.md): install the Claude Code agents that generate and maintain the tests.
 - [Documentation index](docs/README.md): concepts, terms and contributing to the framework.
 
 ## Entry points
@@ -69,6 +70,6 @@ Only what an entry point exports is public API. Modules that an entry point does
 ## This repository
 
 Besides the framework, the repository holds the Virto Commerce test suite in `virtocommerce/`, which uses the
-framework like any other suite, and the QA agents for Claude Code in `.claude/`. See
+framework like any other suite, and the QA agents for Claude Code in `.claude/`, which the package ships. See
 [virtocommerce/README.md](virtocommerce/README.md) for running the suite, and
 [the architecture page](docs/contributing/architecture.md) for how the repository is laid out.

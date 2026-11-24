@@ -3,6 +3,41 @@
 This guide sets up a test suite for a Virto Commerce-based solution and runs its first test. The `virtocommerce`
 directory of the framework repository is a complete test suite that follows the same setup.
 
+## Start from the template
+
+In an empty directory, `npx vc-qa-agents init` writes a test suite that runs:
+
+```shell
+npm init -y
+npm install --save-dev --save-exact @virtocommerce/test-automation-framework
+npx vc-qa-agents init
+```
+
+It adds the scripts to `package.json`, installs the peer dependencies and Chromium, and installs the
+[QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the suite. It never overwrites a file that
+exists; `--skip-install` leaves the dependencies out.
+
+| Path                      | Holds                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `playwright.config.ts`    | The projects `restapi`, `graphql` and `e2e-frontend`, with the Allure reporter     |
+| `env.ts`, `.env`          | The environment schema, with `FRONTEND_BASE_URL` and `STORE_ID` on the framework's |
+| `fixtures/index.ts`       | `test` and `expect`: the default fixtures plus `user`, `api`, `arrange`, `shopper` |
+| `arrange/`                | The `arrange` factory, which removes test data after the test, and a first domain  |
+| `builders/`, `support/`   | Payload builders, `requireFields`, `uniqueId`, the store and the shopper           |
+| `codegen.ts`, `scripts/`  | GraphQL and REST type generation from the running platform                         |
+| `tests/restapi/security/` | The first test: a user that `arrange` creates signs in                             |
+| `CLAUDE.md`, `biome.json` | The suite's layout and code style for the agents, and the shared Biome preset      |
+
+Then:
+
+```shell
+npm run codegen                         # GraphQL and REST types from the platform in .env
+npm test                                # every project
+npm run report && npm run report:open   # the Allure report
+```
+
+The rest of this guide sets a suite up by hand, piece by piece.
+
 ## Install the framework
 
 Follow the installation steps in the [package README](../README.md#installation), then install the peer dependencies:

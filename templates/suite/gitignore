@@ -1,0 +1,12 @@
+node_modules/
+.env
+reports/
+test-results/
+.qa/contracts/
+.qa/runs/
+.qa/reports/
+.qa/kb/
+.qa/judge/
+.qa/*.local.env
+.qa/client-terms.local.txt
+.playwright-mcp/

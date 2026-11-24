@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -89,6 +90,128 @@ function install(target) {
   return lines;
 }
 
-for (const line of install(process.cwd())) {
-  process.stdout.write(`${line}\n`);
+const SUITE_TEMPLATE = join(PACKAGE_ROOT, "templates", "suite");
+const RENAMED = {
+  "env.example": ".env.example",
+  gitignore: ".gitignore",
+  "biome.template.json": "biome.json",
+  "CLAUDE.template.md": "CLAUDE.md",
+};
+const SUITE_DEPENDENCIES = [
+  "@playwright/test",
+  "zod",
+  "@types/node",
+  "typescript",
+  "@biomejs/biome",
+  "allure",
+  "allure-playwright",
+  "graphql",
+  "@graphql-codegen/cli",
+  "@graphql-codegen/client-preset",
+  "@graphql-codegen/schema-ast",
+  "@graphql-typed-document-node/core",
+  "swagger-typescript-api",
+  "@babel/parser",
+];
+const SUITE_SCRIPTS = {
+  typecheck: "tsc --noEmit",
+  check: "biome check --write .",
+  "check:ci": "biome ci .",
+  codegen: "graphql-codegen --config codegen.ts && node scripts/generate-rest-types.ts",
+  pretest: "node -e \"require('node:fs').rmSync('reports/allure-results', { recursive: true, force: true })\"",
+  test: "playwright test",
+  report: "allure generate reports/allure-results --clean",
+  "report:open": "allure open reports/allure-report",
+};
+
+function templateFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? templateFiles(join(dir, entry.name)) : [join(dir, entry.name)],
+  );
+}
+
+function copySuiteTemplate(target) {
+  const written = [];
+  const kept = [];
+  for (const source of templateFiles(SUITE_TEMPLATE)) {
+    const path = relative(SUITE_TEMPLATE, source).split(sep).join("/");
+    const destination = RENAMED[path] ?? path;
+    if (copyIfMissing(source, join(target, destination))) {
+      written.push(destination);
+    } else {
+      kept.push(destination);
+    }
+  }
+  if (copyIfMissing(join(SUITE_TEMPLATE, "env.example"), join(target, ".env"))) {
+    written.push(".env");
+  }
+  return { written, kept };
+}
+
+function mergePackageJson(target) {
+  const path = join(target, "package.json");
+  const manifest = existsSync(path)
+    ? JSON.parse(readFileSync(path, "utf8"))
+    : { name: basename(target), private: true };
+  manifest.type = "module";
+  manifest.scripts = { ...SUITE_SCRIPTS, ...manifest.scripts };
+  if (manifest.scripts.test?.startsWith('echo "Error: no test specified"')) {
+    manifest.scripts.test = SUITE_SCRIPTS.test;
+  }
+  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function run(command, target) {
+  process.stdout.write(`> ${command}\n`);
+  const result = spawnSync(command, { cwd: target, stdio: "inherit", shell: true });
+  if (result.status !== 0) {
+    throw new Error(`"${command}" failed with exit code ${result.status}`);
+  }
+}
+
+function installDependencies(target) {
+  const own = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
+  const versions = { ...own.peerDependencies, ...own.devDependencies };
+  const specs = SUITE_DEPENDENCIES.map((name) => `${name}@${JSON.stringify(versions[name] ?? "latest")}`);
+  run(`npm install --save-dev --save-exact ${specs.join(" ")}`, target);
+  run("npx playwright install chromium", target);
+}
+
+function init(target, { skipInstall }) {
+  const lines = [];
+  const { written, kept } = copySuiteTemplate(target);
+  lines.push(`Wrote ${written.length} files of the test suite.`);
+  if (kept.length > 0) {
+    lines.push(`Kept the files that already exist: ${kept.join(", ")}`);
+  }
+  mergePackageJson(target);
+  lines.push("Added the suite's scripts to package.json.");
+  if (!skipInstall) {
+    installDependencies(target);
+  }
+  lines.push(...install(target));
+  lines.push(
+    "",
+    "Next:",
+    "  1. Fill in .env: the platform, the frontend, the administrator and STORE_ID.",
+    "  2. npm run codegen     GraphQL and REST types from the platform",
+    "  3. npm test            the first test signs a new user in",
+    "  4. npm run report && npm run report:open",
+    "  5. Replace the example roles and tracker in .qa/project.json, then start claude and run /qa <task>.",
+  );
+  return lines;
+}
+
+const [command, ...options] = process.argv.slice(2);
+try {
+  const lines =
+    command === "init"
+      ? init(process.cwd(), { skipInstall: options.includes("--skip-install") })
+      : install(process.cwd());
+  for (const line of lines) {
+    process.stdout.write(`${line}\n`);
+  }
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exitCode = 1;
 }

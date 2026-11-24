@@ -7,6 +7,10 @@ one file, `.qa/project.json`.
 
 ## Install
 
+A new test suite gets the agents from `npx vc-qa-agents init` (see
+[Getting started](../getting-started.md#start-from-the-template)), with a `.qa/project.json` that matches it. An
+existing suite installs them on their own.
+
 The agents run from your repository's `.claude/` directory, so the package copies them there:
 
 ```shell

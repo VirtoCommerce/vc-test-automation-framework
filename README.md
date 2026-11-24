@@ -23,6 +23,19 @@ npm install --save-dev @virtocommerce/test-automation-framework
 Every version carries an npm provenance attestation that ties it to the GitHub Actions run that published it;
 `npm audit signatures` checks it.
 
+## Start a test suite
+
+In an empty directory, `init` writes a test suite that runs, installs its dependencies and the QA agents:
+
+```shell
+npm init -y
+npm install --save-dev --save-exact @virtocommerce/test-automation-framework
+npx vc-qa-agents init
+```
+
+Fill in `.env`, then `npm run codegen`, `npm test` and `npm run report`. See
+[Getting started](docs/getting-started.md#start-from-the-template).
+
 ## Documentation
 
 The documentation ships with the package, in `node_modules/@virtocommerce/test-automation-framework/docs`, so it

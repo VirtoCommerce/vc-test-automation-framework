@@ -61,6 +61,7 @@
     ".claude/settings.json",
     ".qa/project.example.json",
     "bin",
+    "templates",
     "CHANGELOG.md"
   ],
   "publishConfig": {

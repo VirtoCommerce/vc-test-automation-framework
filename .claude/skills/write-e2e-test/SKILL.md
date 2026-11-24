@@ -154,8 +154,8 @@ changed spec, with the run record the expert agent describes. Add `--headed --wo
 
 ## Example from this repository
 
-- Projects: `frontend` (`virtocommerce/tests/e2e/frontend/<area>/<topic>.spec.ts`; areas account, cart, catalog,
-  checkout, lists, site; `E2E_WORKERS` workers) and `backend` (`virtocommerce/tests/e2e/backend/page-builder/`; one
+- Projects: `e2e-frontend` (`virtocommerce/tests/e2e/frontend/<area>/<topic>.spec.ts`; areas account, cart, catalog,
+  checkout, lists, site; `E2E_WORKERS` workers) and `e2e-backend` (`virtocommerce/tests/e2e/backend/page-builder/`; one
   worker, the page list is shared, the admin UI signed in as `ADMINISTRATOR`).
 - Reference specs: `virtocommerce/tests/e2e/frontend/cart/cart.spec.ts`,
   `virtocommerce/tests/e2e/frontend/checkout/checkout-delivery.spec.ts` (`beforeEach`, module gating, a pickup
@@ -170,6 +170,6 @@ changed spec, with the run record the expert agent describes. Add `--headed --wo
   frontend):
 
   ```shell
-  npx --no playwright test --config=virtocommerce virtocommerce/tests/e2e/frontend/<area>/<topic>.spec.ts --project=frontend
-  npx --no playwright test --config=virtocommerce virtocommerce/tests/e2e/backend/page-builder/<topic>.spec.ts --project=backend
+  npx --no playwright test --config=virtocommerce virtocommerce/tests/e2e/frontend/<area>/<topic>.spec.ts --project=e2e-frontend
+  npx --no playwright test --config=virtocommerce virtocommerce/tests/e2e/backend/page-builder/<topic>.spec.ts --project=e2e-backend
   ```

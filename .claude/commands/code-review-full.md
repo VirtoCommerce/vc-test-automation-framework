@@ -248,7 +248,7 @@ Shared platform state:
   rely on? Does `npm run test:vc:unit` still pass?
 - Can the change leave the platform in a different state after a failed run (settings, global configuration)?
 
-CI (`.github/workflows/ci.yml`, `suite.yml`, `release.yml`, the Playwright configs):
+CI (`.github/workflows/ci.yml`, `auto-tests.yml`, `release.yml`, the Playwright configs):
 - Does the change need new keys in the env-file secret, new workflow inputs or new variables in the suite's
   `env.ts` or the framework's env schemas (`src/core/env.ts`)?
 - Do project names, test directories and worker settings (`API_WORKERS`, `E2E_WORKERS`) still match the npm

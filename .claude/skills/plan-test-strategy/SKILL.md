@@ -88,11 +88,11 @@ Then `plan-implementation` turns it into the contract file.
 | Signal | Project |
 |---|---|
 | Result of an xAPI query or mutation, frontend business logic (totals, promotions, checkout) | `graphql` |
-| Platform administration: catalogue, users and roles, store settings | `rest` |
-| Rendering, navigation, forms, modals | `frontend` |
-| Page builder and page designer behaviour in the admin UI | `backend` |
+| Platform administration: catalogue, users and roles, store settings | `restapi` |
+| Rendering, navigation, forms, modals | `e2e-frontend` |
+| Page builder and page designer behaviour in the admin UI | `e2e-backend` |
 | Global settings, index rebuild, restart, store closed to anonymous users | `isolated` |
-| API error handling | `graphql` or `rest`, never e2e |
+| API error handling | `graphql` or `restapi`, never e2e |
 
 - Existing coverage lives under `virtocommerce/tests/`: `restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/` and
   `isolated/`.

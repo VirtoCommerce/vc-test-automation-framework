@@ -28,7 +28,7 @@ gh pr checks <number>
 - Which parts changed: the framework (`src/` areas `core`, `http`, `auth`, `graphql`, `modules`, `dataset`,
   `fixtures`; `tests/unit/`; `docs/`; `.changeset/`), the suite (`virtocommerce/`: `tests`, `fixtures`, `arrange`,
   `builders`, `support`, `dataset`, `pages`, `graphql`, `rest`), config, CI.
-- Which projects are affected: `rest`, `graphql`, `frontend`, `backend`, `isolated`, `seed`, and the unit tests of
+- Which projects are affected: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `seed`, and the unit tests of
   the framework (`unit`) and of the suite.
 
 ### Step 3: Review Each Changed File
@@ -93,7 +93,7 @@ gh pr checks <number>
 ### Step 6: Check CI
 
 - Did `ci.yml` pass (typecheck, Biome, unit tests, docs check, changeset status)?
-- Did `suite.yml` pass for every database and search engine in its matrix?
+- Did `auto-tests.yml` (the shared `playwright-tests.yml`) pass for every database and search engine in its matrix?
 - Are failures caused by the PR, or by a platform defect a test already names in an `issue` annotation?
 
 ## Output Format

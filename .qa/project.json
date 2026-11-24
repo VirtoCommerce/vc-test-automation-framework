@@ -22,10 +22,10 @@
     "lint": "npm run check",
     "test": {
       "unit": "npm run test:unit && npm run test:vc:unit",
-      "rest": "npm run test:vc -- --project=rest",
+      "restapi": "npm run test:vc -- --project=restapi",
       "graphql": "npm run test:vc -- --project=graphql",
-      "frontend": "npm run test:vc -- --project=frontend",
-      "backend": "npm run test:vc -- --project=backend",
+      "e2e-frontend": "npm run test:vc -- --project=e2e-frontend",
+      "e2e-backend": "npm run test:vc -- --project=e2e-backend",
       "isolated": "npm run test:vc:isolated",
       "all": "npm run test:vc"
     }
@@ -85,10 +85,10 @@
     "maxConditionals": 0,
     "stableSeries": 3,
     "durationBudgetMs": {
-      "rest": 15000,
+      "restapi": 15000,
       "graphql": 15000,
-      "frontend": 90000,
-      "backend": 120000
+      "e2e-frontend": 90000,
+      "e2e-backend": 120000
     },
     "slowdownRatio": 1.5,
     "slowdownMinMs": 1000

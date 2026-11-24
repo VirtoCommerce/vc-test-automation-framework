@@ -110,7 +110,7 @@ approval; findings. End with
 
 ## Example from this repository
 
-- Test projects, the keys of `commands.test`: `rest`, `graphql`, `frontend`, `backend`, `isolated`, `unit`. Specs
+- Test projects, the keys of `commands.test`: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`. Specs
   live in `virtocommerce/tests/` (`restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/`, `isolated/`). A spec of
   the `isolated` project is tagged `DESTRUCTIVE_TAG` and runs only with `RUN_DESTRUCTIVE_TESTS=true`.
 - `roleFor.admin` is `store administrator`: its case writes `test.use({ user: STORE_ADMINISTRATOR })` from

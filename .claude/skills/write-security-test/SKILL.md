@@ -231,7 +231,7 @@ sleep.
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["rest"]` or `commands.test["graphql"]` (or
+Run `commands.typecheck`, `commands.lint` and `commands.test["restapi"]` or `commands.test["graphql"]` (or
 `["isolated"]` for an isolated spec) from the project facts on the changed spec, with the run record the expert agent
 describes.
 
@@ -250,5 +250,5 @@ describes.
   P".
 - Place by module: users, roles and API keys are `security`, not `customer`.
 - Commands: `npm run typecheck && npm run check`, then
-  `npx --no playwright test --config=virtocommerce <repo-relative spec path> --project=rest` (or `graphql`,
+  `npx --no playwright test --config=virtocommerce <repo-relative spec path> --project=restapi` (or `graphql`,
   `isolated`).

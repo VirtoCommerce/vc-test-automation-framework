@@ -16,9 +16,9 @@ npm run check                        # Biome lint + format + import order, with 
 npm run test:unit                    # framework unit tests (root playwright.config.ts, project unit)
 npm run test:vc:unit                 # suite unit tests (dataset integrity), no platform, no .env
 npm run seed:vc                      # write the dataset to the platform (safe to repeat; start indexing afterwards)
-npm run test:vc                      # every non-destructive project; append -- --project=rest (graphql, frontend, backend)
+npm run test:vc                      # every non-destructive project; append -- --project=restapi (graphql, e2e-frontend, e2e-backend)
 npm run test:vc -- virtocommerce/tests/graphql/cart/cart-items.spec.ts   # one file, repo-relative
-npm run test:vc -- --project=rest -g "rename a pricelist"                # by title
+npm run test:vc -- --project=restapi -g "rename a pricelist"                # by title
 npm run test:vc:isolated             # the destructive project alone, one worker, needs RUN_DESTRUCTIVE_TESTS
 npx playwright test --config=virtocommerce --list   # load every spec and fixture without running anything
 npm run codegen:vc                   # build the framework, regenerate GraphQL + REST types from the running platform
@@ -30,7 +30,7 @@ start indexing by hand after seeding (CI has a step for it).
 
 The suite's settings come from `virtocommerce/.env`, validated by `virtocommerce/env.ts` on top of the framework's
 schema in `src/core/env.ts`. A shell variable wins over `.env`, e.g. `VERIFY_SSL=false npm run test:vc --
---project=frontend` for a self-signed local frontend. Never read, edit or print `.env`; the one exception is
+--project=e2e-frontend` for a self-signed local frontend. Never read, edit or print `.env`; the one exception is
 `node .claude/checks/stand.mts`, which prints only the stand's origins.
 
 ## Layers
@@ -55,8 +55,8 @@ tests import `@/<area>`, never `src/`. The suite and `docs/examples/` import the
 
 | Directory                                                       | Alias         | Holds                                                                                                 |
 | --------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
-| `tests/restapi/<module>/`, `tests/graphql/<area>/`              |               | REST specs (project `rest`), xAPI specs (project `graphql`)                                           |
-| `tests/e2e/frontend/<area>/`, `tests/e2e/backend/page-builder/` |               | frontend specs (`frontend`), admin UI specs (`backend`, 1 worker)                                     |
+| `tests/restapi/<module>/`, `tests/graphql/<area>/`              |               | REST specs (project `restapi`), xAPI specs (project `graphql`)                                        |
+| `tests/e2e/frontend/<area>/`, `tests/e2e/backend/page-builder/` |               | frontend specs (`e2e-frontend`), admin UI specs (`e2e-backend`, 1 worker)                             |
 | `tests/isolated/{restapi,graphql}/`                             |               | specs that change global state (`isolated`, 1 worker, `DESTRUCTIVE_TAG`)                              |
 | `tests/unit/`                                                   |               | suite unit tests, `*.test.ts`                                                                         |
 | `setup/seed.setup.ts`                                           |               | project `seed`, which every other project depends on                                                  |

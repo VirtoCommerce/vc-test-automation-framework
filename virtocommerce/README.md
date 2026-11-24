@@ -39,7 +39,7 @@ when no store does.
 ```shell
 npm run seed:vc                    # seed the dataset
 npm run test:vc                    # every project except the destructive tests
-npm run test:vc -- --project=rest  # one project: rest, graphql, frontend or backend
+npm run test:vc -- --project=restapi  # one project: restapi, graphql, e2e-frontend or e2e-backend
 npm run test:vc -- virtocommerce/tests/graphql/cart/cart-items.spec.ts   # one file
 npm run test:vc -- -g "add several products"                            # by title
 npm run test:vc:isolated           # the destructive tests, alone, after test:vc
@@ -51,14 +51,14 @@ npm run report:vc                  # the Allure report of the last run; report:v
 
 ## Projects
 
-| Project    | Directory             | Runs                                                                             |
-| ---------- | --------------------- | -------------------------------------------------------------------------------- |
-| `seed`     | `setup/`              | Seeds the dataset; every other project depends on it                             |
-| `rest`     | `tests/restapi/`      | REST API tests                                                                   |
-| `graphql`  | `tests/graphql/`      | xAPI GraphQL tests                                                               |
-| `frontend` | `tests/e2e/frontend/` | Frontend tests in Chromium                                                       |
-| `backend`  | `tests/e2e/backend/`  | Admin UI tests (page builder), one worker                                        |
-| `isolated` | `tests/isolated/`     | Tests that change global settings, one worker, only with `RUN_DESTRUCTIVE_TESTS` |
+| Project        | Directory             | Runs                                                                             |
+| -------------- | --------------------- | -------------------------------------------------------------------------------- |
+| `seed`         | `setup/`              | Seeds the dataset; every other project depends on it                             |
+| `restapi`      | `tests/restapi/`      | REST API tests                                                                   |
+| `graphql`      | `tests/graphql/`      | xAPI GraphQL tests                                                               |
+| `e2e-frontend` | `tests/e2e/frontend/` | Frontend tests in Chromium                                                       |
+| `e2e-backend`  | `tests/e2e/backend/`  | Admin UI tests (page builder), one worker                                        |
+| `isolated`     | `tests/isolated/`     | Tests that change global settings, one worker, only with `RUN_DESTRUCTIVE_TESTS` |
 
 The dataset checks in `tests/unit/` run with their own config, `playwright.unit.config.ts`. They check that every
 record id is unique, that every reference resolves to a record seeded earlier, and that the manifest keys are present
@@ -91,6 +91,8 @@ commands, roles, quality limits) are in `.qa/project.json`. Their working files 
 
 ## CI
 
-The `Suite` workflow (`.github/workflows/suite.yml`) starts a platform and a frontend for each database, seeds and
-indexes the dataset, runs `test:vc` and then `test:vc:isolated`, and uploads the Allure report. Start it from the
-Actions tab. Pull requests run the dataset checks in the `CI` workflow.
+The `Auto Tests Docker` workflow (`.github/workflows/auto-tests.yml`) runs the suite through `playwright-tests.yml` of
+`VirtoCommerce/.github`. The platform, the frontends and the modules run the same shared workflow against this
+repository's `dev` branch, so the project names (`restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`)
+are a contract with all of them: never rename one. Start it from the Actions tab. Pull requests run the dataset
+checks in the `CI` workflow.

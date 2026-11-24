@@ -92,9 +92,9 @@ session quoting their words; never you. A change to an approved contract goes on
 
 ## Example from this repository
 
-- Test projects (keys of `commands.test`): `rest`, `graphql`, `frontend`, `backend`, `isolated`, `unit`. Business
-  logic goes through xAPI (`graphql`), platform administration through `rest`, and the browser shows only
-  rendering, navigation and forms (`frontend`; the page builder of the admin UI is `backend`). Platform-wide changes
+- Test projects (keys of `commands.test`): `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`. Business
+  logic goes through xAPI (`graphql`), platform administration through `restapi`, and the browser shows only
+  rendering, navigation and forms (`e2e-frontend`; the page builder of the admin UI is `e2e-backend`). Platform-wide changes
   go to `isolated`.
 - `roleFor` in `.qa/project.json`: `admin` is `store administrator`, `customer` is `store employee`,
   `otherCustomer` is `other store employee`; `store manager`, `purchasing agent` and `organization maintainer` are

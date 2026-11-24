@@ -164,7 +164,7 @@ Never `toEqual([...])` on a whole search result: other tests create data in para
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["rest"]` (the REST project's key) from the project facts
+Run `commands.typecheck`, `commands.lint` and `commands.test["restapi"]` (the REST project's key) from the project facts
 on the changed spec, with the run record the expert agent describes.
 
 ## Example from this repository
@@ -177,5 +177,5 @@ on the changed spec, with the run record the expert agent describes.
 - Commands: `npm run typecheck && npm run check`, then:
 
   ```shell
-  npx --no playwright test --config=virtocommerce virtocommerce/tests/restapi/<platform-module>/<topic>.spec.ts --project=rest
+  npx --no playwright test --config=virtocommerce virtocommerce/tests/restapi/<platform-module>/<topic>.spec.ts --project=restapi
   ```

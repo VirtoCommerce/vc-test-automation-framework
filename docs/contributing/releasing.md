@@ -24,7 +24,7 @@ npm run report:vc      # generate the Allure report from the last run
 ```
 
 The seed turns off the platform's scheduled indexing, so that a scheduled run cannot refuse an indexation that a test
-starts. Rebuild the index by hand after seeding a local platform; the `Suite` workflow has its own indexing step.
+starts. Rebuild the index by hand after seeding a local platform; the shared CI workflow indexes after its seed.
 
 The destructive tests of the `isolated` project change global settings, such as anonymous access to the store, and
 rebuild the search index, so they would break tests that run at the same time. `test:vc` always leaves them out, and
@@ -32,11 +32,15 @@ rebuild the search index, so they would break tests that run at the same time. `
 so set it only for an environment that may lose its settings, such as a platform made for one CI run. Run
 `test:vc:isolated` after `test:vc`, without cleaning the results in between, and the report covers both runs.
 
-The `Suite` workflow runs the test suite on GitHub Actions; start it from the Actions tab. For each database it starts
-a platform with the modules of `virtocommerce/backend-packages.json` and a frontend, writes `virtocommerce/.env`
-from the `VC_TESTING_MODULE_ENV_FILE_NEW` secret, seeds and indexes the dataset, runs `test:vc`, then
-`test:vc:isolated` as a separate step, and uploads the Allure report. The platform lives only for the run, so the
-isolated tests are on by default.
+The `Auto Tests Docker` workflow (`auto-tests.yml`) runs the test suite on GitHub Actions; start it from the Actions
+tab. It calls `playwright-tests.yml` of `VirtoCommerce/.github`, the workflow that the platform, the frontends and
+the modules also run against this repository's `dev` branch. For each database and search engine it starts a platform
+with the modules of `virtocommerce/backend-packages.json` and a frontend, writes `virtocommerce/.env` from the
+`VC_TESTING_MODULE_ENV_FILE_NEW` secret, seeds and indexes the dataset, runs each chosen project with
+`--config=virtocommerce`, and uploads the Allure report. The suites it accepts are the project names: `restapi`,
+`graphql`, `e2e-frontend`, `e2e-backend` (`e2e` is both) and `isolated`, which also needs
+`RUN_DESTRUCTIVE_TESTS=true` in the secret. Since that workflow is shared, a project's name is a contract with every
+caller: renaming one breaks their CI.
 
 The `CI` workflow runs on every pull request to `dev`: the type check, Biome, the unit tests of the framework, the
 dataset checks of the test suite, the documentation check, the API reference and the build. It needs no platform.

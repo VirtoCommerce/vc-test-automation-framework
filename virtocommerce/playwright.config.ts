@@ -30,7 +30,7 @@ export default defineConfig<Pick<SuiteFixtures, "app">>({
       testMatch: "seed.setup.ts",
     },
     apiProject(env, {
-      name: "rest",
+      name: "restapi",
       testDir: "tests/restapi",
       dependencies: ["seed"],
     }),
@@ -46,7 +46,7 @@ export default defineConfig<Pick<SuiteFixtures, "app">>({
       dependencies: ["seed"],
     }),
     e2eProject(env, {
-      name: "backend",
+      name: "e2e-backend",
       testDir: "tests/e2e/backend",
       workers: 1,
       timeout: 60_000,
@@ -60,7 +60,7 @@ export default defineConfig<Pick<SuiteFixtures, "app">>({
       },
     }),
     e2eProject(env, {
-      name: "frontend",
+      name: "e2e-frontend",
       testDir: "tests/e2e/frontend",
       timeout: 60_000,
       expect: { timeout: 10_000 },

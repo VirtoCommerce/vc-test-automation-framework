@@ -118,4 +118,4 @@ Output format, exactly (this one, not the skill's):
   `npx --no playwright test --config=virtocommerce --list --reporter=list --project=<name> <specs>`.
 - Index-wait methods in `arrange`: `customers.searchableMemberships`, `customers.lockMemberships`,
   `pickup.pickupLocations`, `pickup.cartPickupLocations`, `pickup.productPickupLocations`.
-- Projects: `rest`, `graphql`, `frontend`, `backend`, `isolated` (`virtocommerce/tests/isolated/`), `unit`.
+- Projects: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated` (`virtocommerce/tests/isolated/`), `unit`.

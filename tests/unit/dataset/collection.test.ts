@@ -1,49 +1,54 @@
 import { expect, test } from "@playwright/test";
 
-import { Collection } from "@dataset/collection";
+import { Collection } from "@/dataset";
 
-interface Product {
-  readonly id?: string | null;
-  readonly name: string;
-}
+type Product = { readonly id?: string; readonly name: string };
 
-const LAPTOP: Product = { id: "product-laptop", name: "Laptop" };
-const PHONE: Product = { id: "product-phone", name: "Phone" };
-const NO_ID: Product = { name: "Without id" };
+const PRODUCTS = new Collection<Product>("products", [
+  { id: "product-1", name: "Laptop" },
+  { name: "No identifier" },
+  { id: "product-2", name: "Phone" },
+]);
 
 test.describe("Collection", () => {
-  test("has its name, size and records in file order", () => {
-    const products = new Collection("products", [LAPTOP, PHONE, NO_ID]);
-
-    expect(products.name).toBe("products");
-    expect(products.size).toBe(3);
-    expect(products.all()).toEqual([LAPTOP, PHONE, NO_ID]);
+  test("counts and returns its records in order", () => {
+    expect(PRODUCTS.name).toBe("products");
+    expect(PRODUCTS.count).toBe(3);
+    expect(PRODUCTS.all().map((product) => product.name)).toEqual(["Laptop", "No identifier", "Phone"]);
   });
 
-  test("gets a record by id", () => {
-    expect(new Collection("products", [LAPTOP, PHONE]).get("product-phone")).toBe(PHONE);
+  test("keeps a frozen copy of its records", () => {
+    const records: Product[] = [{ name: "Laptop" }];
+    const collection = new Collection("products", records);
+    records.push({ name: "Phone" });
+
+    expect(collection.count).toBe(1);
+    expect(Object.isFrozen(collection.all())).toBe(true);
   });
 
-  test("throws for a missing id, naming the collection", () => {
-    expect(() => new Collection("products", [LAPTOP]).get("product-tablet")).toThrow(
-      'Dataset products has no record "product-tablet"',
+  test("returns a record by its identifier and skips records without one", () => {
+    expect(PRODUCTS.get("product-2")).toEqual({ id: "product-2", name: "Phone" });
+  });
+
+  test("throws for an unknown identifier", () => {
+    expect(() => PRODUCTS.get("product-3")).toThrow('The dataset collection products has no record "product-3"');
+  });
+
+  test("throws when two records share an identifier", () => {
+    const duplicated = new Collection<Product>("products", [
+      { id: "product-1", name: "Laptop" },
+      { id: "product-1", name: "Phone" },
+    ]);
+
+    expect(() => duplicated.get("product-1")).toThrow(
+      'The dataset collection products has more than one record "product-1"',
     );
   });
 
-  test("ignores records without an id", () => {
-    expect(new Collection("products", [NO_ID, LAPTOP]).get("product-laptop")).toBe(LAPTOP);
-  });
-
-  test("reports a duplicate id on the first lookup", () => {
-    const products = new Collection("products", [LAPTOP, { id: "product-laptop", name: "Copy" }]);
-
-    expect(() => products.get("product-phone")).toThrow('Dataset products has more than one record "product-laptop"');
-  });
-
-  test("filters records in file order", () => {
-    const products = new Collection("products", [LAPTOP, PHONE, NO_ID]);
-
-    expect(products.filter((product) => product.name.includes("o"))).toEqual([LAPTOP, PHONE, NO_ID]);
-    expect(products.filter((product) => product.id === undefined)).toEqual([NO_ID]);
+  test("returns the records that match a condition", () => {
+    expect(PRODUCTS.filter((product) => product.id !== undefined).map((product) => product.name)).toEqual([
+      "Laptop",
+      "Phone",
+    ]);
   });
 });

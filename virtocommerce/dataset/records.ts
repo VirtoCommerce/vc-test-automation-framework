@@ -1,0 +1,59 @@
+import type {
+  VirtoCommerceCatalogModuleCoreModelCatalog,
+  VirtoCommerceCatalogModuleCoreModelCatalogProduct,
+  VirtoCommerceCatalogModuleCoreModelCategory,
+  VirtoCommerceCatalogModuleCoreModelMeasure,
+  VirtoCommerceCatalogModuleCoreModelProperty,
+  VirtoCommerceCatalogModuleCoreModelPropertyGroup,
+  VirtoCommerceCoreModuleCoreCurrencyCurrency,
+  VirtoCommerceCustomerModuleCoreModelContact,
+  VirtoCommerceCustomerModuleCoreModelOrganization,
+  VirtoCommerceCustomerModuleCoreModelOrganizationMembership,
+  VirtoCommerceInventoryModuleCoreModelFulfillmentCenter,
+  VirtoCommerceInventoryModuleCoreModelInventoryInfo,
+  VirtoCommerceMarketingModuleCoreModelPromotionsCoupon,
+  VirtoCommerceMarketingModuleCoreModelPromotionsPromotion,
+  VirtoCommerceOrdersModuleCoreModelCustomerOrder,
+  VirtoCommercePaymentModuleCoreModelPaymentMethod,
+  VirtoCommercePlatformCoreSecurityApplicationUser,
+  VirtoCommercePlatformCoreSecurityRole,
+  VirtoCommercePlatformCoreSettingsObjectSettingEntry,
+  VirtoCommercePricingModuleCoreModelPricelist,
+  VirtoCommercePricingModuleCoreModelPricelistAssignment,
+  VirtoCommercePricingModuleCoreModelProductPrice,
+  VirtoCommerceShippingModuleCoreModelPickupLocation,
+  VirtoCommerceShippingModuleCoreModelShippingMethod,
+  VirtoCommerceStoreModuleCoreModelStore,
+} from "../rest/generated/platform.ts";
+
+/**
+ * The record type of each dataset collection that has a generated platform type. The other collections hold plain
+ * JSON objects.
+ */
+export interface DatasetRecords {
+  readonly catalogProperties: VirtoCommerceCatalogModuleCoreModelProperty;
+  readonly catalogPropertyGroups: VirtoCommerceCatalogModuleCoreModelPropertyGroup;
+  readonly catalogs: VirtoCommerceCatalogModuleCoreModelCatalog;
+  readonly categories: VirtoCommerceCatalogModuleCoreModelCategory;
+  readonly contacts: VirtoCommerceCustomerModuleCoreModelContact;
+  readonly coupons: VirtoCommerceMarketingModuleCoreModelPromotionsCoupon;
+  readonly currencies: VirtoCommerceCoreModuleCoreCurrencyCurrency;
+  readonly fulfillmentCenters: VirtoCommerceInventoryModuleCoreModelFulfillmentCenter;
+  readonly measures: VirtoCommerceCatalogModuleCoreModelMeasure;
+  readonly orders: VirtoCommerceOrdersModuleCoreModelCustomerOrder;
+  readonly organizationMemberships: VirtoCommerceCustomerModuleCoreModelOrganizationMembership;
+  readonly organizations: VirtoCommerceCustomerModuleCoreModelOrganization;
+  readonly paymentMethods: VirtoCommercePaymentModuleCoreModelPaymentMethod;
+  readonly pickupLocations: VirtoCommerceShippingModuleCoreModelPickupLocation;
+  readonly platformSettings: VirtoCommercePlatformCoreSettingsObjectSettingEntry;
+  readonly pricelistAssignments: VirtoCommercePricingModuleCoreModelPricelistAssignment;
+  readonly pricelists: VirtoCommercePricingModuleCoreModelPricelist;
+  readonly prices: VirtoCommercePricingModuleCoreModelProductPrice;
+  readonly productInventories: VirtoCommerceInventoryModuleCoreModelInventoryInfo;
+  readonly products: VirtoCommerceCatalogModuleCoreModelCatalogProduct;
+  readonly promotions: VirtoCommerceMarketingModuleCoreModelPromotionsPromotion;
+  readonly roles: VirtoCommercePlatformCoreSecurityRole;
+  readonly shippingMethods: VirtoCommerceShippingModuleCoreModelShippingMethod;
+  readonly stores: VirtoCommerceStoreModuleCoreModelStore;
+  readonly users: VirtoCommercePlatformCoreSecurityApplicationUser;
+}

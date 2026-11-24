@@ -1,0 +1,45 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+  "plugins": [],
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noImportCycles": "error",
+        "noFocusedTests": "error",
+        "noConsole": "warn"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
+      },
+      "correctness": {
+        "noUnusedImports": "warn",
+        "noUnusedVariables": "warn"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "error",
+        "useImportType": {
+          "level": "error",
+          "fix": "safe",
+          "options": {
+            "style": "separatedType"
+          }
+        },
+        "useExportType": {
+          "level": "error",
+          "fix": "safe"
+        },
+        "useNodejsImportProtocol": {
+          "level": "error",
+          "fix": "safe"
+        }
+      }
+    }
+  }
+}

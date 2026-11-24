@@ -1,0 +1,21 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rewriteRelativeImportExtensions": false,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@virtocommerce/test-automation-framework/*": ["../src/*/index.ts"],
+      "@/*": ["../src/*/index.ts"],
+      "@pages/*": ["./pages/*"],
+      "@fixtures": ["./fixtures/index.ts"],
+      "@dataset/*": ["./dataset/*"],
+      "@graphql/*": ["./graphql/*"],
+      "@modules": ["./modules.ts"],
+      "@arrange": ["./arrange/index.ts"],
+      "@builders/*": ["./builders/*"],
+      "@support/*": ["./support/*"],
+      "@rest/*": ["./rest/*"]
+    }
+  },
+  "include": ["."]
+}

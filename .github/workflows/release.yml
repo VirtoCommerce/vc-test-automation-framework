@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    branches: [dev]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@virtocommerce"
+
+      - run: npm ci
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
+      - run: npm run typecheck
+      - run: npm run check:ci
+      - run: npm run test:unit
+
+      - id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npm run release:version
+          publish: npm run release:publish
+          commit: "chore: release"
+          title: "chore: release"
+          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
+
+      - if: steps.changesets.outputs.published == 'true'
+        run: npm pack
+
+      - if: steps.changesets.outputs.published == 'true'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          published=$(npm view "@virtocommerce/test-automation-framework@$version" dist.integrity)
+          packed="sha512-$(openssl dgst -sha512 -binary ./*.tgz | base64 -w0)"
+          echo "published: $published"
+          echo "packed:    $packed"
+          test "$published" = "$packed"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: steps.changesets.outputs.published == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "*.tgz"

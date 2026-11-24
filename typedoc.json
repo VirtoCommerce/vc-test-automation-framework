@@ -1,0 +1,24 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@virtocommerce/test-automation-framework",
+  "entryPoints": [
+    "src/auth/index.ts",
+    "src/core/index.ts",
+    "src/dataset/index.ts",
+    "src/fixtures/index.ts",
+    "src/graphql/index.ts",
+    "src/http/index.ts",
+    "src/modules/index.ts"
+  ],
+  "tsconfig": "tsconfig.json",
+  "out": "api-reference",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": true
+  },
+  "treatWarningsAsErrors": true
+}

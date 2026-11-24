@@ -1,0 +1,106 @@
+{
+  "suiteDir": "virtocommerce",
+  "tracker": {
+    "kind": "jira",
+    "keyPattern": "^VCST-\\d+$",
+    "routes": ["command", "cli", "api", "mcp", "paste"]
+  },
+  "docSources": [
+    {
+      "name": "Virto Commerce documentation",
+      "route": "api",
+      "where": "https://docs.virtocommerce.org"
+    },
+    {
+      "name": "Module READMEs",
+      "route": "paste",
+      "where": "README.md files of the module repositories"
+    }
+  ],
+  "commands": {
+    "typecheck": "npm run typecheck",
+    "lint": "npm run check",
+    "test": {
+      "unit": "npm run test:unit && npm run test:vc:unit",
+      "rest": "npm run test:vc -- --project=rest",
+      "graphql": "npm run test:vc -- --project=graphql",
+      "frontend": "npm run test:vc -- --project=frontend",
+      "backend": "npm run test:vc -- --project=backend",
+      "isolated": "npm run test:vc:isolated",
+      "all": "npm run test:vc"
+    }
+  },
+  "critical": ["cart", "order", "security"],
+  "knowledgeDir": ".qa/kb",
+  "roles": {
+    "store administrator": "acme_store_administrator@acme.com",
+    "store employee": "acme_store_employee_1@acme.com",
+    "store manager": "acme_store_manager_1@acme.com",
+    "organization maintainer": "acme_store_maintainer_1@acme.com",
+    "purchasing agent": "acme_store_purchasing_agent_1@acme.com",
+    "other store employee": "other_store_employee_1@other-store.com"
+  },
+  "roleFor": {
+    "admin": "store administrator",
+    "customer": "store employee",
+    "otherCustomer": "other store employee"
+  },
+  "rolePermissions": {
+    "store employee": ["storefront:organization:view", "storefront:user:view"],
+    "other store employee": ["storefront:organization:view", "storefront:user:view"],
+    "store manager": ["storefront:order:changestatus", "storefront:order:view", "storefront:organization:view"],
+    "purchasing agent": ["storefront:organization:view", "storefront:user:view"],
+    "organization maintainer": [
+      "storefront:organization:edit",
+      "storefront:user:organization:view",
+      "storefront:user:create",
+      "storefront:user:delete",
+      "storefront:user:edit",
+      "storefront:user:invite",
+      "storefront:user:view",
+      "xapi:my_organization:edit"
+    ]
+  },
+  "passwordFor": {
+    "store administrator": "USERS_PASSWORD",
+    "store employee": "USERS_PASSWORD",
+    "store manager": "USERS_PASSWORD",
+    "organization maintainer": "USERS_PASSWORD",
+    "purchasing agent": "USERS_PASSWORD",
+    "other store employee": "USERS_PASSWORD"
+  },
+  "coverageWeights": {
+    "risk": 1,
+    "callFrequency": 1,
+    "runFrequency": 1,
+    "stability": 1,
+    "cost": 1
+  },
+  "flakyRunSeries": 5,
+  "quality": {
+    "maxSteps": 8,
+    "maxLines": 60,
+    "maxExpects": 12,
+    "maxNesting": 3,
+    "maxConditionals": 0,
+    "stableSeries": 3,
+    "durationBudgetMs": {
+      "rest": 15000,
+      "graphql": 15000,
+      "frontend": 90000,
+      "backend": 120000
+    },
+    "slowdownRatio": 1.5,
+    "slowdownMinMs": 1000
+  },
+  "autonomy": {
+    "*": "propose"
+  },
+  "healerPaths": [
+    "virtocommerce/pages/",
+    "virtocommerce/arrange/",
+    "virtocommerce/builders/",
+    "virtocommerce/support/",
+    "virtocommerce/dataset/"
+  ]
+}

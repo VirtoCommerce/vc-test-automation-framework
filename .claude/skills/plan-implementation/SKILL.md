@@ -1,118 +1,82 @@
 ---
 name: plan-implementation
-description: "Plan file-by-file implementation for test automation tasks — which files to create or modify, in what order, which patterns, arrange methods and existing code to reuse"
-argument-hint: "<task-description>"
+description: "Write the contract: the file at .qa/contracts/<key-or-slug>.md that holds the source, scope, case matrix, stand needs, building blocks, platform defects and verification, checked by a script and approved by a person before anything is implemented"
+argument-hint: "<ticket-key | spec-link | area | gap-id>"
 ---
 
-## Implementation Planning
+## Writing the Contract
 
-Given a task or test strategy, produce a step-by-step plan with exact file paths, the existing file each one
-follows, and the order to build them in. Read CLAUDE.md first; it holds the layers and conventions.
+The contract is the only hand-off from the planner to the implementer: the implementer receives its path and nothing
+else, and the reviewer receives it with the diff. Read `framework-rules` and `project-facts` first.
 
-## Process
+## Step 1: Start from the Matrix
 
-### Step 1: Identify the Artifacts
+Take the case matrix from `plan-test-strategy`. If it does not exist yet, run that skill first.
+
+## Step 2: Fill the Template
+
+Copy `contract-template.md` (next to this file) to `.qa/contracts/<ticket-key-or-slug>.md`, which is git-ignored, and
+fill every section:
+
+- **Source**: first line `ticket: <key>`, `doc: <link>`, `area: <name>` or `gap: <id>`.
+- **Scope** and **Out of scope**: what is tested, and what is not and why.
+- **Cases**: the matrix. Every oracle starts with `ticket:`, `doc:`, `schema:` or `observed:`; every data role is a
+  role from the facts or `none`. An `observed:` part holds a value the explorer recorded and its report,
+  `observed: <value> (.qa/reports/explore-<slug>-observed.md)`, the value exactly as the report's line
+  `- <case id>: <value> (` has it (in double quotes when it holds `;`, a `|` written `\|`). The check refuses one
+  without a report (`observed: pending <what>` included), and one whose report does not exist or does not hold that
+  line. `observed: at first run <what>` (the person chose to observe at the expert's first run) passes only with the
+  `## Approval` line, and never with `--implemented`. The expert pins the value it saw and stops with an amendment
+  `A-n first-run values: <case id> = <value> (<report>)`; a `(first run)` value passes only once that entry is
+  approved.
+- **Observed only**: every case whose oracle is only `observed:`, marked `characterization` or `confirmed by <who>`.
+- **Stand needs**: profile, required modules (with the minimum version the suite relies on) and data roles.
+- **Building blocks**: what to reuse and what to add, in dependency order, naming the existing file each addition
+  follows and the skill to use. Never propose a new file when an existing one can be extended.
+- **Platform defects**: each case whose correct behaviour the platform is known to break, with the defect and its
+  tracker link, or `no ticket yet`; `None` when there is none. Its test asserts the correct behaviour and stays
+  failing, with the link as an `issue` annotation.
+- **Verification**: the typecheck, lint and test commands from the facts, then the commands that run the new specs.
+
+## Step 3: Order the Building Blocks
+
+Build in dependency order: generated or declared interfaces first (operations, generated types), then page objects,
+then data (records, builders, `arrange` methods), then specs. Every record a test creates comes from `arrange`, which
+removes it after the test; data the code under test creates has its `...Later` removal in the plan, registered right
+after the act.
+
+## Step 4: Check
+
+Run `node .claude/checks/contract.mts check .qa/contracts/<file>.md`. It prints `ok <file>` or one line per problem.
+Fix the contract until it passes; never edit the facts to make it pass.
+
+## Step 5: Amendments
+
+When implementation shows the contract is wrong, the implementer stops and adds an `## Amendments` entry. It counts
+only with an `Approved: <who>, <date>` line; an unapproved amendment fails the check. The base contract's approval is
+one such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`. Only a person writes it,
+or a session quoting the person's words verbatim (several lines joined with " / "); the planner and the implementer
+never write it.
+
+## Example from this repository
+
+All paths are in the suite directory `virtocommerce/`.
 
 | Artifact | Location | Pattern reference |
 |---|---|---|
-| GraphQL fragment | `api/graphql/fragments/<entity>.graphql` | `api/graphql/fragments/cart.graphql` |
-| GraphQL operation | `api/graphql/operations/<area>/<name>.graphql` | `api/graphql/operations/cart/add-item.graphql` |
-| Generated GraphQL types | `api/graphql/generated/` (`npm run codegen:graphql`) | never edited |
-| REST client / resource / method | `api/rest/clients/<module>-client.ts`, registered in `api/rest/rest-api.ts` | `api/rest/clients/pricing-client.ts` |
-| REST named type | `api/rest/types/<module>.ts` | `api/rest/types/pricing.ts` |
-| Frontend page | `pages/frontend/pages/<area>/<name>-page.ts` + a `Frontend` factory method | `pages/frontend/pages/cart/cart-page.ts` |
-| Frontend component | `pages/frontend/components/<area>.ts` or `<area>/<component>.ts`; UI-kit wrappers in `pages/frontend/ui-kit/` | `pages/frontend/components/checkout.ts` |
-| Page builder object | `pages/backend/page-builder/<blade or shell>.ts`; vc-shell wrappers in `pages/backend/vc-shell/` | `pages/backend/page-builder/page-details-blade.ts` |
-| Builder | `dataset/builders/<domain>.ts` | `dataset/builders/pricing.ts` |
-| Arrange method | `dataset/arrange/<domain>.ts` (types exported from `index.ts`) | `dataset/arrange/pricing.ts` |
-| Seed record | `dataset/data/<collection>/*.json` (+ `dataset/manifest.ts` for a new collection) | neighbouring JSON files |
-| Known defect | `known-issues.json` | existing entries |
-| Fixture or option | `fixtures/<name>.fixture.ts`, exported from `fixtures/index.ts` | `fixtures/browser.fixture.ts` |
+| GraphQL operation | `graphql/operations/<area>/<name>.graphql` | `graphql/operations/cart/add-item.graphql` |
+| REST types | `rest/generated/platform.ts`, generated, never edited | `tests/restapi/security/api-keys.spec.ts` uses them |
+| Frontend page | `pages/frontend/pages/<area>/<name>-page.ts` and a `Frontend` factory method | `pages/frontend/pages/cart/cart-page.ts` |
+| Builder | `builders/<domain>.ts` | `builders/pricing.ts` |
+| Arrange method | `arrange/<domain>.ts` | `arrange/pricing.ts` |
+| Seed record | `dataset/data/<collection>/*.json` | neighbouring files |
+| Optional module | `modules.ts` (`MODULES`) | existing entries |
 | REST spec | `tests/restapi/<platform-module>/<topic>.spec.ts` | `tests/restapi/pricing/pricelists.spec.ts` |
 | GraphQL spec | `tests/graphql/<area>/<topic>.spec.ts` | `tests/graphql/cart/cart-items.spec.ts` |
 | Frontend e2e spec | `tests/e2e/frontend/<area>/<topic>.spec.ts` | `tests/e2e/frontend/cart/cart.spec.ts` |
-| Page builder e2e spec | `tests/e2e/backend/page-builder/<topic>.spec.ts` | `tests/e2e/backend/page-builder/page-status.spec.ts` |
-| Destructive spec | `tests/isolated/{restapi,graphql}/<area>/<topic>.spec.ts` | `tests/isolated/graphql/catalog/anonymous-access.spec.ts` |
-| Unit test of framework code | `tests/unit/<layer>/…/*.test.ts` | `tests/unit/api/rest/clients/bulk-delete-guards.test.ts` |
 
-### Step 2: Check What Already Exists
-
-Before adding a file, search for:
-- documents that already select the needed fields (often only a fragment field is missing);
-- client methods, page objects and components that cover the need;
-- `arrange.<domain>` methods and builders, including ones that need one more option;
-- seeded records in `dataset/data` that already fit.
-
-### Step 3: Order by Dependency
-
-```
-1. api/graphql documents          then  npm run codegen:graphql
-2. api/rest/types, api/rest/clients   (npm run codegen:rest first after a platform upgrade)
-3. pages/: components, then pages, then the Frontend factory method
-4. dataset/data records (+ manifest), then npm run seed
-5. dataset/builders, then dataset/arrange
-6. known-issues.json entries
-7. fixtures (only when no arrange method or option fits)
-8. specs: restapi, graphql, e2e; isolated ones last
-```
-
-## Output Format
-
-```markdown
-# Implementation Plan: <Task Name>
-
-## Summary
-<1-2 sentences: what will be built and why>
-
-## Prerequisites
-- [ ] <platform modules, seeded data, codegen, anything to verify first>
-
-## Files to Create/Modify
-
-### Phase 1: Infrastructure
-
-#### 1. `<file path>` (CREATE/MODIFY)
-- **Pattern reference:** `<existing file>`
-- **What:** <operation, method, locator or action to add>
-- **Skill to use:** `/create-graphql-layer` | `/create-rest-client` | `/create-ui-layer` | none
-
-### Phase 2: Test Data
-
-#### N. `<file path>` (CREATE/MODIFY)
-- **Pattern reference:** `<existing file>`
-- **What:** <builder, arrange method with its cleanup, seed record, known issue>
-
-### Phase 3: Specs
-
-#### M. `<file path>` (CREATE/MODIFY)
-- **Pattern reference:** `<existing spec>`
-- **Allure:** epic `"<REST API | GraphQL | E2E>"`, feature `"<Area> / <Topic>"`, stories `<…>`
-- **describe blocks:** `"<topic> (<who>)"` with their `test.use(...)` (`user`, `shopperKind`)
-- **Tests:**
-  - `"<title>"` — <what it verifies>; arrange <arrange methods / dataset ids>; cleanup <arrange / cleanup.push / …Later>
-- **Markers:** <knownIssue(KNOWN_ISSUES.x) / isolated project / none>
-- **Skill to use:** `/write-rest-api-test` | `/write-graphql-test` | `/write-e2e-test`
-
-## Verification Steps
-1. `npm run typecheck` and `npm run check`
-2. `npx playwright test --list`
-3. The changed specs through their npm script against a seeded platform (`npm run seed` first if data changed)
-4. `npm run test:unit` when framework code changed
-
-## Risks and Notes
-- <parallel-run interference, index lag, frontend settings, known defects>
-```
-
-## Planning Rules
-
-1. Never propose a new file when an existing one can be extended.
-2. Always name the pattern reference file and the skill for each file.
-3. Run codegen right after document changes; specs import the generated `…Document` constants.
-4. One spec file per topic; tests placed by platform module (users and accounts are `security`).
-5. Every change a test makes has its cleanup in the plan, registered before the change. Shared setup is an
-   `arrange` method, never a helper function in a spec.
-6. A test that changes a customer's own state creates its own customer (`arrange.customers.customerAccount()`,
-   or `shopperKind: "customer"` in e2e).
-7. Platform-wide changes (global settings, index, restart, store access) go to `tests/isolated/`.
-8. Respect the layers: no API calls in page objects, no page imports in `dataset`, specs import `test`, `expect`
-   and `knownIssue` from `@fixtures`.
+- Order: `.graphql` documents then `npm run codegen:vc`, page objects, dataset records then `npm run seed:vc` and a
+  reindex, builders, `arrange` methods, specs.
+- Skills for the implementer: `/create-graphql-layer`, `/create-ui-layer`, `/write-graphql-test`,
+  `/write-rest-api-test`, `/write-security-test` (no session, wrong role, another customer's object, headers, input
+  validation), `/write-e2e-test`. REST calls use the generated types directly; there is no REST client layer.

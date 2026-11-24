@@ -1,110 +1,175 @@
 ---
 name: review-test-code
-description: "Review spec files and test infrastructure (clients, page objects, builders, arrange, fixtures) for convention compliance, isolation, correctness, coverage gaps and best practices — produces actionable feedback"
+description: "Review spec files and test infrastructure (page objects, builders, arrange, fixtures, support) for convention compliance, isolation, correctness, coverage gaps and best practices — produces actionable feedback; holds the reviewer's definition-of-done check of a contract's run"
 argument-hint: "<file-path-or-pattern>"
 ---
 
 ## Test Code Review
 
-Check every item below against CLAUDE.md and README "Writing tests". Report only real issues, with line numbers.
+Read the skill `framework-rules` first, then check every item below against it (the framework's rules) and against the
+repository's own style (its `CLAUDE.md`, linter configuration and neighbouring files). A framework rule beats a style
+rule. Report only real issues, with line numbers.
 
 ## Review Process
 
 ### Step 1: Read the Files
 
 Read each target file completely, plus what it depends on:
-- the fixtures it destructures and the options it sets (`user`, `shopperKind`);
-- the clients, `arrange` methods and builders it calls;
+- the fixtures it destructures and the options it sets (`user`, `shopperAs`, `modules`);
+- the `arrange` methods, builders and support functions it calls;
 - the page objects it uses;
-- the GraphQL documents behind its `…Document` imports;
-- the `KNOWN_ISSUES` entries it names.
+- the GraphQL documents behind its `…Document` imports and the generated REST types it names;
+- the `MODULES` entries it gates on.
 
 ### Step 2: Structure (every spec)
 
-- [ ] `test`, `expect`, `knownIssue` from `@fixtures`; nothing from `@playwright/test` (except `tests/unit`).
-- [ ] `allure.epic` and `allure.feature("<Area> / <Topic>")` in `test.beforeEach`; `allure.story` and
-      `allure.description` in each test.
-- [ ] One `test.describe("<topic> (<who>)")` per identity.
-- [ ] Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")`; `expect` sits in `assert:` steps, or
-      in an `arrange:` step that checks a precondition.
-- [ ] Titles say what happens in plain words; one behavior per test.
-- [ ] No conditionals, `as` casts or helper functions; repeated cases are one table-driven test (rows may hold
-      small lambdas).
+- [ ] `test`, `expect` from `@fixtures`; nothing from `@playwright/test` (except unit tests).
+- [ ] One `test.describe("<topic> (<who>)")` per identity; who acts is set only with `test.use` (`user`,
+      `shopperAs`, `modules`), with no wrapper around it.
+- [ ] Every phase is a `test.step("arrange: …" | "act: …" | "assert: …")` (`"act and assert: …"` for one call
+      whose answer is the assertion); `expect` sits in `assert:` steps, or in an `arrange:` step that checks a
+      precondition. No hand-written `cleanup:` steps.
+- [ ] Setup in the test body through `arrange`; a `beforeEach` only for what every test of the describe shares.
+- [ ] Titles say what happens in plain words; one behaviour per test.
+- [ ] No conditionals or `as` casts; repeated cases are one table-driven test (rows may hold small lambdas). A read
+      several tests of the file repeat is a `function` declaration at the end of the spec; one several specs need
+      belongs in `support/`, setup several specs need in `arrange`.
 - [ ] No raw selectors; constants at module level in `UPPER_SNAKE_CASE`; dataset ids as constants, other seeded
       values read through `dataset`.
-- [ ] Placed by platform module (users and accounts in `security`); platform-wide changes in `tests/isolated/`.
+- [ ] Placed by platform module (users and accounts in `security`); platform-wide changes in `tests/isolated/` with
+      `{ tag: DESTRUCTIVE_TAG }` on the describe.
 
 ### Step 3: Isolation and Cleanup
 
 - [ ] Data the test changes is created with `arrange`; read-only data comes from `dataset`.
-- [ ] A test that changes a customer's own state creates its own customer (`customerAccount()` or
-      `shopperKind: "customer"`), never a dataset user.
-- [ ] Cleanup is registered before the change: `arrange` does it; a manual create pushes the undo on `cleanup`
-      before the call (the builder sets the id), or right after when the platform assigns the id.
-- [ ] Undos are tolerant (the record may already be gone) and restore changed values, not only delete.
+- [ ] A test that changes a customer's own state uses a customer created for the test (`shopperAs: "customer"` or
+      `arrange.customers.customer()`), never a dataset user.
+- [ ] What the code under test creates is registered with a `…Later` method: before the act when a builder gave the
+      id, right after the act when the platform assigns it, always before the first assertion.
+- [ ] No teardown code in the spec (`afterEach`, `try`/`finally`); missing removal is a new `arrange` method.
 - [ ] Assertions target the test's own records (`toContain(id)`, `toMatchObject`), never a whole shared list.
-- [ ] Deletions are proven by id (`find(id)` is `undefined`), not by a search.
+- [ ] Deletions are proven by id (`optionalJson` returns `undefined`), not by a search.
 - [ ] Store settings through `arrange.platform.storeSetting`; global settings only in `tests/isolated/`.
+- [ ] A `leaves data` annotation explains every record the test cannot remove.
 
 ### Step 4: Waits and Data
 
 - [ ] Index-backed reads wait in `arrange` or with `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })`.
 - [ ] No `waitForTimeout`, `networkidle`, sleeps or `expect(await locator.isVisible())`.
-- [ ] Missing data fails loudly: `requireFields` / `requireDefined`, no `?? ""`, `?? []`, `?? 0`.
-- [ ] Expected errors use `rejects.toBeHttpError(status, "text")` / `rejects.toBeGraphqlError("CODE")`.
-- [ ] Known defects: `await knownIssue(KNOWN_ISSUES.x)` first in the test, entry in `known-issues.json`;
-      no bare `test.fail`, `test.fixme` or `test.skip`.
+- [ ] Missing data fails loudly: `requireFields` / `requireDefined` / `lineItemOf`, no `?? ""`, `?? []`, `?? 0`.
+- [ ] Expected errors are explicit: REST `expect(response.status).toBe(<status>)` with the reason from
+      `response.text` or `errorJson`; GraphQL `rejects.toThrow("[CODE]")` or `executeRaw` with its `errors`.
+- [ ] Platform defects: the test asserts the correct behaviour and stays failing, with an `issue` annotation that
+      holds the ticket URL when one exists. No `test.fail`, `test.fixme`, `test.skip`, retries or workarounds, and
+      no expectation edited to match the build.
+- [ ] Optional modules gated with `test.use({ modules: { … } })` on the describe; nothing adapted to an older
+      (stable) platform, a `minVersion` raised instead.
 
 ### Step 5: Project-Specific Checks
 
-**REST:** calls go through `api.rest.<module>`; `api` signed in with `test.use({ user })`; security results check
-`succeeded`.
+**REST:** direct calls on `api` (`get`/`post`/`put`/`delete`), success bodies through `expectOk().json<T>()` typed
+with `@rest/generated/platform.ts`; paths as module-level constants; `api` signed in with `test.use({ user })`.
 
-**GraphQL:** typed documents; variables spread from `api.storeContext()`; `execute` for success, `executeRaw`
-only to read errors or partial data; nullable results unwrapped with `requireFields` / `lineItemOf`; named carts
-outside e2e.
+**GraphQL:** typed documents from `@graphql/generated/graphql.ts`; variables spread from `shopper.storeContext`;
+`execute` for success, `executeRaw` only to read errors or partial data; nullable results unwrapped with
+`requireFields` / `lineItemOf`; carts and lists from `arrange.carts`.
 
-**E2E:** page objects from the `frontend` / `pageBuilder` fixtures; data arranged through `shopper.api`; no branch
-or skip on `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE`, `CHECKOUT_MODE` (the page object hides them); waits on the
-response an action triggers (`whenGraphql` / `whenResponse`) when the next step depends on it; new tabs followed through the
-page object; UI sign-in only when sign-in is under test.
+**E2E:** page objects from the `frontend` / `pageBuilder` / `pageDesigner` fixtures; data arranged through `arrange`
+as `shopper`; no branch or skip on `QUANTITY_CONTROL`, `RANGE_FILTER_TYPE`, `CHECKOUT_MODE` (the page object hides
+them); waits on the response an action triggers (`whenGraphql` / `whenResponse`) when the next step depends on it; new
+tabs followed through the page object; UI sign-in only when sign-in is under test; no `page.goto` unless the URL is
+under test.
 
 ### Step 6: Infrastructure Files
 
-- [ ] Clients: paths verified against Swagger; responses checked against a shape
-      (`record` / `optionalRecord` / `records` / `results`); `find()` returns `undefined`, `get()` throws; bulk deletes by filter guard against
-      an empty filter.
-- [ ] Page objects: `readonly` locators built in the constructor, `data-test-id` first, settings hidden behind
-      methods, no test assertions, no API calls.
-- [ ] Builders: pure `newX()` functions with a client-side `id` and a `uniqueId` name.
-- [ ] Arrange methods: on the right domain class, register cleanup before the change, wait for index lag where
-      the data is searched.
-- [ ] Fixtures: right scope (worker vs test); minimal dependencies.
-- [ ] Layers respected (`biome/layers.json`); nothing duplicates an existing method.
+- [ ] Page objects: one class per file in kebab case under the right `pages/` directory; `readonly` locators built in
+      the constructor, `data-test-id` first, `.vc-*` classes only in `ui-kit/` and `vc-shell/`, settings hidden
+      behind methods, no test assertions, no API calls, imports only Playwright and other page objects.
+- [ ] Builders: pure `newX()` functions with unique values (`uniqueId`), and a client-side `id` where the platform
+      keeps it.
+- [ ] `arrange` methods: on the right domain, declared in its interface with a JSDoc that says what is created and
+      removed, registering removal with `later` before anything else can fail, waiting for index lag where the data is
+      searched; removals tolerate a record already gone; new result types exported from `arrange/index.ts`.
+- [ ] Fixtures: right scope (worker or test); minimal dependencies; options only through `{ option: true }`.
+- [ ] Support: small shared reads and waits; arrange waits with `pollUntil`, not loops with sleeps.
+- [ ] REST calls typed with the generated types; generated files (`graphql/generated/`, `rest/generated/`) not edited
+      by hand.
+- [ ] Layers respected (`.biome/layers.json`; the framework never imports suite code, the suite imports the framework
+      by package name); nothing duplicates an existing method.
+- [ ] Framework code (`src/`): a unit test for each public behaviour; a public API change updates its concept page,
+      the examples in `docs/examples/` and adds a changeset in `.changeset/`.
 
 ### Step 7: Code Quality
 
-- [ ] `npm run typecheck` and `npm run check` pass.
+- [ ] The facts' `commands.typecheck` and `commands.lint` pass. The dispatcher runs them; the reviewer's shell is
+      read-only, so the reviewer reports them as not checked.
 - [ ] No `any`, no `!`, no floating promises, no unused imports.
 - [ ] Named and exported functions are `function` declarations; arrows only for inline callbacks.
 - [ ] Class state in `readonly #private` fields.
 - [ ] No code comments; JSDoc short and only for what the signature cannot say.
-- [ ] No credentials or URLs in code.
-- [ ] Wording: frontend (not storefront), platform, platform admin.
+- [ ] No credentials or URLs in code; secrets as `Secret`, revealed only at the call.
+- [ ] Wording: frontend (not storefront), platform, platform admin, directory (not folder).
 
 ### Step 8: Coverage
 
 - [ ] Happy path, and error cases (invalid input, unauthorized identity, missing record).
-- [ ] Identities where behavior differs.
+- [ ] Identities where behaviour differs.
 - [ ] The test fails when the feature is broken (no vacuous assertions).
+
+## Definition of Done
+
+Used by `qa-reviewer` with a contract. Do not take the author's word for the run. The author left Playwright's
+JSON report per project under `.qa/runs/<contract-name>/` (names: `project-facts`, "Hand-off Paths"). For each
+Playwright project in the contract's case rows, with `<specs>` the changed spec files (repo-relative) and
+`--config=<suiteDir>` from the facts (left out when `suiteDir` is `.`):
+
+1. Make your own list of what should have run, as the stable series the author had to run
+   (`quality.stableSeries` from the facts), so that every missing repetition fails the reconciliation:
+
+   ```shell
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json npx --no playwright test --config=<suiteDir> --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
+   ```
+
+2. Reconcile it with the author's report:
+
+   ```shell
+   node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+   ```
+
+   Exit 1 means not done; copy each failure (test, project, why) into Critical, missing repetitions
+   included. A missing report file, a stand that was not reachable and no record, or a report you cannot read is
+   also not done.
+3. Do not read the author's own `list.<project>.json` as the truth: it is theirs.
+4. Your read-only shell cannot run typecheck and lint. Say in the Summary that they were not checked and name
+   `commands.typecheck` and `commands.lint` from the facts for the dispatcher to run; a diff that is clearly
+   type-unsafe (`any`, `!`, floating promises) is a finding on its own.
+
+5. Shape and duration of every new or changed test, with `<specs>` the changed spec files and `<project>` each
+   project of the run:
+
+   ```shell
+   node .claude/checks/test-shape.mts <specs>
+   node .claude/checks/test-duration.mts .qa/runs/<contract-name>/report.<project>.json <project> [<previous report>]
+   ```
+
+   Give a previous report only when the brief names one. Each line either prints is a finding (a shape finding names
+   `file:line`, a duration finding `file › describe › title`: find that test by its title in the spec; exit 1). It is
+   **Critical** only for a test the diff adds or changes: its spec is new, or a diff hunk adds or changes a line from
+   the test's first line to the end of the test call. A finding in another test of a touched file goes under
+   Suggestions as "already there" and never blocks. The limits are the facts' `quality`, never
+   your own. A project without a budget is judged only on the slowdown ratio.
+
+APPROVE only when reconciliation exits 0 for every project and there is no Critical finding.
 
 ## Severity Levels
 
-**Critical (must fix):** leaked data or cleanup registered after the change; vacuous assertions or none;
-shared-state races (a dataset user's cart, global settings outside `isolated`); fixed waits; credentials in code.
+**Critical (must fix):** leaked data or removal registered after an assertion; teardown code in a spec; vacuous
+assertions or none; shared-state races (a dataset user's cart, global settings outside `isolated`); fixed waits;
+credentials in code; `test.fail`, `test.fixme`, a retry or an edited expectation for a platform defect.
 
-**Warning (should fix):** conditionals, casts or helpers in specs; raw selectors in specs; fallbacks hiding missing
-data; bare `test.fail` / `test.fixme`; deletion proven by search; layer violations; duplicated methods.
+**Warning (should fix):** conditionals or casts in specs; raw selectors in specs; fallbacks hiding missing data; a
+missing `issue` annotation where the contract names a ticket; deletion proven by search; layer violations;
+duplicated methods; a test adapted to an older platform.
 
 **Suggestion:** splitting a large test; a table for repeated cases; missing negative or identity coverage.
 
@@ -133,3 +198,9 @@ APPROVE | REQUEST_CHANGES | NEEDS_DISCUSSION
 ```
 
 When reviewing several files, write one section per file, then an overall summary.
+
+## Example from this repository
+
+- `suiteDir` is `virtocommerce`; the layer configuration is `.biome/layers.json`; the tables are in `CLAUDE.md`
+  "Layers".
+- Page object rules: `virtocommerce/pages/README.md`.

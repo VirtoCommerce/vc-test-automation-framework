@@ -1,0 +1,4 @@
+{
+  "Catalog.Search.EventBasedIndexation.Enable": false,
+  "VirtoCommerce.Search.IndexingJobs.Enable": false
+}

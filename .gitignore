@@ -2,16 +2,28 @@ node_modules/
 
 .env
 .env.*
-!.env.example
 
 test-results/
 playwright-report/
+virtocommerce/reports/
 blob-report/
-allure-results/
-allure-report/
+dist/
+api-reference/
 
 .vscode/*
 !.vscode/settings.json
 .claude/settings.local.json
 *.local.md
 *.log
+
+.qa/contracts/
+.qa/runs/
+.qa/reports/
+.qa/kb/
+.qa/judge/
+tests/unit/qa/
+evals/
+.playwright-mcp/
+
+.qa/client-terms.local.txt
+.qa/*.local.env

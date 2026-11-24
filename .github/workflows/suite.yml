@@ -1,0 +1,187 @@
+name: Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      frontendZipUrl:
+        description: Frontend zip URL
+        required: true
+        type: string
+        default: latest
+      projects:
+        description: Projects of the main run
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - rest
+          - graphql
+          - frontend
+          - backend
+      runIsolated:
+        description: Run the destructive tests of the isolated project after the main run
+        required: true
+        type: boolean
+        default: true
+      databaseProviders:
+        description: JSON array of databases to run against, any of sqlserver, mysql, postgres
+        required: true
+        type: string
+        default: '["sqlserver","mysql","postgres"]'
+      searchProvider:
+        description: Search engine, one of elasticsearch8, elasticsearch9, opensearch
+        required: true
+        type: string
+        default: elasticsearch8
+      grep:
+        description: Optional Playwright --grep pattern
+        required: false
+        type: string
+        default: ""
+      workers:
+        description: Optional Playwright --workers value, such as 4 or 50%
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  BACKEND_BASE_URL: http://localhost:8090
+  FRONTEND_BASE_URL: http://localhost
+  ADMIN_USERNAME: admin
+
+jobs:
+  tests:
+    name: tests (${{ matrix.databaseProvider }}, ${{ inputs.searchProvider }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        databaseProvider: ${{ fromJSON(inputs.databaseProviders) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install VirtoCommerce.GlobalTool
+        uses: VirtoCommerce/.github/actions/setup-vcbuild@v3.1000.10
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
+
+      - name: Start the platform and the frontend
+        uses: VirtoCommerce/.github/actions/docker-env-full@v3.1000.10
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
+        with:
+          frontendZipUrl: ${{ inputs.frontendZipUrl }}
+          installModules: "false"
+          installCustomModule: "false"
+          customPackagesJsonUrl: https://github.com/${{ github.repository }}/raw/${{ github.sha }}/virtocommerce/backend-packages.json
+          testSecretEnvFile: ${{ secrets.VC_TESTING_MODULE_ENV_FILE_NEW }}
+          sendgridApiKey: ${{ secrets.SENDGRID_APIKEY_4E2E_AUTOTESTS }}
+          databaseProvider: ${{ matrix.databaseProvider }}
+          searchProvider: ${{ inputs.searchProvider }}
+          appInsightsInstrumentationKey: ${{ secrets.E2E_APPINSIGHTSINSTRUMENTATIONKEY }}
+
+      - name: Get the indexing script
+        uses: actions/checkout@v4
+        with:
+          repository: VirtoCommerce/.github
+          ref: v3.1000.10
+          path: .vc-github
+          sparse-checkout: actions/docker-env-full/scripts
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18"
+          cache: npm
+
+      - name: Write the suite environment
+        env:
+          SECRET_ENV_FILE: ${{ secrets.VC_TESTING_MODULE_ENV_FILE_NEW }}
+        run: |
+          env_file=virtocommerce/.env
+          printf '%s\n' "$SECRET_ENV_FILE" | tr -d '\r' > "$env_file"
+          chmod 600 "$env_file"
+          password=$({ grep -E '^ADMIN_PASSWORD=' "$env_file" || true; } | head -n1 | cut -d= -f2-)
+          password=${password#\"}
+          password=${password%\"}
+          password=${password:-store}
+          [ "$password" = store ] || echo "::add-mask::$password"
+          echo "ADMIN_PASSWORD=$password" >> "$GITHUB_ENV"
+          grep -vE '^(BACKEND_BASE_URL|FRONTEND_BASE_URL|ADMIN_USERNAME|ADMIN_PASSWORD)=' "$env_file" > "$env_file.tmp" || true
+          mv "$env_file.tmp" "$env_file"
+          {
+            echo "BACKEND_BASE_URL=$BACKEND_BASE_URL"
+            echo "FRONTEND_BASE_URL=$FRONTEND_BASE_URL"
+            echo "ADMIN_USERNAME=$ADMIN_USERNAME"
+            echo "ADMIN_PASSWORD=$password"
+          } >> "$env_file"
+
+      - run: npm ci
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+
+      - name: Seed the dataset
+        run: npm run seed:vc
+
+      - name: Index the dataset
+        shell: pwsh
+        run: >
+          ./.vc-github/actions/docker-env-full/scripts/start-indexing.ps1
+          -platformUrl $env:BACKEND_BASE_URL -adminUsername $env:ADMIN_USERNAME -adminPassword $env:ADMIN_PASSWORD
+
+      - name: Run the main tests
+        env:
+          PROJECTS: ${{ inputs.projects }}
+          PW_GREP: ${{ inputs.grep }}
+          PW_WORKERS: ${{ inputs.workers }}
+        run: |
+          args=(--no-deps)
+          if [ "$PROJECTS" = all ]; then
+            args+=(--project=rest --project=graphql --project=frontend --project=backend)
+          else
+            args+=("--project=$PROJECTS")
+          fi
+          [ -z "$PW_GREP" ] || args+=(--grep "$PW_GREP" --pass-with-no-tests)
+          [ -z "$PW_WORKERS" ] || args+=(--workers "$PW_WORKERS")
+          npm run test:vc -- "${args[@]}"
+
+      - name: Run the isolated tests
+        if: ${{ !cancelled() && inputs.runIsolated }}
+        env:
+          RUN_DESTRUCTIVE_TESTS: "true"
+          PW_GREP: ${{ inputs.grep }}
+        run: |
+          args=(--no-deps)
+          [ -z "$PW_GREP" ] || args+=(--grep "$PW_GREP" --pass-with-no-tests)
+          npm run test:vc:isolated -- "${args[@]}"
+
+      - name: Generate the Allure report
+        if: ${{ !cancelled() }}
+        run: npm run report:vc
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: suite-results-${{ matrix.databaseProvider }}-${{ inputs.searchProvider }}
+          path: |
+            virtocommerce/reports/
+            virtocommerce/test-results/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Print container logs
+        if: failure()
+        run: |
+          for container in virtocommerce-vc-platform-web-1 virtocommerce-vc-db-1 virtocommerce-search-1; do
+            echo "::group::$container"
+            docker logs "$container" --tail 100 || true
+            echo "::endgroup::"
+          done

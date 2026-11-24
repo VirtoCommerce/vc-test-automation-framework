@@ -3,6 +3,8 @@
     "target": "es2024",
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "rewriteRelativeImportExtensions": true,
+    "verbatimModuleSyntax": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -17,12 +19,9 @@
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
-      "@core/*": ["./core/*"],
-      "@api/*": ["./api/*"],
-      "@dataset/*": ["./dataset/*"],
-      "@pages/*": ["./pages/*"],
-      "@fixtures": ["./fixtures/index.ts"]
+      "@/*": ["./src/*/index.ts"]
     }
   },
-  "exclude": ["node_modules"]
+  "include": ["src", "tests", "scripts", "playwright.config.ts", ".claude/checks", ".claude/hooks"],
+  "exclude": ["tests/unit/qa"]
 }

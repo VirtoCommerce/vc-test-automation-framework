@@ -1,0 +1,335 @@
+{
+  "$schema": "../node_modules/@biomejs/biome/configuration_schema.json",
+  "overrides": [
+    {
+      "includes": ["src/core/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**"],
+                    "message": "The core area is the base layer and does not import other areas."
+                  },
+                  {
+                    "group": ["../**"],
+                    "message": "Import another area through its alias, such as @/core, not by a relative path."
+                  },
+                  {
+                    "group": ["**/virtocommerce/**"],
+                    "message": "The framework does not import test suite code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/http/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**", "!@/core"],
+                    "message": "The http area imports only @/core. Import files of the same area by a relative path."
+                  },
+                  {
+                    "group": ["../**"],
+                    "message": "Import another area through its alias, such as @/core, not by a relative path."
+                  },
+                  {
+                    "group": ["**/virtocommerce/**"],
+                    "message": "The framework does not import test suite code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/modules/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**", "!@/core", "!@/http"],
+                    "message": "The modules area imports only @/core and @/http. Import files of the same area by a relative path."
+                  },
+                  {
+                    "group": ["../**"],
+                    "message": "Import another area through its alias, such as @/core, not by a relative path."
+                  },
+                  {
+                    "group": ["**/virtocommerce/**"],
+                    "message": "The framework does not import test suite code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/auth/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**", "!@/core", "!@/http"],
+                    "message": "The auth area imports only @/core and @/http. Import files of the same area by a relative path."
+                  },
+                  {
+                    "group": ["../**"],
+                    "message": "Import another area through its alias, such as @/core, not by a relative path."
+                  },
+                  {
+                    "group": ["**/virtocommerce/**"],
+                    "message": "The framework does not import test suite code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/graphql/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**", "!@/core", "!@/http"],
+                    "message": "The graphql area imports only @/core and @/http. Import files of the same area by a relative path."
+                  },
+                  {
+                    "group": ["../**"],
+                    "message": "Import another area through its alias, such as @/core, not by a relative path."
+                  },
+                  {
+                    "group": ["**/virtocommerce/**"],
+                    "message": "The framework does not import test suite code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/dataset/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**", "!@/core", "!@/http", "!@/modules"],
+                    "message": "The dataset area imports only @/core, @/http and @/modules. Import files of the same area by a relative path."
+                  },
+                  {
+                    "group": ["../**"],
+                    "message": "Import another area through its alias, such as @/core, not by a relative path."
+                  },
+                  {
+                    "group": ["**/virtocommerce/**"],
+                    "message": "The framework does not import test suite code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/fixtures/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noEmptyPattern": "off"
+          },
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**", "!@/core", "!@/http", "!@/auth", "!@/graphql", "!@/modules"],
+                    "message": "The fixtures area imports only @/core, @/http, @/auth, @/graphql and @/modules. Import files of the same area by a relative path."
+                  },
+                  {
+                    "group": ["../**"],
+                    "message": "Import another area through its alias, such as @/core, not by a relative path."
+                  },
+                  {
+                    "group": ["**/virtocommerce/**"],
+                    "message": "The framework does not import test suite code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["tests/unit/fixtures/**", "virtocommerce/fixtures/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noEmptyPattern": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["tests/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/src/**"],
+                    "message": "Tests import the framework through area aliases, such as @/core, so they test the public API."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["virtocommerce/**", "docs/examples/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/**"],
+                    "message": "Import the framework by its package name, such as @virtocommerce/test-automation-framework/core."
+                  },
+                  {
+                    "group": ["**/src/**"],
+                    "message": "Import the framework by its package name, not by a relative path."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [".claude/checks/**", ".claude/hooks/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/**",
+                      "@virtocommerce/**",
+                      "@pages/**",
+                      "@fixtures",
+                      "@dataset/**",
+                      "@graphql/**",
+                      "@modules",
+                      "@arrange",
+                      "@builders/**",
+                      "@support/**",
+                      "@rest/**",
+                      "**/src/**",
+                      "**/virtocommerce/**"
+                    ],
+                    "message": "The agents' checks and hooks import nothing from the framework or a test suite, only node, @babel/parser and their own files."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredDependencies": {
+              "level": "error",
+              "options": {
+                "devDependencies": false,
+                "peerDependencies": true,
+                "optionalDependencies": false,
+                "bundleDependencies": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["virtocommerce/pages/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveClassesPerFile": {
+              "level": "error",
+              "options": {
+                "maxClasses": 1
+              }
+            },
+            "useFilenamingConvention": {
+              "level": "error",
+              "options": {
+                "filenameCases": ["kebab-case"],
+                "requireAscii": true
+              }
+            }
+          },
+          "performance": {
+            "useDomNodeTextContent": "off"
+          }
+        }
+      }
+    }
+  ]
+}

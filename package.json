@@ -1,62 +1,139 @@
 {
-  "name": "vc-test-automation-framework",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Playwright tests of the Virto Commerce platform: REST, GraphQL (xAPI), frontend and page builder e2e",
+  "name": "@virtocommerce/test-automation-framework",
+  "version": "0.1.0",
+  "description": "Playwright Test framework for the API and browser test suites of Virto Commerce-based solutions",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VirtoCommerce/vc-test-automation-framework.git"
+  },
+  "type": "module",
   "engines": {
     "node": ">=22.18"
   },
+  "exports": {
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "default": "./dist/auth/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./dataset": {
+      "types": "./dist/dataset/index.d.ts",
+      "default": "./dist/dataset/index.js"
+    },
+    "./fixtures": {
+      "types": "./dist/fixtures/index.d.ts",
+      "default": "./dist/fixtures/index.js"
+    },
+    "./graphql": {
+      "types": "./dist/graphql/index.d.ts",
+      "default": "./dist/graphql/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "default": "./dist/http/index.js"
+    },
+    "./modules": {
+      "types": "./dist/modules/index.d.ts",
+      "default": "./dist/modules/index.js"
+    },
+    "./biome": "./.biome/preset.json",
+    "./biome/*": "./.biome/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "docs",
+    ".biome/preset.json",
+    ".biome/formatter.json",
+    ".biome/rules.json",
+    ".biome/imports.json",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "prepare": "simple-git-hooks",
-    "install:browsers": "playwright install chromium",
-    "format": "biome format --write .",
-    "lint": "biome lint .",
+    "prepack": "npm run build",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json --resolve-full-paths",
+    "typecheck": "tsc --noEmit && tsc -p virtocommerce --noEmit && tsc -p docs/examples --noEmit",
     "check": "biome check --write .",
-    "typecheck": "tsc --noEmit",
-    "codegen": "npm run codegen:graphql && npm run codegen:rest",
-    "codegen:graphql": "graphql-codegen --config codegen-graphql.ts",
-    "codegen:rest": "node --env-file-if-exists=.env codegen-rest.mts",
-    "seed": "playwright test --project=seed --reporter=list",
-    "test": "playwright test --project=restapi --project=graphql --project=e2e-frontend --project=e2e-backend",
+    "check:ci": "biome ci --error-on-warnings .",
     "test:unit": "playwright test --project=unit",
-    "test:restapi": "playwright test --project=restapi",
-    "test:graphql": "playwright test --project=graphql",
-    "test:e2e": "playwright test --project=e2e-frontend --project=e2e-backend",
-    "test:e2e:frontend": "playwright test --project=e2e-frontend",
-    "test:e2e:backend": "playwright test --project=e2e-backend",
-    "test:isolated": "playwright test --project=isolated",
-    "report": "allure generate allure-results",
-    "report:open": "allure open allure-report"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.5.15",
-    "@graphql-codegen/cli": "7.4.6",
-    "@graphql-codegen/client-preset": "6.2.3",
-    "@graphql-codegen/schema-ast": "6.1.1",
-    "@graphql-typed-document-node/core": "3.2.0",
-    "@playwright/test": "1.64.0",
-    "@types/node": "26.6.5",
-    "allure": "3.20.1",
-    "allure-js-commons": "3.13.0",
-    "allure-playwright": "3.13.0",
-    "simple-git-hooks": "2.14.0",
-    "swagger-typescript-api": "13.13.0",
-    "typescript": "7.0.2",
-    "zod": "4.6.7"
-  },
-  "overrides": {
-    "dompurify": "^3.4.17",
-    "fast-uri": "^3.1.9",
-    "follow-redirects": "^1.16.2",
-    "markdown-it": "^14.3.3",
-    "glob": {
-      "minimatch": "^11.0.1"
-    },
-    "graphql-config": {
-      "minimatch": "^11.0.1"
-    }
+    "docs:check": "node scripts/check-docs.ts",
+    "docs:sync": "biome format --write docs/examples && node scripts/check-docs.ts --write",
+    "docs:api": "node tools/typedoc/node_modules/typedoc/bin/typedoc",
+    "changeset": "changeset",
+    "release:version": "changeset version && biome format --write package.json",
+    "release:publish": "changeset publish",
+    "codegen:vc": "npm run build && npm run codegen:vc:graphql && npm run codegen:vc:rest",
+    "codegen:vc:graphql": "graphql-codegen --config virtocommerce/codegen.ts",
+    "codegen:vc:rest": "node virtocommerce/scripts/generate-rest-types.ts",
+    "facts:check": "node virtocommerce/scripts/check-role-permissions.ts",
+    "seed:vc": "playwright test -c virtocommerce --project=seed",
+    "pretest:vc": "node -e \"require('node:fs').rmSync('virtocommerce/reports/allure-results', { recursive: true, force: true })\"",
+    "test:vc": "playwright test -c virtocommerce --grep-invert @destructive",
+    "test:vc:isolated": "playwright test -c virtocommerce --project=isolated",
+    "test:vc:unit": "playwright test -c virtocommerce/playwright.unit.config.ts",
+    "report:vc": "cd virtocommerce && allure generate reports/allure-results --clean",
+    "report:vc:open": "cd virtocommerce && allure open reports/allure-report"
   },
   "simple-git-hooks": {
-    "pre-commit": "npx biome check --staged --no-errors-on-unmatched && npx tsc --noEmit"
+    "pre-commit": "npx biome check --staged --no-errors-on-unmatched"
+  },
+  "peerDependencies": {
+    "@biomejs/biome": "^2.6.8",
+    "@graphql-codegen/cli": "^8.0.0",
+    "@graphql-codegen/client-preset": "^7.0.0",
+    "@playwright/test": "^1.65.1",
+    "allure-playwright": "^3.14.0",
+    "graphql": "^16.0.0 || ^17.0.0",
+    "zod": "^4.0.7"
+  },
+  "peerDependenciesMeta": {
+    "@biomejs/biome": {
+      "optional": true
+    },
+    "@graphql-codegen/cli": {
+      "optional": true
+    },
+    "@graphql-codegen/client-preset": {
+      "optional": true
+    },
+    "allure-playwright": {
+      "optional": true
+    },
+    "graphql": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@babel/parser": "7.29.9",
+    "@biomejs/biome": "^2.6.8",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3",
+    "@graphql-codegen/cli": "8.0.0",
+    "@graphql-codegen/client-preset": "7.0.0",
+    "@graphql-codegen/schema-ast": "7.0.0",
+    "@graphql-typed-document-node/core": "3.2.0",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.20.5",
+    "allure": "3.33.0",
+    "allure-playwright": "3.14.0",
+    "graphql": "16.15.0",
+    "simple-git-hooks": "2.14.0",
+    "swagger-typescript-api": "13.14.0",
+    "tsc-alias": "^1.9.10",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
+  },
+  "overrides": {
+    "glob": "14.0.4",
+    "minimatch": "11.0.5"
   }
 }

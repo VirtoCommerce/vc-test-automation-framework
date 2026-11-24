@@ -186,4 +186,4 @@ that uses the page object. Run the spec with each relevant setting value when th
 - Frontend settings: run a spec with `QUANTITY_CONTROL=button` or `CHECKOUT_MODE=multi-step` when the page object
   branches on it.
 - Commands: `npm run typecheck && npm run check`, then
-  `npx --no playwright test --config=virtocommerce <a spec that uses the page object> --project=e2e-frontend`.
+  `npx --no playwright test --config=virtocommerce --no-deps <a spec that uses the page object> --project=e2e-frontend`.

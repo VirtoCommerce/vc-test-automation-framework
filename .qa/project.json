@@ -20,13 +20,14 @@
   "commands": {
     "typecheck": "npm run typecheck",
     "lint": "npm run check",
+    "seed": "npm run seed:vc",
     "test": {
       "unit": "npm run test:unit && npm run test:vc:unit",
-      "restapi": "npm run test:vc -- --project=restapi",
-      "graphql": "npm run test:vc -- --project=graphql",
-      "e2e-frontend": "npm run test:vc -- --project=e2e-frontend",
-      "e2e-backend": "npm run test:vc -- --project=e2e-backend",
-      "isolated": "npm run test:vc:isolated",
+      "restapi": "npm run test:vc -- --project=restapi --no-deps",
+      "graphql": "npm run test:vc -- --project=graphql --no-deps",
+      "e2e-frontend": "npm run test:vc -- --project=e2e-frontend --no-deps",
+      "e2e-backend": "npm run test:vc -- --project=e2e-backend --no-deps",
+      "isolated": "npm run test:vc:isolated -- --no-deps",
       "all": "npm run test:vc"
     }
   },

@@ -170,6 +170,6 @@ changed spec, with the run record the expert agent describes. Add `--headed --wo
   frontend):
 
   ```shell
-  npx --no playwright test --config=virtocommerce virtocommerce/tests/e2e/frontend/<area>/<topic>.spec.ts --project=e2e-frontend
-  npx --no playwright test --config=virtocommerce virtocommerce/tests/e2e/backend/page-builder/<topic>.spec.ts --project=e2e-backend
+  npx --no playwright test --config=virtocommerce --no-deps virtocommerce/tests/e2e/frontend/<area>/<topic>.spec.ts --project=e2e-frontend
+  npx --no playwright test --config=virtocommerce --no-deps virtocommerce/tests/e2e/backend/page-builder/<topic>.spec.ts --project=e2e-backend
   ```

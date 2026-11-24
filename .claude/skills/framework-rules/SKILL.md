@@ -16,8 +16,9 @@ repository's default style. When two framework rules seem to conflict, stop and 
 
 **The suite directory.** The suite the agents work on is `suiteDir` in the project facts (skill `project-facts`).
 Spec paths are repo-relative and every Playwright command on the suite is
-`npx --no playwright test --config=<suiteDir> <spec paths> --project=<name>`, without `--config` when `suiteDir` is
-`.`. In this suite `suiteDir` is `virtocommerce`.
+`npx --no playwright test --config=<suiteDir> --no-deps <spec paths> --project=<name>`, without `--config` when
+`suiteDir` is `.`. In this suite `suiteDir` is `virtocommerce`. `--no-deps` keeps a run from seeding the stand again:
+seed once with `commands.seed` before the first run and after a change to the seed data.
 
 ## Working Discipline
 

@@ -660,6 +660,7 @@ async function runOnce(
   reportFile: string,
 ): Promise<{ failed: boolean; output: string }> {
   const args = [
+    "--no-deps",
     "--retries=0",
     `--project=${target.project}`,
     `--grep=${escapeRegExp(target.title)}$`,
@@ -722,7 +723,7 @@ export async function proveFails(
     const listed = await playwright(
       worktree,
       config,
-      ["--list", ...(project === undefined ? [] : [`--project=${project}`]), specPath],
+      ["--list", "--no-deps", ...(project === undefined ? [] : [`--project=${project}`]), specPath],
       reportFile,
     );
     const target = resolveTest(listed.report, specPath, suiteSpec, title, project);

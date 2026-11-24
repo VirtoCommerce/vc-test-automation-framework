@@ -56,7 +56,7 @@ Run the tests affected by the changed files. Suite commands always name the suit
    needs no platform.
 2. `npm run test:unit` when framework code (`src/`) changed, and `npm run test:vc:unit` when the suite's dataset
    changed (no platform needed for either).
-3. Changed specs: `npx playwright test --config=virtocommerce <files> --project=<rest|graphql|frontend|backend>`,
+3. Changed specs: `npx playwright test --config=virtocommerce --no-deps <files> --project=<restapi|graphql|e2e-frontend|e2e-backend>`,
    the project by the spec's directory (`tests/restapi`, `tests/graphql`, `tests/e2e/frontend`, `tests/e2e/backend`).
 4. Changed suite code (`fixtures`, `arrange`, `builders`, `support`, `dataset`, `pages`) or framework code the suite
    uses: the specs that import it (find them with grep), or the whole project when the change is broad

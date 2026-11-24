@@ -46,8 +46,8 @@ the suite's config and the project's name from `commands.test`. `-g` takes one w
 the words of a title with `.`. The leading variable sends the JSON report to your run directory:
 
 ```shell
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/round-0.<project>.json npx --no playwright test --config=<suiteDir> <spec> --project=<project> -g <title.words> --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/list.<project>.json npx --no playwright test --config=<suiteDir> --list --reporter=json <spec> --project=<project> -g <title.words>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/round-0.<project>.json npx --no playwright test --config=<suiteDir> --no-deps <spec> --project=<project> -g <title.words> --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/list.<project>.json npx --no playwright test --config=<suiteDir> --no-deps --list --reporter=json <spec> --project=<project> -g <title.words>
 node .claude/checks/reconcile-run.mts .qa/runs/heal-<slug>/list.<project>.json .qa/runs/heal-<slug>/round-0.<project>.json
 ```
 
@@ -91,8 +91,8 @@ whose first run failed in a way that could be intermittent (a timeout, a wait, a
 person named as flaky, run `facts.flakyRunSeries` times per project:
 
 ```shell
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json npx --no playwright test --config=<suiteDir> <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series-list.<project>.json npx --no playwright test --config=<suiteDir> --list --reporter=json <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json npx --no playwright test --config=<suiteDir> --no-deps <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series-list.<project>.json npx --no playwright test --config=<suiteDir> --no-deps --list --reporter=json <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries>
 node .claude/checks/reconcile-run.mts .qa/runs/heal-<slug>/series-list.<project>.json .qa/runs/heal-<slug>/series.<project>.json
 ```
 

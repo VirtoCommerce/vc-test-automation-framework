@@ -74,6 +74,7 @@ const TOKEN = /^[A-Za-z0-9_./:=@,+^~-]+$/;
 const GIT_SUBCOMMANDS = ["diff", "log", "show", "status"];
 const GIT_FORBIDDEN_PREFIXES = ["--output", "--ext-diff", "--textconv", "--no-index", "--open-files", "--exec", "-O"];
 const PLAYWRIGHT_FLAGS = [
+  /^--no-deps$/,
   /^--list$/,
   /^--reporter=(json|list|null)$/,
   /^--project=[\w.-]+$/,
@@ -119,6 +120,7 @@ const HEAL_SLUG = /^heal-[a-z0-9]+(-[a-z0-9]+)*$/;
 const HEAL_REPORT = /^(heal-[a-z0-9]+(-[a-z0-9]+)*|flaky)\.md$/;
 const HEAL_JSON_OUTPUT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/heal-[a-z0-9]+(-[a-z0-9]+)*\/[\w.-]+\.json$/;
 const HEALER_PLAYWRIGHT_FLAGS = [
+  /^--no-deps$/,
   /^--project=[\w.-]+$/,
   /^--repeat-each=\d{1,3}$/,
   /^--retries=0$/,
@@ -607,7 +609,7 @@ function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, pro
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may run only git diff|log|show|status, node ${CHECKS_DIR}/<module>.mts, ${playwrightShown(config)} <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, ${typecheckShown(config)} and npx --no biome check <paths>, never on a .env file; blocked: ${shown}`;
+  return `${agent} may run only git diff|log|show|status, node ${CHECKS_DIR}/<module>.mts, ${playwrightShown(config)} <specs> with --project, --no-deps, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, ${typecheckShown(config)} and npx --no biome check <paths>, never on a .env file; blocked: ${shown}`;
 }
 
 function isWebUrl(value: unknown): boolean {
@@ -734,5 +736,5 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} is read-only and may run only git diff|log|show|status, ${playwrightShown(config)} --list --reporter=json|list|null and node ${CHECKS_DIR}/<module>.mts, never on a .env file; blocked: ${shown}`;
+  return `${agent} is read-only and may run only git diff|log|show|status, ${playwrightShown(config)} --list [--no-deps] --reporter=json|list|null and node ${CHECKS_DIR}/<module>.mts, never on a .env file; blocked: ${shown}`;
 }

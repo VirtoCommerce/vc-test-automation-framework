@@ -15,11 +15,12 @@
   "commands": {
     "typecheck": "npm run typecheck",
     "lint": "npm run check",
+    "seed": "npx playwright test --project=seed",
     "test": {
       "unit": "npm run test:unit",
-      "restapi": "npx playwright test --project=restapi",
-      "graphql": "npx playwright test --project=graphql",
-      "e2e-frontend": "npx playwright test --project=e2e-frontend",
+      "restapi": "npx playwright test --project=restapi --no-deps",
+      "graphql": "npx playwright test --project=graphql --no-deps",
+      "e2e-frontend": "npx playwright test --project=e2e-frontend --no-deps",
       "all": "npx playwright test"
     }
   },

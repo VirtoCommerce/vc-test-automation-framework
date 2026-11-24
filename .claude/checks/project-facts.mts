@@ -11,7 +11,7 @@ export type ProjectFacts = {
   suiteDir: string;
   tracker: { kind: string; keyPattern: string; acceptanceCriteriaField?: string; routes: Route[] };
   docSources: { name: string; route: Route; where: string }[];
-  commands: { typecheck: string; lint: string; test: Record<string, string> };
+  commands: { typecheck: string; lint: string; seed?: string; test: Record<string, string> };
   critical: string[];
   knowledgeDir: string;
   roles: Record<string, string>;
@@ -196,9 +196,11 @@ function parseDocSources(value: unknown): ProjectFacts["docSources"] {
 
 function parseCommands(value: unknown): ProjectFacts["commands"] {
   const commands = asRecord(value, "commands");
+  const seed = commands["seed"];
   return {
     typecheck: asString(present(commands, "typecheck", "commands.typecheck"), "commands.typecheck"),
     lint: asString(present(commands, "lint", "commands.lint"), "commands.lint"),
+    ...(seed === undefined ? {} : { seed: asString(seed, "commands.seed") }),
     test: asStringMap(present(commands, "test", "commands.test"), "commands.test"),
   };
 }

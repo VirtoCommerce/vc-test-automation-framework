@@ -250,5 +250,5 @@ describes.
   P".
 - Place by module: users, roles and API keys are `security`, not `customer`.
 - Commands: `npm run typecheck && npm run check`, then
-  `npx --no playwright test --config=virtocommerce <repo-relative spec path> --project=restapi` (or `graphql`,
+  `npx --no playwright test --config=virtocommerce --no-deps <repo-relative spec path> --project=restapi` (or `graphql`,
   `isolated`).

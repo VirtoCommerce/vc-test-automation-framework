@@ -69,6 +69,9 @@ a missing or invalid field, for example `project.json: commands.typecheck is mis
   them from `package.json`. The keys of `commands.test` are the suite's Playwright projects (`restapi`, `graphql`,
   `e2e-frontend`, `e2e-backend`, `isolated`) plus `unit` (the framework's and the suite's unit tests, no stand) and `all`
   (every project that does not change global state). `isolated` runs the destructive specs and is never part of `all`.
+  The project commands run with `--no-deps`, so they never seed: run `commands.seed`, when the facts have it, once
+  before the first run on a stand and after a change to the seed data, then any number of project runs. `all` seeds
+  once by itself.
 - Critical flows: `critical`. An empty list means none are declared; do not invent any.
 - Knowledge snapshot: `knowledgeDir` is the directory where the knowledge snapshot lives; read it before calling a live
   service.
@@ -107,20 +110,20 @@ and changed spec files as repository-relative paths and `<series>` the facts' `q
 
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/report.<project>.json <commands.test[project]> [--] <specs> --repeat-each=<series> --retries=0 --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/list.<project>.json npx --no -- playwright test --config=virtocommerce --list --reporter=json --project=<project> --repeat-each=<series> <specs>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/list.<project>.json npx --no -- playwright test --config=virtocommerce --list --no-deps --reporter=json --project=<project> --repeat-each=<series> <specs>
 node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json
 ```
 
 For example, for `restapi`:
 
 ```shell
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/VCST-1234/report.restapi.json npm run test:vc -- --project=restapi virtocommerce/tests/restapi/security/api-keys.spec.ts --repeat-each=3 --retries=0 --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/VCST-1234/list.restapi.json npx --no -- playwright test --config=virtocommerce --list --reporter=json --project=restapi --repeat-each=3 virtocommerce/tests/restapi/security/api-keys.spec.ts
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/VCST-1234/report.restapi.json npm run test:vc -- --project=restapi --no-deps virtocommerce/tests/restapi/security/api-keys.spec.ts --repeat-each=3 --retries=0 --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/VCST-1234/list.restapi.json npx --no -- playwright test --config=virtocommerce --list --no-deps --reporter=json --project=restapi --repeat-each=3 virtocommerce/tests/restapi/security/api-keys.spec.ts
 node .claude/checks/reconcile-run.mts .qa/runs/VCST-1234/list.restapi.json .qa/runs/VCST-1234/report.restapi.json
 ```
 
 Set the variable the way the shell does it. For an npm script pass the arguments after `--`, once: a command that
-already holds `--` (`npm run test:vc -- --project=restapi`) takes them as they are; for a direct `playwright test`
+already holds `--` (`npm run test:vc -- --project=restapi --no-deps`) takes them as they are; for a direct `playwright test`
 command append them without `--`, which would make Playwright read them as a file filter. Never hand-edit either JSON
 file. Both files name a test by its spec path relative to the suite directory (`tests/restapi/...`), the describe
 titles and its title. `reconcile-run` exits 1 when a test failed, was flaky, was skipped without a reason or is

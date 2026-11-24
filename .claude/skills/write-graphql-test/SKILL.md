@@ -153,5 +153,5 @@ facts on the changed spec, with the run record the expert agent describes.
 - Commands: `npm run typecheck && npm run check`, then:
 
   ```shell
-  npx --no playwright test --config=virtocommerce virtocommerce/tests/graphql/<area>/<topic>.spec.ts --project=graphql
+  npx --no playwright test --config=virtocommerce --no-deps virtocommerce/tests/graphql/<area>/<topic>.spec.ts --project=graphql
   ```

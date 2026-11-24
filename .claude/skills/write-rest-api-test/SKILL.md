@@ -177,5 +177,5 @@ on the changed spec, with the run record the expert agent describes.
 - Commands: `npm run typecheck && npm run check`, then:
 
   ```shell
-  npx --no playwright test --config=virtocommerce virtocommerce/tests/restapi/<platform-module>/<topic>.spec.ts --project=restapi
+  npx --no playwright test --config=virtocommerce --no-deps virtocommerce/tests/restapi/<platform-module>/<topic>.spec.ts --project=restapi
   ```

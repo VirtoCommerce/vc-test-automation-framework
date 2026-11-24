@@ -127,7 +127,7 @@ Playwright project in the contract's case rows, with `<specs>` the changed spec 
    (`quality.stableSeries` from the facts), so that every missing repetition fails the reconciliation:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json npx --no playwright test --config=<suiteDir> --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json npx --no playwright test --config=<suiteDir> --no-deps --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
    ```
 
 2. Reconcile it with the author's report:

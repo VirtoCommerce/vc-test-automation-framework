@@ -7,7 +7,7 @@ import type { HttpClient } from "@virtocommerce/test-automation-framework/http";
 import { newPage } from "@builders/page-builder.ts";
 import { STORE_ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 
 const PAGES_PATH = "/api/page-builder-pages";
 const SEARCH_PAGE_SIZE = 20;
@@ -32,6 +32,8 @@ const SPECIAL_PERMALINKS = [
     stored: ["/страница-тест"],
   },
 ] as const;
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page builder pages (store administrator)", () => {
   test.use({ user: STORE_ADMINISTRATOR, modules: { pageBuilder: MODULES.pageBuilder } });

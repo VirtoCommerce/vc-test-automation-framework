@@ -1,11 +1,12 @@
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { Secret } from "@virtocommerce/test-automation-framework/core";
 
 const PAGE_TEXT = "Welcome to the automated test page";
 const UNKNOWN_USER = { username: "fake-username@test.com", password: Secret.of("Unknown-Password-1!") } as const;
 
 test.describe("content pages (anonymous)", () => {
+  test.skip(true, PAGE_BUILDER_REPLACED);
   test.use({ modules: { pageBuilder: MODULES.pageBuilder } });
 
   test("a published page builder page is served on the frontend", async ({ frontend, page, arrange }) => {

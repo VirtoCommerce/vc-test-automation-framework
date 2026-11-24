@@ -1,10 +1,12 @@
 import { TEST_PAGE_PREFIX } from "@builders/page-builder.ts";
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { Column, DetailsToolbar, PageType, Route } from "@pages/backend/page-builder/routes.ts";
 import { DESIGNER_PATH } from "@pages/backend/page-designer/page-designer.ts";
 import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade.ts";
 import { uniqueId } from "@support/unique-id.ts";
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page management (platform admin)", () => {
   test.use({ modules: { pageBuilder: MODULES.pageBuilder } });

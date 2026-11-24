@@ -1,9 +1,11 @@
 import { ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { Column, Route } from "@pages/backend/page-builder/routes.ts";
 
 const ADMINISTRATOR_ROLE = "Administrator";
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page builder shell (platform admin)", () => {
   test.use({ modules: { pageBuilder: MODULES.pageBuilder } });

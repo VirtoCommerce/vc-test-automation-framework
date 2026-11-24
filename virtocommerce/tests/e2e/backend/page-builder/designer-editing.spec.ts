@@ -1,6 +1,6 @@
 import { ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { pageContentOf } from "@support/page-builder.ts";
 
 const _PAGES_PATH = "/api/page-builder-pages";
@@ -10,6 +10,8 @@ const ADDED_TEXT = " edited live";
 const HEADER_FIELD = "Page Header / H1";
 const SEO_GROUP = "SEO Information";
 const SEO_FIELDS = ["Page Title", "Meta Keywords", "Meta Description"];
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page designer editing (platform admin)", () => {
   test.use({ user: ADMINISTRATOR, modules: { pageBuilder: MODULES.pageBuilder } });

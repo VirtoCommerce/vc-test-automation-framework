@@ -1,7 +1,7 @@
 import type { Arrange } from "@arrange";
 
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { Column, Route } from "@pages/backend/page-builder/routes.ts";
 import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade.ts";
 
@@ -18,6 +18,8 @@ const STATUS_LISTS = [
     create: (arrange: Arrange) => arrange.content.publishedPage(),
   },
 ] as const;
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("status filters (platform admin)", () => {
   test.use({ modules: { pageBuilder: MODULES.pageBuilder } });

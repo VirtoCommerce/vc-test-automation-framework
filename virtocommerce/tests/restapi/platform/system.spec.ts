@@ -6,7 +6,7 @@ import type {
 
 import { STORE_ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 
 const CATALOG_MODULE_ID = "VirtoCommerce.Catalog";
 const PAGE_BUILDER_SHELL_APP_ID = "page-builder-shell";
@@ -61,6 +61,7 @@ test.describe("platform system with the AngularJS admin (store administrator)", 
 });
 
 test.describe("platform system with the page builder (store administrator)", () => {
+  test.skip(true, PAGE_BUILDER_REPLACED);
   test.use({ user: STORE_ADMINISTRATOR, modules: { pageBuilder: MODULES.pageBuilder } });
 
   test("list the page builder shell among the apps", async ({ api }) => {

@@ -2,7 +2,7 @@ import type { SectionList } from "@pages/backend/page-designer/section-list.ts";
 
 import { textSectionId } from "@builders/page-builder.ts";
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { SectionAction } from "@pages/backend/page-designer/section-row.ts";
 
 const [ALPHA, BETA, GAMMA] = ["Alpha section", "Beta section", "Gamma section"];
@@ -33,6 +33,8 @@ const REORDERS = [
     texts: [BETA, ALPHA, GAMMA],
   },
 ];
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page designer sections (platform admin)", () => {
   test.use({ modules: { pageBuilder: MODULES.pageBuilder } });

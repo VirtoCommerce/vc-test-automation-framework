@@ -1,7 +1,7 @@
 import type { PageDetailsBlade } from "@pages/backend/page-builder/page-details-blade.ts";
 
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { Route } from "@pages/backend/page-builder/routes.ts";
 
 const DAY_MS = 86_400_000;
@@ -11,6 +11,8 @@ const RESTRICTIONS = [
   { audience: "a user group", value: "Wholesaler", select: (details: PageDetailsBlade) => details.userGroups },
   { audience: "an organization", value: "ACME Store", select: (details: PageDetailsBlade) => details.organization },
 ] as const;
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page configuration (platform admin)", () => {
   test.use({ modules: { pageBuilder: MODULES.pageBuilder } });

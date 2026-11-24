@@ -1,5 +1,5 @@
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { Route } from "@pages/backend/page-builder/routes.ts";
 import { DISABLED_TOOLBAR_BUTTON } from "@pages/backend/vc-shell/blade.ts";
 import { uniqueId } from "@support/unique-id.ts";
@@ -12,6 +12,8 @@ const NEW_PAGE_FIELDS = [
   { fields: { name: "", permalink: "/qa-missing-name" }, missing: "a name" },
 ] as const;
 const COMPLETE_FIELDS = { name: "qa-both-fields", permalink: "/qa-both-fields" } as const;
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page search (platform admin)", () => {
   test.use({ modules: { pageBuilder: MODULES.pageBuilder } });

@@ -40,3 +40,9 @@ export const MODULES = {
    */
   xProfile: { id: "VirtoCommerce.ProfileExperienceApiModule", minVersion: "3.1025.0" },
 } as const satisfies Readonly<Record<string, ModuleRequirement>>;
+
+/**
+ * Why the page builder tests are skipped: the page builder module is being replaced by the site builder module. Remove
+ * the skips, or the tests, once the migration settles what stays.
+ */
+export const PAGE_BUILDER_REPLACED = "The page builder module is being replaced by the site builder module";

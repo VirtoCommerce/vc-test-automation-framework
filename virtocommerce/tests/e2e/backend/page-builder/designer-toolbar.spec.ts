@@ -2,7 +2,7 @@ import type { HttpClient } from "@virtocommerce/test-automation-framework/http";
 
 import { ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
-import { MODULES } from "@modules";
+import { MODULES, PAGE_BUILDER_REPLACED } from "@modules";
 import { DESIGNER_PATH, Viewport } from "@pages/backend/page-designer/page-designer.ts";
 import { pageContentOf } from "@support/page-builder.ts";
 
@@ -20,6 +20,8 @@ const VIEWPORTS_BY_WIDTH = [
   { viewport: Viewport.desktop, url: /^(?!.*preview-mode)/ },
   { viewport: Viewport.fullScreen, url: /preview-mode=fullscreen/ },
 ];
+
+test.skip(true, PAGE_BUILDER_REPLACED);
 
 test.describe("page designer toolbar (platform admin)", () => {
   test.use({ user: ADMINISTRATOR, modules: { pageBuilder: MODULES.pageBuilder } });

@@ -14,9 +14,6 @@
           "BlobName": "VirtoCommerce.ApplicationInsights_3.1007.0.zip"
         },
         {
-          "BlobName": "VirtoCommerce.ElasticSearch8_3.1012.0.zip"
-        },
-        {
           "BlobName": "VirtoCommerce.Orders_3.1021.0.zip"
         },
         {
@@ -115,6 +112,10 @@
         {
           "Id": "VirtoCommerce.Export",
           "Version": "3.1006.0"
+        },
+        {
+          "Id": "VirtoCommerce.ElasticSearch8",
+          "Version": "3.1011.0"
         },
         {
           "Id": "VirtoCommerce.AzureBlobAssets",

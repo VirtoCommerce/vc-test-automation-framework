@@ -44,6 +44,7 @@ test.describe("OAuth apps (store administrator)", () => {
     tag: PLATFORM_DEFECT_TAG,
     annotation: { type: "issue", description: "https://virtocommerce.atlassian.net/browse/VCST-6440" },
   }, async ({ api, arrange }) => {
+    test.fail(true, "VCST-6440: the OAuth app search ignores the client id filter");
     const [app] = await test.step("arrange: two OAuth apps", async () => [
       await arrange.security.oauthApp(),
       await arrange.security.oauthApp(),

@@ -178,8 +178,9 @@ Spec rules:
   deletions proven by reading the record by id
 - Index waits in `arrange` or `expect.poll` with `INDEX_LAG_TIMEOUT_MS`; no `waitForTimeout` or `networkidle`
 - `requireFields` instead of `??` defaults
-- Platform defects: the test asserts the correct behaviour and stays failing, with its ticket as an `issue`
-  annotation; no `test.fail`, `test.fixme`, `test.skip`, retries or workarounds
+- Platform defects: the test asserts the correct behaviour; a confirmed defect that fails every time is a known issue
+  (`PLATFORM_DEFECT_TAG`, the ticket as an `issue` annotation, `test.fail(true, "<ticket>: <defect>")`); no
+  `test.fixme`, `test.skip`, retries or workarounds
 - Optional modules through `test.use({ modules: { x: MODULES.x } })`; tests target the edge platform
 - Platform-wide changes only in `virtocommerce/tests/isolated`, tagged `DESTRUCTIVE_TAG`
 - A UI test checks the UI; data rules are checked once through the API

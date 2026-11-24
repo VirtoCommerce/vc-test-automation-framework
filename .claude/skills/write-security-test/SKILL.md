@@ -203,9 +203,8 @@ rejected or stored inert; assert that, and for stored data read it back by id an
 
 ## Step 3: Pick the Pattern
 
-**Platform defects.** A boundary the platform does not hold yet: the test asserts the boundary and stays failing,
-with `{ annotation: { type: "issue", description: "<ticket URL>" } }` when a ticket exists. Never an edited
-expectation, never `test.fail`.
+**Platform defects.** A boundary the platform does not hold yet: the test asserts the boundary; a new defect stays
+failing, a confirmed one is a known issue (`framework-rules`, Platform Defects). Never an edited expectation.
 
 **Optional modules.** A boundary in an optional module: `test.use({ modules: { xMarketing: MODULES.xMarketing } })`
 on the describe.

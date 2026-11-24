@@ -115,7 +115,8 @@ seed once with `commands.seed` before the first run and after a change to the se
 - Missing data fails loudly: `requireFields(value, [...], label)` or `requireDefined(list, label)`, never `?? ""`,
   `?? []` or `?? 0`.
 - A skipped test without a reason is a failure. A test skips only through `modules` (a required module is missing or
-  outside its versions) or the stand profile; never `test.skip`, `test.fixme` or `test.fail`.
+  outside its versions) or the stand profile; never `test.skip` or `test.fixme`. `test.fail` marks only a known
+  platform defect (Platform Defects).
 
 ## Assertions
 
@@ -128,16 +129,29 @@ seed once with `commands.seed` before the first run and after a change to the se
 
 ## Platform Defects
 
-- A test asserts the correct behaviour. When the platform gets it wrong, the test stays failing until the platform is
-  fixed: no `test.fail`, no `test.fixme`, no expected-failure marks, no retries, no symptom workarounds and no
-  expectation edited to match the defect.
-- When a tracker ticket exists, add it to the test as an `issue` annotation with the ticket's URL:
+- A test asserts the correct behaviour. When the platform gets it wrong, the expectation stays as it is: no edited
+  expectation, no retry, no `test.fixme`, no skip and no symptom workaround.
+- A new defect stays failing until a person confirms it: listed under `## Platform defects` of an approved contract,
+  or confirmed in the review.
+- A confirmed defect that fails every time becomes a known issue: the test gets `PLATFORM_DEFECT_TAG`, the ticket as
+  an `issue` annotation when one exists, and `test.fail(true, "<ticket>: <defect>")` as the first line of its body.
+  The test keeps running; it passes while the defect is there and fails as soon as the platform is fixed, which is the
+  signal to remove the mark.
 
   ```ts
   test("anonymous visitors cannot list the coupons", {
+    tag: PLATFORM_DEFECT_TAG,
     annotation: { type: "issue", description: "<tracker URL of the ticket>" },
-  }, async ({ shopper }) => { … });
+  }, async ({ shopper }) => {
+    test.fail(true, "<ticket>: anonymous visitors can list the coupons");
+    …
+  });
   ```
+
+- A defect that hits whichever test runs at the moment, such as a database deadlock, cannot be marked on a test: it
+  stays failing and is reported for the platform to fix.
+- `test.fail` is never used for anything else, and only the expert adds it, for a confirmed defect; the healer never
+  does.
 
 - Other annotations explain facts the test cannot avoid, such as `leaves data` or `database difference`; they never
   excuse a failure.

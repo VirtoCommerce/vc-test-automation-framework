@@ -56,6 +56,7 @@ test.describe("completeness channels (store administrator)", () => {
     tag: PLATFORM_DEFECT_TAG,
     annotation: { type: "issue", description: "https://virtocommerce.atlassian.net/browse/VCST-6441" },
   }, async ({ api, arrange }) => {
+    test.fail(true, "VCST-6441: the completeness channel search ignores the id filter");
     const [channel] = await test.step("arrange: two channels", async () => [
       await arrange.catalog.completenessChannel(),
       await arrange.catalog.completenessChannel(),

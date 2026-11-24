@@ -59,9 +59,10 @@ Read each target file completely, plus what it depends on:
 - [ ] Missing data fails loudly: `requireFields` / `requireDefined` / `lineItemOf`, no `?? ""`, `?? []`, `?? 0`.
 - [ ] Expected errors are explicit: REST `expect(response.status).toBe(<status>)` with the reason from
       `response.text` or `errorJson`; GraphQL `rejects.toThrow("[CODE]")` or `executeRaw` with its `errors`.
-- [ ] Platform defects: the test asserts the correct behaviour and stays failing, with an `issue` annotation that
-      holds the ticket URL when one exists. No `test.fail`, `test.fixme`, `test.skip`, retries or workarounds, and
-      no expectation edited to match the build.
+- [ ] Platform defects: the test asserts the correct behaviour. A confirmed defect that fails every time is a known
+      issue: `PLATFORM_DEFECT_TAG`, an `issue` annotation with the ticket URL when one exists, and
+      `test.fail(true, "<ticket>: <defect>")`. No `test.fixme`, `test.skip`, retries or workarounds, no `test.fail`
+      for anything else, and no expectation edited to match the build.
 - [ ] Optional modules gated with `test.use({ modules: { … } })` on the describe; nothing adapted to an older
       (stable) platform, a `minVersion` raised instead.
 
@@ -165,7 +166,8 @@ APPROVE only when reconciliation exits 0 for every project and there is no Criti
 
 **Critical (must fix):** leaked data or removal registered after an assertion; teardown code in a spec; vacuous
 assertions or none; shared-state races (a dataset user's cart, global settings outside `isolated`); fixed waits;
-credentials in code; `test.fail`, `test.fixme`, a retry or an edited expectation for a platform defect.
+credentials in code; `test.fixme`, a retry or an edited expectation for a platform defect, or a `test.fail` that is not a known-issue
+mark.
 
 **Warning (should fix):** conditionals or casts in specs; raw selectors in specs; fallbacks hiding missing data; a
 missing `issue` annotation where the contract names a ticket; deletion proven by search; layer violations;

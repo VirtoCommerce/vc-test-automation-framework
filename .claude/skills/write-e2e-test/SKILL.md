@@ -144,7 +144,7 @@ await expect.poll(() => cart.totalAmount()).toBeLessThan(before);
 4. Open pages with `navigate()` / `open(...)` / `start()`; no `page.goto` unless the URL itself is under test.
 5. Web-first assertions; no `waitForTimeout`, no `networkidle`, no `expect(await locator.isVisible())`.
 6. Data from `dataset`, changes through `arrange`, as the identity the browser is.
-7. Platform defects: the test stays failing, with an `issue` annotation when a ticket exists; never `test.fail`.
+7. Platform defects: a confirmed defect is a known issue (`framework-rules`, Platform Defects); a new one stays failing.
 8. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify

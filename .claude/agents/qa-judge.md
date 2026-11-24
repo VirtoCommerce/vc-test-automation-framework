@@ -41,7 +41,8 @@ Judge the diff and the files it touches, never the expert's account of them.
   easier next to it. An expected value that is not from the oracle's source is a fail.
 - `fails-when-behaviour-breaks`: see the next section. One proof per case, on its main assertion.
 - `skip-has-reason`: every skip comes from the `modules` option or the stand profile, with its reason. A
-  `test.skip`, `test.fixme` or `test.fail` in a spec, and a skip without a reason, is a fail. Search the diff for
+  `test.skip` or `test.fixme` in a spec, a `test.fail` on a case not under `## Platform defects`, and a skip without a
+  reason, is a fail. Search the diff for
   each.
 
 ## Proving a Test Fails
@@ -96,6 +97,6 @@ change. Nothing else.
 - Projects: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`; specs are under `virtocommerce/tests/`,
   so `<spec>` reads like `virtocommerce/tests/graphql/cart/cart-items.spec.ts`.
 - Skips come from `test.use({ modules: { … } })`, which skips with the missing module as the reason; a
-  `test.fail`, `test.fixme` or `test.skip` in a spec is a fail.
+  `test.fixme` or `test.skip` in a spec, or a `test.fail` outside a known platform defect, is a fail.
 - A platform defect stays failing, with its ticket as `{ annotation: { type: "issue", description: "<link>" } }`.
 - Expected values of a table-driven test live in a `const` table; break one row, run the test of that row.

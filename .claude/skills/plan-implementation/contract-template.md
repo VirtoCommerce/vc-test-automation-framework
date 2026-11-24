@@ -46,8 +46,8 @@ ticket: <key>
 - <case id>: <the defect, in one line>; <tracker link, or no ticket yet>
 
 <!-- One line per case whose correct behaviour the platform is known to break, or the single line `None`. The test
-asserts the correct behaviour and stays failing; a tracker link becomes its `issue` annotation. Never an
-expected-failure mark, a skip or a workaround. -->
+asserts the correct behaviour and is marked as a known issue (`framework-rules`, Platform Defects); a tracker link
+becomes its `issue` annotation. Never a skip or a workaround. -->
 
 ## Verification
 

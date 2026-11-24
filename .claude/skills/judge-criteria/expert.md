@@ -19,5 +19,5 @@ copy itself.
   build's, is the evidence. An assertion that cannot fail (a tautology, a check on a value the test set itself, a
   missing await, an assertion on something that is always present) is a fail.
 - `skip-has-reason`: every skip carries a reason a reader can act on: the `modules` option (the missing or older
-  module) or a stand-profile condition. A silent skip, and a `test.skip`, `test.fixme` or `test.fail` in a spec, is a
-  fail.
+  module) or a stand-profile condition. A silent skip, a `test.skip` or `test.fixme` in a spec, and a `test.fail` on a case
+  that is not under `## Platform defects`, is a fail.

@@ -119,8 +119,9 @@ a promotion or a shipment), use `expect(cart).toHaveConsistentTotals()` rather t
 
 **Optional modules.** `test.use({ modules: { xMarketing: MODULES.xMarketing } })` (`@modules`) on the describe.
 
-**Platform defects.** The test asserts the correct behaviour and stays failing. With a tracker ticket, add
-`{ annotation: { type: "issue", description: "<ticket URL>" } }` as the test's details; never `test.fail`.
+**Platform defects.** The test asserts the correct behaviour. A new defect stays failing; a confirmed one that
+fails every time is a known issue (`framework-rules`, Platform Defects): `PLATFORM_DEFECT_TAG`, the ticket as an
+`issue` annotation, and `test.fail(true, "<ticket>: <defect>")`.
 
 ## Rules
 

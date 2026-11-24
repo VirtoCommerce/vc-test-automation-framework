@@ -43,9 +43,9 @@ npx --no playwright test --config=<suiteDir> --list --reporter=list --project=<p
 - Map an operation or page to its tests by Grep of its name in the specs, `arrange` methods, documents and page
   objects, not in generated code. An operation called by no test is uncovered.
 - **Skipped and failing-by-design tests:** Grep the specs for the `modules` option (skipped where the module is
-  missing or older), for `test.skip`, `test.fixme` and `test.fail`, and for `issue` annotations (platform defects:
-  the test runs and fails until the platform is fixed). One row each: test, project, reason, issue link or `none`.
-  A `test.skip`, `test.fixme` or `test.fail`, or a skip without a reason, breaks the framework rules: list it as a
+  missing or older), for `test.skip` and `test.fixme`, and for `PLATFORM_DEFECT_TAG` (known platform defects: the
+  test runs, marked `test.fail`, until the platform is fixed). One row each: test, project, reason, issue link or `none`.
+  A `test.skip` or `test.fixme`, a `test.fail` without the tag, or a skip without a reason, breaks the framework rules: list it as a
   finding.
 
 ## Step 3: Gaps

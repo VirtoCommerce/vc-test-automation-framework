@@ -45,8 +45,8 @@ not yours. Do not re-judge it; report an assertion-free test only when you see o
 Check the diff against every rule of `framework-rules`. The skill is the source, not memory.
 Report each break with file and line. Typical Critical findings: data created outside `arrange`, or data the code
 under test creates with no `...Later` removal registered right after the act; fixed waits (`waitForTimeout`,
-sleeps, `networkidle`); credentials, store ids or URLs as literals; a `test.fail`, `test.fixme`, `test.skip`, retry
-or workaround that hides a platform defect; a skip with no reason; a changed expected value or assertion that moves
+sleeps, `networkidle`); credentials, store ids or URLs as literals; a `test.fixme`, `test.skip`, retry or workaround
+that hides a platform defect, or a `test.fail` that is not a known-issue mark (`framework-rules`, Platform Defects); a skip with no reason; a changed expected value or assertion that moves
 toward the build; shared state changed outside the isolated project's directory; a layer import the layer
 configuration forbids. Typical Warnings: duplicated building blocks, conditionals or casts in a spec, raw selectors
 in a spec, fallbacks that hide missing data, a deletion proven only by search.

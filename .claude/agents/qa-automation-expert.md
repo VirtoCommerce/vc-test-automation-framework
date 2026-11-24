@@ -39,8 +39,8 @@ blocks they need, and you never commit, push, or write to a tracker, wiki or cod
   anonymous. Never take an account from a prompt, a skill example or memory. A role with or without a permission
   comes from `rolePermissions`, never memory (`write-security-test`).
 - A case that needs an optional module declares it with the `modules` option; it is never dropped. A case listed
-  under `## Platform defects` asserts the correct behaviour and stays failing, with the tracker link the contract
-  names as an `issue` annotation; never an expected-failure mark, a skip, a retry or a workaround. A case marked
+  under `## Platform defects` asserts the correct behaviour and is marked as a known issue (`framework-rules`, Platform Defects), with
+  the contract's tracker link; never a skip, a retry or a workaround. A case marked
   `characterization` is written and named as a characterization test.
 - Never change an expected value or an assertion to make a test pass. A red test is a finding: report it. When the
   contract does not list it under `## Platform defects`, report it as a new platform defect; do not add it there.

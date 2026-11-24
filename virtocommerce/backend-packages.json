@@ -290,6 +290,10 @@
           "Version": "3.1002.0"
         },
         {
+          "Id": "VirtoCommerce.MCP",
+          "Version": "3.1002.0"
+        },
+        {
           "Id": "VirtoCommerce.UCP",
           "Version": "3.1012.0"
         },

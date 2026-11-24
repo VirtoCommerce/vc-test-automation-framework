@@ -7,7 +7,7 @@ const QUANTITY = 3;
 const NEW_QUANTITY = 4;
 const CART = [{ productId: `product-${SKU}`, quantity: QUANTITY }];
 
-test.describe("cart of an anonymous visitor", () => {
+test.describe("cart (anonymous)", () => {
   test.beforeEach(({ arrange, shopper }) => arrange.carts.checkoutReadyCart(shopper, CART));
 
   test("clear the cart", async ({ frontend, page }) => {
@@ -40,7 +40,7 @@ test.describe("cart of an anonymous visitor", () => {
   });
 });
 
-test.describe("cart of a customer", () => {
+test.describe("cart (customer of their own)", () => {
   test.use({ shopperAs: "customer" });
   test.beforeEach(({ arrange, shopper }) => arrange.carts.checkoutReadyCart(shopper, CART));
 

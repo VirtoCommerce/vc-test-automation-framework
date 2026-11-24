@@ -11,7 +11,7 @@ const REJECTED_CODES = [
 ] as const;
 const NOT_EMPTY = /\S/;
 
-test.describe("cart coupons of an anonymous visitor", () => {
+test.describe("cart coupons (anonymous)", () => {
   test.beforeEach(({ arrange, shopper }) => arrange.carts.checkoutReadyCart(shopper, CART));
 
   test("enter a coupon code", async ({ frontend }) => {
@@ -34,7 +34,7 @@ test.describe("cart coupons of an anonymous visitor", () => {
   });
 });
 
-test.describe("cart coupon codes of a customer", () => {
+test.describe("cart coupon codes (customer of their own)", () => {
   test.use({ shopperAs: "customer" });
   test.beforeEach(({ arrange, shopper }) => arrange.carts.checkoutReadyCart(shopper, CART));
 
@@ -72,7 +72,7 @@ test.describe("cart coupon codes of a customer", () => {
   }
 });
 
-test.describe("cart preset coupons of a customer", () => {
+test.describe("cart preset coupons (customer of their own)", () => {
   test.use({ modules: { xMarketing: MODULES.xMarketing }, shopperAs: "customer" });
   test.beforeEach(({ arrange, shopper }) => arrange.carts.checkoutReadyCart(shopper, CART));
 

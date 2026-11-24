@@ -10,7 +10,7 @@ const CONFIGURED_SKU = `Configuration-${CONFIGURABLE.sku}`;
 const MEMORY = "Memory";
 const MEMORY_OPTION = "Samsung DDR5-4800 8GB";
 
-test.describe("cart merge when an anonymous visitor signs in", () => {
+test.describe("cart merge (anonymous, then signing in)", () => {
   test("the anonymous cart merges into the signed-in cart", async ({ arrange, shopper, frontend, page }) => {
     const customer = await test.step("arrange: a customer and a cart of the visitor", async () => {
       await arrange.carts.cart(shopper, [{ productId: `product-${SKU}`, quantity: QUANTITY }]);

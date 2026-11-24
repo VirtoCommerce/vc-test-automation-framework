@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { DESTRUCTIVE_TAG, defaultRunOptions } from "@/core";
+import { DESTRUCTIVE_TAG, defaultRunOptions, PLATFORM_DEFECT_TAG } from "@/core";
 
 import { testEnv } from "./test-env.ts";
 
@@ -52,5 +52,29 @@ test.describe("defaultRunOptions", () => {
 
   test("runs destructive tests when RUN_DESTRUCTIVE_TESTS is on", () => {
     expect(defaultRunOptions(testEnv({ RUN_DESTRUCTIVE_TESTS: "true" }))).not.toHaveProperty("grepInvert");
+  });
+
+  test("runs tests of known platform defects by default", () => {
+    const filter = defaultRunOptions(testEnv()).grepInvert as RegExp;
+
+    expect(filter.test(`searches apps ${PLATFORM_DEFECT_TAG}`)).toBe(false);
+  });
+
+  test("leaves out known platform defects and destructive tests when SKIP_PLATFORM_DEFECTS is on", () => {
+    const filter = defaultRunOptions(testEnv({ SKIP_PLATFORM_DEFECTS: "true" })).grepInvert as RegExp;
+
+    expect(filter.test(`searches apps ${PLATFORM_DEFECT_TAG}`)).toBe(true);
+    expect(filter.test(`searches apps ${PLATFORM_DEFECT_TAG} @smoke`)).toBe(true);
+    expect(filter.test(`searches apps ${PLATFORM_DEFECT_TAG}s`)).toBe(false);
+    expect(filter.test(`deletes a store ${DESTRUCTIVE_TAG}`)).toBe(true);
+    expect(filter.test("reads a store")).toBe(false);
+  });
+
+  test("leaves out only known platform defects when destructive tests may run", () => {
+    const filter = defaultRunOptions(testEnv({ SKIP_PLATFORM_DEFECTS: "true", RUN_DESTRUCTIVE_TESTS: "true" }))
+      .grepInvert as RegExp;
+
+    expect(filter.test(`searches apps ${PLATFORM_DEFECT_TAG}`)).toBe(true);
+    expect(filter.test(`deletes a store ${DESTRUCTIVE_TAG}`)).toBe(false);
   });
 });

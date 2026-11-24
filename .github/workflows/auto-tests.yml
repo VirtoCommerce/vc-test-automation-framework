@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: ""
+      skipPlatformDefects:
+        description: "Leave out the tests tagged @platform-defect, as the CI of the platform and the modules does"
+        required: false
+        type: boolean
+        default: false
       workers:
         description: "Optional Playwright --workers value (e.g. 4 or 50%). Leave empty for the config default."
         required: false
@@ -44,6 +49,7 @@ jobs:
       testSuites: ${{ inputs.testSuites == 'all' && 'graphql,restapi,e2e' || inputs.testSuites }}
       grep: ${{ inputs.grep }}
       workers: ${{ inputs.workers }}
+      skipPlatformDefects: ${{ inputs.skipPlatformDefects }}
     secrets:
       envPAT: ${{ secrets.REPO_TOKEN }}
       testSecretEnvFile: ${{ secrets.VC_TESTING_MODULE_ENV_FILE_NEW }}

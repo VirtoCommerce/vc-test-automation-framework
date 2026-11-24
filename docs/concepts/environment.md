@@ -15,6 +15,7 @@ Commerce-based solution needs, and each test suite extends them with its own.
 | `VERIFY_SSL`            | No       | `true`  | Whether to verify the TLS certificate of the platform              |
 | `REQUEST_TIMEOUT_MS`    | No       | `30000` | The time to wait for a response, in milliseconds                   |
 | `RUN_DESTRUCTIVE_TESTS` | No       | `false` | Whether to run tests that delete or change shared data             |
+| `SKIP_PLATFORM_DEFECTS` | No       | `false` | Whether to leave out tests tagged `@platform-defect`               |
 | `API_WORKERS`           | No       | `4`     | The number of workers that run API tests, such as REST and GraphQL |
 | `E2E_WORKERS`           | No       | `3`     | The number of workers that run end-to-end browser tests            |
 

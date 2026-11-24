@@ -11,6 +11,7 @@ import { STORE_ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
 import { pushNotificationOf } from "@support/push-notifications.ts";
 import { requireFields } from "@support/require-fields.ts";
+import { PLATFORM_DEFECT_TAG } from "@virtocommerce/test-automation-framework/core";
 
 const COMPLETENESS_PATH = "/api/completeness";
 const CHANNELS_PATH = `${COMPLETENESS_PATH}/channels`;
@@ -51,7 +52,10 @@ test.describe("completeness channels (store administrator)", () => {
     });
   });
 
-  test("search channels by id", async ({ api, arrange }) => {
+  test("search channels by id", {
+    tag: PLATFORM_DEFECT_TAG,
+    annotation: { type: "issue", description: "https://virtocommerce.atlassian.net/browse/VCST-6441" },
+  }, async ({ api, arrange }) => {
     const [channel] = await test.step("arrange: two channels", async () => [
       await arrange.catalog.completenessChannel(),
       await arrange.catalog.completenessChannel(),

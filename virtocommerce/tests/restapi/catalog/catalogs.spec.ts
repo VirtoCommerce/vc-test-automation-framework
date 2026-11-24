@@ -7,6 +7,7 @@ import type { HttpClient } from "@virtocommerce/test-automation-framework/http";
 import { newCatalog } from "@builders/catalog.ts";
 import { STORE_ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
+import { PLATFORM_DEFECT_TAG } from "@virtocommerce/test-automation-framework/core";
 
 const CATALOGS_PATH = "/api/catalog/catalogs";
 const CATALOG_KINDS = [
@@ -51,7 +52,10 @@ test.describe("catalogs (store administrator)", () => {
     });
   });
 
-  test("delete a catalog", async ({ api, arrange }) => {
+  test("delete a catalog", {
+    tag: PLATFORM_DEFECT_TAG,
+    annotation: { type: "issue", description: "https://virtocommerce.atlassian.net/browse/VCST-6509" },
+  }, async ({ api, arrange }) => {
     const catalog = await test.step("arrange: a catalog", () => arrange.catalog.catalog());
 
     await test.step("act: delete the catalog", async () =>

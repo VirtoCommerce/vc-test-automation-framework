@@ -12,7 +12,7 @@ export { errorMessage } from "./error-message.ts";
 export { isCi } from "./is-ci.ts";
 export { parseEnv } from "./parse-env.ts";
 export { apiProject, e2eProject } from "./projects.ts";
-export { DESTRUCTIVE_TAG, defaultRunOptions } from "./run-options.ts";
+export { DESTRUCTIVE_TAG, defaultRunOptions, PLATFORM_DEFECT_TAG } from "./run-options.ts";
 export { MASKED, maskSecrets, revealedFields, revealedJson, SECRET_MIN_LENGTH, Secret } from "./secret.ts";
 export {
   absoluteUrl,

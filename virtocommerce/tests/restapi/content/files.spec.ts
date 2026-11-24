@@ -10,6 +10,7 @@ import { markdownFile } from "@builders/files.ts";
 import { STORE_ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
 import { requireFields } from "@support/require-fields.ts";
+import { PLATFORM_DEFECT_TAG } from "@virtocommerce/test-automation-framework/core";
 
 const CONTENT_TYPES = ["pages", "blogs", "themes"] as const;
 const COUNTED_CONTENT = [
@@ -31,7 +32,10 @@ test.describe("content files (store administrator)", () => {
   test.use({ user: STORE_ADMINISTRATOR });
 
   for (const { counter, content, add } of COUNTED_CONTENT) {
-    test(`count ${content} in the content statistic`, async ({ api, arrange, store }) => {
+    test(`count ${content} in the content statistic`, {
+      tag: PLATFORM_DEFECT_TAG,
+      annotation: { type: "issue", description: "https://virtocommerce.atlassian.net/browse/VCST-6444" },
+    }, async ({ api, arrange, store }) => {
       const before = await test.step("arrange: the content statistic", () => statisticOf(api, store.id));
       await test.step(`arrange: ${content}`, async () => {
         await add(arrange);

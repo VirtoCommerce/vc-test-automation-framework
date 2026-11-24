@@ -7,6 +7,7 @@ import type { HttpClient } from "@virtocommerce/test-automation-framework/http";
 import { newOAuthApp } from "@builders/security.ts";
 import { STORE_ADMINISTRATOR } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
+import { PLATFORM_DEFECT_TAG } from "@virtocommerce/test-automation-framework/core";
 
 const OAUTH_APPS_PATH = "/api/platform/oauthapps";
 
@@ -39,7 +40,10 @@ test.describe("OAuth apps (store administrator)", () => {
     });
   });
 
-  test("search OAuth apps by client id", async ({ api, arrange }) => {
+  test("search OAuth apps by client id", {
+    tag: PLATFORM_DEFECT_TAG,
+    annotation: { type: "issue", description: "https://virtocommerce.atlassian.net/browse/VCST-6440" },
+  }, async ({ api, arrange }) => {
     const [app] = await test.step("arrange: two OAuth apps", async () => [
       await arrange.security.oauthApp(),
       await arrange.security.oauthApp(),

@@ -94,5 +94,5 @@ commands, roles, quality limits) are in `.qa/project.json`. Their working files 
 The `Auto Tests Docker` workflow (`.github/workflows/auto-tests.yml`) runs the suite through `playwright-tests.yml` of
 `VirtoCommerce/.github`. The platform, the frontends and the modules run the same shared workflow against this
 repository's `dev` branch, so the project names (`restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`)
-are a contract with all of them: never rename one. Start it from the Actions tab. Pull requests run the dataset
+are a contract with all of them: never rename one. Their runs leave out the tests tagged `@platform-defect`, defects a ticket already tracks; ours runs them unless the `skipPlatformDefects` input is on. Start it from the Actions tab. Pull requests run the dataset
 checks in the `CI` workflow.

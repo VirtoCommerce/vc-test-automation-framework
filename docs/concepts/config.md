@@ -47,17 +47,23 @@ export const destructiveTestDetails = { tag: DESTRUCTIVE_TAG };
 
 `defaultRunOptions` returns the options of the whole run:
 
-| Option       | Value                                                       | Why                                             |
-| ------------ | ----------------------------------------------------------- | ----------------------------------------------- |
-| `retries`    | `0`                                                         | A flaky test fails and is fixed, not hidden     |
-| `forbidOnly` | `true` on CI                                                | A forgotten `test.only` does not shrink CI runs |
-| `workers`    | The larger of `API_WORKERS` and `E2E_WORKERS`               | API and browser tests share one worker budget   |
-| `grepInvert` | Tests tagged `@destructive`, unless `RUN_DESTRUCTIVE_TESTS` | Shared data is changed only where it is allowed |
+| Option       | Value                                                                                                                      | Why                                                                                                                            |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `retries`    | `0`                                                                                                                        | A flaky test fails and is fixed, not hidden                                                                                    |
+| `forbidOnly` | `true` on CI                                                                                                               | A forgotten `test.only` does not shrink CI runs                                                                                |
+| `workers`    | The larger of `API_WORKERS` and `E2E_WORKERS`                                                                              | API and browser tests share one worker budget                                                                                  |
+| `grepInvert` | Tests tagged `@destructive`, unless `RUN_DESTRUCTIVE_TESTS`; tests tagged `@platform-defect`, when `SKIP_PLATFORM_DEFECTS` | Shared data is changed only where it is allowed; a defect a ticket tracks does not fail the CI of the platform and its modules |
 
 A run counts as CI when the `CI` variable is set to a value other than empty, `false` or `0`; `isCi` from the `core`
 area tells the same. Tag a test that deletes or changes shared data with `DESTRUCTIVE_TAG`, such as
 `test("deletes a store", { tag: DESTRUCTIVE_TAG }, async () => {})`. A project that sets its own `grepInvert` replaces
 the filter.
+
+A test that fails because of a known platform defect keeps asserting the right behaviour and gets `PLATFORM_DEFECT_TAG`
+with its ticket, such as
+`test("searches apps by id", { tag: PLATFORM_DEFECT_TAG, annotation: { type: "issue", description: "<ticket URL>" } }, async () => {})`.
+It runs and fails by default, so the defect stays visible. A run with `SKIP_PLATFORM_DEFECTS` on leaves it out: the
+shared CI workflow that the platform and its modules run turns it on, so a tracked defect does not fail their checks.
 
 ## Projects
 

@@ -12,6 +12,7 @@ import { expect, test } from "@fixtures";
 import { MODULES } from "@modules";
 import { requireFields } from "@support/require-fields.ts";
 import { authHeader, TokenClient } from "@virtocommerce/test-automation-framework/auth";
+import { PLATFORM_DEFECT_TAG } from "@virtocommerce/test-automation-framework/core";
 
 const SECURITY_PATH = "/api/platform/security";
 const USERS_PATH = `${SECURITY_PATH}/users`;
@@ -56,7 +57,10 @@ test.describe("sign-in (store administrator)", () => {
     });
   });
 
-  test("concurrent sign-ins of the same user all get a token", async ({ http, arrange }) => {
+  test("concurrent sign-ins of the same user all get a token", { tag: PLATFORM_DEFECT_TAG }, async ({
+    http,
+    arrange,
+  }) => {
     const { credentials } = await test.step("arrange: a user", () => arrange.security.platformUser());
     const tokens = new TokenClient(http);
 

@@ -27,6 +27,8 @@ export const envSchema = object({
   REQUEST_TIMEOUT_MS: positiveInt.default(30_000),
   /** Whether to run tests that delete or change shared data. The default is `false`. */
   RUN_DESTRUCTIVE_TESTS: booleanString.default(false),
+  /** Whether to leave out tests that fail because of a known platform defect. The default is `false`. */
+  SKIP_PLATFORM_DEFECTS: booleanString.default(false),
   /** The number of workers that run API tests, such as REST and GraphQL tests. The default is 4. */
   API_WORKERS: positiveInt.default(4),
   /** The number of workers that run end-to-end browser tests. The default is 3. */

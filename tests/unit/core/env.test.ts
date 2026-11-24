@@ -18,6 +18,7 @@ test.describe("envSchema", () => {
       VERIFY_SSL: true,
       REQUEST_TIMEOUT_MS: 30_000,
       RUN_DESTRUCTIVE_TESTS: false,
+      SKIP_PLATFORM_DEFECTS: false,
       API_WORKERS: 4,
       E2E_WORKERS: 3,
     });
@@ -32,6 +33,7 @@ test.describe("envSchema", () => {
       VERIFY_SSL: "false",
       REQUEST_TIMEOUT_MS: "5000",
       RUN_DESTRUCTIVE_TESTS: "true",
+      SKIP_PLATFORM_DEFECTS: "true",
       API_WORKERS: "8",
       E2E_WORKERS: "6",
     });
@@ -40,6 +42,7 @@ test.describe("envSchema", () => {
       VERIFY_SSL: false,
       REQUEST_TIMEOUT_MS: 5_000,
       RUN_DESTRUCTIVE_TESTS: true,
+      SKIP_PLATFORM_DEFECTS: true,
       API_WORKERS: 8,
       E2E_WORKERS: 6,
     });

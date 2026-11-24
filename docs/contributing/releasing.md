@@ -60,6 +60,17 @@ Releases are made by GitHub Actions with [Changesets](https://github.com/changes
    with nothing for consumers adds an empty changeset (`npx changeset --empty`).
 2. Merging to `dev` opens or updates the "chore: release" pull request, which bumps the version and updates
    `CHANGELOG.md`.
-3. Merging that pull request publishes the package to GitHub Packages and creates the GitHub release.
+3. Merging that pull request publishes the package to npmjs.org and creates the GitHub release.
 
 When no changesets are pending, a merge to `dev` publishes the current version if it is not yet in the registry.
+
+The `Release` workflow (`release.yml`) signs in to npm with Trusted Publishing: npm exchanges the workflow's GitHub
+OIDC token for a short-lived publish credential and attaches provenance, so no npm token is kept in the repository
+secrets. The trusted publisher on npmjs.com names this repository and the file `release.yml`; renaming the file or
+moving the publish step to another workflow breaks publishing. Trusted Publishing needs npm 11.5.1 or newer, which
+the workflow installs.
+
+To try a branch before it is merged, push it to a branch under `alpha/` (`git push origin HEAD:alpha/<name>`), or
+run the `Release` workflow on it by hand (Actions tab, or `gh workflow run release.yml --ref <branch>`). It publishes the branch as `<version>-alpha.<run number>` under the
+`alpha` dist-tag, which consumers install with `npm install @virtocommerce/test-automation-framework@alpha`; `latest`
+does not move.

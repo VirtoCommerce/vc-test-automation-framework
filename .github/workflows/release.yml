@@ -1,8 +1,18 @@
+# Publishes to npmjs.org with npm Trusted Publishing: npm swaps the GitHub OIDC token for a
+# short-lived publish credential and attaches provenance, so no npm token is stored anywhere.
+# The trusted publisher on npmjs.com is tied to this repository and this file name, so renaming
+# the file breaks publishing, and every publish (release and alpha) has to live in this file.
+#
+# Triggers:
+#   - push to dev                         → changesets: open the release pull request, or publish to latest
+#   - push to alpha/**, workflow_dispatch → publish the branch as <version>-alpha.<run number> under alpha
+
 name: Release
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, "alpha/**"]
+  workflow_dispatch:
 
 concurrency:
   group: release
@@ -11,13 +21,16 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  packages: write
   id-token: write
   attestations: write
 
 jobs:
-  release:
+  alpha:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/alpha/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -25,8 +38,40 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: "@virtocommerce"
+
+      - name: Install an npm that supports trusted publishing
+        run: npm install -g npm@^11.5.1
+
+      - run: npm ci
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
+      - run: npm run typecheck
+      - run: npm run check:ci
+      - run: npm run test:unit
+
+      - name: Set the alpha version
+        run: |
+          base=$(node -p "require('./package.json').version")
+          npm version "$base-alpha.$GITHUB_RUN_NUMBER" --no-git-tag-version
+
+      - name: Publish under alpha
+        run: npm publish --tag alpha
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # No registry-url: it writes an .npmrc with a token placeholder, and trusted
+          # publishing needs no token. npmjs.org is the default registry.
+          node-version: 22
+          cache: npm
+
+      - name: Install an npm that supports trusted publishing
+        run: npm install -g npm@^11.5.1
 
       - run: npm ci
         env:
@@ -45,7 +90,6 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
 
       - if: steps.changesets.outputs.published == 'true'
@@ -59,8 +103,6 @@ jobs:
           echo "published: $published"
           echo "packed:    $packed"
           test "$published" = "$packed"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - if: steps.changesets.outputs.published == 'true'
         uses: actions/attest-build-provenance@v2

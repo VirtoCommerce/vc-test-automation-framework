@@ -12,37 +12,16 @@ on top: API clients, page objects, test data and tests.
 - Node.js 22.18 or newer
 - `@playwright/test` 1.65.1 or newer and `zod` 4.0.7 or newer, installed in your repository
 - `@types/node` in your repository, since the framework's types use Node types such as `Buffer`
-- Access to the `VirtoCommerce` organization's GitHub Packages registry
-
 ## Installation
 
-The package is published to GitHub Packages. Installing from it needs a token with the `read:packages` scope, even
-for public packages.
+The package is published to the public npm registry, so installing it needs no token:
 
-1. Add an `.npmrc` to the root of your repository. It contains no secret, so commit it:
+```shell
+npm install --save-dev @virtocommerce/test-automation-framework
+```
 
-   ```ini
-   @virtocommerce:registry=https://npm.pkg.github.com
-   //npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
-   ```
-
-2. Provide the token as the `GITHUB_PACKAGES_TOKEN` environment variable: on your machine, and as a secret in CI.
-
-   ```yaml
-   - run: npm ci
-     env:
-       GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_PACKAGES_TOKEN }}
-   ```
-
-   Repositories outside the `VirtoCommerce` organization need a personal access token (classic) with
-   `read:packages`. Use a dedicated machine account rather than a person's account, so access doesn't depend on one
-   person.
-
-3. Install the package:
-
-   ```shell
-   npm install --save-dev @virtocommerce/test-automation-framework
-   ```
+Every version carries an npm provenance attestation that ties it to the GitHub Actions run that published it;
+`npm audit signatures` checks it.
 
 ## Documentation
 

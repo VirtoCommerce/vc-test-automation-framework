@@ -64,7 +64,9 @@
     "CHANGELOG.md"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "prepare": "simple-git-hooks",

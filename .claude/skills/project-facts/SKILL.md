@@ -134,7 +134,7 @@ and changed spec files as repository-relative paths and `<series>` the facts' `q
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/report.<project>.json <commands.test[project]> [--] <specs> --repeat-each=<series> --retries=0 --reporter=list,json
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/list.<project>.json npx --no -- playwright test --config=virtocommerce --list --no-deps --reporter=json --project=<project> --repeat-each=<series> <specs>
-node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json --contract=.qa/contracts/<contract-name>.md
 ```
 
 For example, for `restapi`:
@@ -142,7 +142,7 @@ For example, for `restapi`:
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/VCST-1234/report.restapi.json npm run test:vc -- --project=restapi --no-deps virtocommerce/tests/restapi/security/api-keys.spec.ts --repeat-each=3 --retries=0 --reporter=list,json
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/VCST-1234/list.restapi.json npx --no -- playwright test --config=virtocommerce --list --no-deps --reporter=json --project=restapi --repeat-each=3 virtocommerce/tests/restapi/security/api-keys.spec.ts
-node .claude/checks/reconcile-run.mts .qa/runs/VCST-1234/list.restapi.json .qa/runs/VCST-1234/report.restapi.json
+node .claude/checks/reconcile-run.mts .qa/runs/VCST-1234/list.restapi.json .qa/runs/VCST-1234/report.restapi.json --contract=.qa/contracts/VCST-1234.md
 ```
 
 Set the variable the way the shell does it. For an npm script pass the arguments after `--`, once: a command that
@@ -150,4 +150,10 @@ already holds `--` (`npm run test:vc -- --project=restapi --no-deps`) takes them
 command append them without `--`, which would make Playwright read them as a file filter. Never hand-edit either JSON
 file. Both files name a test by its spec path relative to the suite directory (`tests/restapi/...`), the describe
 titles and its title. `reconcile-run` exits 1 when a test failed, was flaky, was skipped without a reason or is
-missing a repetition: the run is not done.
+missing a repetition: the run is not done. With `--contract` it also compares the command the series was really started
+with (`config.argv` of the report) with the test commands of the contract's `## Verification`: every difference (a flag
+among `--workers`, `--repeat-each`, `--retries` and `--grep`, a project, a spec file) is listed under `differences` and
+exits 1 unless the run record holds a `deviation: <what differed and why>` line in
+`.qa/runs/<contract-name>/deviation.txt`, which whoever ran the series differently writes, by hand (the one file of the
+run record that is). The differences stay listed with the reasons under `deviations`. A report older than the last
+edit of a spec it covers, or of a file they import, lists those files under `stale` and exits 1: run the series again.

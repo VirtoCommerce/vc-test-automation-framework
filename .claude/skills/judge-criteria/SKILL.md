@@ -32,9 +32,11 @@ evaluation suite, the directory the brief names), nowhere else:
   "role": "expert",
   "subject": "<the contract path, or the files judged>",
   "criteria": [{ "name": "<criterion>", "pass": false, "evidence": "<what you saw, where>" }],
+  "proofs": { "mechanical": 0, "reasoned": 0, "explanation": "<only when mechanical is 0: why no case could be proved>" },
   "verdict": "fail"
 }
 ```
 
-`verdict` is `pass` only when every criterion passes, and `fail` otherwise. Then run
+`proofs` is for the expert's verdict only: the number of cases proved with `prove-fails` and the number judged from the
+assertion, at least one case in all. `verdict` is `pass` only when every criterion passes, and `fail` otherwise. Then run
 `node .claude/checks/judge-verdict.mts check <file>`; it must print `ok`. Fix the file, not the criteria, until it does.

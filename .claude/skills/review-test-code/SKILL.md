@@ -141,11 +141,12 @@ Playwright project in the contract's case rows, with `<specs>` the changed spec 
 2. Reconcile it with the author's report:
 
    ```shell
-   node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+   node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json --contract=.qa/contracts/<contract-name>.md
    ```
 
    Exit 1 means not done; copy each failure (test, project, why) into Critical, missing repetitions
-   included. A missing report file, a stand that was not reachable and no record, or a report you cannot read is
+   included, and each `stale` file and each `differences` line that has no `deviation:` reason. A difference with a
+   reason is a Warning that quotes the reason; judge whether it is one. A missing report file, a stand that was not reachable and no record, or a report you cannot read is
    also not done.
 3. Do not read the author's own `list.<project>.json` as the truth: it is theirs.
 4. Your read-only shell cannot run typecheck and lint, and cannot query the stand. Say in the Summary that they were

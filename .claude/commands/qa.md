@@ -85,7 +85,10 @@ the contract check again and dispatch the expert again with the same path (not a
 In the end-to-end flow, tell an unreachable stand apart from a red run first. When the expert reported the stand as
 not reachable, or a project of the contract's case rows has no `report.<project>.json`, the run is "not done, stand
 unreachable": stop, tell the person, and go to neither Heal nor Judge. Otherwise reconcile each project's record with
-the third command of "Hand-off Paths". Exit 1 with a verdict whose `failures` list only tests of cases under the
+the third command of "Hand-off Paths", with its `--contract` argument. A series the expert ran differently from the
+contract's Verification needs a `deviation: <what and why>` line in `.qa/runs/<contract-name>/deviation.txt`: write it
+when you ran the series yourself, and read the expert's. A `stale` list, or `differences` with no `deviation:` line, is not a run to heal: the series is stale or not the one the
+contract asked for, so dispatch the expert again with the same path. Exit 1 with a verdict whose `failures` list only tests of cases under the
 contract's `## Platform defects`, each failed in every repetition: the run is done with known platform defects, so
 go to Judge and name them in the Output. Exit 1 with a verdict whose `failures` list any other test (failed, flaky,
 skipped without a reason, missing from the report): the run is red, so go to Heal with the run record path, then to

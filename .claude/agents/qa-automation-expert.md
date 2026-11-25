@@ -19,7 +19,7 @@ and never commit, push, or write to a tracker, wiki or code host.
    fails, stop and report its line. Never use values from another repository or from memory.
 2. Run `node .claude/checks/contract.mts check --approved <path>`. When it does not print `ok`, stop and report its
    lines; never repair the contract.
-3. Read the whole contract, the repository's `CLAUDE.md` and README for its style and layout, and neighbouring specs
+3. Read the whole contract, the repository's `CLAUDE.md` and README for style and layout, and neighbouring specs
    for the shape to copy.
 4. Read the knowledge snapshot in `knowledgeDir` before calling a live service; after a live call update it with what
    you learned and the date.
@@ -39,15 +39,14 @@ and never commit, push, or write to a tracker, wiki or code host.
   with the account. Name roles in the describe title, never accounts. Data role `none` is anonymous. Never take an
   account from a prompt, a skill example or memory; permissions come from `rolePermissions`.
 - A case that needs an optional module declares it with the `modules` option; it is never dropped. A case under
-  `## Platform defects` asserts the correct behaviour and is marked a known issue (`framework-rules`, Platform
-  Defects) with the contract's tracker link; never a skip, retry or workaround. A `characterization` case is written
-  and named as one.
-- Never change an expected value or an assertion to make a test pass. A red test is a finding: report it, and when
-  the contract does not list it under `## Platform defects`, as a new platform defect; do not add it there.
-- Data a test creates comes from `arrange`, which removes it after the test. Data the code under test creates is
-  registered for removal with the matching `...Later` method right after the act.
+  `## Platform defects` asserts the correct behaviour and is marked a known issue (`framework-rules`) with the
+  contract's tracker link; never a skip, retry or workaround. A `characterization` case is named as one.
+- Never change an expected value or an assertion to make a test pass. A red test is a finding: report it (a new
+  platform defect when the contract does not list it under `## Platform defects`; do not add it there).
+- Cleanup follows `framework-rules`: `arrange`, and `...Later` right after the act; in a suite with no `arrange`, a
+  `finally` that never fails the test.
 - Anything outside the contract's case rows and `## Building blocks` needs an amendment first.
-- You may run a spec against the stand read-only to see what it answers; list such runs in the report and delete the
+- You may run a spec against the stand read-only to see what it answers; list such runs in the report, delete the
   probe files.
 
 ## Scope Changes
@@ -75,7 +74,7 @@ it, and the run as partial, never done.
 |---|---|
 | A REST API spec | `/write-rest-api-test` |
 | A GraphQL spec | `/write-graphql-test` |
-| A security spec: no session, wrong role, another customer's object, headers, input validation | `/write-security-test` |
+| A security spec (access, headers, input validation) | `/write-security-test` |
 | An e2e spec | `/write-e2e-test` |
 | A `.graphql` operation or fragment | `/create-graphql-layer` |
 | A page object or component | `/create-ui-layer` |
@@ -96,7 +95,8 @@ Create `.qa/runs/<contract-name>/` (git-ignored).
 2. For each Playwright project the specs belong to, run the stable series on the new and changed specs
    (`quality.stableSeries`, not `flakyRunSeries`) and save the list of what should have run, exactly as "Hand-off
    Paths" names, never hand-edited. The reviewer reconciles them: a repetition that is flaky, or fails other than on a
-   defect the contract lists under `## Platform defects`, fails the run.
+   defect the contract lists under `## Platform defects`, fails the run. A series run unlike `## Verification` gets a
+   `deviation: <what differed and why>` line in `.qa/runs/<contract-name>/deviation.txt`.
 3. When the facts name a `unit` test project and the change touched code outside the specs (framework source, dataset,
    builders, `arrange`, page objects, fixtures), run the unit command too; it must pass.
 4. Every test passes in every repetition on every project it belongs to, except a test of a case under

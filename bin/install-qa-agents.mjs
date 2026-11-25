@@ -10,6 +10,11 @@ const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
 const MCP_FILE = ".mcp.json";
 const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
+const ROOT_DIR = ".";
+const QA_DIR = ".qa/";
+const SUITE_DIR = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*$/;
+const NPM = "npm ";
+const NPX_PLAYWRIGHT = "npx playwright test";
 const GITIGNORE_LINES = [
   ".qa/contracts/",
   ".qa/runs/",
@@ -111,10 +116,20 @@ function install(target, written = []) {
   if (ignores.length > 0) {
     lines.push(`Add to .gitignore: ${ignores.join(" ")}`);
   }
-  if (!existsSync(join(target, "node_modules", "@babel", "parser"))) {
+  const packageDirs = [...new Set([ROOT_DIR, factsSuiteDir(target)])];
+  if (!packageDirs.some((dir) => existsSync(join(target, dir, "node_modules", "@babel", "parser")))) {
     lines.push("The checks need @babel/parser: npm install --save-dev --save-exact @babel/parser");
   }
   return lines;
+}
+
+function factsSuiteDir(target) {
+  try {
+    const suiteDir = JSON.parse(readFileSync(join(target, FACTS_FILE), "utf8")).suiteDir;
+    return typeof suiteDir === "string" && suiteDir !== "" ? suiteDir : ROOT_DIR;
+  } catch {
+    return ROOT_DIR;
+  }
 }
 
 const SUITE_TEMPLATE = join(PACKAGE_ROOT, "templates", "suite");
@@ -168,25 +183,75 @@ function wrapForWindows(path) {
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
 }
 
-function copySuiteTemplate(target) {
+function inSuite(suiteDir, path) {
+  return suiteDir === ROOT_DIR ? path : `${suiteDir}/${path}`;
+}
+
+function copySuiteTemplate(target, suiteDir) {
   const written = [];
   const kept = [];
   for (const source of templateFiles(SUITE_TEMPLATE)) {
     const path = relative(SUITE_TEMPLATE, source).split(sep).join("/");
-    const destination = RENAMED[path] ?? path;
+    const name = RENAMED[path] ?? path;
+    const destination = name === MCP_FILE || name.startsWith(QA_DIR) ? name : inSuite(suiteDir, name);
     if (copyIfMissing(source, join(target, destination))) {
       written.push(destination);
     } else {
       kept.push(destination);
     }
   }
-  if (copyIfMissing(join(SUITE_TEMPLATE, "env.example"), join(target, ".env"))) {
-    written.push(".env");
+  const env = inSuite(suiteDir, ".env");
+  if (copyIfMissing(join(SUITE_TEMPLATE, "env.example"), join(target, env))) {
+    written.push(env);
   }
   if (written.includes(MCP_FILE) && process.platform === "win32") {
     wrapForWindows(join(target, MCP_FILE));
   }
   return { written, kept };
+}
+
+function suiteDirOf(options) {
+  const [dir, extra] = options.filter((option) => !option.startsWith("--"));
+  if (extra !== undefined) {
+    throw new Error("usage: vc-qa-agents init [<suite directory>] [--skip-install]");
+  }
+  const plain = (dir ?? ROOT_DIR).replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  if (plain === "" || plain === ROOT_DIR) {
+    return ROOT_DIR;
+  }
+  if (!SUITE_DIR.test(plain) || plain.split("/").includes("..")) {
+    throw new Error(`The suite directory must be a plain directory inside the repository, not ${dir}`);
+  }
+  return plain;
+}
+
+function suiteCommand(text, suiteDir) {
+  if (text.startsWith(NPM)) {
+    return `npm --prefix ${suiteDir} ${text.slice(NPM.length)}`;
+  }
+  if (text.startsWith(NPX_PLAYWRIGHT)) {
+    const rest = text.slice(NPX_PLAYWRIGHT.length);
+    return `npm exec --prefix ${suiteDir} --no -- playwright test --config=${suiteDir}${rest}`;
+  }
+  return text;
+}
+
+function suiteCommands(commands, suiteDir) {
+  return Object.fromEntries(
+    Object.entries(commands).map(([key, value]) => [
+      key,
+      typeof value === "string" ? suiteCommand(value, suiteDir) : suiteCommands(value, suiteDir),
+    ]),
+  );
+}
+
+function pointFactsAtSuite(target, suiteDir) {
+  const path = join(target, FACTS_FILE);
+  const facts = JSON.parse(readFileSync(path, "utf8"));
+  facts.suiteDir = suiteDir;
+  facts.commands = suiteCommands(facts.commands, suiteDir);
+  facts.healerPaths = facts.healerPaths.map((dir) => inSuite(suiteDir, dir));
+  writeFileSync(path, `${JSON.stringify(facts, null, 2)}\n`);
 }
 
 function mergePackageJson(target) {
@@ -218,17 +283,22 @@ function installDependencies(target) {
   run("npx playwright install chromium", target);
 }
 
-function init(target, { skipInstall }) {
+function init(target, { skipInstall, suiteDir }) {
   const lines = [];
-  const { written, kept } = copySuiteTemplate(target);
+  const suite = join(target, suiteDir);
+  const { written, kept } = copySuiteTemplate(target, suiteDir);
   lines.push(`Wrote ${written.length} files of the test suite.`);
   if (kept.length > 0) {
     lines.push(`Kept the files that already exist: ${kept.join(", ")}`);
   }
-  mergePackageJson(target);
-  lines.push("Added the suite's scripts to package.json.");
+  if (suiteDir !== ROOT_DIR && written.includes(FACTS_FILE)) {
+    pointFactsAtSuite(target, suiteDir);
+    lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
+  }
+  mergePackageJson(suite);
+  lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
   if (!skipInstall) {
-    installDependencies(target);
+    installDependencies(suite);
   }
   if (written.includes(MCP_FILE)) {
     lines.push(
@@ -240,7 +310,10 @@ function init(target, { skipInstall }) {
   lines.push(
     "",
     "Next:",
-    "  1. Fill in .env: the platform, the frontend, the administrator, STORE_ID and the customer passwords.",
+    ...(suiteDir === ROOT_DIR
+      ? []
+      : [`  Steps 1 to 4 run in ${suiteDir}/; the rest, and claude, in this directory, the repository root.`]),
+    `  1. Fill in ${inSuite(suiteDir, ".env")}: the platform, the frontend, the administrator, STORE_ID and the customer passwords.`,
     "  2. npm run codegen     GraphQL and REST types from the platform",
     "  3. npm test            the first test signs a new user in",
     "  4. npm run report && npm run report:open",
@@ -255,7 +328,7 @@ const [command, ...options] = process.argv.slice(2);
 try {
   const lines =
     command === "init"
-      ? init(process.cwd(), { skipInstall: options.includes("--skip-install") })
+      ? init(process.cwd(), { skipInstall: options.includes("--skip-install"), suiteDir: suiteDirOf(options) })
       : install(process.cwd());
   for (const line of lines) {
     process.stdout.write(`${line}\n`);

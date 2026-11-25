@@ -23,7 +23,7 @@ test.describe("organizations menu (customer of their own)", () => {
     await test.step(`arrange: a membership in ${otherName}`, async () =>
       arrange.customers.membership(account, await arrange.customers.organization(otherName)));
     const home = frontend.home();
-    const { topHeader } = home;
+    const { topHeader, organizationsMenu } = home;
 
     await test.step(`arrange: the header shows ${defaultName}`, async () => {
       await home.navigate();
@@ -31,8 +31,8 @@ test.describe("organizations menu (customer of their own)", () => {
     });
 
     await test.step(`act: switch to ${otherName}`, async () => {
-      await topHeader.openAccountMenu();
-      await topHeader.accountMenu.organizationOption(otherName).click();
+      await organizationsMenu.open();
+      await organizationsMenu.organizationOption(otherName).click();
     });
 
     await test.step(`assert: the header shows ${otherName}`, async () => {
@@ -52,21 +52,21 @@ test.describe("organizations menu search (customer of their own)", () => {
     await test.step(`arrange: memberships in ${SEARCH_THRESHOLD} more organizations`, () =>
       arrange.customers.searchableMemberships(account, [...matching, ...fillers]));
     const home = frontend.home();
-    const { accountMenu } = home.topHeader;
+    const { organizationsMenu } = home;
 
-    await test.step("arrange: open the account menu", async () => {
+    await test.step("arrange: open the organizations menu", async () => {
       await home.navigate();
-      await home.topHeader.openAccountMenu();
+      await organizationsMenu.open();
     });
 
-    await test.step(`act: search for "${token}"`, () => accountMenu.searchOrganizations(token));
+    await test.step(`act: search for "${token}"`, () => organizationsMenu.searchOrganizations(token));
 
     await test.step(`assert: the organizations named "${token} …" are listed, the others are not`, async () => {
       for (const name of matching) {
-        await expect(accountMenu.organization(name)).toBeVisible();
+        await expect(organizationsMenu.organization(name)).toBeVisible();
       }
       for (const name of fillers) {
-        await expect(accountMenu.organization(name)).toHaveCount(0);
+        await expect(organizationsMenu.organization(name)).toHaveCount(0);
       }
     });
   });
@@ -79,17 +79,17 @@ test.describe("organizations menu search (customer of their own)", () => {
         Array.from({ length: SEARCH_THRESHOLD }, () => uniqueId("test-organization")),
       ));
     const home = frontend.home();
-    const { accountMenu } = home.topHeader;
+    const { organizationsMenu } = home;
 
-    await test.step("arrange: open the account menu", async () => {
+    await test.step("arrange: open the organizations menu", async () => {
       await home.navigate();
-      await home.topHeader.openAccountMenu();
+      await organizationsMenu.open();
     });
 
-    await test.step(`act: search for "${NO_MATCH}"`, () => accountMenu.searchOrganizations(NO_MATCH));
+    await test.step(`act: search for "${NO_MATCH}"`, () => organizationsMenu.searchOrganizations(NO_MATCH));
 
     await test.step("assert: the empty state is shown", async () => {
-      await expect(accountMenu.organizationsEmptyList).toBeVisible();
+      await expect(organizationsMenu.organizationsEmptyList).toBeVisible();
     });
   });
 });
@@ -107,20 +107,20 @@ test.describe("organizations menu with locked memberships (anonymous, then signi
     });
     const signIn = frontend.signIn();
     const home = frontend.home();
-    const { accountMenu } = home.topHeader;
+    const { organizationsMenu } = home;
 
-    await test.step(`act: sign in as ${customer.credentials.username} and open the account menu`, async () => {
+    await test.step(`act: sign in as ${customer.credentials.username} and open the organizations menu`, async () => {
       await signIn.navigate();
       await signIn.signIn(customer.credentials.username, customer.credentials.password);
       await page.waitForURL((url) => !url.pathname.startsWith(signIn.path));
       await home.navigate();
-      await home.topHeader.openAccountMenu();
+      await organizationsMenu.open();
     });
 
     await test.step(`assert: ${lockedName} is listed but disabled, ${defaultName} is selectable`, async () => {
-      await expect(accountMenu.organization(lockedName)).toBeVisible();
-      await expect(accountMenu.organizationOption(lockedName)).toBeDisabled();
-      await expect(accountMenu.organizationOption(defaultName)).toBeEnabled();
+      await expect(organizationsMenu.organization(lockedName)).toBeVisible();
+      await expect(organizationsMenu.organizationOption(lockedName)).toBeDisabled();
+      await expect(organizationsMenu.organizationOption(defaultName)).toBeEnabled();
     });
   });
 
@@ -136,24 +136,27 @@ test.describe("organizations menu with locked memberships (anonymous, then signi
     });
     const signIn = frontend.signIn();
     const home = frontend.home();
-    const { accountMenu } = home.topHeader;
+    const { topHeader, organizationsMenu } = home;
 
-    await test.step(`act: sign in as ${customer.credentials.username} and open the account menu`, async () => {
+    await test.step(`act: sign in as ${customer.credentials.username} and open the organizations menu`, async () => {
       await signIn.navigate();
       await signIn.signIn(customer.credentials.username, customer.credentials.password);
       await page.waitForURL((url) => !url.pathname.startsWith(signIn.path));
       await home.navigate();
-      await home.topHeader.openAccountMenu();
+      await organizationsMenu.open();
     });
 
     await test.step("assert: both organizations are listed and disabled", async () => {
-      await expect(accountMenu.organizationOptions).toHaveCount(2);
-      for (const option of await accountMenu.organizationOptions.all()) {
+      await expect(organizationsMenu.organizationOptions).toHaveCount(2);
+      for (const option of await organizationsMenu.organizationOptions.all()) {
         await expect(option).toBeDisabled();
       }
     });
 
-    await test.step("act: open the dashboard", () => accountMenu.dashboardLink.click());
+    await test.step("act: open the dashboard from the account menu", async () => {
+      await topHeader.openAccountMenu();
+      await topHeader.accountMenu.dashboardLink.click();
+    });
     await test.step("assert: the dashboard opens", async () => {
       await expect(page).toHaveURL(DASHBOARD_PATH);
     });
@@ -166,25 +169,24 @@ test.describe("organizations menu with locked memberships (anonymous, then signi
       arrange.customers.membership(customer, await arrange.customers.organization(otherName)));
     const signIn = frontend.signIn();
     const home = frontend.home();
-    const { topHeader } = home;
-    const { accountMenu } = topHeader;
+    const { organizationsMenu } = home;
 
     await test.step(`arrange: sign in and see ${otherName} selectable, then close the menu`, async () => {
       await signIn.navigate();
       await signIn.signIn(customer.credentials.username, customer.credentials.password);
       await page.waitForURL((url) => !url.pathname.startsWith(signIn.path));
       await home.navigate();
-      await topHeader.openAccountMenu();
-      await expect(accountMenu.organizationOption(otherName)).toBeEnabled();
-      await topHeader.accountButton.click();
-      await expect(accountMenu.root).toBeHidden();
+      await organizationsMenu.open();
+      await expect(organizationsMenu.organizationOption(otherName)).toBeEnabled();
+      await organizationsMenu.button.click();
+      await expect(organizationsMenu.root).toBeHidden();
     });
 
     await test.step(`act: lock the membership in ${otherName}`, () => lockMembership(api, other));
 
     await test.step(`assert: after reopening the menu, ${otherName} is disabled`, async () => {
-      await topHeader.accountButton.click();
-      await expect(accountMenu.organizationOption(otherName)).toBeDisabled();
+      await organizationsMenu.button.click();
+      await expect(organizationsMenu.organizationOption(otherName)).toBeDisabled();
     });
   });
 });

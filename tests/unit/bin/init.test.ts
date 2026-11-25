@@ -392,6 +392,55 @@ test.describe("vc-qa-agents install and uninstall", () => {
     expect(output).toContain(`Kept ${SHIPPED}: it differs from the package's file and nothing records it`);
   });
 
+  test("replaces an install of the names before the vc- prefix, keeping and naming the edited ones", () => {
+    const earlier = {
+      ".claude/agents/qa-judge.md": "the earlier judge\n",
+      ".claude/skills/framework-rules/SKILL.md": "the earlier rules\n",
+      ".claude/commands/qa.md": "the earlier command\n",
+    };
+    for (const [path, content] of Object.entries(earlier)) {
+      writeIn(dir, path, content);
+    }
+    const files = Object.fromEntries(Object.entries(earlier).map(([path, content]) => [path, sha256(content)]));
+    writeIn(dir, MANIFEST, JSON.stringify({ package: "earlier", version: "0.0.1", files }));
+    writeIn(dir, ".claude/commands/qa.md", "edited here\n");
+
+    const output = agents(dir);
+
+    expect(existsSync(join(dir, ".claude/agents/qa-judge.md"))).toBe(false);
+    expect(existsSync(join(dir, ".claude/skills/framework-rules"))).toBe(false);
+    expect(readIn(dir, OTHER_SHIPPED)).toBe(shipped(OTHER_SHIPPED));
+    expect(readIn(dir, SHIPPED)).toBe(shipped(SHIPPED));
+    expect(readIn(dir, SAME_NAME)).toBe(shipped(SAME_NAME));
+    expect(readIn(dir, ".claude/commands/qa.md")).toBe("edited here\n");
+    expect(output).toContain(" 2 removed that the package no longer ships");
+    expect(output).toContain(
+      `Kept .claude/commands/qa.md: the package no longer ships it, but it was edited since it was installed. ` +
+        `The package now ships it as ${SAME_NAME}.`,
+    );
+    expect(Object.keys(manifestFiles(dir)).filter((path) => path in earlier)).toEqual([".claude/commands/qa.md"]);
+  });
+
+  test("names the files of the names before the vc- prefix on an install without a manifest, and keeps them", () => {
+    writeIn(dir, ".claude/agents/qa-judge.md", "the earlier judge\n");
+    writeIn(dir, ".claude/skills/framework-rules/SKILL.md", "the earlier rules\n");
+
+    const output = agents(dir);
+
+    expect(readIn(dir, ".claude/agents/qa-judge.md")).toBe("the earlier judge\n");
+    expect(readIn(dir, ".claude/skills/framework-rules/SKILL.md")).toBe("the earlier rules\n");
+    expect(readIn(dir, OTHER_SHIPPED)).toBe(shipped(OTHER_SHIPPED));
+    expect(output).toContain(
+      `Kept .claude/agents/qa-judge.md: versions before the vc- prefix shipped it under this name, now ${OTHER_SHIPPED}`,
+    );
+    expect(output).toContain(
+      "Kept .claude/skills/framework-rules/: versions before the vc- prefix shipped it under this name, now " +
+        ".claude/skills/vc-framework-rules/",
+    );
+    expect(output.match(/Kept \.claude\/skills\/framework-rules\//g)).toHaveLength(1);
+    expect(manifestFiles(dir)).not.toHaveProperty([".claude/agents/qa-judge.md"]);
+  });
+
   test("uninstall removes exactly the files it installed unchanged, and the manifest", () => {
     writeIn(dir, SAME_NAME, "the repository's own command\n");
     writeIn(dir, ".claude/agents/my-agent.md", "the repository's own agent\n");

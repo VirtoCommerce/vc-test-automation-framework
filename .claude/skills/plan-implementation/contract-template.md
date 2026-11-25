@@ -61,6 +61,8 @@ becomes its `issue` annotation. Never a skip or a workaround. -->
 
 - <the typecheck, lint (when the facts have one) and test commands from the facts, then the commands that run the new specs>
 
+<!-- Cases that change state on an account other specs of the suite also use run with `--workers=1`, in a series that includes those neighbouring specs: write the flag in the command here (`framework-rules`, Shared Accounts). `reconcile-run` compares the run with the flags written here. -->
+
 <!-- ## Approval
 Left out until a person approves. Written only by that person, or by the session they answered, quoting their reply word
 for word; never by an agent. One line, the bracket only when relayed:

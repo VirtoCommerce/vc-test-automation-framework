@@ -69,7 +69,9 @@ A criterion already covered is listed as covered, not planned again.
 
 Name the dataset records to read, the records and builders to add, the documents, page objects and `arrange`
 methods to add, the optional modules the cases need, and the cases whose correct behaviour the platform is known to
-break. This feeds Stand needs, Building blocks and Platform defects in the contract.
+break. A case that changes state on an account other specs also use (a shared dataset user) goes with the neighbouring
+specs of that account into a series run with `--workers=1`: it feeds the contract's Verification (`framework-rules`,
+Shared Accounts). This feeds Stand needs, Building blocks, Platform defects and Verification in the contract.
 
 ## Output
 

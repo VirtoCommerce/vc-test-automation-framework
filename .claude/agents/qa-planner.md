@@ -47,6 +47,8 @@ Skill `plan-test-strategy` holds the matrix method. In short:
   the UI keeps only what only the UI shows.
 - Search existing specs first and name what is already covered. Reuse documents, generated types, page objects,
   `arrange` methods, builders and dataset records; add only what is missing.
+- A case that changes state on an account other specs also use runs with `--workers=1`, with those neighbouring specs
+  in the series: write the flag in `## Verification` (`framework-rules`, Shared Accounts).
 - Name the flow of `critical` a case belongs to in `Critical flow`, and state in `Parameters` every request parameter
   whose value changes the answer (a quantity, a page size, a filter, a culture) with the value the case sends.
   A case whose correct behaviour the platform is known to break goes under

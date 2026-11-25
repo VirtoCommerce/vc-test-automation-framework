@@ -77,7 +77,8 @@ seed once with `commands.seed` before the first run and after a change to the se
   `arrange`, which removes it after the test, last first, so tests have no teardown code.
 - A test that changes the acting customer's own state (cart, lists, addresses, locks) uses a customer created for the
   test, never a dataset user: `shopperAs: "customer"` or an `arrange` customer method, if the suite has them; where it
-  has neither, add the `arrange` method that creates the customer (below).
+  has neither, add the `arrange` method that creates the customer (below); where there is no `arrange` layer, Shared
+  Accounts applies.
 - REST administration tests run as `roleFor.admin`, the role the project facts name for administration; the facts may
   name none, and then who administers is a scope question for the person. A test that
   locks, deletes or changes the password of the acting user creates its own user through `arrange`.
@@ -85,6 +86,11 @@ seed once with `commands.seed` before the first run and after a change to the se
   act when a builder gave the draft a client-side id the platform keeps, right after the act when the platform assigns
   the id, and always before the first assertion. `…Later` methods create nothing.
 - Data `arrange` has no method for gets a new `arrange` method, never teardown code in the spec.
+- **A client suite with no `arrange` layer** (the repository has none and the person did not ask for one) replaces
+  the rules above that name `arrange` with this one: the test removes what it created in a `finally`, last created
+  first, and never fails from inside the `finally`. A removal that throws is caught and reported with a `leaves data`
+  annotation that names the record, so it cannot hide the test's own failure; data the test cannot remove is reported
+  the same way.
 - Find records by search criteria, never by "is listed in the first N" windows. Assert on the test's own records,
   never on a whole shared list.
 - Prove a deletion by reading the record by id (the read returns `undefined` or 404), not by a search.
@@ -92,6 +98,14 @@ seed once with `commands.seed` before the first run and after a change to the se
 - Respect the stand profile's data modes and `owned` marks where the profile provides them: change only data the
   profile marks as owned. Where it does not yet, let `arrange` remove everything created and change nothing
   platform-wide outside the isolated tests.
+
+## Shared Accounts
+
+- Where a customer cannot be created for the test (a client suite with one shared dataset shopper), the cases that
+  change state on that account (cart, lists, addresses, locks) run with `--workers=1`. The contract's `## Verification`
+  command carries the flag, and so does every series. `test.describe.configure({ mode: "serial" })` is not enough: it
+  orders one describe in one worker, while `--repeat-each` and other specs still use the account in parallel workers.
+- The series also includes the neighbouring specs that use the same account, so a collision with them shows.
 
 ## Isolated Tests
 

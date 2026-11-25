@@ -45,11 +45,14 @@ not yours. Do not re-judge it; report an assertion-free test only when you see o
 Check the diff against every rule of `framework-rules`. The skill is the source, not memory.
 Report each break with file and line. Typical Critical findings: data created outside `arrange`, or data the code
 under test creates with no `...Later` removal registered right after the act; fixed waits (`waitForTimeout`,
-sleeps, `networkidle`); credentials, store ids or URLs as literals; a `test.fixme`, `test.skip`, retry or workaround
+sleeps, `networkidle`); credentials or URLs as literals, or a store id as a literal anywhere but one module-level constant; a `test.fixme`, `test.skip`, retry or workaround
 that hides a platform defect, or a `test.fail` that is not a known-issue mark (`framework-rules`, Platform Defects); a skip with no reason; a changed expected value or assertion that moves
 toward the build; shared state changed outside the isolated project's directory; a layer import the layer
 configuration forbids. Typical Warnings: duplicated building blocks, conditionals or casts in a spec, raw selectors
 in a spec, fallbacks that hide missing data, a deletion proven only by search.
+
+A break of a framework rule that the contract itself writes as an `assumed:` line (the person was never asked, or did not
+answer) is not Critical: the verdict is NEEDS_DISCUSSION, naming the rule and the line.
 
 Scope: anything in the diff that is not a contract case row or a `## Building blocks` entry, and not covered by an
 approved amendment, is Critical. Exception: a brief line `healer: <baseline> <new>` (two tree ids) means a heal
@@ -72,7 +75,9 @@ A shared stand is not ours alone. For every test the diff adds or changes:
   test creates is registered for removal with a `...Later` method right after the act, never after an assertion
   or after a step that can fail. A removal registered later, or missing, is Critical.
 - Every entity the test or the code under test creates is removed, or the test says why in a `leaves data`
-  annotation.
+  annotation. Your shell cannot query the stand: report "nothing left behind" as `not checked`, naming the removal
+  code you read instead, never as clean. A client suite with no `arrange` layer removes in a `finally`
+  (`framework-rules`).
 - Only data the stand profile marks `owned` is changed, where the profile provides data modes. Until it does:
   nothing platform-wide (settings, index, restart, a dataset user's own state) is changed outside the isolated
   project, and everything created is removed.

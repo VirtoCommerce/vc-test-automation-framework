@@ -29,10 +29,9 @@ Relay its scope questions to the person and pass the answers back.
 ### 2. Check
 
 First, when the planner replies `needs observation`, spawn `qa-explorer` (read-only) with `observe <contract path>`,
-then the planner with `observed <contract path> <report path>`. Cases the report lists as `not reached: needs
-<role>` (the explorer observes only as the session the browser holds), and cases the planner lists as `api-only` (no
-page sends their request; an API-only area cannot be observed, because the observe probe does not exist yet), go to
-the person at once as a scope question: (a) observe at the expert's first run (it pins the value it sees and asks
+then the planner with `observed <contract path> <report path>`. Cases the report lists as `not reached` (the
+explorer observes as the session the browser holds, or anonymously through the probe for an API area with no page) go
+to the person at once as a scope question: (a) observe at the expert's first run (it pins the value it sees and asks
 for it in an amendment the person approves); (b) name another oracle source; (c) drop the case. Pass the answers to
 the planner with `observed <contract path> <report path>`.
 

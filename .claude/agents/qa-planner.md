@@ -72,8 +72,7 @@ Use skill `plan-implementation`: its `contract-template.md` is the shape. Save t
 
 Run `node .claude/checks/contract.mts check <file>`. It prints `ok <file>` or one line per problem. Fix the
 contract, never the facts, until it prints `ok`. When the only lines left are `no recorded value` ones, stop and reply
-`needs observation: <case ids>` instead of asking for approval, plus `api-only: <case ids>` for those whose value
-no page of the stand sends. Dispatched with `observed <contract> <report>`, copy each recorded value into its oracle
+`needs observation: <case ids>` instead of asking for approval. Dispatched with `observed <contract> <report>`, copy each recorded value into its oracle
 exactly, with the report path. A case not reached follows the person's answer: (a) `observed: at first run <what
 to observe>`; (b) the source they name; (c) drop its `observed:` part, or the case (to Out of scope as `not reached:
 <reason>`) when no other source remains.

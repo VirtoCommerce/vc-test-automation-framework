@@ -49,10 +49,8 @@ Dispatch `qa-planner` with the request (and the report paths for an area or a ga
 First, when the planner replies `needs observation` (its only check lines are `no recorded value`), observe before
 the approval: dispatch `qa-explorer` with `observe <contract path>`. It is read-only and records every `observed:`
 case in `.qa/reports/explore-<slug>-observed.md`. Then dispatch the planner with `observed <contract path> <report
-path>` to copy the values in. Cases the report lists as `not reached: needs <role>` (the explorer observes only as
-the session the browser holds), and cases the planner lists as `api-only` (no page sends their request; an API-only
-area cannot be observed, because the observe probe does not exist yet), go to the person at once as a scope
-question: (a) observe at the expert's first run (it pins the value it sees and asks for it in an amendment the
+path>` to copy the values in. Cases the report lists as `not reached` (the explorer observes as the session the browser holds, or
+anonymously through the probe for an API area with no page) go to the person at once as a scope question: (a) observe at the expert's first run (it pins the value it sees and asks for it in an amendment the
 person approves); (b) name another oracle source; (c) drop the case. Pass the answers to the planner with
 `observed <contract path> <report path>`.
 

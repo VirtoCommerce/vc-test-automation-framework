@@ -1,6 +1,6 @@
 ---
 name: explore-api
-description: "Map an area of an API on the stand: the operations the schema declares, and what the page's own traffic shows the live service answering, with every difference. Read-only; sends no request of its own; writes only the report under .qa/reports/"
+description: "Map an area of an API on the stand: the operations the schema declares, and what the page's own traffic shows the live service answering, with every difference; with no page, the schema and anonymous reads. Read-only; sends no request of its own but the two sanctioned checks; writes only the report under .qa/reports/ and probe files under .qa/probes/"
 argument-hint: "<api-area>"
 ---
 
@@ -15,7 +15,12 @@ compares with it.
 
 - Find the schema the repository holds for the area: a generated schema file, an OpenAPI document, or the operations the
   existing specs and `arrange` methods call (Grep, Glob). Read the knowledge snapshot (`knowledgeDir`) too.
-- No schema in the repository: the live service is the only source, and the report says so.
+- No schema in the repository and none in `knowledgeDir` (`schema-graphql.graphql`, `schema-rest.txt`): run
+  `node .claude/checks/introspect.mts graphql`, and `rest` for a REST area. It asks the stand's backend for its schema
+  without a credential, saves it in `knowledgeDir` with the capture date (`schema-rest.txt` holds one operation per
+  line, to search with Grep) and prints only counts. An answer other than 200 is `not reached: the backend describes
+  its schema only to a signed-in user`, not a stop.
+- Still none: the live service is the only source, and the report says so.
 
 ## Step 2: Operations
 
@@ -30,7 +35,9 @@ List a mutation and any state-changing request here, but never call one.
 
 ## Step 3: Schema vs Live
 
-Your only live source is what the page itself sends: open the pages of the area with the browser (the stand's origins:
+Your only live source is what the page itself sends. With no browser (no `playwright` tools, or no page of the area),
+write `not reached: no browser session of the stand` here, keep Step 2 from the schema and go on; never stop for it.
+Otherwise open the pages of the area with the browser (the stand's origins:
 `node .claude/checks/stand.mts`) and read the requests and answers with `browser_network_requests`; read one answer's
 body with `browser_network_request`, passing only its `index` and `part: "response-body"` (the hook refuses any other
 form). Never open the body of a sign-in, token or refresh request (`/connect/token`, an `auth` or `login` path): it
@@ -54,12 +61,19 @@ needs a role). Never trigger one to see it.
 
 ## Observing for a Contract
 
-The explorer's `observe` mode records the value one case asserts. First confirm who is signed in, from the page (the
-account menu) or from the page's own answer that names the current user: it must be `roles[<the case's data role>]`, or
-no account for `none`. Any other account, or none you can confirm: write `not reached: needs <role>`. Then take the
-value from the answer of the request the page sent for that case (`browser_network_request`, `part: "response-body"`)
-and write it raw, never quoted or escaped: a JSON string value without its JSON quotes. A value no request of the page
-shows is `not reached: no page sends it`.
+The explorer's `observe` mode records the value one case asserts, in `.qa/reports/explore-<slug>-observed.md`. First
+confirm who is signed in, from the page (the account menu) or from the page's own answer that names the current user:
+it must be `roles[<the case's data role>]`, or no account for `none`. Any other account, or none you can confirm:
+write `not reached: needs <role>`. Then take the value from the answer of the request the page sent for that case
+(`browser_network_request`, `part: "response-body"`) and write it raw, never quoted or escaped: a JSON string value
+without its JSON quotes.
+
+No page sends it: only for data role `none`, read it with the probe. Write `.qa/probes/<slug>.graphql` (one
+`query`, never a mutation) or `.qa/probes/<slug>.get` (one line, the path and query to GET), and run
+`node .claude/checks/probe.mts <that file>`. It sends the request anonymously, read-only, and prints the status and the
+answer (a credential-shaped answer is not shown). Take the value from that answer, `(<where seen>)` being the probe
+file. A 401 or 403 is `not reached: needs <role>`; no probe can sign in. A value nothing can show is
+`not reached: no page sends it`.
 
 ## Done
 
@@ -67,7 +81,7 @@ The two sections are in the report, each with its rows, `none observed` (looked,
 (could not look: a role, a request the page never sends), and every row says where it was seen:
 schema file, existing spec or `arrange` method, or the page's traffic. Nothing outside `.qa/reports/` changed: `git status --short` now shows what the one you took before your first write
 showed (the repository may already hold untracked or changed files, or not be under git: then say that it could not be
-compared), and you sent no request of your own.
+compared), and you sent no request of your own but the sanctioned `introspect` and `probe` checks.
 
 ## Example from this repository
 

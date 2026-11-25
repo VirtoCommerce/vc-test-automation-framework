@@ -15,6 +15,7 @@ const GITIGNORE_LINES = [
   ".qa/runs/",
   ".qa/reports/",
   ".qa/kb/",
+  ".qa/probes/",
   ".qa/judge/",
   ".qa/*.local.env",
   ".qa/client-terms.local.txt",

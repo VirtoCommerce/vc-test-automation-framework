@@ -77,6 +77,12 @@ and macOS, by `icacls` on Windows, where the mode does nothing. When it cannot r
 warning; restrict the file yourself then. The server reads the file when it starts, so restart it after the file
 changes. `node .claude/checks/stand.mts` prints `sign-in: ready` when the file matches the run's variables.
 
+An API area that no page uses needs no browser. `qa-explorer` reads its schema with `node .claude/checks/introspect.mts
+graphql` (or `rest`), which asks the backend of the stand without a credential and saves the schema in `.qa/kb/`, and
+observes values of anonymous cases with `node .claude/checks/probe.mts`, which sends one read-only query or GET that
+the explorer wrote under `.qa/probes/` (git-ignored). Neither signs in: a case that needs a role is reported as not
+reached.
+
 ## Use
 
 Start Claude Code in the repository and run `/qa <task>`: a ticket key, a link to a specification, an area such as

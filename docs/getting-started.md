@@ -16,9 +16,9 @@ npx vc-qa-agents init
 It adds its scripts to `package.json` without replacing yours, installs the suite's dev dependencies (Playwright,
 zod, TypeScript, Biome, Allure, the GraphQL and REST type generators, `@babel/parser`) at the versions the framework
 uses, installs Chromium, and installs the [QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the
-suite. It never overwrites a template file, `.env`, `.claude/settings.json` or `.qa/project.json` that exists, but it
-replaces the agent files in `.claude/` with the package's. `--skip-install` leaves the dependencies out, and any other
-argument fails with the usage.
+suite. It never overwrites a template file, `.env`, `.claude/settings.json` or `.qa/project.json` that exists, nor
+an agent, command or skill of the repository's own (see [Update and remove](guides/qa-agents.md#update-and-remove)).
+`--skip-install` leaves the dependencies out, and any other argument fails with the usage.
 
 | Path                                                              | Holds                                                                                   |
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -42,6 +42,24 @@ npm run codegen                         # GraphQL and REST types from the platfo
 npm test                                # every project
 npm run report && npm run report:open   # the Allure report
 ```
+
+### A suite in a subdirectory
+
+A repository that keeps the suite as its own npm project in a subdirectory gives `init` that directory, run from the
+repository root with the package installed in the subdirectory:
+
+```shell
+mkdir tests-suite && cd tests-suite
+npm init -y
+npm install --save-dev --save-exact @virtocommerce/test-automation-framework
+cd ..
+npm exec --prefix tests-suite -- vc-qa-agents init tests-suite
+```
+
+The suite's files, its `package.json` and its dependencies go to `tests-suite/`; the agents (`.claude/`),
+`.qa/project.json` and `.mcp.json` stay at the root, where Claude Code must be opened, and the facts name the
+directory as `suiteDir` (see [Where the suite lives](guides/qa-agents.md#where-the-suite-lives)). Run the commands
+above in `tests-suite/`.
 
 The rest of this guide sets a suite up by hand, piece by piece.
 

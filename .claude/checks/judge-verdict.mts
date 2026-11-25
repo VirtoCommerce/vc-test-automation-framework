@@ -13,7 +13,7 @@ export type JudgeVerdict = {
 };
 
 const CLI_FILE_NAME = "judge-verdict.mts";
-const DEFAULT_CRITERIA_DIR = ".claude/skills/judge-criteria";
+const DEFAULT_CRITERIA_DIR = ".claude/skills/vc-judge-criteria";
 const CRITERION_LINE = /^- `([a-z][a-z0-9-]*)`/;
 const PROOF_ROLE: JudgeRole = "expert";
 const PROOF_CRITERION = "fails-when-behaviour-breaks";

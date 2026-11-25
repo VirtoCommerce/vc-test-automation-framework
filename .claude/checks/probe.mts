@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { runVariables } from "./browser-secrets.mts";
+import { importSuiteDependency } from "./project-facts.mts";
 import { CREDENTIAL_SHAPE, PROBE_FILE } from "./readonly-shell.mts";
 import { standOrigins } from "./stand.mts";
 import { anonymousRequest, verifiesSsl } from "./stand-request.mts";
@@ -23,7 +24,7 @@ function problem(text: string): Error {
 export async function checkQuery(document: string): Promise<void> {
   let graphql: typeof import("graphql");
   try {
-    graphql = await import("graphql");
+    graphql = await importSuiteDependency<typeof import("graphql")>("graphql");
   } catch {
     throw problem("the graphql package is not installed");
   }

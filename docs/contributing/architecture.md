@@ -2,18 +2,18 @@
 
 ## Repository layout
 
-| Path             | Contains                                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------ |
-| `src/<area>/`    | The framework, one directory for each area, each with an `index.ts` that is its public API             |
-| `tests/unit/`    | The unit tests of the framework, one directory for each area, and `bin/` for `vc-qa-agents`            |
-| `docs/`          | This documentation, shipped with the package                                                           |
-| `virtocommerce/` | The test suite of the Virto Commerce solution, which uses the framework like any suite                 |
-| `.biome/`        | The shared Biome configuration and the area boundaries                                                 |
-| `.claude/`       | The QA agents, their commands, skills, check scripts and hook, shipped with the package                |
-| `.qa/`           | The facts the QA agents work from, and the example that the package ships                              |
-| `bin/`           | `vc-qa-agents`, which installs the QA agents into a repository, or with `init` writes a new test suite |
-| `templates/`     | The test suite that `vc-qa-agents init` writes, shipped with the package                               |
-| `scripts/`       | Repository scripts, such as the documentation check                                                    |
+| Path             | Contains                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `src/<area>/`    | The framework, one directory for each area, each with an `index.ts` that is its public API                                |
+| `tests/unit/`    | The unit tests of the framework, one directory for each area, and `bin/` for `vc-qa-agents`                               |
+| `docs/`          | This documentation, shipped with the package                                                                              |
+| `virtocommerce/` | The test suite of the Virto Commerce solution, which uses the framework like any suite                                    |
+| `.biome/`        | The shared Biome configuration and the area boundaries                                                                    |
+| `.claude/`       | The QA agents, their commands, skills, check scripts and hook, shipped with the package                                   |
+| `.qa/`           | The facts the QA agents work from, and the example that the package ships                                                 |
+| `bin/`           | `vc-qa-agents`, which installs, updates and removes the QA agents of a repository, or with `init` writes a new test suite |
+| `templates/`     | The test suite that `vc-qa-agents init` writes, shipped with the package                                                  |
+| `scripts/`       | Repository scripts, such as the documentation check                                                                       |
 
 The package publishes `dist`, `docs`, the shared Biome configuration, the QA agents (`.claude/` without what
 `.claude/checks/ours-only.json` names), `.qa/project.example.json`, `bin`, `templates` and the changelog.
@@ -24,6 +24,12 @@ check scripts in `.claude/checks/` import nothing from `src/` or from a test sui
 (`scan-prompts.mts` checks it), so any repository installs them with `npx vc-qa-agents` and its own
 `project.json`. Files only this repository uses, such as `/code-review-full`, are listed in
 `.claude/checks/ours-only.json` and left out of the package.
+
+Every agent, command and skill the package ships is named with the prefix `vc-`, in its file or directory name and in
+the `name` of its frontmatter, such as `vc-qa-planner`, `/vc-qa` and `vc-framework-rules`: Claude Code identifies
+agents and skills by that name and commands by the file name, and the prefix keeps them apart from the ones a
+repository already has. A new one takes the prefix too; the read-only hook identifies its agents by these names. A
+file only this repository uses keeps its own name, and the check scripts and the hook keep theirs.
 
 The repository has one `package.json`, which is also the framework package. The `virtocommerce` test suite lives in
 this repository, so that the CI pipelines of the Virto Commerce platform, frontend and modules run it against the

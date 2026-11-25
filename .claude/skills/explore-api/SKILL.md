@@ -8,7 +8,8 @@ argument-hint: "<api-area>"
 
 Used by `qa-explorer`. The result is the two API sections of `.qa/reports/explore-<slug>.md`. It writes no
 request code, no query and no test. Read first: the skill `framework-rules`, then `project-facts`
-(`node .claude/checks/project-facts.mts`).
+(`node .claude/checks/project-facts.mts`). Before the first step run `git status --short` and keep its output: Done
+compares with it.
 
 ## Step 1: The Schema
 
@@ -62,11 +63,15 @@ shows is `not reached: no page sends it`.
 
 ## Done
 
-The two sections are in the report, each with its rows or `none observed`, and every row says where it was seen:
-schema file, existing spec or `arrange` method, or the page's traffic. Nothing outside `.qa/reports/` changed
-(`git status`), and you sent no request of your own.
+The two sections are in the report, each with its rows, `none observed` (looked, found nothing) or `not reached: <why>`
+(could not look: a role, a request the page never sends), and every row says where it was seen:
+schema file, existing spec or `arrange` method, or the page's traffic. Nothing outside `.qa/reports/` changed: `git status --short` now shows what the one you took before your first write
+showed (the repository may already hold untracked or changed files, or not be under git: then say that it could not be
+compared), and you sent no request of your own.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - GraphQL: schema `virtocommerce/graphql/generated/schema.graphql`, operations in `virtocommerce/graphql/operations/`,
   endpoint `/graphql` on the backend host.

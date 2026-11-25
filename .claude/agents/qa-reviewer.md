@@ -111,6 +111,8 @@ Output format, exactly (this one, not the skill's):
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Style source: `CLAUDE.md` and `docs/contributing/conventions.md` (no code comments, `function` declarations,
   "frontend" not "storefront"); `npm run check` sorts imports.
 - Layer rules: `.biome/layers.json`; specs import Playwright only through `@fixtures`.

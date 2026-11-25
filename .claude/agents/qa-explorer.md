@@ -99,11 +99,14 @@ API area, these two sections:
 ```
 
 Start with one line: the area, the date, and what was not reached. Each section is a short list or table; the
-skills say what goes in it. A section with nothing to say holds the line `none observed`, never nothing.
+skills say what goes in it. A section with nothing to say holds the line `none observed`; one you could not look at holds `not reached: <why>`;
+never nothing.
 
 Reply with the report path and the count under each section, one line each. Nothing else.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Test id attribute: `data-test-id`; the page objects are in `virtocommerce/pages/frontend/` and
   `virtocommerce/pages/backend/` (`virtocommerce/pages/README.md` says where each kind lives).

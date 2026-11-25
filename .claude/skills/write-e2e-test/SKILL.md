@@ -154,6 +154,8 @@ changed spec, with the run record the expert agent describes. Add `--headed --wo
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Projects: `e2e-frontend` (`virtocommerce/tests/e2e/frontend/<area>/<topic>.spec.ts`; areas account, cart, catalog,
   checkout, lists, site; `E2E_WORKERS` workers) and `e2e-backend` (`virtocommerce/tests/e2e/backend/page-builder/`; one
   worker, the page list is shared, the admin UI signed in as `ADMINISTRATOR`).

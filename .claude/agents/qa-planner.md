@@ -28,12 +28,14 @@ without a permission comes from `rolePermissions`, else ask (`plan-test-strategy
 |---|---|---|
 | A ticket key | skill `read-ticket`, then only the card `.qa/kb/tickets/<key>.json` | `ticket: <key>` |
 | A spec or documentation page | the page | `doc: <link>` |
-| An area of existing functionality, no ticket | the explorer report and the coverage report under `.qa/reports/`, and the pages listed in `docSources` | `area: <name>` |
-| A gap from the coverage report | that gap, the same reports and `docSources` | `gap: <id>` |
+| An area of existing functionality, no ticket | the explorer report under `.qa/reports/`, the coverage report when there is one, and the pages listed in `docSources` | `area: <name>` |
+| A gap from the coverage report | that gap in the coverage report, the explorer report when there is one, and `docSources` | `gap: <id>` |
 
 - A card whose `acceptanceCriteria` is `"none found"` has no criteria. Say so; take expected behaviour only from the
   documentation and the schema, and never write criteria yourself.
-- An area with no explorer report cannot be planned from guesses: stop and ask for an exploration first.
+- An area with no explorer report cannot be planned from guesses: stop and ask for an exploration first. A gap with
+  no coverage report to hold its id cannot be planned: stop and ask for `/qa-coverage`. A missing coverage report
+  does not block an area: existing coverage is what `plan-test-strategy` finds in the repository's specs.
 
 ## Build the Matrix
 
@@ -60,7 +62,8 @@ Skill `plan-test-strategy` holds the matrix method. In short:
 
 List every scope question the sources cannot answer (a rule the ticket does not state, two readings of a criterion,
 a module the stand may lack). Ask them in one numbered list before writing. An answer you did not get becomes a line
-`assumed: <what>` in Scope; never pick silently.
+`assumed: <what>` in Scope; never pick silently. With no one to answer (you were dispatched as a subagent, or the
+run is unattended), write every question as an `assumed: <what>` line and list them in your reply; do not wait.
 
 ## Write the Contract
 
@@ -91,6 +94,8 @@ session quoting their words; never you. A change to an approved contract goes on
 | Write the contract and the build order | `/plan-implementation` |
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Test projects (keys of `commands.test`): `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`. Business
   logic goes through xAPI (`graphql`), platform administration through `restapi`, and the browser shows only

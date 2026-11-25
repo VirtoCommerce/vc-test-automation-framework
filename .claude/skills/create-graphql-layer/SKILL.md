@@ -150,6 +150,8 @@ Some setup or checks have no xAPI operation. There are no REST clients: call the
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Reference documents: `virtocommerce/graphql/operations/cart/add-item.graphql`,
   `virtocommerce/graphql/operations/cart/get-cart.graphql`; codegen config `virtocommerce/codegen.ts`.
 - Operation areas: cart, category, contact, marketing, order, page-context, pickup-location, product, quote,

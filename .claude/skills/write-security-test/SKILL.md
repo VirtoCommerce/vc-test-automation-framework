@@ -236,6 +236,8 @@ describes.
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Reference specs: `virtocommerce/tests/restapi/security/api-keys.spec.ts` (401 and 403 with a key holder),
   `virtocommerce/tests/restapi/platform/assets.spec.ts` (anonymous 401),
   `virtocommerce/tests/graphql/security/users.spec.ts` (another organization's user: data `null`, code `Forbidden`),

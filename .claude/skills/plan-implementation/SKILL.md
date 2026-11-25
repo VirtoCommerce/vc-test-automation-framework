@@ -60,6 +60,8 @@ never write it.
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 All paths are in the suite directory `virtocommerce/`.
 
 | Artifact | Location | Pattern reference |

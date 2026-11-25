@@ -203,6 +203,8 @@ When reviewing several files, write one section per file, then an overall summar
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - `suiteDir` is `virtocommerce`; the layer configuration is `.biome/layers.json`; the tables are in `CLAUDE.md`
   "Layers".
 - Page object rules: `virtocommerce/pages/README.md`.

@@ -178,6 +178,8 @@ seed once with `commands.seed` before the first run and after a change to the se
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Fixtures entry `virtocommerce/fixtures/index.ts` (`@fixtures`); options `user`, `shopperAs`, `modules`; module
   constants `MODULES` in `virtocommerce/modules.ts` (`@modules`), each `minVersion` the edge version the suite is
   proven on.

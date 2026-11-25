@@ -12,8 +12,9 @@ You are orchestrating the planning stage. Spawn the `qa-planner` agent to turn t
 - an area of existing functionality ("cover the cart") or a gap id from the coverage report
 - a plain-text requirement
 
-An area or a gap needs the explorer's report and the coverage report first; when they do not exist, say so and offer
-`/qa-explore` and `/qa-coverage` before planning.
+An area needs the explorer's report first, and a gap needs the coverage report that holds it; when the one it needs
+does not exist, say so and offer `/qa-explore` or `/qa-coverage` before planning. The other report is read when there
+is one and does not block planning: without a coverage report the planner finds existing coverage in the specs.
 
 ## Steps
 

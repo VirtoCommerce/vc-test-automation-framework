@@ -87,6 +87,8 @@ Then `plan-implementation` turns it into the contract file.
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 | Signal | Project |
 |---|---|
 | Result of an xAPI query or mutation, frontend business logic (totals, promotions, checkout) | `graphql` |

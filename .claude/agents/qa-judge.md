@@ -94,6 +94,8 @@ change. Nothing else.
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Projects: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`; specs are under `virtocommerce/tests/`,
   so `<spec>` reads like `virtocommerce/tests/graphql/cart/cart-items.spec.ts`.
 - Skips come from `test.use({ modules: { … } })`, which skips with the missing module as the reason; a

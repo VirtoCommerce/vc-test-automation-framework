@@ -171,6 +171,8 @@ on the changed spec, with the run record the expert agent describes.
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Reference specs: `virtocommerce/tests/restapi/pricing/pricelists.spec.ts`,
   `virtocommerce/tests/restapi/security/api-keys.spec.ts`, `virtocommerce/tests/restapi/content/validation.spec.ts`.
 - Identities: `(store administrator)`, which is our `roleFor.admin` (`user: STORE_ADMINISTRATOR`), `(anonymous)`,

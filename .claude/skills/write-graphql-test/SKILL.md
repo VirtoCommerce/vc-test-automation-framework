@@ -143,6 +143,8 @@ facts on the changed spec, with the run record the expert agent describes.
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Reference specs: `virtocommerce/tests/graphql/cart/cart-items.spec.ts`,
   `virtocommerce/tests/graphql/cart/shopping-lists.spec.ts` (`shopperAs: "customer"`),
   `virtocommerce/tests/graphql/security/users.spec.ts` (`executeRaw`).

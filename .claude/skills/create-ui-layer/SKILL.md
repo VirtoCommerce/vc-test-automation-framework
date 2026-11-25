@@ -173,6 +173,8 @@ that uses the page object. Run the spec with each relevant setting value when th
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Rules for the directory: `virtocommerce/pages/README.md`; Biome's one-class-per-file and kebab-case rules for it are
   in `.biome/layers.json`.
 - Frontend factory: `virtocommerce/pages/frontend/frontend.ts` (`Frontend`, `FrontendSettings`).

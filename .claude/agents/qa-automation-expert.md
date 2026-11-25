@@ -109,6 +109,8 @@ approval; findings. End with
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Test projects, the keys of `commands.test`: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`. Specs
   live in `virtocommerce/tests/` (`restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/`, `isolated/`).
 - `roleFor.admin` is `store administrator`: its case writes `test.use({ user: STORE_ADMINISTRATOR })` from

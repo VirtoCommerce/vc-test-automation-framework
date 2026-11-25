@@ -52,10 +52,16 @@ function hasHook(settingsPath) {
   return readFileSync(settingsPath, "utf8").includes(HOOK_SCRIPT.split("/").pop());
 }
 
-function missingIgnores(target) {
+function addIgnores(target) {
   const path = join(target, ".gitignore");
-  const ignored = existsSync(path) ? readFileSync(path, "utf8").split(/\r?\n/) : [];
-  return GITIGNORE_LINES.filter((line) => !ignored.includes(line));
+  const text = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const ignored = text.split(/\r?\n/).map((line) => line.trim());
+  const missing = GITIGNORE_LINES.filter((line) => !ignored.includes(line));
+  if (missing.length > 0) {
+    const separator = text === "" || text.endsWith("\n") ? "" : "\n";
+    writeFileSync(path, `${text}${separator}${missing.join("\n")}\n`);
+  }
+  return missing;
 }
 
 function install(target) {
@@ -80,9 +86,9 @@ function install(target) {
     lines.push("Kept your .qa/project.json.");
   }
 
-  const ignores = missingIgnores(target);
+  const ignores = addIgnores(target);
   if (ignores.length > 0) {
-    lines.push(`Add to .gitignore: ${ignores.join(" ")}`);
+    lines.push(`Added to .gitignore: ${ignores.join(" ")}`);
   }
   if (!existsSync(join(target, "node_modules", "@babel", "parser"))) {
     lines.push("The checks need @babel/parser: npm install --save-dev --save-exact @babel/parser");

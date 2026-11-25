@@ -17,7 +17,8 @@ node .claude/checks/project-facts.mts
 ```
 
 It prints the validated JSON. It prints one line and exits with 1 when the file is missing, is not valid JSON or has
-a missing or invalid field, for example `project.json: commands.typecheck is missing`.
+a missing or invalid field, for example `project.json: commands.typecheck is missing`. It also fails while an example
+value is left in: a role account on `your-company.test` or a tracker key pattern of the project `PROJ`.
 
 ## Step 2: Stop When It Fails
 

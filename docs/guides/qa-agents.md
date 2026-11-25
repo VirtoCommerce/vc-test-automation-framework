@@ -20,8 +20,8 @@ npx vc-qa-agents
 
 `vc-qa-agents` copies the agents, commands, skills, check scripts and hook into `.claude/`, replacing the copies of
 an earlier version. It creates `.claude/settings.json` with the read-only shell hook and `.qa/project.json` from an
-example, but never changes either one once it exists, and it lists the `.gitignore` entries that are missing. Run it
-again after you upgrade the package. Commit `.claude/` and `.qa/project.json`; the other files under `.qa/` are the
+example, but never changes either one once it exists, and it appends the missing entries for the agents' working files
+to `.gitignore`. Run it again after you upgrade the package. Commit `.claude/` and `.qa/project.json`; the other files under `.qa/` are the
 agents' working files.
 
 The check scripts are TypeScript, run by Node 22.18 or newer without a build, and parse specs with `@babel/parser`.
@@ -29,8 +29,9 @@ The check scripts are TypeScript, run by Node 22.18 or newer without a build, an
 ## Describe your repository
 
 Replace the example values in `.qa/project.json`, then check it with `node .claude/checks/project-facts.mts`, which
-prints the facts or the first field that is wrong. Every agent reads the file through that command and stops when it
-fails.
+prints the facts or the first field that is wrong. It also fails while an example value is left in: a role account on
+`your-company.test` or a tracker key pattern of the project `PROJ`. Every agent reads the file through that command
+and stops when it fails.
 
 | Field             | Holds                                                                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |

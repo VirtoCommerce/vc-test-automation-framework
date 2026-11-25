@@ -53,6 +53,8 @@ const PROJECT_KEY_SUFFIXES = ["", "1", "12"];
 const SAMPLE_NUMBERS = ["1", "12", "123", "1234", "12345", "123456", "1234567"];
 const WORK_ITEM_PREFIXES = ["", "AB#", "#"];
 const LOST_ESCAPE = /(?<![\\A-Za-z0-9])[dws][+*{]/;
+const EXAMPLE_ACCOUNT_DOMAIN = "@your-company.test";
+const EXAMPLE_PROJECT = "PROJ";
 
 export const SHORT_NAME_SEGMENT = /~\d/;
 
@@ -481,9 +483,29 @@ export function readProjectFactsIn(projectDir: string): ProjectFacts {
   return readProjectFacts(join(projectDir, PROJECT_FACTS_PATH));
 }
 
+/**
+ * Rejects the values that the example facts and the suite template ship with: a role account on `your-company.test`
+ * and a tracker key pattern of the project `PROJ`. Only the reader that agents run first applies it, so the hook and
+ * the other checks keep working on a fresh install.
+ *
+ * @throws Error `"project.json: <path> <problem>"` naming the first example value.
+ */
+export function rejectExampleValues(facts: ProjectFacts): ProjectFacts {
+  const example = Object.entries(facts.roles).find(([, account]) =>
+    account.toLowerCase().endsWith(EXAMPLE_ACCOUNT_DOMAIN),
+  );
+  if (example !== undefined) {
+    fail(`roles["${example[0]}"]`, `is the example account "${example[1]}": put the account of the stand`);
+  }
+  if (facts.tracker.keyPattern.match(PROJECT_KEY_WORD)?.some((word) => word === EXAMPLE_PROJECT)) {
+    fail("tracker.keyPattern", `names the example project ${EXAMPLE_PROJECT}: put the project key of the tracker`);
+  }
+  return facts;
+}
+
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
-    process.stdout.write(`${JSON.stringify(readProjectFacts(), null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(rejectExampleValues(readProjectFacts()), null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

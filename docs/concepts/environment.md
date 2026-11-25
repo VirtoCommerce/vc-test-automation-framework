@@ -22,6 +22,10 @@ Commerce-based solution needs, and each test suite extends them with its own.
 `BACKEND_BASE_URL` must be an origin, without a path, query or fragment, and without a user name or password.
 `API_WORKERS` and `E2E_WORKERS` limit the projects that the [Playwright config](config.md) helpers return.
 
+The administrator is required, because a test suite cannot run without it: the seed writes the dataset as the
+administrator, the installed modules that gate collections and tests are read with its token, and `workerAdmin`
+arranges the data that the tests of a file share.
+
 ## Extending the variables
 
 A test suite extends `envSchema` with its own variables and can redefine a variable to change its default:

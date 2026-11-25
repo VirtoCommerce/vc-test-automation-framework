@@ -83,6 +83,67 @@ test.describe("vc-qa-agents init", () => {
   });
 });
 
+test.describe("vc-qa-agents install", () => {
+  let dir = "";
+
+  test.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vc-install-"));
+  });
+
+  test.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("appends the missing entries to .gitignore and keeps the existing ones", () => {
+    writeFileSync(join(dir, ".gitignore"), "node_modules/\n.qa/runs/");
+
+    const output = execFileSync(process.execPath, [BIN], { cwd: dir, encoding: "utf8" });
+
+    const lines = readFileSync(join(dir, ".gitignore"), "utf8").split("\n");
+    expect(lines.slice(0, 3)).toEqual(["node_modules/", ".qa/runs/", ".qa/contracts/"]);
+    expect(lines.filter((line) => line === ".qa/runs/")).toHaveLength(1);
+    expect(lines).toContain(".playwright-mcp/");
+    expect(output).toContain("Added to .gitignore: .qa/contracts/");
+  });
+
+  test("leaves .gitignore alone on a second run", () => {
+    execFileSync(process.execPath, [BIN], { cwd: dir });
+    const first = readFileSync(join(dir, ".gitignore"), "utf8");
+
+    const output = execFileSync(process.execPath, [BIN], { cwd: dir, encoding: "utf8" });
+
+    expect(readFileSync(join(dir, ".gitignore"), "utf8")).toBe(first);
+    expect(output).not.toContain(".gitignore");
+  });
+
+  test("the facts reader fails while the example accounts are left in", () => {
+    execFileSync(process.execPath, [BIN], { cwd: dir });
+
+    const result = spawnSync(process.execPath, [".claude/checks/project-facts.mts"], { cwd: dir, encoding: "utf8" });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('roles["shop admin"] is the example account "admin@your-company.test"');
+  });
+
+  test("the facts reader fails while the example tracker project is left in", () => {
+    execFileSync(process.execPath, [BIN], { cwd: dir });
+    const path = join(dir, ".qa", "project.json");
+    const facts = readJson(path);
+    writeFileSync(
+      path,
+      JSON.stringify({
+        ...facts,
+        roles: { "shop admin": "admin", buyer: "buyer@acme.com", "other buyer": "other@acme.com" },
+      }),
+    );
+
+    const result = spawnSync(process.execPath, [".claude/checks/project-facts.mts"], { cwd: dir, encoding: "utf8" });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("tracker.keyPattern names the example project PROJ");
+  });
+});
+
 test.describe("vc-qa-agents arguments", () => {
   let dir = "";
 

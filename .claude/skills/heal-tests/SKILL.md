@@ -24,11 +24,11 @@ red.
 - A hook confines you: Write, Edit and MultiEdit work only under `facts.healerPaths`, `.qa/reports/heal-<slug>.md`,
   `.qa/reports/flaky.md` and `.qa/runs/heal-<slug>/`, never on a `.git*` name or in the directory git runs hooks
   from; Bash runs only the commands shown in this skill (git reads, `node .claude/checks/<module>.mts`,
-  `npx --no playwright test` with `--config=<suiteDir>`, `--project`, `--repeat-each`, `--retries=0`, `--reporter`,
-  `-g`; `npx --no tsc -p <suiteDir> --noEmit`; `npx --no biome check <paths>`;
-  `node .claude/checks/expectation-guard.mts --base=<sha>`). `npx` always carries `--no`, which stops npm from
-  fetching a package it does not find. `--config=<suiteDir>` is the `suiteDir` of the facts and is left out when it
-  is `.`. A refused call is final: do not look for a way around it, report it.
+  `<playwright>` with `--project`, `--repeat-each`, `--retries=0`, `--reporter`, `-g`; `<launcher> tsc -p <suiteDir>
+  --noEmit`; `<launcher> biome check <paths>`; `node .claude/checks/expectation-guard.mts --base=<sha>`).
+  `<playwright>` is the facts' `playwright`, and `<launcher>` its words before `playwright test` (`npx --no`, or
+  `npm exec --prefix <suiteDir> --no --` for a suite that is its own npm project): `--no` stops npm from fetching a
+  package it does not find. A refused call is final: do not look for a way around it, report it.
 - The dispatch carries a baseline: a git tree id that `/qa` or `/qa-heal` recorded with
   `node .claude/checks/expectation-guard.mts --snapshot` before you started (working tree, untracked files included). It
   is what the guard in step 7 compares against. Without one, stop and say so. Never record or replace a baseline
@@ -36,18 +36,18 @@ red.
   report.
 - You may edit only files under `facts.healerPaths`. A spec is never one of them.
 - Find the Playwright project of each test:
-  `npx --no playwright test --config=<suiteDir> --list --reporter=json <spec>` names it per test. `<spec>` is
+  `<playwright> --list --reporter=json <spec>` names it per test. `<spec>` is
   repository-relative. Run a project only when it is a key of `commands.test`.
 
 ## Step 2: Reproduce
 
-For each project, run the failing tests with `npx --no playwright test` itself (the hook refuses npm scripts), with
-the suite's config and the project's name from `commands.test`. `-g` takes one word without quotes or spaces: join
+For each project, run the failing tests with `<playwright>` itself (the hook refuses npm scripts), with the
+project's name from `commands.test`. `-g` takes one word without quotes or spaces: join
 the words of a title with `.`. The leading variable sends the JSON report to your run directory:
 
 ```shell
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/round-0.<project>.json npx --no playwright test --config=<suiteDir> --no-deps <spec> --project=<project> -g <title.words> --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/list.<project>.json npx --no playwright test --config=<suiteDir> --no-deps --list --reporter=json <spec> --project=<project> -g <title.words>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/round-0.<project>.json <playwright> --no-deps <spec> --project=<project> -g <title.words> --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/list.<project>.json <playwright> --no-deps --list --reporter=json <spec> --project=<project> -g <title.words>
 node .claude/checks/reconcile-run.mts .qa/runs/heal-<slug>/list.<project>.json .qa/runs/heal-<slug>/round-0.<project>.json
 ```
 
@@ -91,8 +91,8 @@ whose first run failed in a way that could be intermittent (a timeout, a wait, a
 person named as flaky, run `facts.flakyRunSeries` times per project:
 
 ```shell
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json npx --no playwright test --config=<suiteDir> --no-deps <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series-list.<project>.json npx --no playwright test --config=<suiteDir> --no-deps --list --reporter=json <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series.<project>.json <playwright> --no-deps <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries> --retries=0 --reporter=list,json
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/series-list.<project>.json <playwright> --no-deps --list --reporter=json <spec> --project=<project> -g <title.words> --repeat-each=<flakyRunSeries>
 node .claude/checks/reconcile-run.mts .qa/runs/heal-<slug>/series-list.<project>.json .qa/runs/heal-<slug>/series.<project>.json
 ```
 
@@ -135,10 +135,10 @@ Only a test defect, within the area's autonomy:
 ## Step 6: Re-run, at Most Three Rounds
 
 After each applied round run the same commands as step 2 (`round-<n>.<project>.json`) and reconcile. Typecheck
-with `npx --no tsc -p <suiteDir> --noEmit` (it only reads) must be clean. Lint only the files you changed, in the
+with `<launcher> tsc -p <suiteDir> --noEmit` (it only reads) must be clean. Lint only the files you changed, in the
 linter's check mode and never with a command that fixes: `commands.lint` here is `npm run check`
 (`biome check --write .`), which rewrites specs and `.claude/checks/` and would create findings, so run
-`npx --no biome check <changed files>` without `--write` (the hook refuses any flag). Fix what it reports by hand,
+`<launcher> biome check <changed files>` without `--write` (the hook refuses any flag). Fix what it reports by hand,
 inside the healer paths. A fix that makes another test red is
 reverted. After round three, whatever is still red is escalated: do not start a fourth round and do not change the
 class to get out of it.

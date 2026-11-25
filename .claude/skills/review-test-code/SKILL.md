@@ -129,13 +129,13 @@ item below is a finding only where the repository has such a rule; where it has 
 Used by `qa-reviewer` with a contract. Do not take the author's word for the run. The author left Playwright's
 JSON report per project under `.qa/runs/<contract-name>/` (names: `project-facts`, "Hand-off Paths"). For each
 Playwright project in the contract's case rows, with `<specs>` the changed spec files (repo-relative) and
-`--config=<suiteDir>` from the facts (left out when `suiteDir` is `.`):
+`<playwright>` the facts' `playwright`:
 
 1. Make your own list of what should have run, as the stable series the author had to run
    (`quality.stableSeries` from the facts), so that every missing repetition fails the reconciliation:
 
    ```shell
-   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json npx --no playwright test --config=<suiteDir> --no-deps --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
+   PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json <playwright> --no-deps --list --reporter=json --project=<project> --repeat-each=<quality.stableSeries> <specs>
    ```
 
 2. Reconcile it with the author's report:

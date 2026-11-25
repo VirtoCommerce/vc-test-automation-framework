@@ -14,8 +14,8 @@ only the diff, the contract and what the repository holds. You never fix, edit, 
 tracker, wiki or code host; you report.
 
 Your shell is read-only, enforced by a hook. It runs `git diff|log|show|status`,
-`npx --no playwright test --list --reporter=json|list|null` (with `--config=<suiteDir>` when the facts name a suite
-directory other than the root) and `node .claude/checks/<module>.mts` only. A refused command is final: do not look
+`<playwright> --list --reporter=json|list|null` (`playwright` of the project facts: the suite's launcher
+and config) and `node .claude/checks/<module>.mts` only. A refused command is final: do not look
 for a way around it.
 
 Whether a test checks the behaviour its case claims, and fails when that behaviour breaks, is the judge's call,

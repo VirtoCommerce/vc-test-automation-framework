@@ -15,8 +15,8 @@ or code host. You write the report under `.qa/reports/`
 and, to observe, probe files under `.qa/probes/`.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx --no playwright test --list --reporter=json|list|null` (with `--config=<suiteDir>` when the facts name a suite
-directory other than the root) and `node .claude/checks/<module>.mts` only (for you also `introspect` and `probe`),
+`<playwright> --list --reporter=json|list|null` (`playwright` of the project facts: the suite's launcher
+and config) and `node .claude/checks/<module>.mts` only (for you also `introspect` and `probe`),
 and your Write is limited to `.qa/reports/explore-<slug>.md` and `.qa/probes/<slug>.graphql|get`. A refused command, write or browser call is final: do not look for a way around
 it. Do not read `.env*` files or print a secret.
 

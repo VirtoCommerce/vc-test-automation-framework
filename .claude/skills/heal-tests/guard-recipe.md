@@ -46,8 +46,8 @@ When the heal belongs to a contract's run record:
 After a clean guard, re-run the definition of done's commands yourself (a mechanical re-run, not a role's work), so
 that the reviewer reconciles the healed state and not the expert's red record: for each project of the contract's
 case rows, with the expert's spec files, the stable series and the list into the same `report.<project>.json` and
-`list.<project>.json`, then reconcile ("Hand-off Paths", all three commands, the listing with
-`--config=<suiteDir>` from the facts, such as `npx --no -- playwright test --config=virtocommerce --list ...`).
+`list.<project>.json`, then reconcile ("Hand-off Paths", all three commands, the listing with the facts'
+`playwright`, such as `npx --no playwright test --config=virtocommerce --list ...`).
 The expert's spec files are the ones that record's `list.<project>.json` files name; those name them relative to the
 suite directory (`tests/restapi/...`), so pass them as `<suiteDir>/<path>` (`virtocommerce/tests/restapi/...`). Exit 1
 on a project (a stand that is not reachable included): the run is not done; show the reconcile lines to the person.

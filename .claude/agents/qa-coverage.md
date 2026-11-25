@@ -14,8 +14,8 @@ write test code, page objects, specs, fixtures or config; you never edit, commit
 code host. You write only files directly in `.qa/reports/`.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx --no playwright test --list --reporter=json|list|null` (with `--config=<suiteDir>` when the facts name a suite
-directory other than the root) and `node .claude/checks/<module>.mts` only. Your Write is limited to
+`<playwright> --list --reporter=json|list|null` (`playwright` of the project facts: the suite's launcher
+and config) and `node .claude/checks/<module>.mts` only. Your Write is limited to
 `.qa/reports/coverage-<yyyy-mm-dd>.md` and `.qa/reports/coverage-<yyyy-mm-dd>-<slug>.md` (`<slug>` in lower case
 letters, digits and hyphens). A refused command, write or browser call is final: do not look for a way around it. Do
 not read `.env*` files or print a secret.

@@ -22,7 +22,8 @@ checked against the repository, and the reader exits with 1, one line per proble
 
 - a value that is still the template's example: a role account in the example domain, or the example `PROJ` tracker
   key;
-- an `npm run` script that a command names and `package.json` does not have;
+- an `npm run` script that a command names and its `package.json` does not have: the one of its `--prefix <dir>`,
+  else the suite's own when the suite is its own npm project, else the root's;
 - a key of `commands.test` (other than `unit` and `all`), a key of `quality.durationBudgetMs` or a `--project` flag
   that is not a project the suite's `playwright.config` defines;
 - a `healerPaths` entry that is not an existing directory.
@@ -42,12 +43,17 @@ the reader cannot follow), the reader says so in one line on stderr and does not
 ## Step 3: Read Only From Its Output
 
 - Suite directory: `suiteDir` is the directory of the test suite the agents work on, relative to the repository root
-  (`virtocommerce` here). It holds the suite's `playwright.config.ts` and its `.env`. Every Playwright command on the
-  suite carries `--config=<suiteDir>` (`npx --no playwright test --config=virtocommerce ...`), and spec paths are
-  repository-relative (`virtocommerce/tests/restapi/security/api-keys.spec.ts`). When `suiteDir` is `.` (the default,
-  a suite at the repository root) no config flag is needed. The read-only shells allow exactly this config flag and no
-  other. The reader refuses a `suiteDir` other than `.` that is not a plain relative directory, with the same rules as
-  `healerPaths`.
+  (`virtocommerce` here). It holds the suite's `playwright.config.ts` and its `.env`. The reader refuses a `suiteDir`
+  other than `.` that is not a plain relative directory, with the same rules as `healerPaths`.
+- Playwright: `playwright` is not in the file; the reader derives it from `suiteDir` and the files present. It is the
+  command that starts Playwright Test on the suite from the repository root, written `<playwright>` in the skills:
+  `npx --no playwright test` for a suite at the root, with `--config=<suiteDir>` for a suite in a directory
+  (`npx --no playwright test --config=virtocommerce` here), and `npm exec --prefix <suiteDir> --no -- playwright test
+  --config=<suiteDir>` when `<suiteDir>/package.json` makes the suite its own npm project with its own
+  `node_modules`. Start every Playwright command on the suite with it, exactly; spec paths stay repository-relative
+  (`virtocommerce/tests/restapi/security/api-keys.spec.ts`). The read-only shells allow exactly this launcher and
+  config flag, and the same launcher before `tsc` and `biome` (`npx --no tsc`, or `npm exec --prefix <suiteDir> --no
+  -- tsc`).
 - Roles: `roles["<role name>"]` is the account to pass to `test.use({ user })`. Name roles in plans and reports, not
   accounts.
 - Role purposes: `roleFor.admin` is the role `arrange` and REST administration tests act as, `roleFor.customer` an
@@ -128,12 +134,12 @@ The roles and the commands hand work to each other through fixed paths. Use exac
   dispatch says `judge re-dispatch`; any other time it ignores the file.
 
 The stable series of the definition of done, for each project `<project>` the specs belong to, with `<specs>` the new
-and changed spec files as repository-relative paths and `<series>` the facts' `quality.stableSeries` (shown with
-`suiteDir` `virtocommerce`; use the facts' own value, and no config flag when it is `.`):
+and changed spec files as repository-relative paths, `<series>` the facts' `quality.stableSeries` and `<playwright>`
+the facts' `playwright`:
 
 ```shell
 PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/report.<project>.json <commands.test[project]> [--] <specs> --repeat-each=<series> --retries=0 --reporter=list,json
-PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/list.<project>.json npx --no -- playwright test --config=virtocommerce --list --no-deps --reporter=json --project=<project> --repeat-each=<series> <specs>
+PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/list.<project>.json <playwright> --list --no-deps --reporter=json --project=<project> --repeat-each=<series> <specs>
 node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/list.<project>.json .qa/runs/<contract-name>/report.<project>.json --contract=.qa/contracts/<contract-name>.md
 ```
 

@@ -12,3 +12,14 @@ on Windows, or warns. `rank-gaps.mts` marks gaps ordered only by name as `tied`,
 `test.skip` and `test.fixme` tests as skipped. The agent prompts allow `not reached: <why>` as the content of an empty
 report section, work in a repository with untracked files, and mark every example from the framework's own suite as
 not a rule.
+
+An API area that no page uses can now be explored: `introspect.mts` saves the stand's schema without a credential and
+`probe.mts` observes anonymous cases with one read-only query or GET, both for `qa-explorer` only. The contract has an
+Existing coverage section, Critical flow and Parameters columns, dated references to local reports and snapshots, and
+amendments that name their cases and changes; `check --implemented` requires every case id in the title of a listed
+test. `reconcile-run.mts --contract` compares the series' real command with the contract's Verification, takes a
+`deviation:` reason and refuses a report older than the specs it covers. `prove-fails.mts` mutates `toBe(true|false)`,
+`.not`, name and member-chain arguments and `arrayContaining`/`objectContaining`, and refuses an assertion in an
+`arrange:` step; the judge's verdict records its mechanical and reasoned proofs; `test-shape.mts` counts the helpers a
+test calls. The framework rules cover a client suite without `arrange` (a `finally` that never fails the test) and a
+shared dataset account (`--workers=1`), and the reviewer takes style only from the repository.

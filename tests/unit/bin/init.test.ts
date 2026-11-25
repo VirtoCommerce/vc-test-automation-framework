@@ -255,6 +255,7 @@ const MANIFEST = ".claude/.vc-qa-agents.json";
 const SHIPPED = ".claude/skills/vc-framework-rules/SKILL.md";
 const OTHER_SHIPPED = ".claude/agents/vc-qa-judge.md";
 const SAME_NAME = ".claude/commands/vc-qa.md";
+const GUARD = ".claude/hooks/readonly-shell.mts";
 
 function agents(dir: string, ...args: string[]): string {
   return execFileSync(process.execPath, [BIN, ...args], { cwd: dir, encoding: "utf8" });
@@ -424,21 +425,22 @@ test.describe("vc-qa-agents install and uninstall", () => {
   test("names the files of the names before the vc- prefix on an install without a manifest, and keeps them", () => {
     writeIn(dir, ".claude/agents/qa-judge.md", "the earlier judge\n");
     writeIn(dir, ".claude/skills/framework-rules/SKILL.md", "the earlier rules\n");
+    writeIn(dir, ".claude/skills/framework-rules/notes.md", "the earlier notes\n");
+    writeIn(dir, GUARD, "the earlier hook\n");
 
     const output = agents(dir);
 
     expect(readIn(dir, ".claude/agents/qa-judge.md")).toBe("the earlier judge\n");
     expect(readIn(dir, ".claude/skills/framework-rules/SKILL.md")).toBe("the earlier rules\n");
     expect(readIn(dir, OTHER_SHIPPED)).toBe(shipped(OTHER_SHIPPED));
+    expect(readIn(dir, GUARD)).toBe("the earlier hook\n");
     expect(output).toContain(
-      `Kept .claude/agents/qa-judge.md: versions before the vc- prefix shipped it under this name, now ${OTHER_SHIPPED}`,
+      "Kept 2 agents, commands and skills under the names they had before the vc- prefix, which nothing records as " +
+        "the package's: .claude/agents/qa-judge.md, .claude/skills/framework-rules/. The package ships each as vc-<name>",
     );
-    expect(output).toContain(
-      "Kept .claude/skills/framework-rules/: versions before the vc- prefix shipped it under this name, now " +
-        ".claude/skills/vc-framework-rules/",
-    );
-    expect(output.match(/Kept \.claude\/skills\/framework-rules\//g)).toHaveLength(1);
+    expect(output).toContain(`Not the package's version: ${GUARD}. The read-only agents are restricted only by`);
     expect(manifestFiles(dir)).not.toHaveProperty([".claude/agents/qa-judge.md"]);
+    expect(manifestFiles(dir)).not.toHaveProperty([GUARD]);
   });
 
   test("uninstall removes exactly the files it installed unchanged, and the manifest", () => {

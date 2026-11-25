@@ -33,9 +33,12 @@ prints the facts or the problems with them. Every agent reads the file through t
 
 Besides the shape of each field, the command refuses a file that is still the template's: an account in the example
 domain or the `PROJ` tracker key. It also checks the file against the repository: every `npm run` script of a command
-exists in `package.json`, every key of `commands.test` (except `unit` and `all`) and of `quality.durationBudgetMs` is a
-project of the suite's `playwright.config`, and every `healerPaths` entry is a directory. A config whose projects it
-cannot read statically is noted on stderr and its project names are not checked.
+exists in the `package.json` it runs against (of its `--prefix` directory, else the suite's own, else the root's),
+every key of `commands.test` (except `unit` and `all`) and of `quality.durationBudgetMs` is a project of the suite's
+`playwright.config`, and every `healerPaths` entry is a directory. A config whose projects it cannot read statically
+is noted on stderr and its project names are not checked. The printed facts add `playwright`, the command the agents
+start Playwright Test on the suite with from the repository root, which the command derives from `suiteDir` and the
+files present.
 
 | Field             | Holds                                                                                                       |
 | ----------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -54,6 +57,49 @@ cannot read statically is noted on stderr and its project names are not checked.
 
 The prompts name no solution: `node .claude/checks/scan-prompts.mts` checks that the shipped files hold none of the
 facts' accounts, role names or hosts.
+
+### Where the suite lives
+
+The agents support three layouts, told apart by `suiteDir` and the files in it:
+
+| Layout                                         | `suiteDir`    | `playwright` in the printed facts                                            |
+| ---------------------------------------------- | ------------- | ---------------------------------------------------------------------------- |
+| The suite at the repository root               | `.`           | `npx --no playwright test`                                                   |
+| A suite directory that uses the root's modules | `tests-suite` | `npx --no playwright test --config=tests-suite`                              |
+| A suite directory that is its own npm project  | `tests-suite` | `npm exec --prefix tests-suite --no -- playwright test --config=tests-suite` |
+
+A suite directory is its own npm project when it has its own `package.json`: its lock file, `node_modules`,
+`playwright.config.ts` and `.env` are there, and the repository root may have no `package.json` at all. The agents,
+the hook and `.qa/project.json` still belong at the repository root, and Claude Code must be opened there: it reads
+agents, commands and skills only from the `.claude/` directory of the project it was opened in. Install them from the
+root with the package the suite already has, `npm exec --prefix tests-suite -- vc-qa-agents`, or start a new suite with
+`init tests-suite` (see [Getting started](../getting-started.md#a-suite-in-a-subdirectory)).
+
+The commands of the facts then name the suite's directory with `--prefix`, before or after the script:
+
+```json
+{
+  "suiteDir": "tests-suite",
+  "commands": {
+    "typecheck": "npm --prefix tests-suite run typecheck",
+    "lint": "npm run check --prefix tests-suite",
+    "test": {
+      "unit": "npm --prefix tests-suite run typecheck",
+      "restapi": "npm exec --prefix tests-suite --no -- playwright test --config=tests-suite --project=restapi --no-deps",
+      "all": "npm --prefix tests-suite test"
+    }
+  },
+  "healerPaths": ["tests-suite/pages/", "tests-suite/arrange/"]
+}
+```
+
+The agents run every Playwright command from the root with the printed `playwright`, so spec paths stay
+repository-relative (`tests-suite/tests/restapi/...`); an npm script run with `--prefix` runs in the suite directory,
+and Playwright still finds a repository-relative spec path, because it matches the path against the whole file path.
+The checks load `@babel/parser` and `graphql` from the suite's `node_modules` when the root has none, so install them
+in the suite's project. Only npm is supported: a suite managed with pnpm or Yarn would need a launcher of that
+manager that starts the suite's Playwright and keeps the repository root as the working directory, which the checks
+and the hook do not derive yet.
 
 ## Browser
 

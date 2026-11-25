@@ -146,6 +146,15 @@ export const MANIFEST = {
     send: "each",
     repeat: "upsert",
   },
+  storeAuthenticationSchemes: {
+    module: MODULES.otp,
+    idPrefix: "store-authentication-scheme",
+    keys: ["name"],
+    method: "PUT",
+    endpoint: "/api/store-authentication-schemes/${ENV:STORE_ID}",
+    send: "all",
+    repeat: "upsert",
+  },
   categories: {
     module: MODULES.catalog,
     idPrefix: "category",

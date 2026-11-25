@@ -61,5 +61,6 @@ the commands `/vc-qa`, `/vc-qa-plan`, `/vc-qa-implement`, `/vc-qa-review`, `/vc-
 `vc-judge-criteria`. The check scripts, the hook, `.qa/` and the `vc-qa-agents` command keep their names. Run
 `npx vc-qa-agents` after the upgrade: with `.claude/.vc-qa-agents.json` it installs the new names and removes the
 unchanged files of the earlier ones, and keeps and names an edited one with the file that replaces it; without the
-manifest it keeps the files of the earlier names and names each one with its new name, to be deleted by hand. Replace
+manifest it keeps the files of the earlier names and names them, to be deleted by hand, and it warns whenever the
+read-only hook or its check is not the package's version, as an earlier copy does not restrict the renamed agents. Replace
 `/qa` and the other earlier names wherever the repository mentions them.

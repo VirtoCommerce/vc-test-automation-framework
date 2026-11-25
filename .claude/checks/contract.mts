@@ -28,7 +28,10 @@ const AMENDMENTS_HEADING = /^amendment/i;
 const NO_ROLE = "none";
 const NOT_CRITICAL = "no";
 const COMMENT = /<!--[\s\S]*?-->/g;
-const LOCAL_STATE = /\.qa\/(?:reports|kb)\/[^\s(),;]+/;
+const LOCAL_STATE = /\.qa\/(?:reports|kb)\/[^\s`'"()<>,;]*/g;
+const PATH_END_PUNCTUATION = /[.:!?\]]+$/;
+const FILE_NAME = /[^/]\.[A-Za-z0-9]+$/;
+const GLOB = /[*?]/;
 const STATED_DATE = /\((\d{4}-\d{2}-\d{2})\)/;
 const AMENDMENT_FIELDS = ["Cases", "Changes"] as const;
 const DROPS_LINE = /^Drops:\s*(.+)$/im;
@@ -76,30 +79,37 @@ function hasText(lines: string[]): boolean {
 }
 
 /**
+ * The files a line names under `.qa/reports/` or `.qa/kb/`. A path ends at whitespace, a backtick, a quote or a
+ * bracket, and the sentence's closing punctuation is not part of it. A directory (`.qa/reports/`), a name with no
+ * extension and a pattern (`coverage-*.md`) name no file, as in "none exists under `.qa/reports/`".
+ */
+function localStateFiles(line: string): string[] {
+  return [...line.matchAll(LOCAL_STATE)]
+    .map((match) => match[0].replace(PATH_END_PUNCTUATION, ""))
+    .filter((path) => FILE_NAME.test(path) && !GLOB.test(path));
+}
+
+/**
  * A line of `## Source` that names a report or a knowledge snapshot (`.qa/reports/…`, `.qa/kb/…`) must carry the date
  * the planner read it, `(<yyyy-mm-dd>)`, and the file must not have changed after that date (`modifiedOn`, when given).
  */
 function checkLocalState(lines: string[], modifiedOn: ((path: string) => string | undefined) | undefined): string[] {
   const problems: string[] = [];
   for (const line of lines) {
-    const path = LOCAL_STATE.exec(line)?.[0];
-    if (path === undefined) {
-      continue;
-    }
     const date = STATED_DATE.exec(line)?.[1];
-    if (date === undefined) {
-      problems.push(
-        problem(`## Source names ${path} with no date: write (<yyyy-mm-dd>) after it, the day it was read`),
-      );
-      continue;
-    }
-    const changed = modifiedOn?.(path);
-    if (changed !== undefined && changed > date) {
-      problems.push(
-        problem(
-          `## Source: ${path} changed on ${changed}, after the ${date} the contract states: read it again and update the date`,
-        ),
-      );
+    for (const path of localStateFiles(line)) {
+      const changed = date === undefined ? undefined : modifiedOn?.(path);
+      if (date === undefined) {
+        problems.push(
+          problem(`## Source names ${path} with no date: write (<yyyy-mm-dd>) after it, the day it was read`),
+        );
+      } else if (changed !== undefined && changed > date) {
+        problems.push(
+          problem(
+            `## Source: ${path} changed on ${changed}, after the ${date} the contract states: read it again and update the date`,
+          ),
+        );
+      }
     }
   }
   return problems;

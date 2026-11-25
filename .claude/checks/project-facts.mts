@@ -1,5 +1,9 @@
-import { readFileSync } from "node:fs";
+import type { BabelParser } from "./facts-consistency.mts";
+
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { crossCheck, placeholderProblems, readSuiteWorld } from "./facts-consistency.mts";
 
@@ -45,6 +49,9 @@ const MIN_SLOWDOWN_RATIO = 1;
 export const PROJECT_FACTS_PATH = ".qa/project.json";
 export const ROOT_SUITE_DIR = ".";
 export const ENV_FILE = ".env";
+export const PACKAGE_FILE = "package.json";
+export const NODE_MODULES = "node_modules";
+export const PLAYWRIGHT_CLI = [NODE_MODULES, "@playwright", "test", "cli.js"];
 const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
 const HEALER_PATH = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\/?$/;
@@ -423,6 +430,60 @@ export function playwrightConfigArgs(suiteDir: string): string[] {
   return suiteDir === ROOT_SUITE_DIR ? [] : [`--config=${suiteDir}`];
 }
 
+/**
+ * Whether the suite is its own npm project: a suite directory other than the root with its own `package.json`. Its
+ * dependencies, Playwright among them, are then in `<suiteDir>/node_modules`, and the root may have none.
+ */
+export function isOwnNpmProject(projectDir: string, suiteDir: string): boolean {
+  return suiteDir !== ROOT_SUITE_DIR && existsSync(join(projectDir, suiteDir, PACKAGE_FILE));
+}
+
+/** The directory, relative to the repository root, whose `node_modules` holds the suite's dependencies. */
+export function suitePackageDir(projectDir: string, suiteDir: string): string {
+  return isOwnNpmProject(projectDir, suiteDir) ? suiteDir : ROOT_SUITE_DIR;
+}
+
+/**
+ * The words that start a tool the suite installs, from the repository root and never fetching a package: `npx --no`
+ * for the root's `node_modules`, `npm exec --prefix <packageDir> --no --` for a suite that is its own npm project. The
+ * command still runs in the root, so `--config` and spec paths stay repository-relative.
+ */
+export function toolLauncher(packageDir: string): string[] {
+  return packageDir === ROOT_SUITE_DIR ? ["npx", "--no"] : ["npm", "exec", "--prefix", packageDir, "--no", "--"];
+}
+
+/** The command that starts Playwright Test on the suite from the repository root: the launcher, then the config. */
+export function playwrightCommand(projectDir: string, suiteDir: string): string[] {
+  const launcher = toolLauncher(suitePackageDir(projectDir, suiteDir));
+  return [...launcher, "playwright", "test", ...playwrightConfigArgs(suiteDir)];
+}
+
+/**
+ * Imports a package the suite installs, such as `@babel/parser`: as the checks resolve it (the root's
+ * `node_modules`), else, for a suite that is its own npm project, from `<suiteDir>/node_modules`.
+ *
+ * @throws the error of the first import when neither has the package or the facts cannot be read.
+ */
+export async function importSuiteDependency<T>(specifier: string, projectDir: string = process.cwd()): Promise<T> {
+  try {
+    return (await import(specifier)) as T;
+  } catch (error) {
+    let resolved: string;
+    try {
+      const { suiteDir } = readProjectFactsIn(projectDir);
+      resolved = isOwnNpmProject(projectDir, suiteDir)
+        ? createRequire(join(projectDir, suiteDir, PACKAGE_FILE)).resolve(specifier)
+        : "";
+    } catch {
+      resolved = "";
+    }
+    if (resolved === "") {
+      throw error;
+    }
+    return (await import(pathToFileURL(resolved).href)) as T;
+  }
+}
+
 /** The suite's `.env` file, relative to the repository root: `<suiteDir>/.env`, or `.env` for a suite at the root. */
 export function suiteEnvPath(suiteDir: string): string {
   return suiteDir === ROOT_SUITE_DIR ? ENV_FILE : `${suiteDir}/${ENV_FILE}`;
@@ -488,7 +549,11 @@ export function readProjectFactsIn(projectDir: string): ProjectFacts {
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
     const facts = readProjectFacts();
-    const { problems, notes } = crossCheck(facts, await readSuiteWorld(process.cwd(), facts.suiteDir));
+    const world = await readSuiteWorld(process.cwd(), facts.suiteDir, {
+      packageDir: suitePackageDir(process.cwd(), facts.suiteDir),
+      loadParser: (): Promise<BabelParser> => importSuiteDependency("@babel/parser"),
+    });
+    const { problems, notes } = crossCheck(facts, world);
     for (const note of notes) {
       process.stderr.write(`project-facts: ${note}\n`);
     }
@@ -496,7 +561,8 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     if (refused.length > 0) {
       throw new Error(refused.map((problem) => `project.json: ${problem}`).join("\n"));
     }
-    process.stdout.write(`${JSON.stringify(facts, null, 2)}\n`);
+    const playwright = playwrightCommand(process.cwd(), facts.suiteDir).join(" ");
+    process.stdout.write(`${JSON.stringify({ ...facts, playwright }, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

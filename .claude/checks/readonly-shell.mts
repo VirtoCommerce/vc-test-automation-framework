@@ -4,11 +4,21 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { passwordNames, runVariables } from "./browser-secrets.mts";
 import { EXTRACTORS } from "./explore-extractors.mts";
-import { PROJECT_FACTS_PATH, playwrightConfigArgs, readProjectFactsIn, SHORT_NAME_SEGMENT } from "./project-facts.mts";
+import {
+  PROJECT_FACTS_PATH,
+  playwrightConfigArgs,
+  readProjectFactsIn,
+  SHORT_NAME_SEGMENT,
+  suitePackageDir,
+  toolLauncher,
+} from "./project-facts.mts";
 import { standOrigins } from "./stand.mts";
 
-/** The suite's Playwright config arguments (`playwrightConfigArgs`), or undefined when the facts cannot be read. */
-export type SuiteConfig = readonly string[] | undefined;
+/**
+ * How the suite's tools start from the repository root (`toolLauncher`) and the suite's Playwright config arguments
+ * (`playwrightConfigArgs`), or undefined when the facts cannot be read.
+ */
+export type SuiteConfig = { launcher: readonly string[]; config: readonly string[] } | undefined;
 
 export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
 
@@ -106,6 +116,7 @@ const REVIEWER_OUTPUT =
 const HEALER_REVIEW_OUTPUT =
   /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/heal-[a-z0-9]+(-[a-z0-9]+)*\/review-list\.[\w-]+\.json$/;
 const NPX = "npx";
+const NPM = "npm";
 const NPX_NO_INSTALL = "--no";
 const END_OF_OPTIONS = "--";
 const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
@@ -181,6 +192,20 @@ function npxArgs(tokens: readonly string[]): readonly string[] | undefined {
   return tokens[2] === END_OF_OPTIONS ? tokens.slice(3) : tokens.slice(2);
 }
 
+/**
+ * The words after the suite's tool launcher: `npx --no`, optionally then `--`, for the root's `node_modules` (also
+ * when the facts cannot be read), exactly `npm exec --prefix <suiteDir> --no --` for a suite that is its own npm
+ * project.
+ */
+function toolArgs(tokens: readonly string[], suite: SuiteConfig): readonly string[] | undefined {
+  const launcher = suite?.launcher;
+  if (launcher === undefined || launcher[0] === NPX) {
+    return npxArgs(tokens);
+  }
+  const launched = tokens.length > launcher.length && launcher.every((word, index) => tokens[index] === word);
+  return launched ? tokens.slice(launcher.length) : undefined;
+}
+
 function isConfigFlag(token: string): boolean {
   return token === CONFIG_SHORT_FLAG || token.startsWith(CONFIG_FLAG);
 }
@@ -189,7 +214,8 @@ function isConfigFlag(token: string): boolean {
  * True when `args` carry exactly the suite's config arguments (`playwrightConfigArgs`): `--config=<suiteDir>` once,
  * or no config flag for a suite at the repository root. An unknown config (the facts could not be read) never passes.
  */
-function hasSuiteConfig(args: readonly string[], config: SuiteConfig): boolean {
+function hasSuiteConfig(args: readonly string[], suite: SuiteConfig): boolean {
+  const config = suite?.config;
   if (config === undefined) {
     return false;
   }
@@ -204,7 +230,7 @@ function namesEnvFile(path: string): boolean {
 }
 
 function isPlaywrightList(tokens: readonly string[], config: SuiteConfig): boolean {
-  const [tool, subcommand, ...rest] = npxArgs(tokens) ?? [];
+  const [tool, subcommand, ...rest] = toolArgs(tokens, config) ?? [];
   if (tool !== "playwright" || subcommand !== "test" || !rest.includes("--list")) {
     return false;
   }
@@ -285,20 +311,20 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
 }
 
 /**
- * True only for a single plain command on the allowlist: `npx --no playwright test --config=<suiteDir> --list
+ * True only for a single plain command on the allowlist: `<launcher> playwright test --config=<suiteDir> --list
  * --reporter=json|list|null …` (`--repeat-each=<1-2 digits>` allowed there, so a reviewer can list a series; the
  * config flag exactly as `config` holds it, none for a suite at the repository root, and no path to a `.env` file),
  * `git diff|log|show|status …`, `node .claude/checks/<module>.mts …` (`test-shape` and `test-duration` only with
  * repository paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and
  * `prove-fails`, and `qa-explorer` has `introspect` (`graphql` or `rest`) and `probe` (one `.qa/probes/<slug>.graphql|get`
- * file). `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a
- * flag), so npm never fetches a package. Only `qa-reviewer` may lead the listing with
+ * file). The launcher is the suite's (`toolLauncher`): `npx --no`, optionally then `--` (npm 12 needs it before a
+ * tool whose next word is a flag), or `npm exec --prefix <suiteDir> --no --` for a suite that is its own npm project,
+ * so npm never fetches a package. Only `qa-reviewer` may lead the listing with
  * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json`, `<contract-name>` not starting
  * with `heal-`, and `qa-healer` only with the directory `heal-<slug>`. No chaining, substitution, redirection, quoting,
  * globbing or variable expansion.
  *
- * @param config the suite's Playwright config arguments (`playwrightConfigArgs`); undefined blocks every Playwright
- * command.
+ * @param config the suite's launcher and Playwright config arguments; undefined blocks every Playwright command.
  */
 export function isReadOnlyCommand(command: string, agent: string | undefined, config: SuiteConfig): boolean {
   const text = command.trim();
@@ -319,7 +345,7 @@ export function isReadOnlyCommand(command: string, agent: string | undefined, co
   if (tokens[0] === "git") {
     return isGitRead(tokens);
   }
-  if (tokens[0] === NPX) {
+  if (tokens[0] === NPX || tokens[0] === NPM) {
     return isPlaywrightList(tokens, config);
   }
   return isQaModule(tokens, agent);
@@ -337,7 +363,7 @@ function isRepoPath(token: string): boolean {
 }
 
 function isHealerPlaywright(tokens: readonly string[], config: SuiteConfig): boolean {
-  const [tool, subcommand, ...rest] = npxArgs(tokens) ?? [];
+  const [tool, subcommand, ...rest] = toolArgs(tokens, config) ?? [];
   if (tool !== "playwright" || subcommand !== "test" || !hasSuiteConfig(rest, config)) {
     return false;
   }
@@ -371,17 +397,18 @@ function isTypecheck(args: readonly string[], config: SuiteConfig): boolean {
   if (args.length === 1) {
     return args[0] === NO_EMIT;
   }
-  const suiteDir = config?.[0]?.slice(CONFIG_PREFIX.length);
+  const suiteDir = config?.config[0]?.slice(CONFIG_PREFIX.length);
   return suiteDir !== undefined && args.length === 3 && args[0] === "-p" && args[1] === suiteDir && args[2] === NO_EMIT;
 }
 
 /**
- * True only for a single plain command the healer may run besides the read-only ones: `npx --no playwright test
- * --config=<suiteDir>` (the config flag exactly as `config` holds it) on repository paths with `--project`,
+ * True only for a single plain command the healer may run besides the read-only ones, each tool started with the
+ * suite's launcher as {@link isReadOnlyCommand} takes it: `playwright test --config=<suiteDir>` (the config flag
+ * exactly as `config` holds it) on repository paths with `--project`,
  * `--repeat-each`, `--retries=0`, `--reporter=list|json|null`, `--grep` or `-g` and `--list`, optionally led by
  * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/<name>.json`; `node .claude/checks/expectation-guard.mts
- * --snapshot|--base=<sha>`; `npx --no tsc --noEmit` and, for a suite in a directory, `npx --no tsc -p <suiteDir>
- * --noEmit`; `npx --no biome check <paths>` with no flag. No path names a `.env` file. Nothing that fetches a package,
+ * --snapshot|--base=<sha>`; `tsc --noEmit` and, for a suite in a directory, `tsc -p <suiteDir> --noEmit`; `biome
+ * check <paths>` with no flag. No path names a `.env` file. Nothing that fetches a package,
  * writes to git, updates snapshots, picks another config or an output directory, and not the main session's
  * `--repo-fingerprint`.
  */
@@ -403,7 +430,7 @@ export function isHealerCommand(command: string, config: SuiteConfig): boolean {
       (third === "--snapshot" || GUARD_BASE.test(third))
     );
   }
-  const [tool, subcommand, ...args] = npxArgs(tokens) ?? [];
+  const [tool, subcommand, ...args] = toolArgs(tokens, config) ?? [];
   if (tool === "playwright") {
     return isHealerPlaywright(tokens, config);
   }
@@ -559,23 +586,30 @@ function healerPathsOf(projectDir: string): readonly string[] | undefined {
 
 function suiteConfigOf(projectDir: string): SuiteConfig {
   try {
-    return playwrightConfigArgs(readProjectFactsIn(projectDir).suiteDir);
+    const { suiteDir } = readProjectFactsIn(projectDir);
+    return {
+      launcher: toolLauncher(suitePackageDir(projectDir, suiteDir)),
+      config: playwrightConfigArgs(suiteDir),
+    };
   } catch {
     return undefined;
   }
 }
 
+function launcherShown(config: SuiteConfig): string {
+  return (config?.launcher ?? [NPX, NPX_NO_INSTALL]).join(" ");
+}
+
 function playwrightShown(config: SuiteConfig): string {
   return config === undefined
     ? `npx --no playwright test (not now: ${PROJECT_FACTS_PATH} could not be read)`
-    : ["npx --no playwright test", ...config].join(" ");
+    : [launcherShown(config), "playwright test", ...config.config].join(" ");
 }
 
 function typecheckShown(config: SuiteConfig): string {
-  const suiteDir = config?.[0]?.slice(CONFIG_PREFIX.length);
-  return suiteDir === undefined
-    ? `npx --no tsc ${NO_EMIT}`
-    : `npx --no tsc ${NO_EMIT}, npx --no tsc -p ${suiteDir} ${NO_EMIT}`;
+  const tsc = `${launcherShown(config)} tsc`;
+  const suiteDir = config?.config[0]?.slice(CONFIG_PREFIX.length);
+  return suiteDir === undefined ? `${tsc} ${NO_EMIT}` : `${tsc} ${NO_EMIT}, ${tsc} -p ${suiteDir} ${NO_EMIT}`;
 }
 
 function healerMayWrite(file: string, projectDir: string, healerPaths: readonly string[]): boolean {
@@ -653,7 +687,7 @@ function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, pro
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may run only git diff|log|show|status, node ${CHECKS_DIR}/<module>.mts, ${playwrightShown(config)} <specs> with --project, --no-deps, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, ${typecheckShown(config)} and npx --no biome check <paths>, never on a .env file; blocked: ${shown}`;
+  return `${agent} may run only git diff|log|show|status, node ${CHECKS_DIR}/<module>.mts, ${playwrightShown(config)} <specs> with --project, --no-deps, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, ${typecheckShown(config)} and ${launcherShown(config)} biome check <paths>, never on a .env file; blocked: ${shown}`;
 }
 
 function isWebUrl(value: unknown): boolean {
@@ -735,8 +769,8 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown, pro
 /**
  * Decides a PreToolUse hook call for the Bash, Write and Playwright browser tools: a one-line reason to block it, or
  * undefined to let it pass. Only the read-only agents are limited; the main session and every other agent pass
- * untouched. A read-only agent's Bash call must be on the allowlist, its Playwright commands with the suite's config
- * arguments from the project facts (`suiteDir`). Its Write call is allowed for `qa-judge` only as a `.json` file under
+ * untouched. A read-only agent's Bash call must be on the allowlist, its Playwright commands with the suite's
+ * launcher and config arguments from the project facts (`suiteDir`). Its Write call is allowed for `qa-judge` only as a `.json` file under
  * `.qa/judge/<contract-name>/`, for `qa-explorer` only as `.qa/reports/explore-<slug>.md` or a probe file
  * `.qa/probes/<slug>.graphql|get` and for `qa-coverage` only
  * as `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the

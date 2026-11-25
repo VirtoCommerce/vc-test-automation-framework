@@ -3,9 +3,7 @@ import type { ProjectFacts } from "./project-facts.mts";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import { parse } from "@babel/parser";
-
-import { readProjectFacts } from "./project-facts.mts";
+import { importSuiteDependency, readProjectFacts } from "./project-facts.mts";
 
 export type QualityFinding = { test: string; finding: string };
 
@@ -41,6 +39,8 @@ const SCOPES = ["Program", "BlockStatement"];
 const MIN_TEST_ARGUMENTS = 2;
 const MAX_TITLE = 80;
 const SKIPPED_KEYS = new Set(["loc", "extra", "leadingComments", "trailingComments", "innerComments", "comments"]);
+
+const { parse } = await importSuiteDependency<typeof import("@babel/parser")>("@babel/parser");
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

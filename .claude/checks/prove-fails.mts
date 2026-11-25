@@ -16,9 +16,15 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
 
-import { parse } from "@babel/parser";
-
-import { playwrightConfigArgs, ROOT_SUITE_DIR, readProjectFactsIn } from "./project-facts.mts";
+import {
+  importSuiteDependency,
+  NODE_MODULES,
+  PLAYWRIGHT_CLI,
+  playwrightConfigArgs,
+  ROOT_SUITE_DIR,
+  readProjectFactsIn,
+  suitePackageDir,
+} from "./project-facts.mts";
 
 export type ProveFailsResult = { failed: boolean; output: string; mutated: string };
 
@@ -32,7 +38,6 @@ type Edit = { start: number; end: number; text: string };
 
 const CLI_FILE_NAME = "prove-fails.mts";
 const TEMP_PREFIX = "prove-fails-";
-const PLAYWRIGHT_CLI = ["node_modules", "@playwright", "test", "cli.js"];
 const RUN_TIMEOUT_MS = 300_000;
 const MAX_BUFFER = 64 * 1024 * 1024;
 const MAX_OUTPUT = 3000;
@@ -58,6 +63,8 @@ const MATCHERS = [
   "toHaveTitle",
 ];
 const NUMERIC_MATCHERS = ["toHaveLength", "toHaveCount"];
+
+const { parse } = await importSuiteDependency<typeof import("@babel/parser")>("@babel/parser");
 const TEXT_MATCHERS = [
   "toMatch",
   "toContain",
@@ -612,10 +619,17 @@ function copyEnvFiles(root: string, worktree: string, suiteDir: string): void {
   }
 }
 
-function linkDependencies(root: string, worktree: string): void {
-  const modules = join(root, "node_modules");
-  if (existsSync(modules)) {
-    symlinkSync(modules, join(worktree, "node_modules"), "junction");
+/** The directories whose `node_modules` a worktree links: the root, and the suite's own npm project when it is one. */
+function dependencyDirs(packageDir: string): string[] {
+  return packageDir === ROOT_SUITE_DIR ? [ROOT_SUITE_DIR] : [ROOT_SUITE_DIR, packageDir];
+}
+
+function linkDependencies(root: string, worktree: string, packageDir: string): void {
+  for (const dir of dependencyDirs(packageDir)) {
+    const modules = join(root, dir, NODE_MODULES);
+    if (existsSync(modules)) {
+      symlinkSync(modules, join(worktree, dir, NODE_MODULES), "junction");
+    }
   }
 }
 
@@ -627,23 +641,25 @@ function isLinkAt(path: string): boolean {
   }
 }
 
-function unlinkDependencies(worktree: string): boolean {
-  const link = join(worktree, "node_modules");
-  if (isLinkAt(link)) {
+function unlinkDependencies(worktree: string, packageDir: string): boolean {
+  const links = dependencyDirs(packageDir).map((dir) => join(worktree, dir, NODE_MODULES));
+  for (const link of links.filter(isLinkAt)) {
     quietly(() => {
       unlinkSync(link);
     });
   }
-  return !isLinkAt(link);
+  return !links.some(isLinkAt);
 }
 
 /**
- * Removes a throw-away worktree: the link to `node_modules` first (the target stays), then the worktree itself.
- * Every step is separate and none throws, so a cleanup problem never hides the result or error of the run. When the
+ * Removes a throw-away worktree: the links to `node_modules` first (the targets stay), then the worktree itself.
+ * Every step is separate and none throws, so a cleanup problem never hides the result or error of the run. When a
  * link cannot be removed nothing else is deleted.
+ *
+ * @param packageDir the suite's npm project directory (`suitePackageDir`), whose `node_modules` is linked too.
  */
-export async function removeWorktree(root: string, worktree: string): Promise<void> {
-  if (!unlinkDependencies(worktree)) {
+export async function removeWorktree(root: string, worktree: string, packageDir = ROOT_SUITE_DIR): Promise<void> {
+  if (!unlinkDependencies(worktree, packageDir)) {
     return;
   }
   const removed = await run("git", ["worktree", "remove", "--force", worktree], root);
@@ -722,16 +738,19 @@ export function childEnv(base: NodeJS.ProcessEnv, reportFile: string): NodeJS.Pr
   return { ...kept, PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile };
 }
 
+/**
+ * Runs Playwright Test in the worktree with `command`, the CLI and its first arguments (`<cli.js> test --config=…`).
+ */
 async function playwright(
   worktree: string,
-  config: readonly string[],
+  command: readonly string[],
   args: readonly string[],
   reportFile: string,
 ): Promise<{ report: unknown; stderr: string }> {
   rmSync(reportFile, { force: true });
   const result = await run(
     process.execPath,
-    [join(worktree, ...PLAYWRIGHT_CLI), "test", ...config, ...args, "--reporter=json"],
+    [...command, ...args, "--reporter=json"],
     worktree,
     childEnv(process.env, reportFile),
   );
@@ -828,7 +847,7 @@ function outcomeOf(report: unknown, target: TestRef): Outcome {
 
 async function runOnce(
   worktree: string,
-  config: readonly string[],
+  command: readonly string[],
   spec: string,
   target: TestRef,
   reportFile: string,
@@ -840,7 +859,7 @@ async function runOnce(
     `--grep=${escapeRegExp(target.title)}$`,
     `${spec}:${target.line}`,
   ];
-  const { report } = await playwright(worktree, config, args, reportFile);
+  const { report } = await playwright(worktree, command, args, reportFile);
   const outcome = outcomeOf(report, target);
   refuseExpectedFailure(target.title, outcome.expectedStatus);
   if (outcome.status === "expected") {
@@ -857,9 +876,10 @@ async function runOnce(
  * Proves that one test fails when a value it checks is changed. The script makes the change itself
  * ({@link mutateAssertion}): nothing the caller writes reaches the copy. It works on a throw-away git worktree in the
  * system temporary directory, outside the repository (the working tree is never touched): the worktree gets the
- * repository's `HEAD`, the working tree's uncommitted changes and the spec as it is on disk, a link to `node_modules`
- * and the `.env*` files of the suite directory (`suiteDir` of the project facts). Playwright runs with the suite's
- * config (`playwrightConfigArgs`). The test is run once as it is, with no retries, and must pass; then the literal on
+ * repository's `HEAD`, the working tree's uncommitted changes and the spec as it is on disk, links to `node_modules`
+ * (the root's, and the suite's own when it is its own npm project) and the `.env*` files of the suite directory
+ * (`suiteDir` of the project facts). Playwright, from the suite's own `node_modules` when it has one, runs with the
+ * suite's config (`playwrightConfigArgs`). The test is run once as it is, with no retries, and must pass; then the literal on
  * `line` is changed and the same test run again.
  *
  * `failed` is true only when the test passed before the change and failed after it. A flaky or skipped result, and a
@@ -882,36 +902,37 @@ export async function proveFails(
   checkedLine(line);
   const root = resolve((await git(["rev-parse", "--show-toplevel"], process.cwd())).trim());
   const { suiteDir } = readProjectFactsIn(root);
-  const config = playwrightConfigArgs(suiteDir);
+  const packageDir = suitePackageDir(root, suiteDir);
   const specPath = await checkedSpec(spec, root);
   const suiteSpec = suitePathOf(specPath, suiteDir);
   const source = readFileSync(join(root, specPath), "utf8");
   mutateAssertion(source, line);
   const worktree = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+  const command = [join(worktree, packageDir, ...PLAYWRIGHT_CLI), "test", ...playwrightConfigArgs(suiteDir)];
   try {
     await git(["worktree", "add", "--detach", worktree, "HEAD"], root);
     await overlayWorkingTree(root, worktree, specPath);
     copyEnvFiles(root, worktree, suiteDir);
-    linkDependencies(root, worktree);
+    linkDependencies(root, worktree, packageDir);
     const reportFile = join(worktree, ".prove-fails-report.json");
     const listed = await playwright(
       worktree,
-      config,
+      command,
       ["--list", "--no-deps", ...(project === undefined ? [] : [`--project=${project}`]), specPath],
       reportFile,
     );
     const target = resolveTest(listed.report, specPath, suiteSpec, title, project);
     refuseExpectedFailure(target.title, target.expectedStatus);
     const change = mutateAssertion(source, line, target.line);
-    const before = await runOnce(worktree, config, specPath, target, reportFile);
+    const before = await runOnce(worktree, command, specPath, target, reportFile);
     if (before.failed) {
       throw problem(`the test "${target.title}" fails before the change: ${firstLine(before.output)}`);
     }
     writeFileSync(join(worktree, specPath), change.source);
-    const after = await runOnce(worktree, config, specPath, target, reportFile);
+    const after = await runOnce(worktree, command, specPath, target, reportFile);
     return { ...after, mutated: change.mutated };
   } finally {
-    await removeWorktree(root, worktree);
+    await removeWorktree(root, worktree, packageDir);
   }
 }
 

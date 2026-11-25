@@ -61,6 +61,8 @@ seed once with `commands.seed` before the first run and after a change to the se
   setup that several specs need becomes an `arrange` method.
 - No raw selectors in specs. Add them to the page objects.
 - Place a test by the platform module that owns the behaviour, not by the noun in its title.
+- Under a contract, a test's title starts with its case id (`C-01 …`), and each row of a table-driven test carries its
+  own case id in its title: `contract.mts check --implemented` finds a case's tests by it.
 
 ## Layers and Imports
 
@@ -74,13 +76,21 @@ seed once with `commands.seed` before the first run and after a change to the se
 - Read seeded data from the dataset; a spec may name a dataset id as a constant. Create what the test changes with
   `arrange`, which removes it after the test, last first, so tests have no teardown code.
 - A test that changes the acting customer's own state (cart, lists, addresses, locks) uses a customer created for the
-  test, never a dataset user.
-- REST administration tests run as `roleFor.admin`, the role the project facts name for administration. A test that
+  test, never a dataset user: `shopperAs: "customer"` or an `arrange` customer method, if the suite has them; where it
+  has neither, add the `arrange` method that creates the customer (below); where there is no `arrange` layer, Shared
+  Accounts applies.
+- REST administration tests run as `roleFor.admin`, the role the project facts name for administration; the facts may
+  name none, and then who administers is a scope question for the person. A test that
   locks, deletes or changes the password of the acting user creates its own user through `arrange`.
 - When the create is the action under test, register its removal with the `…Later` method of `arrange`: before the
   act when a builder gave the draft a client-side id the platform keeps, right after the act when the platform assigns
   the id, and always before the first assertion. `…Later` methods create nothing.
 - Data `arrange` has no method for gets a new `arrange` method, never teardown code in the spec.
+- **A client suite with no `arrange` layer** (the repository has none and the person did not ask for one) replaces
+  the rules above that name `arrange` with this one: the test removes what it created in a `finally`, last created
+  first, and never fails from inside the `finally`. A removal that throws is caught and reported with a `leaves data`
+  annotation that names the record, so it cannot hide the test's own failure; data the test cannot remove is reported
+  the same way.
 - Find records by search criteria, never by "is listed in the first N" windows. Assert on the test's own records,
   never on a whole shared list.
 - Prove a deletion by reading the record by id (the read returns `undefined` or 404), not by a search.
@@ -88,6 +98,14 @@ seed once with `commands.seed` before the first run and after a change to the se
 - Respect the stand profile's data modes and `owned` marks where the profile provides them: change only data the
   profile marks as owned. Where it does not yet, let `arrange` remove everything created and change nothing
   platform-wide outside the isolated tests.
+
+## Shared Accounts
+
+- Where a customer cannot be created for the test (a client suite with one shared dataset shopper), the cases that
+  change state on that account (cart, lists, addresses, locks) run with `--workers=1`. The contract's `## Verification`
+  command carries the flag, and so does every series. `test.describe.configure({ mode: "serial" })` is not enough: it
+  orders one describe in one worker, while `--repeat-each` and other specs still use the account in parallel workers.
+- The series also includes the neighbouring specs that use the same account, so a collision with them shows.
 
 ## Isolated Tests
 
@@ -106,8 +124,10 @@ seed once with `commands.seed` before the first run and after a change to the se
 ## Waiting
 
 - Index-backed reads lag. Wait in `arrange` through its index-wait methods. In an assertion, use
-  `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })` or `expect(…).toPass({ timeout })`. Inside `arrange` and shared
-  code, wait with `pollUntil(read, isDone, describe, timeoutMs)`.
+  `expect.poll(…, { timeout })` or `expect(…).toPass({ timeout })`, with the suite's index-lag constant
+  (`INDEX_LAG_TIMEOUT_MS`) if it has one, else one named constant that it declares once. Inside `arrange` and shared
+  code, wait with the suite's `pollUntil(read, isDone, describe, timeoutMs)` if it has one, else with `expect.poll`
+  there too, never a hand-written loop.
 - Never `waitForTimeout`, `networkidle` or a sleep. A browser action waits for the state or the response it causes.
 
 ## Failing Loudly
@@ -158,8 +178,9 @@ seed once with `commands.seed` before the first run and after a change to the se
 
 ## Optional Modules
 
-- A test that needs an optional module, or a module version, declares it on its describe:
-  `test.use({ modules: { pickup: MODULES.pickup } })`. The test is skipped where the module is missing or outside its
+- A test that needs an optional module, or a module version, declares it on its describe with the `modules` option, such as
+  `test.use({ modules: { pickup: MODULES.pickup } })` (`MODULES` is the suite's own list of modules and versions,
+  where it has one). The test is skipped where the module is missing or outside its
   range (`minVersion` inclusive, `beforeVersion` exclusive), and the skip reason names the module. The seed manifest
   uses the same `MODULES` entries, so a collection the seed skips and the tests that read it skip for the same reason.
 - An inner `test.use` replaces the outer `modules`; spread them to keep both.
@@ -172,6 +193,8 @@ seed once with `commands.seed` before the first run and after a change to the se
   platforms skip it.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Fixtures entry `virtocommerce/fixtures/index.ts` (`@fixtures`); options `user`, `shopperAs`, `modules`; module
   constants `MODULES` in `virtocommerce/modules.ts` (`@modules`), each `minVersion` the edge version the suite is

@@ -30,7 +30,7 @@ Read each target file completely, plus what it depends on:
       whose answer is the assertion); `expect` sits in `assert:` steps, or in an `arrange:` step that checks a
       precondition. No hand-written `cleanup:` steps.
 - [ ] Setup in the test body through `arrange`; a `beforeEach` only for what every test of the describe shares.
-- [ ] Titles say what happens in plain words; one behaviour per test.
+- [ ] Titles say what happens in plain words, a contract case's id first (`C-01 …`); one behaviour per test.
 - [ ] No conditionals or `as` casts; repeated cases are one table-driven test (rows may hold small lambdas). A read
       several tests of the file repeat is a `function` declaration at the end of the spec; one several specs need
       belongs in `support/`, setup several specs need in `arrange`.
@@ -46,7 +46,9 @@ Read each target file completely, plus what it depends on:
       `arrange.customers.customer()`), never a dataset user.
 - [ ] What the code under test creates is registered with a `…Later` method: before the act when a builder gave the
       id, right after the act when the platform assigns it, always before the first assertion.
-- [ ] No teardown code in the spec (`afterEach`, `try`/`finally`); missing removal is a new `arrange` method.
+- [ ] No teardown code in the spec (`afterEach`, `try`/`finally`); missing removal is a new `arrange` method. In a
+      client suite with no `arrange` layer (`framework-rules`) a `finally` that removes what the test created is the
+      rule, and it must catch its own failure and annotate `leaves data`, never throw.
 - [ ] Assertions target the test's own records (`toContain(id)`, `toMatchObject`), never a whole shared list.
 - [ ] Deletions are proven by id (`optionalJson` returns `undefined`), not by a search.
 - [ ] Store settings through `arrange.platform.storeSetting`; global settings only in `tests/isolated/`.
@@ -102,13 +104,18 @@ under test.
 
 ### Step 7: Code Quality
 
-- [ ] The facts' `commands.typecheck` and `commands.lint` pass. The dispatcher runs them; the reviewer's shell is
-      read-only, so the reviewer reports them as not checked.
+- [ ] The facts' `commands.typecheck` and `commands.lint` (when the facts have one) pass. The dispatcher runs them; the
+      reviewer's shell is read-only, so the reviewer reports them as not checked.
+- [ ] No credentials or URLs in code; secrets as `Secret`, revealed only at the call. A store id kept in one
+      module-level constant is allowed.
+
+Style comes only from the repository (its `CLAUDE.md`, linter and formatter configuration, neighbouring files). Each
+item below is a finding only where the repository has such a rule; where it has none, it is not one.
+
 - [ ] No `any`, no `!`, no floating promises, no unused imports.
 - [ ] Named and exported functions are `function` declarations; arrows only for inline callbacks.
 - [ ] Class state in `readonly #private` fields.
 - [ ] No code comments; JSDoc short and only for what the signature cannot say.
-- [ ] No credentials or URLs in code; secrets as `Secret`, revealed only at the call.
 - [ ] Wording: frontend (not storefront), platform, platform admin, directory (not folder).
 
 ### Step 8: Coverage
@@ -134,15 +141,17 @@ Playwright project in the contract's case rows, with `<specs>` the changed spec 
 2. Reconcile it with the author's report:
 
    ```shell
-   node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json
+   node .claude/checks/reconcile-run.mts .qa/runs/<contract-name>/review-list.<project>.json .qa/runs/<contract-name>/report.<project>.json --contract=.qa/contracts/<contract-name>.md
    ```
 
    Exit 1 means not done; copy each failure (test, project, why) into Critical, missing repetitions
-   included. A missing report file, a stand that was not reachable and no record, or a report you cannot read is
+   included, and each `stale` file and each `differences` line that has no `deviation:` reason. A difference with a
+   reason is a Warning that quotes the reason; judge whether it is one. A missing report file, a stand that was not reachable and no record, or a report you cannot read is
    also not done.
 3. Do not read the author's own `list.<project>.json` as the truth: it is theirs.
-4. Your read-only shell cannot run typecheck and lint. Say in the Summary that they were not checked and name
-   `commands.typecheck` and `commands.lint` from the facts for the dispatcher to run; a diff that is clearly
+4. Your read-only shell cannot run typecheck and lint, and cannot query the stand. Say in the Summary that they were
+   not checked and name `commands.typecheck` and `commands.lint` (if the facts have one) for the dispatcher to run;
+   report "nothing left behind" as `not checked` too, naming the removal code you read instead. A diff that is clearly
    type-unsafe (`any`, `!`, floating promises) is a finding on its own.
 
 5. Shape and duration of every new or changed test, with `<specs>` the changed spec files and `<project>` each
@@ -173,6 +182,9 @@ mark.
 missing `issue` annotation where the contract names a ticket; deletion proven by search; layer violations;
 duplicated methods; a test adapted to an older platform.
 
+**NEEDS_DISCUSSION, not Critical:** a break of a framework rule that the contract itself writes as an `assumed:` line
+(the person was never asked or did not answer): name the rule and the line, and let the person decide.
+
 **Suggestion:** splitting a large test; a table for repeated cases; missing negative or identity coverage.
 
 ## Output Format
@@ -202,6 +214,8 @@ APPROVE | REQUEST_CHANGES | NEEDS_DISCUSSION
 When reviewing several files, write one section per file, then an overall summary.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - `suiteDir` is `virtocommerce`; the layer configuration is `.biome/layers.json`; the tables are in `CLAUDE.md`
   "Layers".

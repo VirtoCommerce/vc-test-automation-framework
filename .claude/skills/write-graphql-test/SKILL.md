@@ -30,7 +30,7 @@ of a neighbouring spec of the same area.
 | A second customer in the same test | `const other = await arrange.customers.customer()` |
 | A customer with an organization role | `arrange.customers.customer({ role: "<role id the contract names>" })` |
 | A colleague in the same organization | `arrange.customers.customer({ organizationId: customer.organizationId })` |
-| A platform user (administration over xAPI) | `test.use({ user: ADMIN_ACCOUNT })` (`roles[roleFor.admin]`), then the `graphql` fixture |
+| A platform user (administration over xAPI) | `test.use({ user: ADMIN_ACCOUNT })` (`roles[roleFor.admin]`; the facts may name none: ask who administers), then the `graphql` fixture |
 
 A `Customer` from `arrange` is a `Shopper` too: `customer.graphql`, `customer.storeContext`.
 
@@ -134,14 +134,18 @@ fails every time is a known issue (`framework-rules`, Platform Defects): `PLATFO
    assertion.
 6. Nullable results unwrapped with `requireFields` / `requireDefined` / `lineItemOf`; never `?? ""` or `?? []`.
 7. No sleeps; `expect.poll` with `INDEX_LAG_TIMEOUT_MS` or an `arrange` wait.
-8. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
+8. Under a contract, a test's title starts with its case id (`C-01 …`), and each row of a table-driven test carries its
+   own case id in its title: `contract.mts check --implemented` finds a case's tests by it.
+9. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["graphql"]` (the GraphQL project's key) from the project
+Run `commands.typecheck`, `commands.lint` (when the facts have one) and `commands.test["graphql"]` (the GraphQL project's key) from the project
 facts on the changed spec, with the run record the expert agent describes.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Reference specs: `virtocommerce/tests/graphql/cart/cart-items.spec.ts`,
   `virtocommerce/tests/graphql/cart/shopping-lists.spec.ts` (`shopperAs: "customer"`),

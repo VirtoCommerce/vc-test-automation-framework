@@ -29,7 +29,9 @@ argument fails with the usage.
 | `builders/`, `support/`                                           | Payload builders, `requireFields`, `uniqueId`, the store and the shopper                |
 | `codegen.ts`, `scripts/`                                          | GraphQL and REST type generation from the running platform                              |
 | `tests/restapi/security/`                                         | The first test: a user that `arrange` creates signs in                                  |
+| `pages/`                                                          | A README for the page objects, which the first browser test fills                       |
 | `CLAUDE.md`, `biome.json`                                         | The suite's layout and code style for the agents, and the shared Biome preset           |
+| `.mcp.json`                                                       | The Playwright MCP server of the agents, see [Browser](guides/qa-agents.md#browser)     |
 | `tsconfig.json`, `allurerc.mjs`, `.gitignore`, `.qa/project.json` | TypeScript with the suite's aliases, the Allure settings, ignores and the agents' facts |
 
 Fill in `.env` (the platform, the frontend, the administrator and `STORE_ID`) and replace the example roles and

@@ -1,12 +1,15 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
+import { BROWSER_SECRETS_PATH, passwordNames } from "../../../.claude/checks/browser-secrets.mts";
+
 const BIN = fileURLToPath(new URL("../../../bin/vc-qa-agents.mjs", import.meta.url));
+const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
 
 function initIn(dir: string): string {
   return execFileSync(process.execPath, [BIN, "init", "--skip-install"], { cwd: dir, encoding: "utf8" });
@@ -81,6 +84,45 @@ test.describe("vc-qa-agents init", () => {
     expect(readFileSync(join(dir, "env.ts"), "utf8")).toBe("export {};\n");
     expect(output).toContain("Kept the files that already exist: env.ts");
   });
+
+  test("writes the browser server that the agents sign in with, on the secrets file the check writes", () => {
+    initIn(dir);
+
+    const servers = readJson(join(dir, ".mcp.json"))["mcpServers"] as Record<string, { args: string[] }>;
+    const args = servers["playwright"]?.args ?? [];
+    expect(args.some((arg) => /^@playwright\/mcp@\d+\.\d+\.\d+$/.test(arg))).toBe(true);
+    expect(args[args.indexOf("--secrets") + 1]).toBe(BROWSER_SECRETS_PATH);
+    expect(readFileSync(join(dir, ".gitignore"), "utf8")).toContain(".qa/*.local.env");
+  });
+
+  test("names, in the template's own .env.example, every password its facts name", () => {
+    initIn(dir);
+
+    const facts = readJson(join(dir, ".qa", "project.json"));
+    const variables = readFileSync(join(dir, ".env.example"), "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.split("=")[0]);
+    for (const name of passwordNames(facts["passwordFor"] as Record<string, string>)) {
+      expect(variables, name).toContain(name);
+    }
+  });
+
+  test("gives the suite facts that fail only on the placeholders, until they are replaced", () => {
+    initIn(dir);
+    symlinkSync(NODE_MODULES, join(dir, "node_modules"), "junction");
+
+    const result = spawnSync(process.execPath, [join(dir, ".claude", "checks", "project-facts.mts")], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    const lines = result.stderr.trim().split(/\r?\n/);
+    expect(lines).toHaveLength(3);
+    expect(lines.join("\n")).toContain("template's example account");
+    expect(lines.join("\n")).toContain("template's example key pattern");
+  });
 });
 
 test.describe("vc-qa-agents install", () => {
@@ -114,33 +156,6 @@ test.describe("vc-qa-agents install", () => {
 
     expect(readFileSync(join(dir, ".gitignore"), "utf8")).toBe(first);
     expect(output).not.toContain(".gitignore");
-  });
-
-  test("the facts reader fails while the example accounts are left in", () => {
-    execFileSync(process.execPath, [BIN], { cwd: dir });
-
-    const result = spawnSync(process.execPath, [".claude/checks/project-facts.mts"], { cwd: dir, encoding: "utf8" });
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('roles["shop admin"] is the example account "admin@your-company.test"');
-  });
-
-  test("the facts reader fails while the example tracker project is left in", () => {
-    execFileSync(process.execPath, [BIN], { cwd: dir });
-    const path = join(dir, ".qa", "project.json");
-    const facts = readJson(path);
-    writeFileSync(
-      path,
-      JSON.stringify({
-        ...facts,
-        roles: { "shop admin": "admin", buyer: "buyer@acme.com", "other buyer": "other@acme.com" },
-      }),
-    );
-
-    const result = spawnSync(process.execPath, [".claude/checks/project-facts.mts"], { cwd: dir, encoding: "utf8" });
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("tracker.keyPattern names the example project PROJ");
   });
 });
 

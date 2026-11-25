@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseEnv } from "node:util";
@@ -10,6 +11,8 @@ const OWNER_ONLY = 0o600;
 const UNSAFE_VALUE = /['\r\n]/;
 
 type Vars = Readonly<Record<string, string | undefined>>;
+
+type Run = (command: string, args: string[]) => unknown;
 
 /**
  * The variables of the run, as the tests see them: the suite's `.env` (`<suiteDir>/.env` of the project facts), and
@@ -54,6 +57,42 @@ export function browserSecrets(names: readonly string[], vars: Vars): Record<str
   );
 }
 
+function runQuietly(command: string, args: string[]): unknown {
+  return execFileSync(command, args, { stdio: "ignore", windowsHide: true });
+}
+
+/**
+ * Restricts the secrets file to the current user and says what it did. Mode 0600 does that on POSIX; Windows ignores
+ * the mode, so there the file's access list is replaced with `icacls`: inheritance removed, full control for the
+ * current user only.
+ *
+ * @returns `"mode 0600"`, `"icacls"`, or a warning (starting `"warning:"`) when the file may be readable by other
+ * accounts of the computer, because `icacls` is not available or failed.
+ */
+export function restrictToOwner(
+  filePath: string,
+  platform: NodeJS.Platform = process.platform,
+  vars: Vars = process.env,
+  run: Run = runQuietly,
+): string {
+  chmodSync(filePath, OWNER_ONLY);
+  if (platform !== "win32") {
+    return "mode 0600";
+  }
+  const user = vars["USERNAME"];
+  if (user === undefined || user === "") {
+    return "warning: on Windows the file mode is ignored and USERNAME is not set, so the file could not be restricted: remove other accounts' access to it yourself";
+  }
+  const domain = vars["USERDOMAIN"];
+  const account = domain === undefined || domain === "" ? user : `${domain}\\${user}`;
+  try {
+    run("icacls", [filePath, "/inheritance:r", "/grant:r", `${account}:F`]);
+    return "icacls";
+  } catch {
+    return "warning: on Windows the file mode is ignored and icacls failed, so other accounts of this computer may be able to read the file: remove their access to it yourself";
+  }
+}
+
 /** The secrets file's text: one `NAME='value'` line each. */
 export function secretsFileText(secrets: Readonly<Record<string, string>>): string {
   return Object.entries(secrets)
@@ -96,10 +135,14 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     const secrets = browserSecrets(names, runVariables(projectDir));
     const filePath = join(projectDir, BROWSER_SECRETS_PATH);
     writeFileSync(filePath, secretsFileText(secrets), { mode: OWNER_ONLY });
-    chmodSync(filePath, OWNER_ONLY);
+    const restricted = restrictToOwner(filePath);
+    const warning = restricted.startsWith("warning:");
     process.stdout.write(
-      `browser-secrets: wrote ${BROWSER_SECRETS_PATH} with ${names.length === 0 ? "no variable (no passwordFor)" : names.join(", ")}; restart the browser server to use it\n`,
+      `browser-secrets: wrote ${BROWSER_SECRETS_PATH} with ${names.length === 0 ? "no variable (no passwordFor)" : names.join(", ")}${warning ? "" : ` (owner only, by ${restricted})`}; restart the browser server to use it\n`,
     );
+    if (warning) {
+      process.stderr.write(`browser-secrets: ${restricted}\n`);
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

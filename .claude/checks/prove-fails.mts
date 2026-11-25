@@ -57,6 +57,26 @@ const MATCHERS = [
   "toHaveURL",
   "toHaveTitle",
 ];
+const NUMERIC_MATCHERS = ["toHaveLength", "toHaveCount"];
+const TEXT_MATCHERS = [
+  "toMatch",
+  "toContain",
+  "toHaveText",
+  "toContainText",
+  "toHaveValue",
+  "toHaveURL",
+  "toHaveTitle",
+];
+const CONTAINER_MATCHERS = ["toEqual", "toStrictEqual", "toMatchObject"];
+const UNORDERED = "arrayContaining";
+const CONTAINING = [UNORDERED, "objectContaining"];
+const OPPOSITES: Readonly<Record<string, string>> = {
+  toBeTruthy: "toBeFalsy",
+  toBeFalsy: "toBeTruthy",
+  toBeNull: "toBeUndefined",
+  toBeUndefined: "toBeDefined",
+  toBeDefined: "toBeUndefined",
+};
 const MATCHER_CHAIN = ["resolves", "rejects"];
 const NEGATION = "not";
 const LINE_BREAK = new RegExp(`\\r\\n|[\\n\\r${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]`);
@@ -223,21 +243,26 @@ function argumentsOf(call: AstNode): unknown[] {
   return Array.isArray(call["arguments"]) ? call["arguments"] : [];
 }
 
-function matcherOf(node: AstNode): { negated: boolean } | undefined {
+type MatcherCall = { name: string; property: AstNode; not: AstNode | undefined };
+
+/** The matcher of an `expect(...)` chain: its name, its property node and the member `expect(...).not` when negated. */
+function matcherOf(node: AstNode): MatcherCall | undefined {
   if (node.type !== "CallExpression") {
     return undefined;
   }
   const callee = node["callee"];
-  if (!isMember(callee) || !MATCHERS.includes(nameOf(callee["property"]) ?? "")) {
+  const property = isMember(callee) ? callee["property"] : undefined;
+  const name = nameOf(property);
+  if (!isMember(callee) || !isNode(property) || name === undefined) {
     return undefined;
   }
-  let negated = false;
+  let not: AstNode | undefined;
   let current: unknown = callee["object"];
   while (isMember(current) && [NEGATION, ...MATCHER_CHAIN].includes(nameOf(current["property"]) ?? "")) {
-    negated = negated || nameOf(current["property"]) === NEGATION;
+    not = nameOf(current["property"]) === NEGATION && not === undefined ? current : not;
     current = current["object"];
   }
-  return isExpectCall(current) ? { negated } : undefined;
+  return isExpectCall(current) ? { name, property, not } : undefined;
 }
 
 function jsonString(text: string): string {
@@ -254,6 +279,9 @@ function plainTemplateText(argument: AstNode): string | undefined {
 
 function mutationOf(argument: AstNode): string | undefined {
   const value = argument["value"];
+  if (argument.type === "BooleanLiteral" && typeof value === "boolean") {
+    return value ? "false" : "true";
+  }
   if (argument.type === "NumericLiteral" && typeof value === "number") {
     return Number.isFinite(value) && value + 1 !== value ? String(value + 1) : undefined;
   }
@@ -281,6 +309,30 @@ function isTestCall(callee: unknown): boolean {
     nameOf(callee) === "test" ||
     (isMember(callee) && nameOf(callee["object"]) === "test" && nameOf(callee["property"]) === "only")
   );
+}
+
+function stepTitle(call: AstNode): string {
+  const [title] = argumentsOf(call);
+  if (isNode(title) && title.type === "StringLiteral" && typeof title["value"] === "string") {
+    return title["value"];
+  }
+  return isNode(title) && title.type === "TemplateLiteral" ? (plainTemplateText(title) ?? "") : "";
+}
+
+/** Whether the edit lies inside a `test.step("arrange: …")`, the innermost `test.step` around it. */
+function insideArrangeStep(program: AstNode, edit: Edit): boolean {
+  const steps = collect(
+    program,
+    (node) =>
+      node.type === "CallExpression" &&
+      isMember(node["callee"]) &&
+      nameOf(node["callee"]["object"]) === "test" &&
+      nameOf(node["callee"]["property"]) === "step" &&
+      node.start <= edit.start &&
+      edit.end <= node.end,
+  );
+  const innermost = steps.sort((left, right) => left.end - left.start - (right.end - right.start))[0];
+  return innermost !== undefined && stepTitle(innermost).trim().startsWith("arrange:");
 }
 
 function checkInsideTest(program: AstNode, testLine: number, line: number, edit: Edit): void {
@@ -319,50 +371,172 @@ function assertionOn(program: AstNode, line: number): AstNode | undefined {
   return onLine[0];
 }
 
-function editOf(call: AstNode, line: number): Edit | undefined {
-  const args = argumentsOf(call);
-  const [argument] = args;
-  if (args.length !== 1 || !isNode(argument) || lineOf(argument) !== line || matcherOf(call) === undefined) {
-    return undefined;
+function isLiteral(node: unknown): boolean {
+  return isNode(node) && mutationOf(node) !== undefined;
+}
+
+/** A name or a chain of members (`a.b.c`, `a["k"]`), with no call: reading it has no side effect. */
+function isReference(node: unknown): boolean {
+  const inner = unwrapped(node);
+  if (nameOf(inner) !== undefined) {
+    return true;
   }
-  const text = mutationOf(argument);
-  return text === undefined ? undefined : { start: argument.start, end: argument.end, text };
+  if (!isNode(inner) || !MEMBERS.includes(inner.type) || !isReference(inner["object"])) {
+    return false;
+  }
+  const key = inner["property"];
+  return inner["computed"] !== true || isLiteral(key) || isReference(key);
+}
+
+function isContaining(node: unknown): node is AstNode {
+  const callee = isNode(node) && CALLS.includes(node.type) ? node["callee"] : undefined;
+  return (
+    isMember(callee) && nameOf(callee["object"]) === "expect" && CONTAINING.includes(nameOf(callee["property"]) ?? "")
+  );
 }
 
 /**
- * Makes the mutation `proveFails` runs, and nothing else: it changes exactly one literal, the expected value of an
- * `expect(...).<matcher>(<literal>)` on `line`, where the matcher is one of the single-expected-value matchers
- * (`toBe`, `toEqual`, `toHaveText`, ...), is called with exactly one argument, and is not under `.not`. The line must
- * hold that assertion and no other: every `expect` chain that starts on the line or has an argument there counts,
- * whatever its matcher, so an assertion that cannot be proved is never credited by its neighbour. A bound
- * (`toBeGreaterThan`, `toBeLessThan`, ...) is not changed, because one more rarely breaks it. A number becomes its
- * value plus one, a string or plain template becomes itself with `__mutated__` appended. The source is parsed, so a
- * literal in a comment, a regular expression or a template with substitutions is never a candidate, and no text of
- * the caller enters the result. A name, a key, a file name or a second argument (`toHaveAttribute("href", ...)`,
- * `toHaveScreenshot("a.png")`, `toBeCloseTo(1, 2)`) is never changed. With `testLine` the changed literal must also
- * lie, by position, inside the function of the one `test(...)` or `test.only(...)` that starts there.
+ * The first literal (depth first) of an object, array or `expect.arrayContaining`/`objectContaining` expected value,
+ * and whether it lies inside an `arrayContaining`, whose elements match in any order.
+ */
+function firstLiteral(node: unknown, unordered = false): { literal: AstNode; unordered: boolean } | undefined {
+  if (!isNode(node)) {
+    return undefined;
+  }
+  if (mutationOf(node) !== undefined) {
+    return { literal: node, unordered };
+  }
+  let inner: unknown[] = [];
+  let innerUnordered = unordered;
+  if (node.type === "ObjectExpression" && Array.isArray(node["properties"])) {
+    inner = node["properties"].map((property) => (isNode(property) ? property["value"] : undefined));
+  } else if (node.type === "ArrayExpression" && Array.isArray(node["elements"])) {
+    inner = node["elements"];
+  } else if (isContaining(node)) {
+    inner = argumentsOf(node);
+    innerUnordered = unordered || nameOf(isNode(node["callee"]) ? node["callee"]["property"] : undefined) === UNORDERED;
+  }
+  return inner.map((child) => firstLiteral(child, innerUnordered)).find((found) => found !== undefined);
+}
+
+/**
+ * The mutation of a literal inside an `arrayContaining`: a text no element of the actual array can equal. A number or
+ * boolean changed as usual could equal another element (`[1, 2]` to `[2, 2]`), and the assertion would still pass.
+ */
+function unorderedMutation(literal: AstNode): string | undefined {
+  const value = literal["value"];
+  return (literal.type === "NumericLiteral" || literal.type === "BooleanLiteral") && value !== undefined
+    ? jsonString(`${String(value)}${MUTATION_SUFFIX}`)
+    : mutationOf(literal);
+}
+
+function replacement(node: AstNode, text: string): Edit {
+  return { start: node.start, end: node.end, text };
+}
+
+/** The text a reference argument is replaced by: a value of another type than it, chosen by what the matcher takes. */
+function referenceMutation(name: string, source: string): string {
+  if (NUMERIC_MATCHERS.includes(name)) {
+    return `(${source}) + 1`;
+  }
+  return TEXT_MATCHERS.includes(name) ? ["`${", source, "}", MUTATION_SUFFIX, "`"].join("") : `[${source}]`;
+}
+
+function argumentEdit(matcher: MatcherCall, argument: AstNode, source: string): Edit | undefined {
+  const text = mutationOf(argument);
+  if (MATCHERS.includes(matcher.name) && text !== undefined) {
+    return replacement(argument, text);
+  }
+  if (MATCHERS.includes(matcher.name) && isReference(argument)) {
+    return replacement(argument, referenceMutation(matcher.name, source.slice(argument.start, argument.end)));
+  }
+  if (CONTAINER_MATCHERS.includes(matcher.name) && !isReference(argument)) {
+    const found = firstLiteral(argument);
+    if (found === undefined) {
+      return undefined;
+    }
+    const changed = found.unordered ? unorderedMutation(found.literal) : mutationOf(found.literal);
+    return changed === undefined ? undefined : replacement(found.literal, changed);
+  }
+  return undefined;
+}
+
+/**
+ * The one edit that makes an assertion fail: removes the `.not` of a negated one; renames a matcher without an
+ * argument to its opposite (`toBeTruthy` to `toBeFalsy`); changes the literal, the reference or the first literal of an
+ * object, array or `arrayContaining`/`objectContaining` that is the one expected value of a matcher.
+ */
+function editOf(call: AstNode, line: number, source: string): Edit | undefined {
+  const matcher = matcherOf(call);
+  if (matcher === undefined) {
+    return undefined;
+  }
+  if (matcher.not !== undefined) {
+    const object = matcher.not["object"];
+    const property = matcher.not["property"];
+    return isNode(object) && isNode(property) ? { start: object.end, end: property.end, text: "" } : undefined;
+  }
+  const args = argumentsOf(call);
+  const opposite = OPPOSITES[matcher.name];
+  if (args.length === 0) {
+    return opposite === undefined
+      ? undefined
+      : { start: matcher.property.start, end: matcher.property.end, text: opposite };
+  }
+  const [argument] = args;
+  return args.length === 1 && isNode(argument) && lineOf(argument) === line
+    ? argumentEdit(matcher, argument, source)
+    : undefined;
+}
+
+/**
+ * Makes the mutation `proveFails` runs, and nothing else: it changes exactly one thing in the one assertion on `line`,
+ * so the test must fail if the assertion works:
  *
- * @returns the mutated source and the mutated line.
- * @throws Error when the source cannot be parsed, the line holds no such assertion, more than one assertion, only a
- * `.not` one, or the literal is outside the test, or more than one test starts on `testLine`.
+ * - `expect(...).not.<matcher>(...)`: the `.not` is removed (this proves the line is evaluated, not that the value it
+ *   excludes is the broken behaviour);
+ * - a matcher without an argument (`toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeUndefined`, `toBeDefined`) becomes its
+ *   opposite;
+ * - a matcher with one expected value (`toBe`, `toEqual`, `toHaveText`, ...): a number becomes its value plus one, a
+ *   string or plain template itself with `__mutated__` appended, a boolean its opposite, a name or member chain
+ *   (`expected`, `data.cart.id`) a value of another type (plus one, the text with `__mutated__`, or in an array);
+ * - `toEqual`, `toStrictEqual` and `toMatchObject` with an object, an array, or `expect.arrayContaining` or
+ *   `objectContaining`: the first literal inside it is changed as above, except inside an `arrayContaining`, where it
+ *   becomes the text of its value with `__mutated__` appended, so it cannot equal another element.
+ *
+ * The line must hold that assertion and no other: every `expect` chain that starts on the line or has an argument there
+ * counts, whatever its matcher, so an assertion that cannot be proved is never credited by its neighbour. A bound
+ * (`toBeGreaterThan`, `toBeLessThan`, ...) is not changed unless negated, because one more rarely breaks it. An
+ * assertion inside a `test.step("arrange: …")` is refused: it guards the test's data, not the behaviour. The source is
+ * parsed, so a literal in a comment, a regular expression or a template with substitutions is never a candidate, and no
+ * text of the caller enters the result. A name, a key, a file name or a second argument (`toHaveAttribute("href", ...)`,
+ * `toHaveScreenshot("a.png")`, `toBeCloseTo(1, 2)`) is never changed. With `testLine` the change must also lie, by
+ * position, inside the function of the one `test(...)` or `test.only(...)` that starts there.
+ *
+ * @returns the mutated source and the line that was changed, as mutated.
+ * @throws Error when the source cannot be parsed, the line holds no assertion it can change, more than one assertion,
+ * the assertion is in an `arrange:` step or outside the test, or more than one test starts on `testLine`.
  */
 export function mutateAssertion(source: string, line: number, testLine?: number): { source: string; mutated: string } {
   const program = parseSource(source);
   const call = assertionOn(program, line);
-  const edit = call === undefined ? undefined : editOf(call, line);
-  if (call !== undefined && edit !== undefined && matcherOf(call)?.negated) {
-    throw problem(`line ${line} has only a negated assertion: a .not assertion cannot be proved this way`);
-  }
+  const edit = call === undefined ? undefined : editOf(call, line, source);
   if (edit === undefined) {
     throw problem(
-      `line ${line} has no assertion it can change: it needs one expect(...).<matcher>(<one string or number literal>) with a matcher from ${MATCHERS.join(", ")}`,
+      `line ${line} has no assertion it can change: it needs one expect(...) chain with .not, with a matcher of ${Object.keys(OPPOSITES).join(", ")} and no argument, or with a matcher from ${[...new Set([...MATCHERS, ...CONTAINER_MATCHERS])].join(", ")} and one argument: a literal, a name or member chain, or an object, array, arrayContaining or objectContaining that holds a literal`,
     );
   }
   if (testLine !== undefined) {
     checkInsideTest(program, testLine, line, edit);
   }
+  if (insideArrangeStep(program, edit)) {
+    throw problem(
+      `line ${line} is an assertion inside an "arrange:" step: it guards the test's data, not the behaviour the case checks, so a proof on it proves nothing; prove the assertion of an "assert:" or "act and assert:" step`,
+    );
+  }
   const mutated = `${source.slice(0, edit.start)}${edit.text}${source.slice(edit.end)}`;
-  return { source: mutated, mutated: mutated.split(LINE_BREAK)[line - 1] ?? "" };
+  const editLine = source.slice(0, edit.start).split(LINE_BREAK).length;
+  return { source: mutated, mutated: mutated.split(LINE_BREAK)[editLine - 1] ?? "" };
 }
 
 async function checkedSpec(spec: string, root: string): Promise<string> {

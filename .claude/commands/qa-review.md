@@ -14,7 +14,7 @@ characters); otherwise stop and say so.
 The reviewer spares only the hunks of `git diff <baseline tree id> <new tree id>` under the healer paths from its
 scope rule.
 The reviewer's shell is read-only (a hook enforces it): it cannot run typecheck, lint or `gh`. Run
-`commands.typecheck` and `commands.lint` from `node .claude/checks/project-facts.mts` yourself and report the result
+`commands.typecheck` and `commands.lint` (when the facts have one) from `node .claude/checks/project-facts.mts` yourself and report the result
 with the review; for a PR, fetch the diff and metadata with `gh` and pass them in. A failing typecheck or lint means
 the work is not done, whatever the reviewer's verdict: do not end with "ready to commit" until both are clean.
 

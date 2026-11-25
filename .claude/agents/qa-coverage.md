@@ -80,12 +80,15 @@ was not available. Then these sections in this order:
 ## Metrics
 ```
 
-A section with nothing to say holds the line `none observed`, never nothing. The skill says what each holds.
+A section with nothing to say holds the line `none observed`; one you could not look at holds `not reached: <why>`;
+never nothing. The skill says what each holds.
 
 Reply with: the report path; the number of gaps; the first five gap ids with their names; the total test count from
 Metrics. Nothing else.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Installed modules: no file holds them; the `modules` fixture reads them from the platform for each worker, so the
   report says "installed modules not available". `virtocommerce/modules.ts` lists the modules the suite depends

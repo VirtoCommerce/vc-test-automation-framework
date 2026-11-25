@@ -19,6 +19,7 @@ dist/
 .qa/runs/
 .qa/reports/
 .qa/kb/
+.qa/probes/
 .qa/judge/
 tests/unit/qa/
 evals/
@@ -26,3 +27,4 @@ evals/
 
 .qa/client-terms.local.txt
 .qa/*.local.env
+docs/superpowers/

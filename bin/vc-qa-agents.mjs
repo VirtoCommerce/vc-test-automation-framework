@@ -7,11 +7,15 @@ import { fileURLToPath } from "node:url";
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
 const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
+const MCP_FILE = ".mcp.json";
+const BROWSER_SERVER = "playwright";
+const FACTS_FILE = ".qa/project.json";
 const GITIGNORE_LINES = [
   ".qa/contracts/",
   ".qa/runs/",
   ".qa/reports/",
   ".qa/kb/",
+  ".qa/probes/",
   ".qa/judge/",
   ".qa/*.local.env",
   ".qa/client-terms.local.txt",
@@ -52,6 +56,18 @@ function hasHook(settingsPath) {
   return readFileSync(settingsPath, "utf8").includes(HOOK_SCRIPT.split("/").pop());
 }
 
+function hasBrowserServer(target) {
+  const path = join(target, MCP_FILE);
+  if (!existsSync(path)) {
+    return false;
+  }
+  try {
+    return Object.hasOwn(JSON.parse(readFileSync(path, "utf8")).mcpServers ?? {}, BROWSER_SERVER);
+  } catch {
+    return false;
+  }
+}
+
 function addIgnores(target) {
   const path = join(target, ".gitignore");
   const text = existsSync(path) ? readFileSync(path, "utf8") : "";
@@ -64,7 +80,7 @@ function addIgnores(target) {
   return missing;
 }
 
-function install(target) {
+function install(target, written = []) {
   const lines = [];
   const copied = copyAgentFiles(target);
   lines.push(`Copied ${copied.length} files into .claude/ (agents, commands, skills, checks, hooks).`);
@@ -79,11 +95,22 @@ function install(target) {
     );
   }
 
-  if (copyIfMissing(join(PACKAGE_ROOT, ".qa", "project.example.json"), join(target, ".qa", "project.json"))) {
+  if (written.includes(FACTS_FILE)) {
+    lines.push(
+      "Wrote .qa/project.json for the suite. Replace its example accounts and tracker with this repository's facts:",
+    );
+    lines.push("every agent reads it, and node .claude/checks/project-facts.mts refuses it until you have.");
+  } else if (copyIfMissing(join(PACKAGE_ROOT, ".qa", "project.example.json"), join(target, ".qa", "project.json"))) {
     lines.push("Created .qa/project.json from the example. Replace its example values with this repository's facts:");
-    lines.push("every agent reads it. node .claude/checks/project-facts.mts validates it.");
+    lines.push("every agent reads it, and node .claude/checks/project-facts.mts refuses it until you have.");
   } else {
     lines.push("Kept your .qa/project.json.");
+  }
+  if (!written.includes(MCP_FILE) && !hasBrowserServer(target)) {
+    lines.push(
+      `No ${BROWSER_SERVER} server in ${MCP_FILE}: the agents that open the frontend need a Playwright MCP server named ` +
+        `"${BROWSER_SERVER}" (see the QA agents guide, Browser).`,
+    );
   }
 
   const ignores = addIgnores(target);
@@ -136,6 +163,17 @@ function templateFiles(dir) {
   );
 }
 
+function wrapForWindows(path) {
+  const config = JSON.parse(readFileSync(path, "utf8"));
+  for (const server of Object.values(config.mcpServers)) {
+    if (server.command === "npx") {
+      server.args = ["/c", "npx", ...server.args];
+      server.command = "cmd";
+    }
+  }
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
+}
+
 function copySuiteTemplate(target) {
   const written = [];
   const kept = [];
@@ -150,6 +188,9 @@ function copySuiteTemplate(target) {
   }
   if (copyIfMissing(join(SUITE_TEMPLATE, "env.example"), join(target, ".env"))) {
     written.push(".env");
+  }
+  if (written.includes(MCP_FILE) && process.platform === "win32") {
+    wrapForWindows(join(target, MCP_FILE));
   }
   return { written, kept };
 }
@@ -195,15 +236,23 @@ function init(target, { skipInstall }) {
   if (!skipInstall) {
     installDependencies(target);
   }
-  lines.push(...install(target));
+  if (written.includes(MCP_FILE)) {
+    lines.push(
+      `Wrote ${MCP_FILE}: the Playwright MCP server "${BROWSER_SERVER}" that the agents open the frontend with, ` +
+        "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
+    );
+  }
+  lines.push(...install(target, written));
   lines.push(
     "",
     "Next:",
-    "  1. Fill in .env: the platform, the frontend, the administrator and STORE_ID.",
+    "  1. Fill in .env: the platform, the frontend, the administrator, STORE_ID and the customer passwords.",
     "  2. npm run codegen     GraphQL and REST types from the platform",
     "  3. npm test            the first test signs a new user in",
     "  4. npm run report && npm run report:open",
-    "  5. Replace the example roles and tracker in .qa/project.json, then start claude and run /qa <task>.",
+    "  5. Replace the example accounts and tracker in .qa/project.json; node .claude/checks/project-facts.mts must pass.",
+    "  6. node .claude/checks/browser-secrets.mts writes the passwords the browser server types (.qa/browser-secrets.local.env,",
+    "     git-ignored), then start claude, approve the playwright server and run /qa <task>.",
   );
   return lines;
 }

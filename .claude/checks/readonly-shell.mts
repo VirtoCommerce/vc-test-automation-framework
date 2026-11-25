@@ -33,9 +33,18 @@ export const JUDGE_WRITE_DIR = ".qa/judge";
 
 export const EXPLORER_AGENT = "qa-explorer";
 
+export const EXPLORER_QA_MODULES = ["introspect", "probe"] as const;
+
 export const COVERAGE_AGENT = "qa-coverage";
 
 export const EXPLORER_WRITE_DIR = ".qa/reports";
+
+export const PROBE_DIR = ".qa/probes";
+
+const PROBE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*[.](graphql|get)$/;
+
+/** The probe files the explorer may write and `probe.mts` may send: `.qa/probes/<slug>.graphql` or `.get`. */
+export const PROBE_FILE = new RegExp(`^${PROBE_DIR.replace(/[.]/g, "[.]")}/${PROBE_NAME.source.slice(1)}`);
 
 export const HEALER_RUN_DIR = ".qa/runs";
 
@@ -101,6 +110,10 @@ const NPX_NO_INSTALL = "--no";
 const END_OF_OPTIONS = "--";
 const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
 const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_MODULES]);
+const EXPLORER_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...EXPLORER_QA_MODULES]);
+const INTROSPECT_PATH = `${CHECKS_DIR}/introspect.mts`;
+const PROBE_PATH = `${CHECKS_DIR}/probe.mts`;
+const INTROSPECT_KINDS = ["graphql", "rest"];
 const MAX_SHOWN_COMMAND = 80;
 
 /**
@@ -231,10 +244,23 @@ function isQualityCall(tokens: readonly string[]): boolean {
   return count && args.every(isRepoPath);
 }
 
+function qaModulePatternOf(agent: string | undefined): RegExp {
+  const bare = bareName(agent);
+  if (bare === JUDGE_AGENT) {
+    return JUDGE_QA_MODULE_PATH;
+  }
+  return bare === EXPLORER_AGENT ? EXPLORER_QA_MODULE_PATH : QA_MODULE_PATH;
+}
+
 function isQaModule(tokens: readonly string[], agent: string | undefined): boolean {
-  const pattern = bareName(agent) === JUDGE_AGENT ? JUDGE_QA_MODULE_PATH : QA_MODULE_PATH;
-  if (tokens[0] !== "node" || !pattern.test(tokens[1] ?? "")) {
+  if (tokens[0] !== "node" || !qaModulePatternOf(agent).test(tokens[1] ?? "")) {
     return false;
+  }
+  if (tokens[1] === INTROSPECT_PATH) {
+    return tokens.length === 3 && INTROSPECT_KINDS.includes(tokens[2] ?? "");
+  }
+  if (tokens[1] === PROBE_PATH) {
+    return tokens.length === 3 && PROBE_FILE.test(tokens[2] ?? "");
   }
   if (tokens[1] === TEST_SHAPE_PATH || tokens[1] === TEST_DURATION_PATH) {
     return isQualityCall(tokens);
@@ -264,7 +290,8 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
  * config flag exactly as `config` holds it, none for a suite at the repository root, and no path to a `.env` file),
  * `git diff|log|show|status …`, `node .claude/checks/<module>.mts …` (`test-shape` and `test-duration` only with
  * repository paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and
- * `prove-fails`. `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a
+ * `prove-fails`, and `qa-explorer` has `introspect` (`graphql` or `rest`) and `probe` (one `.qa/probes/<slug>.graphql|get`
+ * file). `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a
  * flag), so npm never fetches a package. Only `qa-reviewer` may lead the listing with
  * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json`, `<contract-name>` not starting
  * with `heal-`, and `qa-healer` only with the directory `heal-<slug>`. No chaining, substitution, redirection, quoting,
@@ -449,45 +476,62 @@ function isJudgeFile(segments: readonly string[]): boolean {
   return segments.length >= 2 && JUDGE_FILE.test(segments.at(-1) ?? "") && !segments.some((name) => name.includes(":"));
 }
 
-function writeRuleOf(
-  agent: string,
-): { dir: string; allows: (segments: readonly string[]) => boolean; shown: string } | undefined {
+type WriteRule = { dir: string; allows: (segments: readonly string[]) => boolean; shown: string };
+
+function isProbeFile(segments: readonly string[]): boolean {
+  return segments.length === 1 && PROBE_NAME.test(segments[0] ?? "");
+}
+
+function writeRulesOf(agent: string): WriteRule[] {
   const bare = bareName(agent);
   if (bare === JUDGE_AGENT) {
-    return {
-      dir: JUDGE_WRITE_DIR,
-      allows: isJudgeFile,
-      shown: `only .json files under ${JUDGE_WRITE_DIR}/<contract-name>/`,
-    };
+    return [
+      {
+        dir: JUDGE_WRITE_DIR,
+        allows: isJudgeFile,
+        shown: `.json files under ${JUDGE_WRITE_DIR}/<contract-name>/`,
+      },
+    ];
   }
   if (bare === EXPLORER_AGENT) {
-    return { dir: EXPLORER_WRITE_DIR, allows: isReportFile, shown: `only ${EXPLORER_WRITE_DIR}/explore-<slug>.md` };
+    return [
+      { dir: EXPLORER_WRITE_DIR, allows: isReportFile, shown: `${EXPLORER_WRITE_DIR}/explore-<slug>.md` },
+      { dir: PROBE_DIR, allows: isProbeFile, shown: `${PROBE_DIR}/<slug>.graphql|get` },
+    ];
   }
   if (bare === COVERAGE_AGENT) {
-    return {
-      dir: EXPLORER_WRITE_DIR,
-      allows: isCoverageFile,
-      shown: `only ${EXPLORER_WRITE_DIR}/coverage-<yyyy-mm-dd>[-<slug>].md`,
-    };
+    return [
+      {
+        dir: EXPLORER_WRITE_DIR,
+        allows: isCoverageFile,
+        shown: `${EXPLORER_WRITE_DIR}/coverage-<yyyy-mm-dd>[-<slug>].md`,
+      },
+    ];
   }
-  return undefined;
+  return [];
 }
 
 function writeBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
-  const rule = writeRuleOf(agent);
-  if (rule === undefined) {
+  const rules = writeRulesOf(agent);
+  if (rules.length === 0) {
     return `${agent} is read-only and may not write files; blocked`;
   }
   const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
-  const segments = typeof file === "string" && file !== "" ? pathInside(projectDir, rule.dir, file) : undefined;
-  if (segments !== undefined && rule.allows(segments)) {
+  const allowed =
+    typeof file === "string" &&
+    file !== "" &&
+    rules.some((rule) => {
+      const segments = pathInside(projectDir, rule.dir, file);
+      return segments !== undefined && rule.allows(segments);
+    });
+  if (allowed) {
     const content = isRecord(toolInput) ? toolInput["content"] : undefined;
     return bareName(agent) === EXPLORER_AGENT && typeof content === "string" && CREDENTIAL_SHAPE.test(content)
       ? `${agent} may not write a token, password or Bearer header into a report; blocked`
       : undefined;
   }
   const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may write ${rule.shown}; blocked: ${shown}`;
+  return `${agent} may write only ${rules.map((rule) => rule.shown).join(" and ")}; blocked: ${shown}`;
 }
 
 function cleanHealerSegments(segments: readonly string[] | undefined): readonly string[] | undefined {
@@ -693,7 +737,8 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown, pro
  * undefined to let it pass. Only the read-only agents are limited; the main session and every other agent pass
  * untouched. A read-only agent's Bash call must be on the allowlist, its Playwright commands with the suite's config
  * arguments from the project facts (`suiteDir`). Its Write call is allowed for `qa-judge` only as a `.json` file under
- * `.qa/judge/<contract-name>/`, for `qa-explorer` only as `.qa/reports/explore-<slug>.md` and for `qa-coverage` only
+ * `.qa/judge/<contract-name>/`, for `qa-explorer` only as `.qa/reports/explore-<slug>.md` or a probe file
+ * `.qa/probes/<slug>.graphql|get` and for `qa-coverage` only
  * as `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the

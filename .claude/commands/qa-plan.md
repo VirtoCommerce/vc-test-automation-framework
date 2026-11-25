@@ -12,10 +12,19 @@ You are orchestrating the planning stage. Spawn the `qa-planner` agent to turn t
 - an area of existing functionality ("cover the cart") or a gap id from the coverage report
 - a plain-text requirement
 
-An area or a gap needs the explorer's report and the coverage report first; when they do not exist, say so and offer
-`/qa-explore` and `/qa-coverage` before planning.
+An area needs the explorer's report first, and a gap needs the coverage report that holds it; when the one it needs
+does not exist, say so and offer `/qa-explore` or `/qa-coverage` before planning. The other report is read when there
+is one and does not block planning: without a coverage report the planner finds existing coverage in the specs.
 
 ## Steps
+
+### 0. Clean Up
+
+Run `node .claude/checks/prune.mts --fetch --yes`, which removes only finished work under `.qa/` (a contract whose
+cases are all in test titles on the default branch, with its run record, verdict and observed report), and keep its
+last line (`prune: …`) for the end. Show its `ask` lines to the person as one list; only on their yes run
+`node .claude/checks/prune.mts --yes --include-stale`. Planning does not wait for that answer, and a `not reached` line
+or a failed check never stops it.
 
 ### 1. Plan
 
@@ -28,10 +37,9 @@ Relay its scope questions to the person and pass the answers back.
 ### 2. Check
 
 First, when the planner replies `needs observation`, spawn `qa-explorer` (read-only) with `observe <contract path>`,
-then the planner with `observed <contract path> <report path>`. Cases the report lists as `not reached: needs
-<role>` (the explorer observes only as the session the browser holds), and cases the planner lists as `api-only` (no
-page sends their request; an API-only area cannot be observed, because the observe probe does not exist yet), go to
-the person at once as a scope question: (a) observe at the expert's first run (it pins the value it sees and asks
+then the planner with `observed <contract path> <report path>`. Cases the report lists as `not reached` (the
+explorer observes as the session the browser holds, or anonymously through the probe for an API area with no page) go
+to the person at once as a scope question: (a) observe at the expert's first run (it pins the value it sees and asks
 for it in an amendment the person approves); (b) name another oracle source; (c) drop the case. Pass the answers to
 the planner with `observed <contract path> <report path>`.
 
@@ -50,6 +58,7 @@ wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed:
 
 End with:
 ```
+<the prune: line of step 0>
 Contract: .qa/contracts/<file>.md
 Approved? Run /qa-implement .qa/contracts/<file>.md to build it.
 ```

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.84",
+        "--browser",
+        "chromium",
+        "--isolated",
+        "--secrets",
+        ".qa/browser-secrets.local.env"
+      ]
+    }
+  }
+}

@@ -28,12 +28,14 @@ without a permission comes from `rolePermissions`, else ask (`plan-test-strategy
 |---|---|---|
 | A ticket key | skill `read-ticket`, then only the card `.qa/kb/tickets/<key>.json` | `ticket: <key>` |
 | A spec or documentation page | the page | `doc: <link>` |
-| An area of existing functionality, no ticket | the explorer report and the coverage report under `.qa/reports/`, and the pages listed in `docSources` | `area: <name>` |
-| A gap from the coverage report | that gap, the same reports and `docSources` | `gap: <id>` |
+| An area of existing functionality, no ticket | the explorer report under `.qa/reports/`, the coverage report when there is one, and the pages listed in `docSources` | `area: <name>` |
+| A gap from the coverage report | that gap in the coverage report, the explorer report when there is one, and `docSources` | `gap: <id>` |
 
 - A card whose `acceptanceCriteria` is `"none found"` has no criteria. Say so; take expected behaviour only from the
   documentation and the schema, and never write criteria yourself.
-- An area with no explorer report cannot be planned from guesses: stop and ask for an exploration first.
+- An area with no explorer report cannot be planned from guesses: stop and ask for an exploration first. A gap with
+  no coverage report to hold its id cannot be planned: stop and ask for `/qa-coverage`. A missing coverage report
+  does not block an area: existing coverage is what `plan-test-strategy` finds in the repository's specs.
 
 ## Build the Matrix
 
@@ -45,7 +47,11 @@ Skill `plan-test-strategy` holds the matrix method. In short:
   the UI keeps only what only the UI shows.
 - Search existing specs first and name what is already covered. Reuse documents, generated types, page objects,
   `arrange` methods, builders and dataset records; add only what is missing.
-- Mark a flow listed in `critical` as such. A case whose correct behaviour the platform is known to break goes under
+- A case that changes state on an account other specs also use runs with `--workers=1`, with those neighbouring specs
+  in the series: write the flag in `## Verification` (`framework-rules`, Shared Accounts).
+- Name the flow of `critical` a case belongs to in `Critical flow`, and state in `Parameters` every request parameter
+  whose value changes the answer (a quantity, a page size, a filter, a culture) with the value the case sends.
+  A case whose correct behaviour the platform is known to break goes under
   `## Platform defects` with the defect and its tracker link, or `no ticket yet`: its test asserts the correct
   behaviour and stays failing.
 - **Every oracle names its source**: `ticket:`, `doc:`, `schema:` or `observed:`. Never invent an expected value.
@@ -60,17 +66,22 @@ Skill `plan-test-strategy` holds the matrix method. In short:
 
 List every scope question the sources cannot answer (a rule the ticket does not state, two readings of a criterion,
 a module the stand may lack). Ask them in one numbered list before writing. An answer you did not get becomes a line
-`assumed: <what>` in Scope; never pick silently.
+`assumed: <what>` in Scope; never pick silently. With no one to answer (you were dispatched as a subagent, or the
+run is unattended), write every question as an `assumed: <what>` line and list them in your reply; do not wait.
 
 ## Write the Contract
 
 Use skill `plan-implementation`: its `contract-template.md` is the shape. Save to
 `.qa/contracts/<ticket-key-or-slug>.md`.
 
+Write what the search found under `## Existing coverage`. A `## Source` line that names a report or a snapshot under
+`.qa/reports/` or `.qa/kb/` ends with the day you read it. Before you ask for approval read each of those files
+again: the check refuses a file that changed after its date, and a claim about local state you made earlier is not
+evidence.
+
 Run `node .claude/checks/contract.mts check <file>`. It prints `ok <file>` or one line per problem. Fix the
 contract, never the facts, until it prints `ok`. When the only lines left are `no recorded value` ones, stop and reply
-`needs observation: <case ids>` instead of asking for approval, plus `api-only: <case ids>` for those whose value
-no page of the stand sends. Dispatched with `observed <contract> <report>`, copy each recorded value into its oracle
+`needs observation: <case ids>` instead of asking for approval. Dispatched with `observed <contract> <report>`, copy each recorded value into its oracle
 exactly, with the report path. A case not reached follows the person's answer: (a) `observed: at first run <what
 to observe>`; (b) the source they name; (c) drop its `observed:` part, or the case (to Out of scope as `not reached:
 <reason>`) when no other source remains.
@@ -91,6 +102,8 @@ session quoting their words; never you. A change to an approved contract goes on
 | Write the contract and the build order | `/plan-implementation` |
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Test projects (keys of `commands.test`): `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`. Business
   logic goes through xAPI (`graphql`), platform administration through `restapi`, and the browser shows only

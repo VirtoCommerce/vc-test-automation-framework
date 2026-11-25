@@ -1,8 +1,11 @@
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { spawnSync } from "node:child_process";
+import { readFileSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
 
-import { readProjectFacts } from "./project-facts.mts";
+import { playwrightConfigArgs, readProjectFacts } from "./project-facts.mts";
 import { CREDENTIAL_SHAPE } from "./readonly-shell.mts";
+import { walkRoot } from "./reconcile-run.mts";
+import { contractSeries, sameSpec } from "./run-record.mts";
 
 const CLI_FILE_NAME = "contract.mts";
 const APPROVED_FLAG = "--approved";
@@ -14,15 +17,28 @@ const REQUIRED_SECTIONS = [
   "Source",
   "Scope",
   "Out of scope",
+  "Existing coverage",
   "Cases",
   "Stand needs",
   "Building blocks",
   "Platform defects",
   "Verification",
 ] as const;
-const CASE_COLUMNS = ["Case", "Technique", "Project", "Data role", "Oracle"] as const;
+const CASE_COLUMNS = ["Case", "Technique", "Project", "Data role", "Critical flow", "Parameters", "Oracle"] as const;
 const AMENDMENTS_HEADING = /^amendment/i;
 const NO_ROLE = "none";
+const NOT_CRITICAL = "no";
+const COMMENT = /<!--[\s\S]*?-->/g;
+const LOCAL_STATE = /\.qa\/(?:reports|kb)\/[^\s`'"()<>,;]*/g;
+const PATH_END_PUNCTUATION = /[.:!?\]]+$/;
+const FILE_NAME = /[^/]\.[A-Za-z0-9]+$/;
+const GLOB = /[*?]/;
+const STATED_DATE = /\((\d{4}-\d{2}-\d{2})\)/;
+const AMENDMENT_FIELDS = ["Cases", "Changes"] as const;
+const DROPS_LINE = /^Drops:\s*(.+)$/im;
+const TITLE_SEPARATOR = " › ";
+const LIST_BUFFER = 256 * 1024 * 1024;
+const MAX_REASON = 300;
 const APPROVAL_LINE = /^Approved:\s*([^,\s][^,]*),\s*\d{4}-\d{2}-\d{2}(?:\s+\(relayed: "[^\n]+"\))?\s*$/;
 const APPROVAL = new RegExp(APPROVAL_LINE.source, "m");
 const APPROVAL_SECTION = "Approval";
@@ -63,10 +79,50 @@ function hasText(lines: string[]): boolean {
   return lines.some((line) => line.trim() !== "");
 }
 
-function checkSource(lines: string[]): string[] {
+/**
+ * The files a line names under `.qa/reports/` or `.qa/kb/`. A path ends at whitespace, a backtick, a quote or a
+ * bracket, and the sentence's closing punctuation is not part of it. A directory (`.qa/reports/`), a name with no
+ * extension and a pattern (`coverage-*.md`) name no file, as in "none exists under `.qa/reports/`".
+ */
+function localStateFiles(line: string): string[] {
+  return [...line.matchAll(LOCAL_STATE)]
+    .map((match) => match[0].replace(PATH_END_PUNCTUATION, ""))
+    .filter((path) => FILE_NAME.test(path) && !GLOB.test(path));
+}
+
+/**
+ * A line of `## Source` that names a report or a knowledge snapshot (`.qa/reports/…`, `.qa/kb/…`) must carry the date
+ * the planner read it, `(<yyyy-mm-dd>)`, and the file must not have changed after that date (`modifiedOn`, when given).
+ */
+function checkLocalState(lines: string[], modifiedOn: ((path: string) => string | undefined) | undefined): string[] {
+  const problems: string[] = [];
+  for (const line of lines) {
+    const date = STATED_DATE.exec(line)?.[1];
+    for (const path of localStateFiles(line)) {
+      const changed = date === undefined ? undefined : modifiedOn?.(path);
+      if (date === undefined) {
+        problems.push(
+          problem(`## Source names ${path} with no date: write (<yyyy-mm-dd>) after it, the day it was read`),
+        );
+      } else if (changed !== undefined && changed > date) {
+        problems.push(
+          problem(
+            `## Source: ${path} changed on ${changed}, after the ${date} the contract states: read it again and update the date`,
+          ),
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+function checkSource(lines: string[], modifiedOn: ((path: string) => string | undefined) | undefined): string[] {
   const first = lines.find((line) => line.trim() !== "")?.trim() ?? "";
   const accepted = SOURCE_KINDS.some((kind) => new RegExp(`^${kind}:\\s*\\S`).test(first));
-  return accepted ? [] : [problem("## Source must start with ticket:, doc:, area: or gap:")];
+  return [
+    ...(accepted ? [] : [problem("## Source must start with ticket:, doc:, area: or gap:")]),
+    ...checkLocalState(lines, modifiedOn),
+  ];
 }
 
 /** Splits the Oracle cell on `separator` outside double quotes, so a quoted observed value may hold `;`. */
@@ -115,7 +171,16 @@ function isObservedOnly(oracle: string): boolean {
   return sources.length > 0 && sources.every((source) => source === "observed");
 }
 
-function checkCases(lines: string[], roles: string[] | undefined): { problems: string[]; rows: CaseRow[] } {
+/** The text without `<!-- -->` comments, which hold the template's instructions and its commented-out sections. */
+function withoutComments(markdown: string): string {
+  return markdown.replace(COMMENT, "");
+}
+
+function checkCases(
+  lines: string[],
+  roles: string[] | undefined,
+  critical: string[] | undefined,
+): { problems: string[]; rows: CaseRow[] } {
   const problems: string[] = [];
   const rows: CaseRow[] = [];
   const tableLines = lines.filter((line) => line.trim().startsWith("|"));
@@ -163,6 +228,14 @@ function checkCases(lines: string[], roles: string[] | undefined): { problems: s
         problems.push(problem(`${label} data role "${role}" is not in the facts roles`));
       }
     }
+    const flow = cell(cells, "Critical flow");
+    for (const item of flow.split(",").map((value) => value.trim())) {
+      if (critical !== undefined && item !== "" && item !== NOT_CRITICAL && !critical.includes(item)) {
+        problems.push(
+          problem(`${label} critical flow "${item}" is not in the facts critical list (or ${NOT_CRITICAL})`),
+        );
+      }
+    }
     rows.push({ name, dataRole, oracle });
   }
   return { problems, rows };
@@ -179,7 +252,8 @@ function recordedLine(report: string, caseId: string, value: string): string | u
   return recorded.map((line) => line.trim()).find((line) => line.startsWith(`- ${caseId}: ${value} (`));
 }
 
-function namesCase(text: string, caseId: string): boolean {
+/** True when `text` (a test title) names `caseId` as a whole word: `C-1` is not named by `C-10`. */
+export function namesCase(text: string, caseId: string): boolean {
   return new RegExp(`(^|[^\\w-])${caseId.replace(REGEX_SPECIALS, "\\$&")}([^\\w-]|$)`).test(text);
 }
 
@@ -337,6 +411,16 @@ function approvedAmendmentText(sections: Section[]): string {
     .join("\n");
 }
 
+/** The case ids an approved amendment drops (`Drops: C-04, C-05`): they need no test. */
+function droppedCases(sections: Section[]): string[] {
+  return sections
+    .filter(({ heading }) => AMENDMENTS_HEADING.test(heading))
+    .flatMap(({ lines }) => amendmentEntries(lines).entries)
+    .filter((entry) => APPROVAL.test(entry.body.join("\n")))
+    .flatMap((entry) => (DROPS_LINE.exec(entry.body.join("\n"))?.[1] ?? "").split(/[\s,]+/))
+    .filter((id) => id !== "");
+}
+
 function checkAmendments(heading: string, lines: string[]): string[] {
   const { entries, outside } = amendmentEntries(lines);
   const problems: string[] = [];
@@ -344,32 +428,79 @@ function checkAmendments(heading: string, lines: string[]): string[] {
     problems.push(problem(`## ${heading} has text outside a ### entry`));
   }
   for (const entry of entries) {
-    if (!APPROVAL.test(entry.body.join("\n"))) {
+    const body = entry.body.join("\n");
+    if (!APPROVAL.test(body)) {
       problems.push(problem(`## ${heading} entry "${entry.title}" has no Approved: <who>, <date> line`));
+    }
+    for (const field of AMENDMENT_FIELDS) {
+      if (!new RegExp(`^${field}:\\s*\\S`, "m").test(body)) {
+        problems.push(problem(`## ${heading} entry "${entry.title}" has no ${field}: line naming what it changes`));
+      }
     }
   }
   return problems;
 }
 
+/** A test the suite lists: its spec file, relative to the config's root directory, and its own title. */
+export type ListedTest = { file: string; title: string };
+
 /**
- * Checks the shape of a contract. Only the shape: it does not judge whether the cases are good.
+ * Every case id of the contract, but one an approved amendment drops, appears in the title of a listed test of a spec
+ * file the contract's `## Verification` runs. Case ids (`C-01`) repeat from one contract to the next, so a test of
+ * another contract's spec never counts.
+ */
+function checkTestsExist(rows: CaseRow[], tests: readonly ListedTest[], markdown: string, dropped: string[]): string[] {
+  const specs = contractSeries(markdown).flatMap((series) => series.specs);
+  if (specs.length === 0) {
+    return [
+      problem(
+        "## Verification names no spec file: write the command that runs the new specs, so --implemented can find this contract's tests",
+      ),
+    ];
+  }
+  const titles = tests.filter((test) => specs.some((spec) => sameSpec(spec, test.file))).map((test) => test.title);
+  return rows
+    .map((row) => row.name.split(/\s+/)[0] ?? "")
+    .filter((caseId) => caseId !== "" && !dropped.includes(caseId))
+    .filter((caseId) => !titles.some((title) => namesCase(title, caseId)))
+    .map((caseId) =>
+      problem(
+        `case ${caseId} has no test: no title of the tests in the spec files of ## Verification names it (the case id comes first in the title)`,
+      ),
+    );
+}
+
+/** What the contract is checked against besides its own text; every part is optional and the CLI fills them from disk. */
+export type ContractChecks = {
+  /** Every data role in the cases table must be one of these (or `none`). */
+  roles?: string[];
+  /** Every critical flow in the cases table must be one of these (or `no`): the facts' `critical`. */
+  critical?: string[];
+  /** The text of a report an `observed:` oracle names, or `undefined` when it does not exist: the report must hold the value. */
+  readReport?: (path: string) => string | undefined;
+  /** The day (`yyyy-mm-dd`) a local file last changed, or `undefined` when it does not exist: for the dates in `## Source`. */
+  modifiedOn?: (path: string) => string | undefined;
+  /** The contract must also carry its `## Approval` line (`check --approved`). */
+  requireApproval?: boolean;
+  /**
+   * No `observed: at first run` part may be left and, when `listedTests` is given, every case id appears in the title of
+   * one of them in a spec file of `## Verification` (`check --implemented`).
+   */
+  requireImplemented?: boolean;
+  /** The tests the suite lists (`--list`): spec file and own title, without describe titles. */
+  listedTests?: ListedTest[];
+};
+
+/**
+ * Checks the shape of a contract. Only the shape: it does not judge whether the cases are good. `<!-- -->` comments are
+ * ignored.
  *
- * @param roles when given, every data role in the cases table must be one of them (or `none`).
- * @param readReport returns the text of a report an `observed:` oracle names, or `undefined` when it does not exist;
- *   when given, the report must hold the oracle's value for the case. The CLI reads from disk; omitted, only the shape
- *   is checked.
- * @param requireApproval when true, the contract must also carry its `## Approval` line (`check --approved`).
- * @param requireImplemented when true, no `observed: at first run` part may be left (`check --implemented`).
+ * @param checks what to check besides the text, see {@link ContractChecks}; omitted, only the shape is checked.
  * @returns one line per problem, empty when the contract is valid.
  */
-export function checkContract(
-  markdown: string,
-  roles?: string[],
-  readReport?: (path: string) => string | undefined,
-  requireApproval = false,
-  requireImplemented = false,
-): string[] {
-  const parsed = parseSections(markdown);
+export function checkContract(markdown: string, checks: ContractChecks = {}): string[] {
+  const { roles, critical, readReport, modifiedOn, requireApproval = false, requireImplemented = false } = checks;
+  const parsed = parseSections(withoutComments(markdown));
   const sections = new Map<string, string[]>();
   const problems: string[] = [];
   for (const { heading, lines } of parsed) {
@@ -391,10 +522,11 @@ export function checkContract(
   }
   const source = sections.get("Source");
   if (source !== undefined && hasText(source)) {
-    problems.push(...checkSource(source));
+    problems.push(...checkSource(source, modifiedOn));
   }
   const cases = sections.get("Cases");
-  const checked = cases !== undefined && hasText(cases) ? checkCases(cases, roles) : { problems: [], rows: [] };
+  const checked =
+    cases !== undefined && hasText(cases) ? checkCases(cases, roles, critical) : { problems: [], rows: [] };
   problems.push(
     ...checked.problems,
     ...checkObservedValues(checked.rows, {
@@ -404,6 +536,9 @@ export function checkContract(
       implemented: requireImplemented,
     }),
     ...checkObservedOnly(sections.get("Observed only"), checked.rows),
+    ...(requireImplemented && checks.listedTests !== undefined
+      ? checkTestsExist(checked.rows, checks.listedTests, markdown, droppedCases(parsed))
+      : []),
   );
   const approval = sections.get(APPROVAL_SECTION);
   if (approval !== undefined) {
@@ -419,12 +554,98 @@ export function checkContract(
   return problems;
 }
 
+/** What another check reads from a contract besides its shape. */
+export type ContractReferences = {
+  /** The id of every row of `## Cases`, the first word of its Case cell. */
+  caseIds: string[];
+  /** The case ids an approved amendment drops (`Drops:`). */
+  dropped: string[];
+  /** The `.qa/reports/explore-<slug>[-observed].md` reports its `observed:` oracles name. */
+  observedReports: string[];
+  /** The files under `.qa/reports/` and `.qa/kb/` its `## Source` names. */
+  sourceFiles: string[];
+  /** Whether it has an `## Approval` section. */
+  approved: boolean;
+};
+
+/**
+ * Reads the case ids, the dropped cases, the reports and the approval of a contract, without checking its shape.
+ * `<!-- -->` comments are ignored.
+ *
+ * @returns what the contract names; a missing section gives an empty list.
+ */
+function sectionLines(parsed: Section[], heading: string): string[] {
+  return parsed.find((section) => section.heading === heading)?.lines ?? [];
+}
+
+export function contractReferences(markdown: string): ContractReferences {
+  const parsed = parseSections(withoutComments(markdown));
+  const cases = sectionLines(parsed, "Cases");
+  const rows = hasText(cases) ? checkCases(cases, undefined, undefined).rows : [];
+  const observedReports = rows
+    .flatMap((row) => sourceParts(row.oracle))
+    .filter((part) => part.text.startsWith(OBSERVED))
+    .map((part) => RECORDED.exec(part.text.slice(OBSERVED.length).trim())?.[2]?.trim() ?? "")
+    .filter((path) => REPORT_PATH.test(path));
+  return {
+    caseIds: rows.map((row) => row.name.split(/\s+/)[0] ?? "").filter((caseId) => caseId !== ""),
+    dropped: droppedCases(parsed),
+    observedReports: [...new Set(observedReports)],
+    sourceFiles: [...new Set(sectionLines(parsed, "Source").flatMap(localStateFiles))],
+    approved: parsed.some((section) => section.heading === APPROVAL_SECTION),
+  };
+}
+
 function readReportFile(path: string): string | undefined {
   try {
     return readFileSync(path, "utf8");
   } catch {
     return undefined;
   }
+}
+
+function twoDigits(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function modifiedOnDay(path: string): string | undefined {
+  try {
+    const time = statSync(path).mtime;
+    return `${time.getFullYear()}-${twoDigits(time.getMonth() + 1)}-${twoDigits(time.getDate())}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Every test the suite lists (`playwright test --list --reporter=json` with the suite's config): its spec file and its
+ * own title, without describe titles.
+ *
+ * @throws Error when the list cannot be made or is not Playwright JSON.
+ */
+function listedTests(suiteDir: string): ListedTest[] {
+  const cli = join(process.cwd(), "node_modules", "@playwright", "test", "cli.js");
+  const { PLAYWRIGHT_JSON_OUTPUT_FILE: _output, ...environment } = process.env;
+  const listed = spawnSync(
+    process.execPath,
+    [cli, "test", ...playwrightConfigArgs(suiteDir), "--list", "--reporter=json"],
+    { cwd: process.cwd(), env: environment, encoding: "utf8", maxBuffer: LIST_BUFFER, windowsHide: true },
+  );
+  if (listed.status !== 0) {
+    const reason = ((listed.stderr || listed.stdout).trim().split("\n")[0] ?? "").trim().slice(0, MAX_REASON);
+    throw new Error(`contract: --implemented could not list the tests: ${reason}`);
+  }
+  const tests: ListedTest[] = [];
+  try {
+    walkRoot(JSON.parse(listed.stdout), "list", (test) => {
+      const parts = test.split(TITLE_SEPARATOR);
+      tests.push({ file: parts[0] ?? "", title: parts.at(-1) ?? "" });
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`contract: --implemented could not read the list of tests: ${reason}`);
+  }
+  return tests;
 }
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
@@ -449,13 +670,17 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     } catch {
       throw new Error(`contract: ${file} cannot be read`);
     }
-    const problems = checkContract(
-      text,
-      Object.keys(readProjectFacts().roles),
-      readReportFile,
-      flags.includes(APPROVED_FLAG),
-      flags.includes(IMPLEMENTED_FLAG),
-    );
+    const facts = readProjectFacts();
+    const implemented = flags.includes(IMPLEMENTED_FLAG);
+    const problems = checkContract(text, {
+      roles: Object.keys(facts.roles),
+      critical: facts.critical,
+      readReport: readReportFile,
+      modifiedOn: modifiedOnDay,
+      requireApproval: flags.includes(APPROVED_FLAG),
+      requireImplemented: implemented,
+      ...(implemented ? { listedTests: listedTests(facts.suiteDir) } : {}),
+    });
     if (problems.length > 0) {
       process.stderr.write(`${problems.join("\n")}\n`);
       process.exitCode = 1;

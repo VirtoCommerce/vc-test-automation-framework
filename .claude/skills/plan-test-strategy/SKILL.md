@@ -16,8 +16,8 @@ from this file.
   `"none found"` there are none: say so and take the expected behaviour from the documentation and the schema.
 - A specification or documentation page: each documented rule is one criterion.
 - An area of existing functionality or a gap, with no ticket: the criteria are the documented rules found in
-  `docSources`, the API schema, and what the explorer's report observed. Read the coverage report to see what is
-  already tested.
+  `docSources`, the API schema, and what the explorer's report observed. Read the coverage report, when there is one,
+  to see what is already tested; without it, step 2 finds out.
 - Note the surfaces involved (API operations, endpoints, pages) and the identities (roles from the facts, anonymous).
 
 ## Step 2: Explore Existing Coverage
@@ -38,9 +38,11 @@ A criterion already covered is listed as covered, not planned again.
 2. Add what the technique does not give: edge cases, negative cases (rejected input, missing permission, empty or
    absent data) and regression cases (behaviour next to the change that must not break).
 3. For each case decide:
-   - **Project**: a key of `commands.test`. A behaviour is tested once, at the lowest layer that shows it; the UI
+   - **Project**: a key of `commands.test`, and a project name is valid only if it is one: the examples at the end
+     of this file are not names to use. A behaviour is tested once, at the lowest layer that shows it; the UI
      keeps only what only the UI shows.
-   - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration,
+   - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration (when the facts have none, an administration case that needs
+     the administrator under a name is a scope question for the person; `arrange` needs no name),
      `roleFor.customer` for an ordinary signed-in customer, `roleFor.otherCustomer` for a customer of another
      organization. When the facts have no `roleFor.otherCustomer`, a cross-organization access case is a scope question
      for the person (the planner's Ask), never a role you pick. A test that changes a user's own state creates its own
@@ -52,6 +54,10 @@ A criterion already covered is listed as covered, not planned again.
      source of roles. A role in `roles` without an entry has an unknown permission set, never an empty one, and is
      never "a role without P". Use it only when the person confirms. A case that changes a role or a permission
      plans a new sign-in before checking its effect.
+   - **Critical flow**: the flow of `critical` in the facts the case belongs to, or `no`.
+   - **Parameters**: every request parameter whose value changes the answer (a quantity, a page size, a filter, a sort, a
+     culture, a currency, a store) and the value this case sends, or `none`. A case that does not state them cannot be
+     implemented without a guess.
    - **Oracle**: where the expected value comes from, written `ticket:`, `doc:`, `schema:` or `observed:` followed by
      the criterion, page or field. If the only source is what the stand did, the oracle is `observed:` and the case goes
      under `## Observed only`. An `observed:` oracle holds the value the explorer recorded on the stand, with its
@@ -63,27 +69,31 @@ A criterion already covered is listed as covered, not planned again.
 
 Name the dataset records to read, the records and builders to add, the documents, page objects and `arrange`
 methods to add, the optional modules the cases need, and the cases whose correct behaviour the platform is known to
-break. This feeds Stand needs, Building blocks and Platform defects in the contract.
+break. A case that changes state on an account other specs also use (a shared dataset user) goes with the neighbouring
+specs of that account into a series run with `--workers=1`: it feeds the contract's Verification (`framework-rules`,
+Shared Accounts). This feeds Stand needs, Building blocks, Platform defects and Verification in the contract.
 
 ## Output
 
 The matrix, in the contract's columns, with the existing coverage above it:
 
 ```markdown
-## Existing Coverage
+## Existing coverage
 - Covered: <criterion> by <spec file>
 - Reusable building blocks: <names>
 - Gaps: <what is missing>
 
 ## Cases
-| Case | Technique | Project | Data role | Oracle |
-|---|---|---|---|---|
-| C-01 <what it shows> | boundary value analysis | <project> | <role or none> | ticket: <criterion> |
+| Case | Technique | Project | Data role | Critical flow | Parameters | Oracle |
+|---|---|---|---|---|---|---|
+| C-01 <what it shows> | boundary value analysis | <project> | <role or none> | <flow or no> | <values that change the answer, or none> | ticket: <criterion> |
 ```
 
 Then `plan-implementation` turns it into the contract file.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 | Signal | Project |
 |---|---|

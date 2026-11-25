@@ -7,6 +7,14 @@ and you never do a role's work yourself.
 `$ARGUMENTS` is the task in plain words: a ticket key, a specification or documentation link, an area ("cover the
 cart"), a failing test, "review this branch", "what is not covered". Empty: ask what to do.
 
+## Step 0: Clean Up
+
+Run `node .claude/checks/prune.mts --fetch --yes`. It removes only finished work under `.qa/`: a contract whose cases
+are all in test titles on the default branch, with its run record, verdict and observed report. Keep its last line
+(`prune: …`) for the Output. Show its `ask` lines (older files it keeps unless told) to the person as one list and, only
+on their yes, run `node .claude/checks/prune.mts --yes --include-stale`. The flow does not wait for that answer, and a
+`not reached` line or a failed check never stops it.
+
 ## Pick the Flow
 
 | Request | Flow |
@@ -49,10 +57,8 @@ Dispatch `qa-planner` with the request (and the report paths for an area or a ga
 First, when the planner replies `needs observation` (its only check lines are `no recorded value`), observe before
 the approval: dispatch `qa-explorer` with `observe <contract path>`. It is read-only and records every `observed:`
 case in `.qa/reports/explore-<slug>-observed.md`. Then dispatch the planner with `observed <contract path> <report
-path>` to copy the values in. Cases the report lists as `not reached: needs <role>` (the explorer observes only as
-the session the browser holds), and cases the planner lists as `api-only` (no page sends their request; an API-only
-area cannot be observed, because the observe probe does not exist yet), go to the person at once as a scope
-question: (a) observe at the expert's first run (it pins the value it sees and asks for it in an amendment the
+path>` to copy the values in. Cases the report lists as `not reached` (the explorer observes as the session the browser holds, or
+anonymously through the probe for an API area with no page) go to the person at once as a scope question: (a) observe at the expert's first run (it pins the value it sees and asks for it in an amendment the
 person approves); (b) name another oracle source; (c) drop the case. Pass the answers to the planner with
 `observed <contract path> <report path>`.
 
@@ -87,7 +93,10 @@ the contract check again and dispatch the expert again with the same path (not a
 In the end-to-end flow, tell an unreachable stand apart from a red run first. When the expert reported the stand as
 not reachable, or a project of the contract's case rows has no `report.<project>.json`, the run is "not done, stand
 unreachable": stop, tell the person, and go to neither Heal nor Judge. Otherwise reconcile each project's record with
-the third command of "Hand-off Paths". Exit 1 with a verdict whose `failures` list only tests of cases under the
+the third command of "Hand-off Paths", with its `--contract` argument. A series the expert ran differently from the
+contract's Verification needs a `deviation: <what and why>` line per difference in `.qa/runs/<contract-name>/deviation.txt`: write them
+when you ran the series yourself, and read the expert's. A `stale` list, or more `differences` than `deviation:` lines, is not a run to heal: the series is stale or not the one the
+contract asked for, so dispatch the expert again with the same path. Exit 1 with a verdict whose `failures` list only tests of cases under the
 contract's `## Platform defects`, each failed in every repetition: the run is done with known platform defects, so
 go to Judge and name them in the Output. Exit 1 with a verdict whose `failures` list any other test (failed, flaky,
 skipped without a reason, missing from the report): the run is red, so go to Heal with the run record path, then to
@@ -143,14 +152,14 @@ framework rules and style only. After a heal whose guard ran clean, add the line
 `healer: <baseline tree id> <new tree id>` (the `healed tree` the guard recipe printed). The reviewer spares only the
 hunks of `git diff <baseline tree id> <new tree id>` under the healer paths from the scope rule, so an expert's own
 change in a healed file stays in scope. Without a clean guard, send no such line. Its shell is read-only, so run
-`commands.typecheck` and `commands.lint` from `node .claude/checks/project-facts.mts` yourself and report the result
+`commands.typecheck` and `commands.lint` (when the facts have one) from `node .claude/checks/project-facts.mts` yourself and report the result
 with the review. A failing typecheck or lint means the work is not done, whatever the verdict.
 For a pull request, fetch the diff and metadata with `gh` and pass them as files.
 
 ## Output
 
-End with what ran and what is left: the flow, the contract path, the run record counts per project with every
+End with what ran and what is left: the `prune:` line of Step 0, the flow, the contract path, the run record counts per project with every
 skip's reason and every platform-defect failure with its case, the judge verdict, the review verdict, and anything
 awaiting a person (an approval, an amendment, a second judge failure, a guard finding). Say "not done" for any stage
 that did not run. Say "ready to commit" only when the contract is approved, the run was done, the judge passed, the
-review approved and typecheck and lint are clean.
+review approved and typecheck and lint (when the facts have one) are clean.

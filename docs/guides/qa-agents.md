@@ -21,38 +21,67 @@ npx vc-qa-agents
 `vc-qa-agents` copies the agents, commands, skills, check scripts and hook into `.claude/`, replacing the copies of
 an earlier version. It creates `.claude/settings.json` with the read-only shell hook and `.qa/project.json` from an
 example, but never changes either one once it exists, and it appends the missing entries for the agents' working files
-to `.gitignore`. Run it again after you upgrade the package. Commit `.claude/` and `.qa/project.json`; the other files under `.qa/` are the
-agents' working files.
+to `.gitignore`. Run it again after you upgrade the package. Commit `.claude/` and `.qa/project.json`; the other
+files under `.qa/` are the agents' working files.
 
 The check scripts are TypeScript, run by Node 22.18 or newer without a build, and parse specs with `@babel/parser`.
 
 ## Describe your repository
 
 Replace the example values in `.qa/project.json`, then check it with `node .claude/checks/project-facts.mts`, which
-prints the facts or the first field that is wrong. It also fails while an example value is left in: a role account on
-`your-company.test` or a tracker key pattern of the project `PROJ`. Every agent reads the file through that command
-and stops when it fails.
+prints the facts or the problems with them. Every agent reads the file through that command and stops when it fails.
 
-| Field             | Holds                                                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.`, the default, for the root                              |
-| `tracker`         | The tracker kind, the pattern of its keys, the routes the agents may read a ticket by and, optionally, the field of the acceptance criteria |
-| `docSources`      | Where the agents look up how the product should behave                                                                                      |
-| `commands`        | The type check, the lint, optionally the seed (`seed`), and one test command for each Playwright project, plus `unit` and `all`             |
-| `critical`        | The flows that coverage ranks first                                                                                                         |
-| `knowledgeDir`    | The directory of the knowledge snapshot that the agents read before they call a live service                                                |
-| `roles`           | The data roles of the tests, each with its account                                                                                          |
-| `roleFor`         | Which role administers (`admin`), which is a customer, and optionally which is another customer                                             |
-| `rolePermissions` | Optional: the permissions of each role, for security tests                                                                                  |
-| `passwordFor`     | Optional: the environment variable that holds each role's password                                                                          |
-| `coverageWeights` | The weights that coverage ranks the gaps by: `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`                                   |
-| `flakyRunSeries`  | How many times the healer runs a test before it calls the test flaky, at least 2                                                            |
-| `quality`         | Limits on the size of a test, the stable series and the time budget of each project                                                         |
-| `autonomy`        | Whether the healer may apply a fix (`apply`) or only propose it (`propose`), by area                                                        |
-| `healerPaths`     | The directories the healer may change: page objects and test data, never the specs                                                          |
+Besides the shape of each field, the command refuses a file that is still the template's: an account in the example
+domain or the `PROJ` tracker key. It also checks the file against the repository: every `npm run` script of a command
+exists in `package.json`, every key of `commands.test` (except `unit` and `all`) and of `quality.durationBudgetMs` is a
+project of the suite's `playwright.config`, and every `healerPaths` entry is a directory. A config whose projects it
+cannot read statically is noted on stderr and its project names are not checked.
+
+| Field             | Holds                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.` for the root            |
+| `tracker`         | The tracker kind, the pattern of its keys and the routes the agents may read a ticket by                    |
+| `docSources`      | Where the agents look up how the product should behave                                                      |
+| `commands`        | The type check, one test command for each Playwright project plus `unit` and `all`, and the lint (optional) |
+| `critical`        | The flows that coverage ranks first                                                                         |
+| `roles`           | The data roles of the tests, each with its account                                                          |
+| `roleFor`         | Which role is a customer, and optionally which administers (`admin`) and which is another customer          |
+| `rolePermissions` | The permissions of each role, for security tests                                                            |
+| `passwordFor`     | The environment variable that holds each role's password                                                    |
+| `quality`         | Limits on the size of a test, the stable series and the time budget of each project                         |
+| `autonomy`        | Whether the healer may apply a fix (`apply`) or only propose it (`propose`), by area                        |
+| `healerPaths`     | The directories the healer may change: page objects and test data, never the specs                          |
 
 The prompts name no solution: `node .claude/checks/scan-prompts.mts` checks that the shipped files hold none of the
 facts' accounts, role names or hosts.
+
+## Browser
+
+The agents that open the frontend (`qa-explorer`, `qa-coverage`, `qa-healer`) use a Playwright MCP server named
+`playwright`, which Claude Code reads from `.mcp.json` in the repository root. `npx vc-qa-agents init` writes it, with
+the server pinned to one version and started as `--browser chromium --isolated --secrets
+.qa/browser-secrets.local.env`; on Windows the command is wrapped in `cmd /c`, as Claude Code needs it there. Commit
+the file. Claude Code asks once to approve the server. An existing suite adds the same server to its own `.mcp.json`:
+`npx vc-qa-agents` says when it is missing.
+
+The server types the passwords of the roles into the sign-in form, so the agent never holds one. The names of the
+variables are the values of `passwordFor`, and the variables are in the suite's `.env` (the template's `.env.example`
+lists them). Write them for the server with:
+
+```shell
+node .claude/checks/browser-secrets.mts
+```
+
+It writes `.qa/browser-secrets.local.env` (git-ignored) and restricts it to the current user: by mode `0600` on Linux
+and macOS, by `icacls` on Windows, where the mode does nothing. When it cannot restrict the file it says so as a
+warning; restrict the file yourself then. The server reads the file when it starts, so restart it after the file
+changes. `node .claude/checks/stand.mts` prints `sign-in: ready` when the file matches the run's variables.
+
+An API area that no page uses needs no browser. `qa-explorer` reads its schema with `node .claude/checks/introspect.mts
+graphql` (or `rest`), which asks the backend of the stand without a credential and saves the schema in `.qa/kb/`, and
+observes values of anonymous cases with `node .claude/checks/probe.mts`, which sends one read-only query or GET that
+the explorer wrote under `.qa/probes/` (git-ignored). Neither signs in: a case that needs a role is reported as not
+reached.
 
 ## Use
 
@@ -72,3 +101,33 @@ runs each role as its own agent:
 
 `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-heal`, `/qa-explore` and `/qa-coverage` run one role. The rules every
 test follows are in the `framework-rules` skill; the read-only agents are held to their commands by the hook.
+
+## Clean up the working files
+
+The agents' working files under `.qa/` are git-ignored and exist only on the machine of whoever worked, so CI cannot
+remove them: contracts (`.qa/contracts/`), run records (`.qa/runs/`), judge verdicts (`.qa/judge/`), explorer,
+coverage and healer reports (`.qa/reports/`) and probes (`.qa/probes/`). `/qa`, `/qa-plan` and `/qa-coverage` start by
+running
+
+```shell
+node .claude/checks/prune.mts --fetch --yes
+```
+
+which fetches `origin` and removes finished work only: a contract is finished when every case id of its cases table,
+but the ones an approved amendment drops, is in a test title on the default branch of `origin` (`origin/HEAD`, else
+`main`, else `dev`). Only the spec files the contract's Verification runs count, because case ids repeat from one
+contract to the next; a contract whose Verification names no spec file is never finished. The titles are read from the
+branch's spec files under `suiteDir` in git, with nothing checked out and no test run. A finished contract goes with its run record, its judge verdict and the `-observed` reports its
+oracles cite. A contract stays when its spec files have uncommitted or unpushed changes, or when a local branch that is
+not merged into the default branch carries its name. With no `origin` or no default branch ref it removes nothing and
+says `not reached`. The command reports the check's last line.
+
+Older files are listed as `ask` lines and removed only when you say yes, with `--yes --include-stale`: contracts with
+no approval unchanged for longer than `--days=<n>` (the usage line, printed for an unknown option, gives the
+default), coverage reports beyond the newest few of a scope (each line says how many are kept), an `-observed` report
+older than the explorer report of its area, healer reports and runs unchanged for as long, and probe files. A report that a remaining contract cites is never removed, nor is the knowledge directory (`knowledgeDir`,
+`.qa/kb`), a `.qa/*.local.env` file, anything that matches none of these names, or anything outside `.qa/`.
+
+Run it by hand from the repository root: with no option it only prints what it would remove and why, one line each;
+`--fetch` fetches `origin` first, `--yes` removes the finished work and `--yes --include-stale` the older files too.
+The read-only shell hook does not let an agent run it: the commands run it from your session.

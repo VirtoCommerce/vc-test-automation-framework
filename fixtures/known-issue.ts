@@ -23,6 +23,7 @@ export const KNOWN_ISSUE_NAMES = [
   "duplicatePermalinkAccepted",
   "memberDeleteDeadlock",
   "oauthAppSearchIgnoresFilters",
+  "organizationsButtonUnreleased",
 ] as const;
 
 export type KnownIssueName = (typeof KNOWN_ISSUE_NAMES)[number];

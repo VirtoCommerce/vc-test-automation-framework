@@ -27,5 +27,8 @@
   "oauthAppSearchIgnoresFilters": {
     "issueUrl": "https://virtocommerce.atlassian.net/browse/VCST-6440",
     "summary": "POST /api/platform/oauthapps/search ignores keyword and objectIds and returns every OAuth app"
+  },
+  "organizationsButtonUnreleased": {
+    "summary": "The header's organizations button (organizations-button, vc-frontend#2667, VCST-6237) is only on the frontend's dev branch; module CI runs against the released frontend, so the organizations menu tests time out until it is released"
   }
 }

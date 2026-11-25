@@ -3,7 +3,7 @@ import * as allure from "allure-js-commons";
 import { requireFields } from "@core/required-fields";
 import { uniqueId } from "@core/unique-id";
 import { MODULES } from "@dataset/modules";
-import { expect, test } from "@fixtures";
+import { expect, KNOWN_ISSUES, knownIssue, test } from "@fixtures";
 
 const NO_MATCH = "NonExistentOrg";
 const SEARCH_THRESHOLD = 10;
@@ -18,6 +18,7 @@ test.describe("organizations menu (customer of their own)", () => {
   test.use({ shopperKind: "customer" });
 
   test("switch the active organization", async ({ frontend, shopper, arrange }) => {
+    await knownIssue(KNOWN_ISSUES.organizationsButtonUnreleased);
     await allure.story("Switch organization");
     await allure.description("Selecting another organization in the organizations menu shows its name in the header.");
     const account = requireFields(shopper.account, ["organizationId"], "Customer");
@@ -49,6 +50,7 @@ test.describe("organizations menu search (customer of their own)", () => {
   test.use({ shopperKind: "customer", requiresModules: [MODULES.xProfile] });
 
   test("search organizations by part of their name", async ({ frontend, shopper, arrange }) => {
+    await knownIssue(KNOWN_ISSUES.organizationsButtonUnreleased);
     await allure.story("Search organizations");
     await allure.description(
       `With ${SEARCH_THRESHOLD} organizations the organizations menu offers a search, which finds them by part of their name.`,
@@ -80,6 +82,7 @@ test.describe("organizations menu search (customer of their own)", () => {
   });
 
   test("searching organizations without matches shows the empty state", async ({ frontend, shopper, arrange }) => {
+    await knownIssue(KNOWN_ISSUES.organizationsButtonUnreleased);
     await allure.story("Search organizations");
     await allure.description("A search no organization matches shows the empty state.");
     const account = requireFields(shopper.account, ["organizationId"], "Customer");
@@ -108,6 +111,7 @@ test.describe("organizations menu with locked memberships (anonymous, then signi
   test.use({ requiresModules: [MODULES.xProfile] });
 
   test("a locked organization stays listed but cannot be selected", async ({ frontend, page, arrange }) => {
+    await knownIssue(KNOWN_ISSUES.organizationsButtonUnreleased);
     await allure.story("Locked membership");
     await allure.description(
       "A locked membership's organization is listed but disabled, while the default organization stays selectable.",
@@ -143,6 +147,7 @@ test.describe("organizations menu with locked memberships (anonymous, then signi
     page,
     arrange,
   }) => {
+    await knownIssue(KNOWN_ISSUES.organizationsButtonUnreleased);
     await allure.story("Locked membership");
     await allure.description(
       "With every membership locked, every organization is disabled, but the account dashboard still opens.",
@@ -181,6 +186,7 @@ test.describe("organizations menu with locked memberships (anonymous, then signi
   });
 
   test("reopening the menu picks up a lock applied while it was closed", async ({ frontend, page, arrange }) => {
+    await knownIssue(KNOWN_ISSUES.organizationsButtonUnreleased);
     await allure.story("Locked membership");
     await allure.description(
       "A membership locked while the organizations menu is closed shows as disabled once reopened.",

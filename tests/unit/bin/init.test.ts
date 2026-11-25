@@ -54,7 +54,7 @@ test.describe("vc-qa-agents init", () => {
       ".gitignore",
       ".env.example",
       ".env",
-      ".claude/skills/framework-rules/SKILL.md",
+      ".claude/skills/vc-framework-rules/SKILL.md",
       ".claude/settings.json",
     ]) {
       expect(existsSync(join(dir, file)), file).toBe(true);
@@ -252,9 +252,9 @@ test.describe("vc-qa-agents arguments", () => {
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const MANIFEST = ".claude/.vc-qa-agents.json";
-const SHIPPED = ".claude/skills/framework-rules/SKILL.md";
-const OTHER_SHIPPED = ".claude/agents/qa-judge.md";
-const SAME_NAME = ".claude/commands/qa.md";
+const SHIPPED = ".claude/skills/vc-framework-rules/SKILL.md";
+const OTHER_SHIPPED = ".claude/agents/vc-qa-judge.md";
+const SAME_NAME = ".claude/commands/vc-qa.md";
 
 function agents(dir: string, ...args: string[]): string {
   return execFileSync(process.execPath, [BIN, ...args], { cwd: dir, encoding: "utf8" });

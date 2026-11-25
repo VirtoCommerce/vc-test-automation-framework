@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { runVariables } from "./browser-secrets.mts";
-import { readProjectFactsIn } from "./project-facts.mts";
+import { importSuiteDependency, readProjectFactsIn } from "./project-facts.mts";
 import { standOrigins } from "./stand.mts";
 import { anonymousRequest, verifiesSsl } from "./stand-request.mts";
 
@@ -53,7 +53,7 @@ export async function schemaText(answer: unknown): Promise<{ text: string; summa
   }
   let graphql: typeof import("graphql");
   try {
-    graphql = await import("graphql");
+    graphql = await importSuiteDependency<typeof import("graphql")>("graphql");
   } catch {
     throw problem("the graphql package is not installed: install it, or generate the schema with the suite's codegen");
   }

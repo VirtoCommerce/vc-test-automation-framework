@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { playwrightConfigArgs, readProjectFacts } from "./project-facts.mts";
+import { PLAYWRIGHT_CLI, playwrightConfigArgs, readProjectFacts, suitePackageDir } from "./project-facts.mts";
 import { CREDENTIAL_SHAPE } from "./readonly-shell.mts";
 import { walkRoot } from "./reconcile-run.mts";
 import { contractSeries, sameSpec } from "./run-record.mts";
@@ -618,13 +618,13 @@ function modifiedOnDay(path: string): string | undefined {
 }
 
 /**
- * Every test the suite lists (`playwright test --list --reporter=json` with the suite's config): its spec file and its
- * own title, without describe titles.
+ * Every test the suite lists (`playwright test --list --reporter=json` with the suite's config, Playwright from the
+ * suite's own `node_modules` when it is its own npm project): its spec file and its own title, without describe titles.
  *
  * @throws Error when the list cannot be made or is not Playwright JSON.
  */
 function listedTests(suiteDir: string): ListedTest[] {
-  const cli = join(process.cwd(), "node_modules", "@playwright", "test", "cli.js");
+  const cli = join(process.cwd(), suitePackageDir(process.cwd(), suiteDir), ...PLAYWRIGHT_CLI);
   const { PLAYWRIGHT_JSON_OUTPUT_FILE: _output, ...environment } = process.env;
   const listed = spawnSync(
     process.execPath,

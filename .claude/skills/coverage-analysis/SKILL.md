@@ -9,7 +9,7 @@ argument-hint: "[module | page | api-area]"
 Used by `qa-coverage`. The result is `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md` with four sections. It writes no
 test, no page object and no seeder; a gap is text for `qa-planner`. Read first: the skill `framework-rules`, then
 `project-facts` (`node .claude/checks/project-facts.mts`). The argument limits every step to one module, page or API
-area.
+area. Before the first step run `git status --short` and keep its output: Done compares with it.
 
 ## Step 1: Inventory (What the Stand Offers)
 
@@ -71,8 +71,10 @@ higher); `cost` from the building blocks the planner would still have to create 
 Run `node .claude/checks/rank-gaps.mts <gaps file>`. It marks a gap critical when its name or area matches a critical
 flow, scores each gap by the project's weights, and prints them in a strict order: gaps enabled on the stand first, then
 critical flows before the others (a critical gap outranks a non-critical one whatever the scores), then by score,
-highest first, then by name. A gap not enabled on the stand ranks below every enabled one, critical or not. Give the
-gaps ids `G1`, `G2`, ... in the printed order. In the report each is one row: id, area, surface, name, score, and one
+highest first, then by name. A gap not enabled on the stand ranks below every enabled one, critical or not. A gap with
+`"tied": true` has the same enabled-on-stand, critical and score values as a neighbour, so only its name put it
+before or after that neighbour: mark such rows `tied` in the report, say in one line under the table that the order
+inside a tied run is alphabetical and not a priority, and never reorder them by taste. Give the gaps ids `G1`, `G2`, ... in the printed order. In the report each is one row: id, area, surface, name, score, and one
 sentence a planner can take as a task ("Cover `<name>`: the behaviour no test checks; roles `<roles>`"), plus why it is
 not enabled when it is not.
 
@@ -80,8 +82,8 @@ not enabled when it is not.
 
 Counts from Step 2, not from memory:
 
-| Project | Spec files | Tests | Platform defects | Skipped | Active rate |
-|---|---|---|---|---|---|
+| Project | Spec files | Tests | Platform defects | Skipped | Skipped by modules | Active rate |
+|---|---|---|---|---|---|---|
 
 - Spec files: count the `*.spec.ts` files under each project's test directory (Glob). Unit tests are on their own
   lines, counted by file (Glob of `*.test.ts`): the framework's under `tests/unit/` and the suite's under
@@ -92,8 +94,12 @@ Counts from Step 2, not from memory:
 - **Platform-defect tests:** a test with an `issue` annotation runs and fails until the platform is fixed. A table
   row may carry the annotation as a field, so count rows, not only call sites. List each: project, file, test,
   issue link.
-- Skipped: tests the `modules` option skips on this stand, when a run's report shows them; otherwise 0, and say so.
-- Active tests = total tests minus skipped; active rate = active / total x 100.
+- Skipped: every test that is skipped by declaration, `test.skip`, `test.fixme` or a skip annotation, whatever the
+  reason. Count them from the JSON listing of Step 2 (`--reporter=json`, one project and one area at a time): a test
+  whose `expectedStatus` is `skipped` is one. They are also findings in Step 2; here they are counted, not left out.
+- Skipped by modules: tests the `modules` option skips on this stand. They skip at run time, so no listing shows them:
+  count them only when a run's report does; otherwise 0, and say so.
+- Active tests = total tests minus skipped minus skipped by modules; active rate = active / total x 100.
 - Distribution: each project's share of the total, with one line on the balance between API and UI tests.
 - Compared with the newest earlier report `.qa/reports/coverage-*.md`, excluding `*-gaps.md`, when one exists: change
   and percent change per project; none: say so.
@@ -103,5 +109,8 @@ compare against.
 
 ## Done
 
-All four sections are in the report, each with its rows or `none observed`; the Gaps section keeps the script's
-order; every row says where it was seen. Nothing outside `.qa/reports/` changed (`git status`).
+All four sections are in the report, each with its rows, `none observed` (looked, found nothing) or `not reached: <why>`
+(could not look: no schema, no role, no stand); the Gaps section keeps the script's order; every row says where it was
+seen. Nothing outside `.qa/reports/` changed: `git status --short` now shows what the one you took before your first write
+showed (the repository may already hold untracked or changed files, or not be under git: then say that it could not be
+compared).

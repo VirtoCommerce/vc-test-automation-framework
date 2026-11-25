@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { TopHeader } from "../components/header";
+import { OrganizationsMenu, TopHeader } from "../components/header";
 import { badgeContent } from "../ui-kit/badge";
 
 /**
@@ -13,6 +13,7 @@ export abstract class MainLayout {
   /** Main layout; scope for the page's own content. */
   readonly root: Locator;
   readonly topHeader: TopHeader;
+  readonly organizationsMenu: OrganizationsMenu;
   /** Cart badge in the desktop main menu: the number of items in the cart. */
   readonly cartQuantityLabel: Locator;
   /** Path relative to the frontend base URL. */
@@ -22,6 +23,7 @@ export abstract class MainLayout {
     this.page = page;
     this.root = page.locator(".main-layout");
     this.topHeader = new TopHeader(page.getByTestId("top-header"));
+    this.organizationsMenu = new OrganizationsMenu(this.root);
     this.cartQuantityLabel = badgeContent(page.getByTestId("desktop-main-menu-cart-link"));
   }
 

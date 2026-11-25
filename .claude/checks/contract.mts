@@ -251,7 +251,8 @@ function recordedLine(report: string, caseId: string, value: string): string | u
   return recorded.map((line) => line.trim()).find((line) => line.startsWith(`- ${caseId}: ${value} (`));
 }
 
-function namesCase(text: string, caseId: string): boolean {
+/** True when `text` (a test title) names `caseId` as a whole word: `C-1` is not named by `C-10`. */
+export function namesCase(text: string, caseId: string): boolean {
   return new RegExp(`(^|[^\\w-])${caseId.replace(REGEX_SPECIALS, "\\$&")}([^\\w-]|$)`).test(text);
 }
 
@@ -534,6 +535,45 @@ export function checkContract(markdown: string, checks: ContractChecks = {}): st
     }
   }
   return problems;
+}
+
+/** What another check reads from a contract besides its shape. */
+export type ContractReferences = {
+  /** The id of every row of `## Cases`, the first word of its Case cell. */
+  caseIds: string[];
+  /** The case ids an approved amendment drops (`Drops:`). */
+  dropped: string[];
+  /** The `.qa/reports/explore-<slug>[-observed].md` reports its `observed:` oracles name. */
+  observedReports: string[];
+  /** The files under `.qa/reports/` and `.qa/kb/` its `## Source` names. */
+  sourceFiles: string[];
+  /** Whether it has an `## Approval` section. */
+  approved: boolean;
+};
+
+/**
+ * Reads the case ids, the dropped cases, the reports and the approval of a contract, without checking its shape.
+ * `<!-- -->` comments are ignored.
+ *
+ * @returns what the contract names; a missing section gives an empty list.
+ */
+export function contractReferences(markdown: string): ContractReferences {
+  const parsed = parseSections(withoutComments(markdown));
+  const lines = (heading: string): string[] => parsed.find((section) => section.heading === heading)?.lines ?? [];
+  const cases = lines("Cases");
+  const rows = hasText(cases) ? checkCases(cases, undefined, undefined).rows : [];
+  const observedReports = rows
+    .flatMap((row) => sourceParts(row.oracle))
+    .filter((part) => part.text.startsWith(OBSERVED))
+    .map((part) => RECORDED.exec(part.text.slice(OBSERVED.length).trim())?.[2]?.trim() ?? "")
+    .filter((path) => REPORT_PATH.test(path));
+  return {
+    caseIds: rows.map((row) => row.name.split(/\s+/)[0] ?? "").filter((caseId) => caseId !== ""),
+    dropped: droppedCases(parsed),
+    observedReports: [...new Set(observedReports)],
+    sourceFiles: [...new Set(lines("Source").flatMap(localStateFiles))],
+    approved: parsed.some((section) => section.heading === APPROVAL_SECTION),
+  };
 }
 
 function readReportFile(path: string): string | undefined {

@@ -25,6 +25,10 @@ from an example, but never changes either one once it exists, and it lists the `
 Commit `.claude/` with `.claude/.vc-qa-agents.json`, and `.qa/project.json`; the other files under `.qa/` are the
 agents' working files.
 
+Every agent, command and skill of the package is named with the prefix `vc-`, such as the agent `vc-qa-planner`, the
+command `/vc-qa` and the skill `vc-framework-rules`, so that none has the name of one the repository already has in
+`.claude/`. The check scripts and the hook keep their names.
+
 The check scripts are TypeScript, run by Node 22.18 or newer without a build, and parse specs with `@babel/parser`.
 
 ### Update and remove
@@ -32,13 +36,13 @@ The check scripts are TypeScript, run by Node 22.18 or newer without a build, an
 Run `npx vc-qa-agents` again after you upgrade the package. `.claude/.vc-qa-agents.json` tells it which files are the
 package's, and it decides for each file of the new version:
 
-| The file in `.claude/`                                     | `vc-qa-agents`                                          |
-| ---------------------------------------------------------- | ------------------------------------------------------- |
-| Does not exist                                             | Copies it and records it                                |
-| Is listed and unchanged since it was installed             | Replaces it with the new version                        |
-| Is listed and was edited since it was installed            | Keeps it and names it; `--force-ours` replaces it       |
-| Is not listed: the repository's own, such as its own `/qa` | Keeps it, under any option, and names it                |
-| Is listed, but the new version no longer ships it          | Removes it when unchanged; keeps and names it if edited |
+| The file in `.claude/`                                        | `vc-qa-agents`                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------- |
+| Does not exist                                                | Copies it and records it                                |
+| Is listed and unchanged since it was installed                | Replaces it with the new version                        |
+| Is listed and was edited since it was installed               | Keeps it and names it; `--force-ours` replaces it       |
+| Is not listed: the repository's own, such as its own `/vc-qa` | Keeps it, under any option, and names it                |
+| Is listed, but the new version no longer ships it             | Removes it when unchanged; keeps and names it if edited |
 
 A difference in line endings alone is not an edit. A file of the repository is never replaced or removed, and the
 package's file of the same name is then not installed: rename the repository's file and run the command again to have
@@ -49,6 +53,14 @@ A repository whose agents were installed by a version that wrote no manifest get
 equal to the new version's are recorded as the package's, and every other file of the same name is kept and named, as
 it may be the repository's own or a copy of an earlier version. Delete a copy you know is the package's and run the
 command again to get the new version.
+
+Versions before the `vc-` prefix named the agents, commands and skills without it: `qa-planner`, `/qa`,
+`framework-rules` and so on. An update of such an install with a manifest removes the files of the earlier names that
+are unchanged, because the new version no longer ships them, and installs the new ones; an edited one is kept and named
+with the file that replaces it. An install without a manifest records nothing of the earlier names, so they are kept:
+the first update names each file, and each skill directory, of an earlier name with its new name, and you delete the
+ones that are copies of an earlier version. Replace `/qa` and the other earlier names wherever the repository
+mentions them, such as its `CLAUDE.md`; the files under `.qa/` do not change.
 
 To remove the agents, run `npx vc-qa-agents uninstall`. It removes the files the manifest lists that are unchanged since
 they were installed, the directories left empty, and the manifest itself; it names the edited files it kept, and
@@ -132,9 +144,9 @@ and the hook do not derive yet.
 
 ## Browser
 
-The agents that open the frontend (`qa-explorer`, `qa-coverage`, `qa-healer`) use a Playwright MCP server named
-`playwright`, which Claude Code reads from `.mcp.json` in the repository root. `npx vc-qa-agents init` writes it, with
-the server pinned to one version and started as `--browser chromium --isolated --secrets
+The agents that open the frontend (`vc-qa-explorer`, `vc-qa-coverage`, `vc-qa-healer`) use a Playwright MCP server
+named `playwright`, which Claude Code reads from `.mcp.json` in the repository root. `npx vc-qa-agents init` writes it,
+with the server pinned to one version and started as `--browser chromium --isolated --secrets
 .qa/browser-secrets.local.env`; on Windows the command is wrapped in `cmd /c`, as Claude Code needs it there. Commit
 the file. Claude Code asks once to approve the server. An existing suite adds the same server to its own `.mcp.json`:
 `npx vc-qa-agents` says when it is missing.
@@ -152,37 +164,38 @@ and macOS, by `icacls` on Windows, where the mode does nothing. When it cannot r
 warning; restrict the file yourself then. The server reads the file when it starts, so restart it after the file
 changes. `node .claude/checks/stand.mts` prints `sign-in: ready` when the file matches the run's variables.
 
-An API area that no page uses needs no browser. `qa-explorer` reads its schema with `node .claude/checks/introspect.mts
-graphql` (or `rest`), which asks the backend of the stand without a credential and saves the schema in `.qa/kb/`, and
-observes values of anonymous cases with `node .claude/checks/probe.mts`, which sends one read-only query or GET that
-the explorer wrote under `.qa/probes/` (git-ignored). Neither signs in: a case that needs a role is reported as not
-reached.
+An API area that no page uses needs no browser. `vc-qa-explorer` reads its schema with
+`node .claude/checks/introspect.mts graphql` (or `rest`), which asks the backend of the stand without a credential and
+saves the schema in `.qa/kb/`, and observes values of anonymous cases with `node .claude/checks/probe.mts`, which sends
+one read-only query or GET that the explorer wrote under `.qa/probes/` (git-ignored). Neither signs in: a case that
+needs a role is reported as not reached.
 
 ## Use
 
-Start Claude Code in the repository and run `/qa <task>`: a ticket key, a link to a specification, an area such as
+Start Claude Code in the repository and run `/vc-qa <task>`: a ticket key, a link to a specification, an area such as
 "cover the cart", a failing test, "review this branch" or "what is not covered". The orchestrator picks the flow and
 runs each role as its own agent:
 
-| Role                   | Does                                                                                         |
-| ---------------------- | -------------------------------------------------------------------------------------------- |
-| `qa-planner`           | Turns the task into a contract of test cases under `.qa/contracts/`, which a person approves |
-| `qa-explorer`          | Maps pages and API operations on the stand, read-only                                        |
-| `qa-coverage`          | Lists what the tests cover and ranks the gaps                                                |
-| `qa-automation-expert` | Implements an approved contract and leaves a run record                                      |
-| `qa-judge`             | Checks the expert's tests and proves that they fail when an expected value is broken         |
-| `qa-healer`            | Repairs failing tests in page objects and data, never by changing an expected value          |
-| `qa-reviewer`          | Reviews the diff against the framework rules and the definition of done                      |
+| Role                      | Does                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `vc-qa-planner`           | Turns the task into a contract of test cases under `.qa/contracts/`, which a person approves |
+| `vc-qa-explorer`          | Maps pages and API operations on the stand, read-only                                        |
+| `vc-qa-coverage`          | Lists what the tests cover and ranks the gaps                                                |
+| `vc-qa-automation-expert` | Implements an approved contract and leaves a run record                                      |
+| `vc-qa-judge`             | Checks the expert's tests and proves that they fail when an expected value is broken         |
+| `vc-qa-healer`            | Repairs failing tests in page objects and data, never by changing an expected value          |
+| `vc-qa-reviewer`          | Reviews the diff against the framework rules and the definition of done                      |
 
-`/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-heal`, `/qa-explore` and `/qa-coverage` run one role. The rules every
-test follows are in the `framework-rules` skill; the read-only agents are held to their commands by the hook.
+`/vc-qa-plan`, `/vc-qa-implement`, `/vc-qa-review`, `/vc-qa-heal`, `/vc-qa-explore` and `/vc-qa-coverage` run one role.
+The rules every test follows are in the `vc-framework-rules` skill; the read-only agents are held to their commands by
+the hook.
 
 ## Clean up the working files
 
 The agents' working files under `.qa/` are git-ignored and exist only on the machine of whoever worked, so CI cannot
 remove them: contracts (`.qa/contracts/`), run records (`.qa/runs/`), judge verdicts (`.qa/judge/`), explorer,
-coverage and healer reports (`.qa/reports/`) and probes (`.qa/probes/`). `/qa`, `/qa-plan` and `/qa-coverage` start by
-running
+coverage and healer reports (`.qa/reports/`) and probes (`.qa/probes/`). `/vc-qa`, `/vc-qa-plan` and
+`/vc-qa-coverage` start by running
 
 ```shell
 node .claude/checks/prune.mts --fetch --yes

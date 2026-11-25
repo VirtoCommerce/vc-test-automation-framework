@@ -33,6 +33,12 @@ export interface AuthToken {
   readonly refreshToken: Secret | undefined;
 }
 
+/** The options of {@link TokenClient}. */
+export interface TokenClientOptions {
+  /** The token endpoint. The default is `/connect/token`, the endpoint of the platform. */
+  readonly tokenPath?: string | undefined;
+}
+
 /**
  * Represents a client for the platform token endpoints: password sign-in, token refresh and token revocation.
  *
@@ -44,14 +50,17 @@ export interface AuthToken {
  */
 export class TokenClient {
   readonly #httpClient: HttpClient;
+  readonly #tokenPath: string;
 
   /**
    * Creates a token client.
    *
    * @param httpClient - The client that sends requests to the platform.
+   * @param options - The token endpoint, for an application that serves it elsewhere.
    */
-  constructor(httpClient: HttpClient) {
+  constructor(httpClient: HttpClient, options: TokenClientOptions = {}) {
     this.#httpClient = httpClient;
+    this.#tokenPath = options.tokenPath ?? TOKEN_PATH;
   }
 
   /**
@@ -78,7 +87,7 @@ export class TokenClient {
    * @returns The response.
    */
   requestPasswordGrant(credentials: Credentials, extra: Readonly<Record<string, string>> = {}): Promise<HttpResponse> {
-    return this.#httpClient.post(TOKEN_PATH, { form: { ...passwordGrant(credentials), ...extra } });
+    return this.#httpClient.post(this.#tokenPath, { form: { ...passwordGrant(credentials), ...extra } });
   }
 
   /**
@@ -91,7 +100,7 @@ export class TokenClient {
    */
   async refresh(refreshToken: Secret): Promise<AuthToken | undefined> {
     const requestedAt = Date.now();
-    const response = await this.#httpClient.post(TOKEN_PATH, {
+    const response = await this.#httpClient.post(this.#tokenPath, {
       form: { grant_type: "refresh_token", refresh_token: refreshToken },
     });
     return response.status === 400 ? undefined : toAuthToken(response, requestedAt);

@@ -7,11 +7,11 @@ import type {
   PlaywrightWorkerArgs,
   PlaywrightWorkerOptions,
 } from "@playwright/test";
-import type { Credentials, FrontendStorageKeys } from "@/auth";
+import type { Credentials, SignInStrategy } from "@/auth";
 import type { Env } from "@/core";
 import type { ModuleRequirement } from "@/modules";
 
-import { FrontendBrowserSessions, PlatformBrowserSessions, TokenClient, TokenManager } from "@/auth";
+import { BrowserSessions, oauthLocalStorage, platformAdminSignIn, TokenClient, TokenManager } from "@/auth";
 import { GraphqlClient } from "@/graphql";
 import { HttpClient } from "@/http";
 import { InstalledModules } from "@/modules";
@@ -39,12 +39,12 @@ export interface DefaultWorkerFixtures<TEnv extends Env> {
    */
   readonly workerAdmin: HttpClient;
   /**
-   * Builds the storage states that start a browser on a frontend, signed in or anonymous. Its tokens are revoked when
-   * the worker ends.
+   * Builds the storage states that start a browser signed in to a frontend, with the `frontendSignIn` strategy. Its
+   * sessions are signed out when the worker ends.
    */
-  readonly frontendSessions: FrontendBrowserSessions;
+  readonly frontendSessions: BrowserSessions;
   /** Builds the storage states that start a browser signed in to the admin UI of the platform. */
-  readonly platformSessions: PlatformBrowserSessions;
+  readonly platformSessions: BrowserSessions;
 }
 
 /** The fixtures of one test. */
@@ -71,8 +71,11 @@ export interface DefaultFixtures {
 
 /** The options of {@link defaultFixtures}. */
 export interface DefaultFixturesOptions {
-  /** Where the frontends keep their sign-in in local storage. The defaults are those of the Virto Commerce frontend. */
-  readonly frontendStorageKeys?: FrontendStorageKeys | undefined;
+  /**
+   * How users sign in to the frontends. The default is `oauthLocalStorage()`, the strategy of the Virto Commerce
+   * frontend.
+   */
+  readonly frontendSignIn?: SignInStrategy | undefined;
 }
 
 /** The definitions of the default fixtures, for `test.extend`. */
@@ -107,7 +110,7 @@ export type DefaultFixtureDefinitions<TEnv extends Env> = Fixtures<
  *   });
  *
  * @param env - The parsed environment variables of the test suite, the value of the `env` fixture.
- * @param options - The frontend storage keys, for a test suite whose frontend keeps its sign-in elsewhere.
+ * @param options - The frontend sign-in strategy, for a test suite whose frontend signs users in another way.
  * @returns The fixture definitions.
  */
 export function defaultFixtures<TEnv extends Env>(
@@ -142,9 +145,9 @@ export function defaultFixtures<TEnv extends Env>(
 
     frontendSessions: [
       async ({ playwright, env }, use) => {
-        const sessions = new FrontendBrowserSessions({
+        const sessions = new BrowserSessions({
           newContext: () => playwright.request.newContext(contextOptions(env)),
-          storageKeys: options.frontendStorageKeys,
+          strategy: options.frontendSignIn ?? oauthLocalStorage(),
         });
         await use(sessions);
         await sessions.dispose();
@@ -153,13 +156,14 @@ export function defaultFixtures<TEnv extends Env>(
     ],
 
     platformSessions: [
-      async ({ playwright, env }, use) =>
-        use(
-          new PlatformBrowserSessions({
-            platformBaseUrl: env.BACKEND_BASE_URL,
-            newContext: () => playwright.request.newContext(contextOptions(env)),
-          }),
-        ),
+      async ({ playwright, env }, use) => {
+        const sessions = new BrowserSessions({
+          newContext: () => playwright.request.newContext(contextOptions(env)),
+          strategy: platformAdminSignIn,
+        });
+        await use(sessions);
+        await sessions.dispose();
+      },
       { scope: "worker", box: true },
     ],
 

@@ -9,6 +9,7 @@ import type { StoreUnderTest } from "../support/store.ts";
 import { randomUUID } from "node:crypto";
 
 import { test as base } from "@playwright/test";
+import { anonymousVisitorState } from "@virtocommerce/test-automation-framework/auth";
 import { defaultFixtures } from "@virtocommerce/test-automation-framework/fixtures";
 import { GraphqlClient } from "@virtocommerce/test-automation-framework/graphql";
 
@@ -84,9 +85,9 @@ export const test = base
       await use(shopperOf(http, store, randomUUID()));
     },
 
-    context: async ({ context, app, env, shopper, frontendSessions }, use) => {
+    context: async ({ context, app, env, shopper }, use) => {
       if (app === "frontend") {
-        await context.setStorageState(frontendSessions.anonymous(env.FRONTEND_BASE_URL, shopper.userId));
+        await context.setStorageState(anonymousVisitorState(env.FRONTEND_BASE_URL, shopper.userId));
       }
       await use(context);
     },

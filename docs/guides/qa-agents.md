@@ -58,8 +58,11 @@ Versions before the `vc-` prefix named the agents, commands and skills without i
 `framework-rules` and so on. An update of such an install with a manifest removes the files of the earlier names that
 are unchanged, because the new version no longer ships them, and installs the new ones; an edited one is kept and named
 with the file that replaces it. An install without a manifest records nothing of the earlier names, so they are kept:
-the first update names each file, and each skill directory, of an earlier name with its new name, and you delete the
-ones that are copies of an earlier version. Replace `/qa` and the other earlier names wherever the repository
+the first update names, in one line, the files and skill directories of the earlier names, and you delete the ones
+that are copies of an earlier version. It also kept the earlier read-only hook, `.claude/hooks/readonly-shell.mts`, and
+its `.claude/checks/readonly-shell.mts`, which know only the earlier names and so restrict none of the renamed
+read-only agents: `vc-qa-agents` says so whenever either file is not the package's version. Delete the earlier copies
+and run it again. Replace `/qa` and the other earlier names wherever the repository
 mentions them, such as its `CLAUDE.md`; the files under `.qa/` do not change.
 
 To remove the agents, run `npx vc-qa-agents uninstall`. It removes the files the manifest lists that are unchanged since

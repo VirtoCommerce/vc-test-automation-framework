@@ -81,12 +81,12 @@ and unique, so broken data fails in seconds instead of halfway through a seed.
 | `modules.ts`      | The platform modules the suite depends on, with the edge version it is proven on, and `PAGE_BUILDER_REPLACED`, the reason the page builder tests are skipped |
 | `scripts/`        | The REST type generator and the role-permission check                                                                                                        |
 
-How to write a test, and the rules every test follows, are in [CLAUDE.md](../CLAUDE.md) and the `framework-rules`
-skill (`.claude/skills/framework-rules/SKILL.md`).
+How to write a test, and the rules every test follows, are in [CLAUDE.md](../CLAUDE.md) and the `vc-framework-rules`
+skill (`.claude/skills/vc-framework-rules/SKILL.md`).
 
 ## QA agents
 
-`/qa <task>` in Claude Code runs the QA workflow on this suite: a planner writes a contract that a person approves,
+`/vc-qa <task>` in Claude Code runs the QA workflow on this suite: a planner writes a contract that a person approves,
 an expert implements it, a judge and a reviewer check the result, and a healer repairs failing tests without moving an
 expected value. The agents, commands and skills are in `.claude/`; the facts they work from (the suite directory,
 commands, roles, quality limits) are in `.qa/project.json`. Their working files go to `.qa/` and are not committed.

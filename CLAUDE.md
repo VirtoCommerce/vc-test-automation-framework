@@ -95,7 +95,7 @@ and type the body with `@rest/generated/platform.ts`.
 ## Writing tests
 
 The framework rules (spec structure, `arrange` and cleanup, waits, platform defects, module gating, isolated tests,
-working discipline) live in the `framework-rules` skill, `.claude/skills/framework-rules/SKILL.md`. Read it before
+working discipline) live in the `vc-framework-rules` skill, `.claude/skills/vc-framework-rules/SKILL.md`. Read it before
 writing or reviewing a test. A framework rule beats the style rules below.
 
 ## Code style

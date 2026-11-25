@@ -25,6 +25,12 @@ check scripts in `.claude/checks/` import nothing from `src/` or from a test sui
 `project.json`. Files only this repository uses, such as `/code-review-full`, are listed in
 `.claude/checks/ours-only.json` and left out of the package.
 
+Every agent, command and skill the package ships is named with the prefix `vc-`, in its file or directory name and in
+the `name` of its frontmatter, such as `vc-qa-planner`, `/vc-qa` and `vc-framework-rules`: Claude Code identifies
+agents and skills by that name and commands by the file name, and the prefix keeps them apart from the ones a
+repository already has. A new one takes the prefix too; the read-only hook identifies its agents by these names. A
+file only this repository uses keeps its own name, and the check scripts and the hook keep theirs.
+
 The repository has one `package.json`, which is also the framework package. The `virtocommerce` test suite lives in
 this repository, so that the CI pipelines of the Virto Commerce platform, frontend and modules run it against the
 current framework. Its scripts end in `:vc`, and the tools that only it uses, such as the report generator and the type

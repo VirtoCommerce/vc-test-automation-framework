@@ -53,6 +53,10 @@ TypeScript cannot infer the fixture types from the definitions, so the test suit
 `DefaultWorkerFixtures` to `extend`. The test suite chooses its base test: Playwright's `test`, or a test that it
 combined with others through `mergeTests`.
 
+A frontend that keeps its sign-in under other local storage keys passes them as the second argument,
+`defaultFixtures(env, { frontendStorageKeys: { token: "…", anonymousUserId: "…" } })`, and `frontendSessions` uses
+them.
+
 ## Worker fixtures
 
 A worker creates these once and shares them between its tests:
@@ -71,13 +75,14 @@ points them all elsewhere.
 
 ## Test fixtures
 
-| Fixture      | Is                                                                     |
-| ------------ | ---------------------------------------------------------------------- |
-| `apiContext` | The request context of the test, disposed of after it                  |
-| `http`       | A client of the platform without authentication                        |
-| `signIn`     | Returns a client signed in as a user. The token is kept for the worker |
-| `graphql`    | A GraphQL client of the platform without authentication                |
-| `modules`    | The modules that the tests need, an option set with `test.use`         |
+| Fixture        | Is                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `apiContext`   | The request context of the test, disposed of after it                                   |
+| `http`         | A client of the platform without authentication                                         |
+| `signIn`       | Returns a client signed in as a user. The token is kept for the worker                  |
+| `graphql`      | A GraphQL client of the platform without authentication                                 |
+| `modules`      | The modules that the tests need, an option set with `test.use`                          |
+| `checkModules` | Runs for every test and skips it when its `modules` do not qualify; tests do not use it |
 
 Users sign in once for each worker. Each test has its own request context, so cookies of one test never reach another.
 

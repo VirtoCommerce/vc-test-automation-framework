@@ -10,7 +10,7 @@ npm run typecheck                      # TypeScript
 npm run check                          # Biome lint + format + import order, with fixes
 npm run codegen                        # GraphQL and REST types from the running platform
 npm test                               # every project; append -- --project=restapi (graphql, e2e-frontend)
-npm test -- tests/graphql/cart/cart.spec.ts   # one file
+npm test -- tests/restapi/security/sign-in.spec.ts   # one file
 npm run report && npm run report:open  # Allure report of the last run
 ```
 
@@ -31,6 +31,9 @@ edit or print `.env`.
 | `pages/`                     | `@pages/*`    | page objects, one class per file                                     |
 | `graphql/operations/<area>/` | `@graphql/*`  | `.graphql` operations, `fragments/`, `generated/` (never edited)     |
 | `rest/generated/`            | `@rest/*`     | generated REST types `platform.ts` (never edited)                    |
+
+`tests/graphql/`, `tests/e2e/frontend/`, `pages/` and `graphql/operations/` are created with the first spec, page
+object or operation of their kind; `npm run codegen` writes the `generated/` directories.
 
 Specs and fixtures use the aliases; files inside `arrange/`, `builders/`, `support/` and `pages/` import each other by
 relative paths. There are no REST clients: specs call the platform with `api.get/post/put/delete` and type the body

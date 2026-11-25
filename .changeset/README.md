@@ -12,6 +12,6 @@ Pick the bump and describe the change for consumers, not for reviewers:
 
 While the version is `0.x`, a breaking change is a `minor` bump.
 
-A pull request with nothing for consumers (docs, CI, internal tests) adds an empty one:
+A pull request with nothing for consumers (CI, internal tests, the `virtocommerce` test suite) adds an empty one:
 
     npx changeset --empty

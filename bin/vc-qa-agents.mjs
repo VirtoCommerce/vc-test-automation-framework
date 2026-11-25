@@ -202,12 +202,31 @@ function init(target, { skipInstall }) {
   return lines;
 }
 
-const [command, ...options] = process.argv.slice(2);
+const USAGE = [
+  "Usage:",
+  "  npx vc-qa-agents                        install the QA agents into .claude/",
+  "  npx vc-qa-agents init [--skip-install]  write a test suite into this directory, with the agents",
+].join("\n");
+
+function parseArguments(args) {
+  const [command, ...options] = args;
+  if (command === undefined) {
+    return { command: "install" };
+  }
+  if (command !== "init") {
+    throw new Error(`Unknown command "${command}".\n${USAGE}`);
+  }
+  const unknown = options.find((option) => option !== "--skip-install");
+  if (unknown !== undefined) {
+    throw new Error(`Unknown option "${unknown}" of init.\n${USAGE}`);
+  }
+  return { command, skipInstall: options.includes("--skip-install") };
+}
+
 try {
+  const parsed = parseArguments(process.argv.slice(2));
   const lines =
-    command === "init"
-      ? init(process.cwd(), { skipInstall: options.includes("--skip-install") })
-      : install(process.cwd());
+    parsed.command === "init" ? init(process.cwd(), { skipInstall: parsed.skipInstall }) : install(process.cwd());
   for (const line of lines) {
     process.stdout.write(`${line}\n`);
   }

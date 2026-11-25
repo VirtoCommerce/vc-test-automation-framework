@@ -13,8 +13,8 @@ npm install --save-dev @graphql-codegen/cli @graphql-codegen/client-preset graph
 ```
 
 Keep the operations in the test suite, for example one `.graphql` file for each operation in
-`graphql/operations/<area>/` and shared fragments in `graphql/fragments/`. Create a `codegen.ts` file that exports the configuration from
-`graphqlCodegenConfig`, which holds every setting the client depends on:
+`graphql/operations/<area>/` and shared fragments in `graphql/fragments/`. Create a `codegen.ts` file that exports the
+configuration from `graphqlCodegenConfig`, which holds every setting the client depends on:
 
 <!-- example: ../examples/graphql-codegen.ts -->
 ```ts
@@ -40,8 +40,9 @@ Add a script to `package.json` and run it after each change to the schema or the
 ```
 
 Each operation becomes a typed document, such as `GetCartDocument` for an operation named `GetCart`. Pass it to
-`GraphqlClient.execute`, and the variables and the data are typed. Give the schema, the documents and the output as paths relative to the directory the generation runs from. On Windows,
-an absolute path such as `C:/…` is read as a git reference, and the generation fails.
+`GraphqlClient.execute`, and the variables and the data are typed. Give the schema, the documents and the output as
+paths relative to the directory the generation runs from. On Windows, an absolute path such as `C:/…` is read as a git
+reference, and the generation fails.
 
 List the custom scalars of the schema in `scalars`;
 the others are `unknown`. Set `strictScalars` to make the generation fail for a custom scalar that is not listed, so a

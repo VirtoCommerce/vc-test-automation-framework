@@ -13,22 +13,27 @@ npm install --save-dev --save-exact @virtocommerce/test-automation-framework
 npx vc-qa-agents init
 ```
 
-It adds the scripts to `package.json`, installs the peer dependencies and Chromium, and installs the
-[QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the suite. It never overwrites a file that
-exists; `--skip-install` leaves the dependencies out.
+It adds its scripts to `package.json` without replacing yours, installs the suite's dev dependencies (Playwright,
+zod, TypeScript, Biome, Allure, the GraphQL and REST type generators, `@babel/parser`) at the versions the framework
+uses, installs Chromium, and installs the [QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the
+suite. It never overwrites a template file, `.env`, `.claude/settings.json` or `.qa/project.json` that exists, but it
+replaces the agent files in `.claude/` with the package's. `--skip-install` leaves the dependencies out, and any other
+argument fails with the usage.
 
-| Path                      | Holds                                                                              |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| `playwright.config.ts`    | The projects `restapi`, `graphql` and `e2e-frontend`, with the Allure reporter     |
-| `env.ts`, `.env`          | The environment schema, with `FRONTEND_BASE_URL` and `STORE_ID` on the framework's |
-| `fixtures/index.ts`       | `test` and `expect`: the default fixtures plus `user`, `api`, `arrange`, `shopper` |
-| `arrange/`                | The `arrange` factory, which removes test data after the test, and a first domain  |
-| `builders/`, `support/`   | Payload builders, `requireFields`, `uniqueId`, the store and the shopper           |
-| `codegen.ts`, `scripts/`  | GraphQL and REST type generation from the running platform                         |
-| `tests/restapi/security/` | The first test: a user that `arrange` creates signs in                             |
-| `CLAUDE.md`, `biome.json` | The suite's layout and code style for the agents, and the shared Biome preset      |
+| Path                                                              | Holds                                                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `playwright.config.ts`                                            | The projects `restapi`, `graphql` and `e2e-frontend`, with the Allure reporter          |
+| `env.ts`, `.env`, `.env.example`                                  | The environment schema, with `FRONTEND_BASE_URL` and `STORE_ID` on the framework's      |
+| `fixtures/index.ts`                                               | `test` and `expect`: the default fixtures plus `user`, `api`, `arrange`, `shopper`      |
+| `arrange/`                                                        | The `arrange` factory, which removes test data after the test, and a first domain       |
+| `builders/`, `support/`                                           | Payload builders, `requireFields`, `uniqueId`, the store and the shopper                |
+| `codegen.ts`, `scripts/`                                          | GraphQL and REST type generation from the running platform                              |
+| `tests/restapi/security/`                                         | The first test: a user that `arrange` creates signs in                                  |
+| `CLAUDE.md`, `biome.json`                                         | The suite's layout and code style for the agents, and the shared Biome preset           |
+| `tsconfig.json`, `allurerc.mjs`, `.gitignore`, `.qa/project.json` | TypeScript with the suite's aliases, the Allure settings, ignores and the agents' facts |
 
-Then:
+Fill in `.env` (the platform, the frontend, the administrator and `STORE_ID`) and replace the example roles and
+tracker in `.qa/project.json`, then:
 
 ```shell
 npm run codegen                         # GraphQL and REST types from the platform in .env
@@ -40,7 +45,8 @@ The rest of this guide sets a suite up by hand, piece by piece.
 
 ## Install the framework
 
-Follow the installation steps in the [package README](../README.md#installation), then install the peer dependencies:
+Follow the installation steps in the [package README](../README.md#installation), then install the required peer
+dependencies and the Node types:
 
 ```shell
 npm install --save-dev @playwright/test zod @types/node

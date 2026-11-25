@@ -1,12 +1,12 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
-const BIN = fileURLToPath(new URL("../../../bin/install-qa-agents.mjs", import.meta.url));
+const BIN = fileURLToPath(new URL("../../../bin/vc-qa-agents.mjs", import.meta.url));
 
 function initIn(dir: string): string {
   return execFileSync(process.execPath, [BIN, "init", "--skip-install"], { cwd: dir, encoding: "utf8" });
@@ -81,4 +81,33 @@ test.describe("vc-qa-agents init", () => {
     expect(readFileSync(join(dir, "env.ts"), "utf8")).toBe("export {};\n");
     expect(output).toContain("Kept the files that already exist: env.ts");
   });
+});
+
+test.describe("vc-qa-agents arguments", () => {
+  let dir = "";
+
+  test.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vc-args-"));
+  });
+
+  test.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const cases = [
+    { args: ["install"], error: 'Unknown command "install"' },
+    { args: ["--help"], error: 'Unknown command "--help"' },
+    { args: ["init", "--skip-instal"], error: 'Unknown option "--skip-instal" of init' },
+  ];
+
+  for (const { args, error } of cases) {
+    test(`fails on ${args.join(" ")} and writes nothing`, () => {
+      const result = spawnSync(process.execPath, [BIN, ...args], { cwd: dir, encoding: "utf8" });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(error);
+      expect(result.stderr).toContain("Usage:");
+      expect(readdirSync(dir)).toEqual([]);
+    });
+  }
 });

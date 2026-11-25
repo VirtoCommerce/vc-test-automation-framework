@@ -31,14 +31,6 @@ jobs:
       - run: npm run test:unit
       - run: npm run test:vc:unit
       - run: npm run docs:check
-      - run: npm ci --prefix tools/typedoc
-      - run: npm run docs:api
-      - if: matrix.node == '22.18'
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-reference
-          path: api-reference/
-          retention-days: 14
       - run: npm run build
       - run: '! grep -rE ''from "@/'' dist'
 

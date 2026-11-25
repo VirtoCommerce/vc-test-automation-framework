@@ -8,7 +8,6 @@ playwright-report/
 virtocommerce/reports/
 blob-report/
 dist/
-api-reference/
 
 .vscode/*
 !.vscode/settings.json

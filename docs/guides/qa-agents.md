@@ -32,20 +32,23 @@ Replace the example values in `.qa/project.json`, then check it with `node .clau
 prints the facts or the first field that is wrong. Every agent reads the file through that command and stops when it
 fails.
 
-| Field             | Holds                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.` for the root |
-| `tracker`         | The tracker kind, the pattern of its keys and the routes the agents may read a ticket by         |
-| `docSources`      | Where the agents look up how the product should behave                                           |
-| `commands`        | The type check, the lint and one test command for each Playwright project, plus `unit` and `all` |
-| `critical`        | The flows that coverage ranks first                                                              |
-| `roles`           | The data roles of the tests, each with its account                                               |
-| `roleFor`         | Which role administers (`admin`), which is a customer, and optionally which is another customer  |
-| `rolePermissions` | The permissions of each role, for security tests                                                 |
-| `passwordFor`     | The environment variable that holds each role's password                                         |
-| `quality`         | Limits on the size of a test, the stable series and the time budget of each project              |
-| `autonomy`        | Whether the healer may apply a fix (`apply`) or only propose it (`propose`), by area             |
-| `healerPaths`     | The directories the healer may change: page objects and test data, never the specs               |
+| Field             | Holds                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.`, the default, for the root                              |
+| `tracker`         | The tracker kind, the pattern of its keys, the routes the agents may read a ticket by and, optionally, the field of the acceptance criteria |
+| `docSources`      | Where the agents look up how the product should behave                                                                                      |
+| `commands`        | The type check, the lint, optionally the seed (`seed`), and one test command for each Playwright project, plus `unit` and `all`             |
+| `critical`        | The flows that coverage ranks first                                                                                                         |
+| `knowledgeDir`    | The directory of the knowledge snapshot that the agents read before they call a live service                                                |
+| `roles`           | The data roles of the tests, each with its account                                                                                          |
+| `roleFor`         | Which role administers (`admin`), which is a customer, and optionally which is another customer                                             |
+| `rolePermissions` | Optional: the permissions of each role, for security tests                                                                                  |
+| `passwordFor`     | Optional: the environment variable that holds each role's password                                                                          |
+| `coverageWeights` | The weights that coverage ranks the gaps by: `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`                                   |
+| `flakyRunSeries`  | How many times the healer runs a test before it calls the test flaky, at least 2                                                            |
+| `quality`         | Limits on the size of a test, the stable series and the time budget of each project                                                         |
+| `autonomy`        | Whether the healer may apply a fix (`apply`) or only propose it (`propose`), by area                                                        |
+| `healerPaths`     | The directories the healer may change: page objects and test data, never the specs                                                          |
 
 The prompts name no solution: `node .claude/checks/scan-prompts.mts` checks that the shipped files hold none of the
 facts' accounts, role names or hosts.

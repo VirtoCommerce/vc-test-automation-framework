@@ -30,10 +30,10 @@ suites of Virto Commerce-based solutions. It ships with the package, so it alway
 - [Playwright config](concepts/config.md): run options, projects, `use` options and reporting.
 - [Fixtures](concepts/fixtures.md): the default Playwright fixtures, module requirements and browser sessions.
 
-## API reference
+## Documentation comments
 
-The API reference is generated from the documentation comments in the source. Every exported member is documented,
-and the build fails when one is not. Editors show the same text when you hover over a member.
+Every exported member has a documentation comment, and the build fails when one does not. Editors show it when you
+hover over a member.
 
 ## Contributing to the framework
 

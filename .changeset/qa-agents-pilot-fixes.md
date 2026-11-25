@@ -14,7 +14,7 @@ report section, work in a repository with untracked files, and mark every exampl
 not a rule.
 
 An API area that no page uses can now be explored: `introspect.mts` saves the stand's schema without a credential and
-`probe.mts` observes anonymous cases with one read-only query or GET, both for `qa-explorer` only. The contract has an
+`probe.mts` observes anonymous cases with one read-only query or GET, both for `vc-qa-explorer` only. The contract has an
 Existing coverage section, Critical flow and Parameters columns, dated references to local reports and snapshots, and
 amendments that name their cases and changes; `check --implemented` requires every case id in the title of a test in
 a spec file the contract's Verification runs. `reconcile-run.mts --contract` compares the series' real command
@@ -25,8 +25,8 @@ reason per difference and refuses a report older than the specs it covers. `prov
 test calls. The framework rules cover a client suite without `arrange` (a `finally` that never fails the test) and a
 shared dataset account (`--workers=1`), and the reviewer takes style only from the repository.
 
-`node .claude/checks/prune.mts` cleans the agents' git-ignored working files under `.qa/`. `/qa`, `/qa-plan` and
-`/qa-coverage` run it first with `--fetch --yes`: it removes a contract whose cases are all in test titles of the spec
+`node .claude/checks/prune.mts` cleans the agents' git-ignored working files under `.qa/`. `/vc-qa`, `/vc-qa-plan` and
+`/vc-qa-coverage` run it first with `--fetch --yes`: it removes a contract whose cases are all in test titles of the spec
 files its Verification runs, on the default branch of `origin`, read from git without a checkout, with its run record, judge verdict and observed report,
 unless its spec files have uncommitted or unpushed changes or an unmerged local branch carries its name. Older
 contracts, reports, healer runs and probes are listed and removed only on the person's yes (`--yes --include-stale`);
@@ -42,8 +42,8 @@ and `probe` use that launcher or the suite's `node_modules`, the facts check rea
 understands `npm --prefix <dir> run <script>`, and `npx vc-qa-agents init <dir>` writes such a suite with the agents
 and facts at the root.
 
-`npx vc-qa-agents` no longer overwrites a file of the repository in `.claude/` that has the name of one of its own,
-such as a repository's own `.claude/commands/qa.md`. It records the files it installs, with a hash of each, in
+`npx vc-qa-agents` no longer overwrites a file of the repository in `.claude/` that has the name of one of its own. It
+records the files it installs, with a hash of each, in
 `.claude/.vc-qa-agents.json` (commit it with `.claude/`), and on an update replaces only the files it installed that are
 unchanged since; a file it did not install is kept and named under any option, a file it installed that was edited is
 kept and named until `--force-ours`, and a file the new version no longer ships is removed when unchanged. The first
@@ -51,3 +51,15 @@ update of an install without the manifest records as the package's only the file
 the others. `npx vc-qa-agents uninstall` removes exactly the unchanged files of the manifest and the manifest, and keeps
 `.claude/settings.json` and `.qa/`. An unknown command or option now prints the usage line and exits with 1 instead of
 installing.
+
+**Breaking for anyone on the alpha:** the agents, commands and skills are renamed with the prefix `vc-`, so that they
+never clash with the ones a repository already has in `.claude/`. Claude Code identifies agents and skills by the
+`name` in their frontmatter and commands by file name, so both change: the agents are `vc-qa-planner`,
+`vc-qa-explorer`, `vc-qa-coverage`, `vc-qa-automation-expert`, `vc-qa-judge`, `vc-qa-healer` and `vc-qa-reviewer`;
+the commands `/vc-qa`, `/vc-qa-plan`, `/vc-qa-implement`, `/vc-qa-review`, `/vc-qa-heal`, `/vc-qa-explore` and
+`/vc-qa-coverage`; every skill takes the prefix too, such as `vc-framework-rules`, `vc-project-facts` and
+`vc-judge-criteria`. The check scripts, the hook, `.qa/` and the `vc-qa-agents` command keep their names. Run
+`npx vc-qa-agents` after the upgrade: with `.claude/.vc-qa-agents.json` it installs the new names and removes the
+unchanged files of the earlier ones, and keeps and names an edited one with the file that replaces it; without the
+manifest it keeps the files of the earlier names and names each one with its new name, to be deleted by hand. Replace
+`/qa` and the other earlier names wherever the repository mentions them.

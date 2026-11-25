@@ -66,24 +66,25 @@ test.describe("BrowserSessions.signedIn", () => {
     expect(contexts).toHaveLength(4);
   });
 
-  test("signs the old session out and signs in again when the password differs", async () => {
+  test("signs in again when the password differs, and disposes of the old session without signing it out", async () => {
     await sessions.signedIn(FRONTEND, ALICE);
 
     await sessions.signedIn(FRONTEND, { ...ALICE, password: Secret.of("Alice-Password-2") });
 
     expect(signIns).toHaveLength(2);
-    expect(signOuts).toEqual(["alice@example.com-1"]);
+    expect(signOuts).toEqual([]);
     await expectDisposed(0);
   });
 
-  test("signs in again when the session expires within a minute, and signs the old one out", async () => {
+  test("signs in again when the session expires within a minute, without signing the old one out", async () => {
     lifetimeMs = 30_000;
     await sessions.signedIn(FRONTEND, ALICE);
 
     const state = await sessions.signedIn(FRONTEND, ALICE);
 
     expect(state.origins[0]?.localStorage[0]?.value).toBe("alice@example.com-2");
-    expect(signOuts).toEqual(["alice@example.com-1"]);
+    expect(signOuts).toEqual([]);
+    await expectDisposed(0);
   });
 
   test("keeps a session without an expiry until it is signed out", async () => {

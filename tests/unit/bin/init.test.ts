@@ -148,6 +148,16 @@ test.describe("vc-qa-agents install", () => {
     expect(output).toContain("Added to .gitignore: .qa/contracts/");
   });
 
+  test("keeps the line endings of a CRLF .gitignore", () => {
+    writeFileSync(join(dir, ".gitignore"), "node_modules/\r\n");
+
+    execFileSync(process.execPath, [BIN], { cwd: dir });
+
+    const text = readFileSync(join(dir, ".gitignore"), "utf8");
+    expect(text.startsWith("node_modules/\r\n.qa/contracts/\r\n")).toBe(true);
+    expect(text.replaceAll("\r\n", "")).not.toContain("\n");
+  });
+
   test("leaves .gitignore alone on a second run", () => {
     execFileSync(process.execPath, [BIN], { cwd: dir });
     const first = readFileSync(join(dir, ".gitignore"), "utf8");

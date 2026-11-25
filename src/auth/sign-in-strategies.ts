@@ -25,6 +25,8 @@ export interface OAuthLocalStorageOptions {
   readonly storageKey?: string | undefined;
   /** The token endpoint on the application's origin. The default is `/connect/token`. */
   readonly tokenPath?: string | undefined;
+  /** The revocation endpoint on the application's origin. The default is `/revoke/token`. */
+  readonly revokePath?: string | undefined;
 }
 
 /**
@@ -35,13 +37,13 @@ export interface OAuthLocalStorageOptions {
  * - The entry is `{ expires_at, token_type, access_token, refresh_token }`, the format of the Virto Commerce frontend.
  * - The session expires with the access token. Signing out revokes it.
  *
- * @param options - The storage key and the token endpoint, for a frontend that differs from the Virto Commerce one.
+ * @param options - The storage key and the endpoints, for a frontend that differs from the Virto Commerce one.
  * @returns The strategy, for {@link BrowserSessions}.
  */
 export function oauthLocalStorage(options: OAuthLocalStorageOptions = {}): SignInStrategy {
   const storageKey = options.storageKey ?? VC_FRONTEND_TOKEN_KEY;
   return async ({ origin, http }, credentials) => {
-    const client = new TokenClient(http, { tokenPath: options.tokenPath });
+    const client = new TokenClient(http, { tokenPath: options.tokenPath, revokePath: options.revokePath });
     const token = await client.signIn(credentials);
     return {
       state: localStorageState(origin, storageKey, tokenEntry(token)),

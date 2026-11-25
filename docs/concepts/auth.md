@@ -20,8 +20,8 @@ Because the password is a `Secret`, credentials are safe to log.
 | `revoke`               | Revokes the refresh token of a token; the access token stays valid until it expires        |
 | `requestPasswordGrant` | Sends a sign-in request and returns the response whatever its status, for sign-in tests    |
 
-The client sends each request once and does not retry a failure. The token endpoint is `/connect/token`, and the
-`tokenPath` option changes it.
+The client sends each request once and does not retry a failure. The endpoints are `/connect/token` and
+`/revoke/token`, and the `tokenPath` and `revokePath` options change them.
 
 The platform returns a 500 status when the same user signs in twice at the same time. Playwright workers are separate
 processes, so `signIn` takes a lock for the user and store in the temporary directory of the system: sign-ins of the
@@ -54,8 +54,8 @@ application:
 - They keep one session for each user, store and origin, each with a request context of its own, so cookies of one
   user never reach another.
 - Concurrent calls for the same user share one sign-in. A failed sign-in is not kept.
-- A session that expires within a minute signs in again. A different password for a kept user signs the old session
-  out and signs in again.
+- A session that expires within a minute, or a different password for a kept user, signs in again. The old session is
+  not signed out, so a failure to end it never fails the new sign-in.
 - `signOut` ends a user's sessions on every origin, such as before the user is deleted, and `dispose` ends every
   session. A session past its expiry is not signed out, because the server no longer accepts it.
 
@@ -68,8 +68,8 @@ optionally, when it expires and how to end it on the server. The framework has t
 
 - `oauthLocalStorage(options)` signs in to the Virto Commerce frontend: the OAuth password grant on the frontend's
   origin, with the token in local storage as `{ expires_at, token_type, access_token, refresh_token }` under `auth`.
-  `storageKey` and `tokenPath` change the key and the endpoint. The session expires with the token, and signing out
-  revokes it.
+  `storageKey`, `tokenPath` and `revokePath` change the key and the endpoints. The session expires with the token,
+  and signing out revokes it.
 - `cookieSignIn(signIn, options)` signs in to an application with a cookie session: `signIn` sends the sign-in
   requests, and the session keeps the cookies that their responses set. The requests share one request context, so
   the cookies of one are sent with the next. The session expires with the first cookie that has an expiry, and the

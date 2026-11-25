@@ -37,6 +37,8 @@ export interface AuthToken {
 export interface TokenClientOptions {
   /** The token endpoint. The default is `/connect/token`, the endpoint of the platform. */
   readonly tokenPath?: string | undefined;
+  /** The revocation endpoint. The default is `/revoke/token`, the endpoint of the platform. */
+  readonly revokePath?: string | undefined;
 }
 
 /**
@@ -51,16 +53,18 @@ export interface TokenClientOptions {
 export class TokenClient {
   readonly #httpClient: HttpClient;
   readonly #tokenPath: string;
+  readonly #revokePath: string;
 
   /**
    * Creates a token client.
    *
    * @param httpClient - The client that sends requests to the platform.
-   * @param options - The token endpoint, for an application that serves it elsewhere.
+   * @param options - The token and revocation endpoints, for an application that serves them elsewhere.
    */
   constructor(httpClient: HttpClient, options: TokenClientOptions = {}) {
     this.#httpClient = httpClient;
     this.#tokenPath = options.tokenPath ?? TOKEN_PATH;
+    this.#revokePath = options.revokePath ?? REVOKE_PATH;
   }
 
   /**
@@ -116,7 +120,7 @@ export class TokenClient {
    * @throws {HttpError} The platform does not confirm the revocation.
    */
   async revoke(token: AuthToken): Promise<void> {
-    (await this.#httpClient.post(REVOKE_PATH, { headers: authHeader(token) })).expectOk();
+    (await this.#httpClient.post(this.#revokePath, { headers: authHeader(token) })).expectOk();
   }
 }
 

@@ -23,7 +23,7 @@ export interface BrowserSession {
 export interface SignInContext {
   /** The origin of the application, such as `https://frontend.example.com`. */
   readonly origin: string;
-  /** A client of {@link origin} on {@link request}. */
+  /** A client of {@link SignInContext.origin} on {@link SignInContext.request}. */
   readonly http: HttpClient;
   /**
    * The request context of the session. It keeps the cookies that the responses set and is disposed of when the session
@@ -63,8 +63,8 @@ interface CachedSession {
  *   a request context of its own.
  * - Concurrent calls for the same user share one sign-in. A failed sign-in is not kept, and its request context is
  *   disposed of.
- * - A session that expires within a minute signs in again. A different password for a kept user signs out the old
- *   session and signs in again.
+ * - A session that expires within a minute, or a different password for a kept user, signs in again. The old session
+ *   is not signed out, so a failure to end it never fails the new sign-in; its request context is disposed of.
  * - {@link BrowserSessions.signOut} and {@link BrowserSessions.dispose} end the sessions on the server and dispose of
  *   their request contexts. A session past its expiry is not signed out, because the server no longer accepts it.
  *
@@ -150,7 +150,7 @@ export class BrowserSessions {
     if (session.expiresAt === undefined || session.expiresAt - EXPIRY_MARGIN_MS > Date.now()) {
       return session;
     }
-    await close(session);
+    await session.request.dispose();
     return this.#open(origin, credentials);
   }
 
@@ -159,7 +159,7 @@ export class BrowserSessions {
     origin: string,
     credentials: Credentials,
   ): Promise<OpenSession> {
-    await close(await previous?.catch(() => undefined));
+    await (await previous?.catch(() => undefined))?.request.dispose();
     return this.#open(origin, credentials);
   }
 

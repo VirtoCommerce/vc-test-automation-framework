@@ -88,14 +88,16 @@ test.describe("oauthLocalStorage", () => {
     expect(Date.parse(String(entry["expires_at"]))).toBeGreaterThanOrEqual(before + SESSION_MAX_AGE_S * 1_000 - 1_000);
   });
 
-  test("uses the storage key and the token endpoint of the options", async () => {
-    const state = await sessionsWith(oauthLocalStorage({ storageKey: "session", tokenPath: "/oauth/token" })).signedIn(
-      appUrl,
-      ALICE,
+  test("uses the storage key and the endpoints of the options", async () => {
+    const browserSessions = sessionsWith(
+      oauthLocalStorage({ storageKey: "session", tokenPath: "/oauth/token", revokePath: "/oauth/revoke" }),
     );
 
+    const state = await browserSessions.signedIn(appUrl, ALICE);
+    await browserSessions.signOut(ALICE);
+
     expect(state.origins[0]?.localStorage.map(({ name }) => name)).toEqual(["session"]);
-    expect(received.map(({ path }) => path)).toEqual(["/oauth/token"]);
+    expect(received.map(({ path }) => path)).toEqual(["/oauth/token", "/oauth/revoke"]);
   });
 
   test("revokes the token when the session is signed out", async () => {
@@ -152,7 +154,7 @@ test.describe("cookieSignIn", () => {
     await browserSessions.signedIn(appUrl, ALICE);
 
     expect(received.filter(({ path }) => path === "/api/auth/login")).toHaveLength(2);
-    expect(received.filter(({ path }) => path === "/api/auth/logout")).toHaveLength(1);
+    expect(received.filter(({ path }) => path === "/api/auth/logout")).toHaveLength(0);
   });
 
   test("signs out with the session's cookies", async () => {
@@ -299,6 +301,7 @@ function respond(item: Received): { readonly status: number; readonly body: unkn
         cookies: [],
       };
     case "/revoke/token":
+    case "/oauth/revoke":
       return { status: revokeStatus, body: {}, cookies: [] };
     case "/api/auth/login":
       if (wrong) {

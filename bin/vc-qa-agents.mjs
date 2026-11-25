@@ -74,8 +74,9 @@ function addIgnores(target) {
   const ignored = text.split(/\r?\n/).map((line) => line.trim());
   const missing = GITIGNORE_LINES.filter((line) => !ignored.includes(line));
   if (missing.length > 0) {
-    const separator = text === "" || text.endsWith("\n") ? "" : "\n";
-    writeFileSync(path, `${text}${separator}${missing.join("\n")}\n`);
+    const eol = text.includes("\r\n") ? "\r\n" : "\n";
+    const separator = text === "" || text.endsWith("\n") ? "" : eol;
+    writeFileSync(path, `${text}${separator}${missing.join(eol)}${eol}`);
   }
   return missing;
 }

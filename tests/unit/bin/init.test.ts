@@ -1,12 +1,15 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
+import { BROWSER_SECRETS_PATH, passwordNames } from "../../../.claude/checks/browser-secrets.mts";
+
 const BIN = fileURLToPath(new URL("../../../bin/install-qa-agents.mjs", import.meta.url));
+const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
 
 function initIn(dir: string): string {
   return execFileSync(process.execPath, [BIN, "init", "--skip-install"], { cwd: dir, encoding: "utf8" });
@@ -80,5 +83,44 @@ test.describe("vc-qa-agents init", () => {
 
     expect(readFileSync(join(dir, "env.ts"), "utf8")).toBe("export {};\n");
     expect(output).toContain("Kept the files that already exist: env.ts");
+  });
+
+  test("writes the browser server that the agents sign in with, on the secrets file the check writes", () => {
+    initIn(dir);
+
+    const servers = readJson(join(dir, ".mcp.json"))["mcpServers"] as Record<string, { args: string[] }>;
+    const args = servers["playwright"]?.args ?? [];
+    expect(args.some((arg) => /^@playwright\/mcp@\d+\.\d+\.\d+$/.test(arg))).toBe(true);
+    expect(args[args.indexOf("--secrets") + 1]).toBe(BROWSER_SECRETS_PATH);
+    expect(readFileSync(join(dir, ".gitignore"), "utf8")).toContain(".qa/*.local.env");
+  });
+
+  test("names, in the template's own .env.example, every password its facts name", () => {
+    initIn(dir);
+
+    const facts = readJson(join(dir, ".qa", "project.json"));
+    const variables = readFileSync(join(dir, ".env.example"), "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.split("=")[0]);
+    for (const name of passwordNames(facts["passwordFor"] as Record<string, string>)) {
+      expect(variables, name).toContain(name);
+    }
+  });
+
+  test("gives the suite facts that fail only on the placeholders, until they are replaced", () => {
+    initIn(dir);
+    symlinkSync(NODE_MODULES, join(dir, "node_modules"), "junction");
+
+    const result = spawnSync(process.execPath, [join(dir, ".claude", "checks", "project-facts.mts")], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    const lines = result.stderr.trim().split(/\r?\n/);
+    expect(lines).toHaveLength(3);
+    expect(lines.join("\n")).toContain("template's example account");
+    expect(lines.join("\n")).toContain("template's example key pattern");
   });
 });

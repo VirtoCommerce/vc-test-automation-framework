@@ -29,26 +29,53 @@ The check scripts are TypeScript, run by Node 22.18 or newer without a build, an
 ## Describe your repository
 
 Replace the example values in `.qa/project.json`, then check it with `node .claude/checks/project-facts.mts`, which
-prints the facts or the first field that is wrong. Every agent reads the file through that command and stops when it
-fails.
+prints the facts or the problems with them. Every agent reads the file through that command and stops when it fails.
 
-| Field             | Holds                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.` for the root |
-| `tracker`         | The tracker kind, the pattern of its keys and the routes the agents may read a ticket by         |
-| `docSources`      | Where the agents look up how the product should behave                                           |
-| `commands`        | The type check, the lint and one test command for each Playwright project, plus `unit` and `all` |
-| `critical`        | The flows that coverage ranks first                                                              |
-| `roles`           | The data roles of the tests, each with its account                                               |
-| `roleFor`         | Which role administers (`admin`), which is a customer, and optionally which is another customer  |
-| `rolePermissions` | The permissions of each role, for security tests                                                 |
-| `passwordFor`     | The environment variable that holds each role's password                                         |
-| `quality`         | Limits on the size of a test, the stable series and the time budget of each project              |
-| `autonomy`        | Whether the healer may apply a fix (`apply`) or only propose it (`propose`), by area             |
-| `healerPaths`     | The directories the healer may change: page objects and test data, never the specs               |
+Besides the shape of each field, the command refuses a file that is still the template's: an account in the example
+domain or the `PROJ` tracker key. It also checks the file against the repository: every `npm run` script of a command
+exists in `package.json`, every key of `commands.test` (except `unit` and `all`) and of `quality.durationBudgetMs` is a
+project of the suite's `playwright.config`, and every `healerPaths` entry is a directory. A config whose projects it
+cannot read statically is noted on stderr and its project names are not checked.
+
+| Field             | Holds                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.` for the root            |
+| `tracker`         | The tracker kind, the pattern of its keys and the routes the agents may read a ticket by                    |
+| `docSources`      | Where the agents look up how the product should behave                                                      |
+| `commands`        | The type check, one test command for each Playwright project plus `unit` and `all`, and the lint (optional) |
+| `critical`        | The flows that coverage ranks first                                                                         |
+| `roles`           | The data roles of the tests, each with its account                                                          |
+| `roleFor`         | Which role is a customer, and optionally which administers (`admin`) and which is another customer          |
+| `rolePermissions` | The permissions of each role, for security tests                                                            |
+| `passwordFor`     | The environment variable that holds each role's password                                                    |
+| `quality`         | Limits on the size of a test, the stable series and the time budget of each project                         |
+| `autonomy`        | Whether the healer may apply a fix (`apply`) or only propose it (`propose`), by area                        |
+| `healerPaths`     | The directories the healer may change: page objects and test data, never the specs                          |
 
 The prompts name no solution: `node .claude/checks/scan-prompts.mts` checks that the shipped files hold none of the
 facts' accounts, role names or hosts.
+
+## Browser
+
+The agents that open the frontend (`qa-explorer`, `qa-coverage`, `qa-healer`) use a Playwright MCP server named
+`playwright`, which Claude Code reads from `.mcp.json` in the repository root. `npx vc-qa-agents init` writes it, with
+the server pinned to one version and started as `--browser chromium --isolated --secrets
+.qa/browser-secrets.local.env`; on Windows the command is wrapped in `cmd /c`, as Claude Code needs it there. Commit
+the file. Claude Code asks once to approve the server. An existing suite adds the same server to its own `.mcp.json`:
+`npx vc-qa-agents` says when it is missing.
+
+The server types the passwords of the roles into the sign-in form, so the agent never holds one. The names of the
+variables are the values of `passwordFor`, and the variables are in the suite's `.env` (the template's `.env.example`
+lists them). Write them for the server with:
+
+```shell
+node .claude/checks/browser-secrets.mts
+```
+
+It writes `.qa/browser-secrets.local.env` (git-ignored) and restricts it to the current user: by mode `0600` on Linux
+and macOS, by `icacls` on Windows, where the mode does nothing. When it cannot restrict the file it says so as a
+warning; restrict the file yourself then. The server reads the file when it starts, so restart it after the file
+changes. `node .claude/checks/stand.mts` prints `sign-in: ready` when the file matches the run's variables.
 
 ## Use
 

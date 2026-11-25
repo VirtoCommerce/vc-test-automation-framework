@@ -5,5 +5,9 @@
   "access": "public",
   "baseBranch": "dev",
   "updateInternalDependencies": "patch",
-  "ignore": []
+  "ignore": [],
+  "snapshot": {
+    "useCalculatedVersion": true,
+    "prereleaseTemplate": "{tag}.{datetime}"
+  }
 }

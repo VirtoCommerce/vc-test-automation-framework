@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [dev]
+    branches: [dev, main]
 
 permissions:
   contents: read
@@ -43,7 +43,7 @@ jobs:
       - run: '! grep -rE ''from "@/'' dist'
 
   changeset:
-    if: github.actor != 'dependabot[bot]'
+    if: github.base_ref == 'dev' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

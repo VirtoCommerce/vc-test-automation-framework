@@ -53,24 +53,36 @@ described in `CHANGELOG.md`.
 
 ## Releasing a version
 
-Releases are made by GitHub Actions with [Changesets](https://github.com/changesets/changesets):
+The `Release` workflow publishes the package to npm. Where it publishes from decides what you get:
 
-1. A pull request that changes what consumers get adds a changeset (`npm run changeset`). See
-   [the changeset guide](../../.changeset/README.md) for how to choose the bump and write the note. A pull request
-   with nothing for consumers adds an empty changeset (`npx changeset --empty`).
-2. Merging to `dev` opens or updates the "chore: release" pull request, which bumps the version and updates
-   `CHANGELOG.md`.
-3. Merging that pull request publishes the package to npmjs.org and creates the GitHub release.
+| Where            | When        | Install with | Version example              |
+| ---------------- | ----------- | ------------ | ---------------------------- |
+| a feature branch | you run it  | `@alpha`     | `0.2.0-alpha.20261125103000` |
+| `dev`            | every merge | `@next`      | `0.2.0-next.20261125103000`  |
+| `main`           | every merge | `@latest`    | `0.2.0`                      |
 
-When no changesets are pending, a merge to `dev` publishes the current version if it is not yet in the registry.
+The version comes from the changesets: each pull request that changes what consumers get adds one with
+`npm run changeset` ([how to write one](../../.changeset/README.md)); a pull request with nothing for consumers adds
+an empty one with `npx changeset --empty`. No pending changesets, nothing is published.
 
-The `Release` workflow (`release.yml`) signs in to npm with Trusted Publishing: npm exchanges the workflow's GitHub
-OIDC token for a short-lived publish credential and attaches provenance, so no npm token is kept in the repository
-secrets. The trusted publisher on npmjs.com names this repository and the file `release.yml`; renaming the file or
-moving the publish step to another workflow breaks publishing. Trusted Publishing needs npm 11.5.1 or newer, which
-the workflow installs.
+To release:
 
-To try a branch before it is merged, push it to a branch under `alpha/` (`git push origin HEAD:alpha/<name>`), or
-run the `Release` workflow on it by hand (Actions tab, or `gh workflow run release.yml --ref <branch>`). It publishes the branch as `<version>-alpha.<run number>` under the
-`alpha` dist-tag, which consumers install with `npm install @virtocommerce/test-automation-framework@alpha`; `latest`
-does not move.
+1. Merge your pull requests into `dev`. Each merge publishes a `next` version to try.
+2. When `dev` is ready, merge it into `main` with a pull request (merge commit only).
+3. The rest is automatic: the `vc-ci` bot bumps the version, updates `CHANGELOG.md`, publishes `latest`, tags
+   `v<version>`, creates the GitHub release and merges `main` back into `dev`.
+
+To try a feature branch before merging it, run `Release` on it from the Actions tab, or with
+`gh workflow run release.yml --ref <branch>`.
+
+If the last step fails because `main` does not merge into `dev` cleanly, merge it by hand; the release itself is
+already published.
+
+### How it works
+
+- Alpha and `next` versions commit nothing; the changesets stay in place until the release.
+- `dev` and `main` take changes only through pull requests with green CI. The bot pushes past that with the
+  `REPO_TOKEN` secret, as the repository admin role is allowed to.
+- npm sign-in uses Trusted Publishing: no npm token is stored, and every version gets a provenance attestation. The
+  trusted publisher on npmjs.com is tied to the file name `release.yml`, so keep every publish in that file and do not
+  rename it.

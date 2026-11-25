@@ -7,6 +7,14 @@ and you never do a role's work yourself.
 `$ARGUMENTS` is the task in plain words: a ticket key, a specification or documentation link, an area ("cover the
 cart"), a failing test, "review this branch", "what is not covered". Empty: ask what to do.
 
+## Step 0: Clean Up
+
+Run `node .claude/checks/prune.mts --fetch --yes`. It removes only finished work under `.qa/`: a contract whose cases
+are all in test titles on the default branch, with its run record, verdict and observed report. Keep its last line
+(`prune: …`) for the Output. Show its `ask` lines (older files it keeps unless told) to the person as one list and, only
+on their yes, run `node .claude/checks/prune.mts --yes --include-stale`. The flow does not wait for that answer, and a
+`not reached` line or a failed check never stops it.
+
 ## Pick the Flow
 
 | Request | Flow |
@@ -150,7 +158,7 @@ For a pull request, fetch the diff and metadata with `gh` and pass them as files
 
 ## Output
 
-End with what ran and what is left: the flow, the contract path, the run record counts per project with every
+End with what ran and what is left: the `prune:` line of Step 0, the flow, the contract path, the run record counts per project with every
 skip's reason and every platform-defect failure with its case, the judge verdict, the review verdict, and anything
 awaiting a person (an approval, an amendment, a second judge failure, a guard finding). Say "not done" for any stage
 that did not run. Say "ready to commit" only when the contract is approved, the run was done, the judge passed, the

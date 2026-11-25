@@ -101,3 +101,32 @@ runs each role as its own agent:
 
 `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-heal`, `/qa-explore` and `/qa-coverage` run one role. The rules every
 test follows are in the `framework-rules` skill; the read-only agents are held to their commands by the hook.
+
+## Clean up the working files
+
+The agents' working files under `.qa/` are git-ignored and exist only on the machine of whoever worked, so CI cannot
+remove them: contracts (`.qa/contracts/`), run records (`.qa/runs/`), judge verdicts (`.qa/judge/`), explorer,
+coverage and healer reports (`.qa/reports/`) and probes (`.qa/probes/`). `/qa`, `/qa-plan` and `/qa-coverage` start by
+running
+
+```shell
+node .claude/checks/prune.mts --fetch --yes
+```
+
+which fetches `origin` and removes finished work only: a contract is finished when every case id of its cases table,
+but the ones an approved amendment drops, is in a test title on the default branch of `origin` (`origin/HEAD`, else
+`main`, else `dev`). The titles are read from the branch's spec files under `suiteDir` in git, with nothing checked out
+and no test run. A finished contract goes with its run record, its judge verdict and the `-observed` reports its
+oracles cite. A contract stays when its spec files have uncommitted or unpushed changes, or when a local branch that is
+not merged into the default branch carries its name. With no `origin` or no default branch ref it removes nothing and
+says `not reached`. The command reports the check's last line.
+
+Older files are listed as `ask` lines and removed only when you say yes, with `--yes --include-stale`: contracts with
+no approval unchanged for longer than `--days=<n>` (the usage line, printed for an unknown option, gives the
+default), coverage reports beyond the newest few of a scope (each line says how many are kept), an explorer report older
+than the newest of its area, healer reports and runs unchanged for as long, and probe files. A report that a remaining contract cites is never removed, nor is the knowledge directory (`knowledgeDir`,
+`.qa/kb`), a `.qa/*.local.env` file, anything that matches none of these names, or anything outside `.qa/`.
+
+Run it by hand from the repository root: with no option it only prints what it would remove and why, one line each;
+`--fetch` fetches `origin` first, `--yes` removes the finished work and `--yes --include-stale` the older files too.
+The read-only shell hook does not let an agent run it: the commands run it from your session.

@@ -36,7 +36,7 @@ const HEAL_RUN = /^heal-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOCAL_ENV = /\.local\.env$/;
 const BRANCH_BOUNDARY = "[^a-z0-9]";
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
-const USAGE = `prune: usage is node .claude/checks/${CLI_FILE_NAME} [${FETCH_FLAG}] [${YES_FLAG} [${STALE_FLAG}]] [${DAYS_PREFIX}<n>], run from the repository root`;
+const USAGE = `prune: usage is node .claude/checks/${CLI_FILE_NAME} [${FETCH_FLAG}] [${YES_FLAG} [${STALE_FLAG}]] [${DAYS_PREFIX}<n>, ${DEFAULT_DAYS} by default], run from the repository root`;
 
 /** A path under `.qa/` to remove, relative to the repository root with `/`, and why, in one line. */
 export type Removal = { path: string; reason: string };

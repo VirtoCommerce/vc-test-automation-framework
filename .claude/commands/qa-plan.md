@@ -18,6 +18,14 @@ is one and does not block planning: without a coverage report the planner finds 
 
 ## Steps
 
+### 0. Clean Up
+
+Run `node .claude/checks/prune.mts --fetch --yes`, which removes only finished work under `.qa/` (a contract whose
+cases are all in test titles on the default branch, with its run record, verdict and observed report), and keep its
+last line (`prune: …`) for the end. Show its `ask` lines to the person as one list; only on their yes run
+`node .claude/checks/prune.mts --yes --include-stale`. Planning does not wait for that answer, and a `not reached` line
+or a failed check never stops it.
+
 ### 1. Plan
 
 Spawn the `qa-planner` agent with the request. It reads `framework-rules` and `project-facts`, reads the source (a
@@ -50,6 +58,7 @@ wrote it, add `## Approval` with the one line `Approved: <who>, <date> (relayed:
 
 End with:
 ```
+<the prune: line of step 0>
 Contract: .qa/contracts/<file>.md
 Approved? Run /qa-implement .qa/contracts/<file>.md to build it.
 ```

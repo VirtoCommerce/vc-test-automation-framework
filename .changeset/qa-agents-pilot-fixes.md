@@ -41,3 +41,13 @@ elsewhere. The skills, the read-only shell hook, `contract --implemented`, `prov
 and `probe` use that launcher or the suite's `node_modules`, the facts check reads the suite's `package.json` and
 understands `npm --prefix <dir> run <script>`, and `npx vc-qa-agents init <dir>` writes such a suite with the agents
 and facts at the root.
+
+`npx vc-qa-agents` no longer overwrites a file of the repository in `.claude/` that has the name of one of its own,
+such as a repository's own `.claude/commands/qa.md`. It records the files it installs, with a hash of each, in
+`.claude/.vc-qa-agents.json` (commit it with `.claude/`), and on an update replaces only the files it installed that are
+unchanged since; a file it did not install is kept and named under any option, a file it installed that was edited is
+kept and named until `--force-ours`, and a file the new version no longer ships is removed when unchanged. The first
+update of an install without the manifest records as the package's only the files equal to the new version's and names
+the others. `npx vc-qa-agents uninstall` removes exactly the unchanged files of the manifest and the manifest, and keeps
+`.claude/settings.json` and `.qa/`. An unknown command or option now prints the usage line and exits with 1 instead of
+installing.

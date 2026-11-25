@@ -48,7 +48,7 @@ with `@rest/generated/platform.ts`. GraphQL specs run typed documents from `@gra
 
 ## Writing tests
 
-The framework rules live in the `framework-rules` skill, `.claude/skills/framework-rules/SKILL.md`. Read it before
+The framework rules live in the `vc-framework-rules` skill, `.claude/skills/vc-framework-rules/SKILL.md`. Read it before
 writing or reviewing a test. Describe identities: `(anonymous)`, `(administrator)`, `(customer of their own)`.
 
 ## Code style

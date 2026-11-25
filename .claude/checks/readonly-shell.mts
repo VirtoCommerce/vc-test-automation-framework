@@ -20,9 +20,9 @@ import { standOrigins } from "./stand.mts";
  */
 export type SuiteConfig = { launcher: readonly string[]; config: readonly string[] } | undefined;
 
-export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
+export const READ_ONLY_AGENTS = ["vc-qa-reviewer", "vc-qa-explorer", "vc-qa-coverage", "vc-qa-judge"] as const;
 
-export const HEALER_AGENT = "qa-healer";
+export const HEALER_AGENT = "vc-qa-healer";
 
 export const ALLOWED_QA_MODULES = [
   "project-facts",
@@ -35,17 +35,17 @@ export const ALLOWED_QA_MODULES = [
   "test-duration",
 ] as const;
 
-export const JUDGE_AGENT = "qa-judge";
+export const JUDGE_AGENT = "vc-qa-judge";
 
 export const JUDGE_QA_MODULES = ["judge-verdict", "prove-fails"] as const;
 
 export const JUDGE_WRITE_DIR = ".qa/judge";
 
-export const EXPLORER_AGENT = "qa-explorer";
+export const EXPLORER_AGENT = "vc-qa-explorer";
 
 export const EXPLORER_QA_MODULES = ["introspect", "probe"] as const;
 
-export const COVERAGE_AGENT = "qa-coverage";
+export const COVERAGE_AGENT = "vc-qa-coverage";
 
 export const EXPLORER_WRITE_DIR = ".qa/reports";
 
@@ -110,7 +110,7 @@ const TEST_DURATION_ARGUMENTS = [2, 3];
 const PROVE_FAILS_PROJECT = /^--project=[\w.-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
 const OUTPUT_VARIABLE = "PLAYWRIGHT_JSON_OUTPUT_FILE=";
-const REVIEWER_AGENT = "qa-reviewer";
+const REVIEWER_AGENT = "vc-qa-reviewer";
 const REVIEWER_OUTPUT =
   /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/(?![Hh][Ee][Aa][Ll]-)[\w-]+\/review-list\.[\w-]+\.json$/;
 const HEALER_REVIEW_OUTPUT =
@@ -315,13 +315,13 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
  * --reporter=json|list|null …` (`--repeat-each=<1-2 digits>` allowed there, so a reviewer can list a series; the
  * config flag exactly as `config` holds it, none for a suite at the repository root, and no path to a `.env` file),
  * `git diff|log|show|status …`, `node .claude/checks/<module>.mts …` (`test-shape` and `test-duration` only with
- * repository paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and
- * `prove-fails`, and `qa-explorer` has `introspect` (`graphql` or `rest`) and `probe` (one `.qa/probes/<slug>.graphql|get`
+ * repository paths and a project name, as 1+ and 2-3 arguments); `vc-qa-judge` also has `judge-verdict` and
+ * `prove-fails`, and `vc-qa-explorer` has `introspect` (`graphql` or `rest`) and `probe` (one `.qa/probes/<slug>.graphql|get`
  * file). The launcher is the suite's (`toolLauncher`): `npx --no`, optionally then `--` (npm 12 needs it before a
  * tool whose next word is a flag), or `npm exec --prefix <suiteDir> --no --` for a suite that is its own npm project,
- * so npm never fetches a package. Only `qa-reviewer` may lead the listing with
+ * so npm never fetches a package. Only `vc-qa-reviewer` may lead the listing with
  * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json`, `<contract-name>` not starting
- * with `heal-`, and `qa-healer` only with the directory `heal-<slug>`. No chaining, substitution, redirection, quoting,
+ * with `heal-`, and `vc-qa-healer` only with the directory `heal-<slug>`. No chaining, substitution, redirection, quoting,
  * globbing or variable expansion.
  *
  * @param config the suite's launcher and Playwright config arguments; undefined blocks every Playwright command.
@@ -770,9 +770,9 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown, pro
  * Decides a PreToolUse hook call for the Bash, Write and Playwright browser tools: a one-line reason to block it, or
  * undefined to let it pass. Only the read-only agents are limited; the main session and every other agent pass
  * untouched. A read-only agent's Bash call must be on the allowlist, its Playwright commands with the suite's
- * launcher and config arguments from the project facts (`suiteDir`). Its Write call is allowed for `qa-judge` only as a `.json` file under
- * `.qa/judge/<contract-name>/`, for `qa-explorer` only as `.qa/reports/explore-<slug>.md` or a probe file
- * `.qa/probes/<slug>.graphql|get` and for `qa-coverage` only
+ * launcher and config arguments from the project facts (`suiteDir`). Its Write call is allowed for `vc-qa-judge` only as a `.json` file under
+ * `.qa/judge/<contract-name>/`, for `vc-qa-explorer` only as `.qa/reports/explore-<slug>.md` or a probe file
+ * `.qa/probes/<slug>.graphql|get` and for `vc-qa-coverage` only
  * as `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the

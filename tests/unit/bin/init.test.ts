@@ -11,8 +11,8 @@ import { BROWSER_SECRETS_PATH, passwordNames } from "../../../.claude/checks/bro
 const BIN = fileURLToPath(new URL("../../../bin/vc-qa-agents.mjs", import.meta.url));
 const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
 
-function initIn(dir: string): string {
-  return execFileSync(process.execPath, [BIN, "init", "--skip-install"], { cwd: dir, encoding: "utf8" });
+function initIn(dir: string, ...args: string[]): string {
+  return execFileSync(process.execPath, [BIN, "init", ...args, "--skip-install"], { cwd: dir, encoding: "utf8" });
 }
 
 function readJson(path: string): Record<string, unknown> {
@@ -122,6 +122,48 @@ test.describe("vc-qa-agents init", () => {
     expect(lines).toHaveLength(3);
     expect(lines.join("\n")).toContain("template's example account");
     expect(lines.join("\n")).toContain("template's example key pattern");
+  });
+  test("writes a suite in a directory as its own npm project, with the agents and the facts at the root", () => {
+    const suiteDir = "tests-suite";
+    initIn(dir, suiteDir);
+    symlinkSync(NODE_MODULES, join(dir, suiteDir, "node_modules"), "junction");
+
+    for (const file of ["playwright.config.ts", "package.json", "pages/README.md", ".env"]) {
+      expect(existsSync(join(dir, suiteDir, file)), file).toBe(true);
+    }
+    for (const file of [".claude/settings.json", ".mcp.json"]) {
+      expect(existsSync(join(dir, file)), file).toBe(true);
+    }
+    expect(existsSync(join(dir, "package.json"))).toBe(false);
+    expect(existsSync(join(dir, suiteDir, ".qa"))).toBe(false);
+    const factsPath = join(dir, ".qa", "project.json");
+    const facts = readJson(factsPath);
+    expect(facts).toMatchObject({ suiteDir, healerPaths: expect.arrayContaining([`${suiteDir}/pages/`]) });
+    const placeholders = readFileSync(factsPath, "utf8")
+      .replaceAll("@your-company.test", "@example.org")
+      .replace("PROJ-", "SUITE-");
+    writeFileSync(factsPath, placeholders);
+
+    const result = spawnSync(process.execPath, [join(dir, ".claude", "checks", "project-facts.mts")], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      playwright: `npm exec --prefix ${suiteDir} --no -- playwright test --config=${suiteDir}`,
+    });
+  });
+
+  test("refuses a suite directory outside the repository", () => {
+    const result = spawnSync(process.execPath, [BIN, "init", "../elsewhere", "--skip-install"], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("plain directory inside the repository");
+    expect(existsSync(join(dir, ".qa"))).toBe(false);
   });
 });
 

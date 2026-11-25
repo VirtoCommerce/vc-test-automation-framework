@@ -7,19 +7,19 @@ argument-hint: "<platform-module> <test-scenario>"
 ## REST API Spec Writing
 
 Specs live in `tests/restapi/<platform-module>/<topic>.spec.ts` and run in the `restapi` project. Place them by
-platform module: users, roles and API keys are `security`, not `customer`. A test that changes platform-wide state
+the platform module that owns the behaviour. A test that changes platform-wide state
 (global settings, index, restart, store access) goes to `tests/isolated/restapi/` instead.
 
-Read first: CLAUDE.md "Writing tests", README "A REST test" and "Cleaning up". Copy the shape of
-`tests/restapi/pricing/pricelists.spec.ts`.
+Read first: skill `framework-rules`, then `project-facts` (`node .claude/checks/project-facts.mts`), then the repository's
+README for its REST test shape. Copy the shape of a neighbouring spec of the same project.
 
 ## Step 1: Find the Building Blocks
 
 - Client method: `api.rest.<module>.<resource>.<method>` (`api/rest/rest-api.ts` lists every client). Missing one?
   Add it with `/create-rest-client`.
-- Test data: `arrange.<domain>.<x>()` (`dataset/arrange/`, domains in README "`arrange` domains"). Missing one?
+- Test data: `arrange.<domain>.<x>()` (`dataset/arrange/`, domains in the README's `arrange` section). Missing one?
   Add a method to the domain file, on top of a builder in `dataset/builders/`.
-- Seeded records: `dataset.<collection>.get(id)`; ids from `dataset/data/<collection>/*.json`.
+- Seeded records: `dataset.<collection>.get(id)`; ids come from `dataset/data/<collection>/*.json`, never from memory.
 - Known defect: an entry in `known-issues.json`.
 
 ## Step 2: Write the Spec
@@ -30,13 +30,15 @@ import * as allure from "allure-js-commons";
 import { newPricelist } from "@dataset/builders/pricing";
 import { expect, test } from "@fixtures";
 
+const ROLE_ACCOUNT = "<roles[role] from the project facts>";
+
 test.beforeEach(async () => {
   await allure.epic("REST API");
   await allure.feature("Pricing / Pricelists");
 });
 
-test.describe("pricelists (store administrator)", () => {
-  test.use({ user: "acme_store_administrator@acme.com" });
+test.describe("pricelists (<role>)", () => {
+  test.use({ user: ROLE_ACCOUNT });
 
   test("create a pricelist", async ({ api, cleanup, store }) => {
     await allure.story("Create");
@@ -67,12 +69,13 @@ test.describe("pricelists (store administrator)", () => {
 
 - `allure.epic("REST API")` and `allure.feature("<Module> / <Topic>")` in `beforeEach`; `allure.story` and
   `allure.description` first in each test.
-- `test.describe("<topic> (<who>)")`, one per identity: `(store administrator)`, `(anonymous)`,
+- `test.describe("<topic> (<who>)")`, one per identity, named by role: `(<role>)`, `(anonymous)`,
   `(customer of their own)`.
-- `test.use({ user: "<dataset user name>" })` signs `api` in; without it `api` is anonymous. Another identity in
-  the same test: `await api.as(userName)`, `api.anonymous()`.
-- `arrange` creates as the store administrator and removes the data after the test. `arrange.admin` reads platform
-  state in assertions when `api` is a less privileged user.
+- `test.use({ user: "<account>" })` signs `api` in; the account is `roles["<role>"]` from the project facts, as a
+  string. Without it `api` is anonymous. Another identity in the same test: `await api.as(account)`,
+  `api.anonymous()`. An administration test runs as `roles[roleFor.admin]`.
+- `arrange` creates as `roleFor.admin` and removes the data after the test. `arrange.admin` reads platform state in
+  assertions when `api` is a less privileged user.
 - When the create is the action under test, build the draft (`newX()` sets a client-side `id`) and push the
   undo on `cleanup` before the call.
 
@@ -147,12 +150,19 @@ Never `toEqual([...])` on a whole search result: other tests create data in para
    what the code under test creates.
 6. Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
 7. No sleeps; index lag is waited for in `arrange` or with `INDEX_LAG_TIMEOUT_MS`.
-8. No code comments.
+8. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify
 
-```shell
-npm run typecheck && npm run check
-npm run test:restapi -- tests/restapi/<platform-module>/<topic>.spec.ts
-```
+Run `commands.typecheck`, `commands.lint` and `commands.test["restapi"]` (the REST project's key) from the project
+facts on the changed spec, with the run record the expert agent describes.
+
+## Example from this repository
+
+- Reference spec: `tests/restapi/pricing/pricelists.spec.ts`; README "A REST test" and "Cleaning up".
+- Identities: `(store administrator)`, which is our `roleFor.admin`, `(anonymous)`, `(customer of their own)`; its
+  account is `roles["store administrator"]` in `.qa/project.json`.
+- Place by module: users, roles and API keys are `security`, not `customer`.
+- Commands: `npm run typecheck && npm run check`, then
+  `npm run test:restapi -- tests/restapi/<platform-module>/<topic>.spec.ts`.
 

@@ -16,17 +16,6 @@ test.beforeEach(async () => {
 test.describe("platform system (store administrator)", () => {
   test.use({ user: "acme_store_administrator@acme.com" });
 
-  test("list the installed apps", async ({ api }) => {
-    await allure.story("Apps");
-    await allure.description("The page builder shell is installed.");
-
-    const apps = await test.step("act: list the apps", () => api.rest.platform.apps.list());
-
-    await test.step(`assert: ${PAGE_BUILDER_SHELL_APP_ID} is installed`, () => {
-      expect(apps.map(({ id }) => id)).toContain(PAGE_BUILDER_SHELL_APP_ID);
-    });
-  });
-
   test("get the system info", async ({ api }) => {
     await allure.story("Diagnostics");
     await allure.description("The system info reports the platform version and a 64-bit process.");
@@ -76,6 +65,21 @@ test.describe("platform system with the AngularJS admin (store administrator)", 
 
     await test.step(`assert: ${BACK_OFFICE_APP_ID} is installed`, () => {
       expect(apps.map(({ id }) => id)).toContain(BACK_OFFICE_APP_ID);
+    });
+  });
+});
+
+test.describe("platform system with the page builder (store administrator)", () => {
+  test.use({ user: "acme_store_administrator@acme.com", requiresModules: [MODULES.pageBuilder] });
+
+  test("list the page builder shell among the apps", async ({ api }) => {
+    await allure.story("Apps");
+    await allure.description("The page builder module brings the page builder shell app.");
+
+    const apps = await test.step("act: list the apps", () => api.rest.platform.apps.list());
+
+    await test.step(`assert: ${PAGE_BUILDER_SHELL_APP_ID} is installed`, () => {
+      expect(apps.map(({ id }) => id)).toContain(PAGE_BUILDER_SHELL_APP_ID);
     });
   });
 });

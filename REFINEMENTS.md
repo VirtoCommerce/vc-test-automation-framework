@@ -2,7 +2,8 @@
 
 Architecture and design refinements for this project, ordered by value for the effort. Each item says what is
 wrong today, what to change, and roughly how big the change is. When an item is done, remove it from this file.
-No refinement is open right now; what is left is the end of the old suite's migration.
+Two things are open: the end of the old suite's migration (section 1) and the known limits of the generic QA agents,
+with what waits for other designs (section 2).
 
 ## 1. Left from the migration of the old suite
 
@@ -51,3 +52,64 @@ address was picked, until a reload. Test customers were named like `Customer-14f
 saves the pick, refuses names with digits or dashes, so the pick was never saved. Contacts now get letter-only
 names (`uniqueName`) and the known issue is gone. A UX note for the frontend team: when `updateContact` fails, the
 frontend shows no error.
+
+## 2. The generic QA agents: known limits, and what waits for other designs
+
+The agents are described in the README ("Agents"). These limits are known and deferred. Each says what is open today,
+what to change and where it belongs.
+
+**Browser clicks and selects can still change data on a shared stand.** The explorer and the healer drive a browser
+through a fixed list of `mcp__playwright__browser_*` tools, and the hook checks which tools and shell commands they
+use, not what a click does: a click on "Delete" or a form submit is a write. What to change: a network-level guard
+that refuses everything but reads to the platform for the read-only roles, and a second, read-only Playwright server
+for the explorer and coverage next to the one the healer needs. Both need to know the stand's data modes and which
+data the profile marks as owned, so they belong to the configuration and stand-profile designs (1.1 and 1.3). Size:
+medium.
+
+**The healer's edits inside the allowed files are checked for form, not for meaning.** The expectation guard
+refuses a change outside `healerPaths`, a changed expectation and an added skip or wait. A locator in a page object
+that is loosened until it matches another element, or a dataset value that an assertion reads, passes the guard and
+changes what a test means. In a flow only the diff shows it, to the reviewer and to the person; the judge sees the
+healer's work only in the evaluation suite. What to change: a judged healer step for areas whose `autonomy` is
+`apply`, once the judge's verdicts have been compared with people's. Size: small.
+
+**Runtime code that the code-writing agents run has the user's rights.** The expert and the healer run specs and
+commands, and a spec, a page object or a seed script executes whatever it contains with the rights of the person who
+started the session: files, the network and the `.env` file. The shell hook narrows what the read-only roles and the
+healer may start, but not what the code they run does, and the expert's shell is not narrowed. The judge's
+proof run and the evaluation worktrees run the same kind of code. What to change: run these agents in an operating
+system sandbox (a container or a restricted user with no secrets in reach). Size: medium, and it depends on where the
+agents are packaged.
+
+**An API-only area cannot be observed before approval.** The explorer records an `observed:` value only from what a page of the stand sends and answers, so `/qa` sends an API-only area's pending cases straight to the person as a scope question. What to change: a committed `observe` probe spec (GET only, or GraphQL `query` only, host pinned, signed in through the fixtures) that runs the planner's `probes.json`. Size: medium; it waits for the core split.
+
+**The explorer can still see a token in a response body.** The hook allows `browser_network_request` with `part: "response-body"` but cannot map a request index to its URL, so "never open a sign-in or token body" is a prompt rule. What is enforced is at the writes: the hook refuses an explorer report that holds a token-shaped string (a JSON Web Token, `access_token`, `refresh_token`, `"password"`, `Bearer `), and `contract.mts` refuses such an observed value. A token the model reads still sits in its context and transcript. What to change: a hook check of the request's URL (the MCP server would have to expose it per index) or a network-level filter. Size: small to medium.
+
+**The judge proves a test fails for one assertion per case.** The script mutates one string or number literal on a
+line of its own; everything else (bounds, regular expressions, several assertions on a line) is judged by reading. A
+cheaper model for the judge is not measured yet, and a judge score that drops is only reported until its verdicts have
+been checked against people's on a few releases.
+
+**The slowdown half of the duration gate never fires.** `.claude/checks/test-duration.mts` compares a test with its previous
+recorded run only when it is given a previous report, but no command passes one, and the expert overwrites
+`.qa/runs/<contract-name>/report.<project>.json` on every run, so no earlier record survives. Only the budget half
+(`durationBudgetMs`) works today. What to change: design a stable location for the last accepted report (for example
+one the dispatcher keeps on an APPROVE) and pass it to the reviewer. Size: small, once the location is decided.
+
+**The evaluation suite and the unit tests of `.claude/checks/` live outside this repository.** Nothing in CI runs them, and
+the evaluation suite costs tokens per run. Its first run (five cases without a stand) passed the reviewer and coverage
+cases and showed two planner calibration gaps: the planner asks its scope questions before writing, so a headless run
+with nobody to answer writes no contract, and one case rejects a rule placed out of scope because an existing test
+covers it. The expert, healer and explorer cases need a stand and have not run yet.
+
+**What waits for the other designs of the client-adaptation stage.**
+
+| Design | What the agents need from it | Today |
+|---|---|---|
+| 1.1 configuration | One configuration for `commands`, the tracker key pattern, `critical` flows, the knowledge directory, coverage weights, the flaky-run series, autonomy per area and the browser MCP server | `.qa/project.json`, whose field names are this design's proposal to 1.1, and the fixed server name `playwright` |
+| 1.3 stand profile | Modules, feature flags, data modes, `owned` marks and data roles in a form agents can read | A `roles` map to dataset accounts; the stand check verifies that cleanup is registered and that nothing platform-wide changed outside `tests/isolated/`; `requiresFeatures` is not used |
+| 1.4 extension points | A registry of a client's clients, page objects and `arrange` domains | A search of the repository |
+| 1.4, evaluation | A synthetic client repository in the evaluation suite, and clients' own private cases | Cases run against this repository only |
+| Tracker and code-host adapters | The framework's tracker command as a route, the redactor that masks text before the model, posting plans, creating tasks, publishing coverage, pipeline-failure tickets, the requirement to case map, bug history, call frequency from telemetry | Tickets and pull requests are read over the routes in `project.json`; a client's default is pasted text only |
+| Packaging | Where the agents live in a client repository (a plugin or copied files), and `.claude/` (its `.claude/checks/` scripts included) possibly moving to the tests repository with the framework split; `@babel/parser` has to ship as a runtime dependency with `.claude/checks/`; which skills stay ours (`.claude/checks/ours-only.json`) | Everything lives in this repository, and `@babel/parser` is a dev dependency |
+| CI templates | A pipeline that runs the evaluation suite before a package release | None |

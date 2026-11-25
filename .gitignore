@@ -1,4 +1,5 @@
 node_modules/
+dist/
 
 .env
 .env.*
@@ -15,3 +16,16 @@ allure-report/
 .claude/settings.local.json
 *.local.md
 *.log
+
+.qa/contracts/
+.qa/runs/
+.qa/reports/
+.qa/kb/
+.qa/judge/
+tests/unit/qa/
+evals/
+.playwright-mcp/
+
+.qa/client-terms.local.txt
+.qa/*.local.env
+docs/superpowers/

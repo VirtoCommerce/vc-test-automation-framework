@@ -18,6 +18,8 @@ frontend (vc-frontend) and the page builder app of the admin UI. Built on Playwr
 - **Safe by default.** Secrets are masked in every log, error and report; tests that change platform-wide state
   run only on request, in their own project.
 - **Allure reports** grouped by epic, feature and story, with steps, links to known issues and failure screenshots.
+- **QA agents** that plan, write, heal and review tests under the framework's rules in any repository that uses it
+  (see [Agents](#agents)).
 
 ## Tech stack
 
@@ -88,6 +90,10 @@ Fill in the values; every variable is validated when a run starts, and a wrong o
 | `CHECKOUT_MODE` | | `single-page` | The frontend's checkout: `single-page` or `multi-step` |
 | `SEED_ONLY` | | | Comma-separated dataset collections to seed instead of all |
 | `GOOGLE_MAPS_API_KEY` | | | Written into the seeded store's settings |
+
+The read-only agents never read `.env`: `node .claude/checks/stand.mts` prints only the frontend and backend origins
+(a variable set in the shell wins over `.env`) and whether they may sign in, and the hook lets their browser open
+only those origins.
 
 The last three frontend settings must match how the frontend is configured; page objects adapt to them, so the
 same tests run against any configuration.
@@ -374,6 +380,9 @@ core  →  api  →  dataset  →  fixtures  →  tests
 │   └── unit/                Unit tests of core, api and dataset, against local stub servers
 │
 ├── biome/                   Lint rules, import rules, layer rules, exceptions
+├── .claude/                 The QA agents, skills, commands and the read-only shell hook (see Agents)
+│   └── checks/              Scripts that check the agents' work without a model; import only `.claude/checks/` and `core/`
+├── .qa/                     `project.json` (committed) and the agents' git-ignored working folders
 ├── known-issues.json        Known defects of the platform under test, with links to their tickets
 ├── playwright.config.ts     Projects, timeouts, reporters
 ├── codegen-graphql.ts, codegen-rest.mts   Code generation
@@ -431,23 +440,15 @@ Methods named `…Later` create nothing: they register the removal of something 
 
 ### Rules
 
-- Import `test`, `expect`, `knownIssue` and `KNOWN_ISSUES` from `@fixtures`, never from `@playwright/test`.
-- Tag every test in Allure: `epic` and `feature` in `beforeEach`, `story` and `description` in the test.
-- Write every phase as a step named `arrange: …`, `act: …` or `assert: …`.
-- No conditional logic, no type casts and no helper functions in specs. Repeated cases are one table-driven test;
-  table rows may hold small lambdas.
-- Create what the test changes with `arrange`; read what it only reads from `dataset`. A test that changes a
-  customer's own state (cart, lists, addresses, locks) creates its own customer.
-- Register cleanup before the change, never after the assertion.
-- Prove a deletion by reading the record by id, not by a search that might just miss it.
-- Waits for search-index reads live in `arrange` (or poll with `INDEX_LAG_TIMEOUT_MS`), never as sleeps.
-- A UI test checks the UI; data rules (search semantics, prices, validation) are checked once through the API.
-- A test that needs an optional platform module (one not every deployment installs: `VirtoCommerce.Quote`,
-  `VirtoCommerce.XPickup`, `VirtoCommerce.WhiteLabeling`, `VirtoCommerce.PageBuilderModule`,
-  `VirtoCommerce.MarketingExperienceApi`) declares it with
-  `test.use({ requiresModules: [MODULES.x] })` on its `describe`; it is skipped where the module is missing or
-  outside its version range. Keep fields of such modules out of shared GraphQL fragments: a field the schema lacks
-  fails the whole query.
+The framework rules (spec structure, layers and imports, data and cleanup, waits, assertions, known defects, optional
+modules, working discipline) live in one place, the `framework-rules` skill:
+[`.claude/skills/framework-rules/SKILL.md`](.claude/skills/framework-rules/SKILL.md). They are the same in every
+repository that uses the framework, and the agents read that skill first. Read it before writing or reviewing a test;
+this guide does not repeat it. `CLAUDE.md` keeps only what a client may replace with its own: code style, naming and
+wording. A framework rule beats a style rule, and in a client repository the client's style beats ours.
+
+What the skill leaves to this guide is how the pieces behind the rules work.
+
 - The installed modules are read once per run, by the `modules` setup project, which every project but `unit`
   depends on: it saves them to `test-results/installed-modules.json` and logs how many there are; the seed and
   `requiresModules` read that file, so no worker signs in to check modules.
@@ -489,7 +490,6 @@ Methods named `…Later` create nothing: they register the removal of something 
 - A platform with its own modules or frontend has its own defects: its CI puts its own `known-issues.json` in the
   repository root in place of ours. Issues of ours it leaves out are not marked there, and its own issues reach
   the framework's tests through `tests` and `failure`.
-- No code comments; names and `test.step` titles say what happens.
 
 Before committing, run `npm run check` (format and lint) and `npm run typecheck`; the pre-commit hook runs both.
 
@@ -676,6 +676,179 @@ must say how a repeated seed avoids duplicates: `repeat: "upsert"` when its endp
 records whose id the platform assigns, `storedIdFrom` finds the stored one by a search. `${ENV:NAME}` placeholders take values from
 `.env`. Tests read seeded records through `dataset`, so data and expectations never drift apart.
 
+## Agents
+
+The repository ships seven Claude Code agents, the skills they read and the commands that run them (`.claude/`),
+plus small scripts that check their work without a model (`.claude/checks/`). The agents carry no facts about a particular stand:
+what differs between repositories (commands, data roles, the tracker, critical flows) comes from
+`.qa/project.json`, and style comes from the repository's `CLAUDE.md`. The same files are meant to work in a client's
+test repository unchanged. Running them needs Node 22.18 or newer, because the `.claude/checks/` scripts are TypeScript files that
+Node runs directly.
+
+### Roles
+
+| Agent | Does | Limits |
+|---|---|---|
+| `qa-planner` | Turns a ticket, a specification, an area of existing functionality or a coverage gap into a case matrix and writes the contract; asks the scope questions the matrix leaves open | Writes no test code |
+| `qa-automation-expert` | Implements the approved contract and nothing else, runs the definition of done and leaves a run record | Receives only the contract path; on a change of scope it stops and writes an amendment request |
+| `qa-explorer` | Maps an unfamiliar frontend area (pages, selectors, missing test ids, a page-object proposal) or API area (schema against the live answers) and writes a report | Read-only shell; writes only `.qa/reports/explore-<slug>.md`; writes no test code |
+| `qa-healer` | Re-runs failing or flaky tests, classifies each failure (test defect, product defect, stand data, flaky), fixes test-side defects, at most three rounds | Edits only the directories in `healerPaths`, never a spec; never moves an expected value or assertion toward the build |
+| `qa-judge` | Judges the expert's tests in a flow: every contract case has a test, each test checks what its case claims, each fails when the behaviour breaks (proved by a script on a throw-away copy), every skip has a reason | Read-only shell; writes only `.qa/judge/<contract-name>/*.json`; fails when in doubt |
+| `qa-reviewer` | Checks a diff against the framework rules, the repository's style, that nothing is left on a shared stand and the definition of done | Starts fresh with the diff and the contract path; reports, never fixes; read-only shell |
+| `qa-coverage` | Lists what the stand offers and what the tests cover, ranks the gaps by script with the project's weights and critical flows | Read-only; writes only `.qa/reports/coverage-<date>[-<slug>].md` |
+
+Agents never commit, push or write to a tracker, wiki or code host, and change no state on a shared stand outside
+what the repository's cleanup and `tests/isolated/` rules allow. A subagent cannot start another one, so the commands
+below orchestrate, and every role runs as a fresh subagent that is handed file paths, not another agent's summary.
+
+The skills behind them: `framework-rules` (read first by every agent), `project-facts`, `read-ticket` and
+`read-change` (the only places that know tracker and code-host access routes), `plan-test-strategy`,
+`plan-implementation`, the `write-*` and `create-*` skills, `explore-frontend`, `explore-api`, `heal-tests`,
+`coverage-analysis`, `judge-criteria`, `review-test-code`, `review-pr` and `write-security-test` (access without a
+session, the wrong role, one customer reaching another's objects, response headers, input validation). The
+`migrate-katalon-module` skill and the `/code-review-full` command belong to this repository only
+(`.claude/checks/ours-only.json`).
+
+### Commands
+
+`/qa <task>` is the entry: it picks a flow, dispatches the roles in order and ends with what ran and what waits for a
+person. The other commands run one stage.
+
+| Request to `/qa` | Flow |
+|---|---|
+| A ticket, specification or feature | planner, approval, expert, judge, reviewer |
+| An area with no ticket ("cover the cart"), or a gap from coverage | explorer and coverage, then planner, approval, expert, judge, reviewer |
+| "Explore ..." | explorer |
+| A failing or flaky test | healer, the expectation guard, then reviewer when code changed |
+| "Review this branch" | reviewer |
+| "What is not covered" | coverage |
+| "Do it end to end" | planner, explorer (observe) if an `observed:` oracle is pending, approval, explorer if needed, expert, healer if red, guard, judge, reviewer |
+
+Shortcuts: `/qa-plan`, `/qa-implement`, `/qa-review`, `/qa-explore`, `/qa-heal` and `/qa-coverage`. When a contract
+has a pending `observed:` oracle, the read-only explorer records its value on the stand before the approval
+(`.qa/reports/explore-<slug>-observed.md`), the planner copies it in, and the approval shows it, with every case not
+reached. The explorer observes only as the session the browser holds, and an API-only area cannot be observed yet
+(`REFINEMENTS.md`): such cases go to the person as a scope question, where one answer is `observed: at first run`
+(the expert runs the spec once unpinned, pins the value it saw and stops with an amendment that names it, which the
+person approves; `contract.mts check --approved --implemented`, run by the judge, the reviewer and `/qa-review`,
+refuses a first-run case still unresolved or a first-run value no approved amendment names). A person approves the contract with one question before the expert starts; the command never approves for them. A failed judge verdict
+sends the tests back to the expert once, and a second failure goes to a person. After the healer, a code check
+(`.claude/checks/expectation-guard.mts`) confirms that its diff changed no expectation and added no skip. End to end, a red
+expert run goes to the healer before the judge, and after a clean guard the command re-runs the stable series into
+the run record, so the reviewer reconciles the healed state. `/qa-implement` ends by naming
+`/qa-review <contract path>`, which passes the contract to the reviewer. The reviewer's shell
+cannot run typecheck or lint, so the command runs `commands.typecheck` and `commands.lint` itself, and the work is not
+done while either fails.
+
+### The `.qa/` folder
+
+| Path | Holds | In git |
+|---|---|---|
+| `.qa/project.json` | The facts of this repository (below) | Committed |
+| `.qa/contracts/<ticket-key-or-slug>.md` | The contract: source, scope, case matrix, stand needs, building blocks, known issues, verification. The only hand-off from planning to implementation | Ignored |
+| `.qa/runs/<contract-name>/` | The expert's Playwright JSON report and `--list` output, `report.<project>.json` and `list.<project>.json` for each project (named with the project even when there is one), and the reviewer's `review-list.<project>.json`; the healer's runs go to `.qa/runs/heal-<slug>/` | Ignored |
+| `.qa/reports/` | `explore-<slug>.md`, `coverage-<date>[-<slug>].md`, the healer's `heal-<slug>.md` and `flaky.md` | Ignored |
+| `.qa/judge/<contract-name>/` | The verdict, `judge-expert.json`; before the first expert dispatch of a run the command renames an earlier one to `judge-expert.previous.json` | Ignored |
+| `.qa/kb/` | The knowledge snapshot (`knowledgeDir`): ticket cards, change records and documentation the agents fetched, each with its capture date. Agents read it before calling a live service | Ignored here, because it fills with internal ticket text; a private client repository may commit it |
+
+`<contract-name>` is the contract's file name without `.md`, so it equals the `<ticket-key-or-slug>` of
+`.qa/contracts/<ticket-key-or-slug>.md`. It is the one term the agents, skills, commands and this guide use for the
+folder of a contract's run record and verdict; the skill `project-facts` ("Hand-off Paths") holds these names in one
+place. A contract holds one row per case (case, technique, Playwright project, data
+role, oracle) and every oracle names its source: `ticket`, `doc`, `schema` or `observed`. A case whose expectation is
+only `observed` may encode a bug the stand already has, so a person confirms it at approval or it is written as a
+characterization test. An `observed` oracle holds the value the explorer recorded and the report it is in
+(`observed: <value> (.qa/reports/explore-<slug>-observed.md)`); the check refuses one without, one whose report is
+not an explorer report or does not exist, and one whose report has no line `- <case id>: <value> (` under
+`## Observed values`. An amendment written during implementation counts only with an `Approved: <who>, <date>` line;
+`node .claude/checks/contract.mts check <file>` fails otherwise. The approved base contract records its approval in one
+such line under `## Approval`, and `contract.mts check --approved <file>`, which `/qa`, `/qa-implement` and the
+expert run before implementing, fails without it. Either line may end `(relayed: "<the person's words>")`: only the person writes it, or
+the session they answered, quoting their reply word for word; no agent writes it.
+
+**Git-ignore the working folders in a client repository.** Add `.qa/contracts/`, `.qa/runs/`, `.qa/reports/`,
+`.qa/judge/` and `.qa/kb/` (leave the last out only when the repository is private and the snapshot is meant to be
+shared) to `.gitignore`, and commit only `.qa/project.json`. The expectation guard compares the working tree before
+and after the healer and leaves ignored files out. If the healer's own reports and run records were not ignored, each
+of them would count as a change outside `healerPaths`.
+
+### `project.json`
+
+Read through `node .claude/checks/project-facts.mts` by the `project-facts` skill. Every field is required unless marked
+optional. A missing, unreadable or invalid file stops the agents with a line that names the field
+(`project.json: commands.typecheck is missing`); they never fall back to another repository's values.
+
+| Field | Meaning |
+|---|---|
+| `tracker.kind`, `tracker.keyPattern` | The tracker's name and the regular expression a ticket key must match. The reader refuses a `d`, `w` or `s` followed by `+`, `*` or `{` with neither a backslash nor a letter or digit before it (an escape lost in JSON, such as `^d+$`; `^builds+$` passes), and, for `jira` and `azure-boards`, a pattern that matches no sample key of the kind's shape: `<project>-<1 to 7 digits>` for `jira`, the project being `PROJ` or an upper-case word of the pattern; an id of 1 to 7 digits, bare or after `AB#` or `#`, for `azure-boards` |
+| `tracker.acceptanceCriteriaField` (optional) | Where the tracker keeps acceptance criteria, when not in the description |
+| `tracker.routes` (optional) | Allowed ways to read a ticket, in order. Absent means pasted text only |
+| `docSources` | List of `{ name, route, where }`: the documentation the planner may read, and how |
+| `commands.typecheck`, `commands.lint` | Commands that must be clean before the work is done |
+| `commands.test` | Map from Playwright project name to the command that runs it |
+| `critical` | Names of critical flows; a gap in one ranks above all others. May be empty |
+| `knowledgeDir` | Directory of the knowledge snapshot |
+| `roles` | Map from data role ("store administrator") to the account `test.use({ user })` takes. Plans and reports name roles, never accounts |
+| `roleFor` | Map from a fixed purpose to a key of `roles`: `admin` (the role `arrange` and REST administration tests act as), `customer` (an ordinary signed-in customer account), `otherCustomer` (a customer of another organization, for access tests). `admin` and `customer` are required; `otherCustomer` is optional, and when it is absent the planner and the security skill treat a cross-organization access case as a scope question for the person. When present, it must be another role and another account than `customer`. Ours: `admin` is "store administrator", `customer` "store employee", `otherCustomer` "other store employee" |
+| `rolePermissions` (optional) | Map from a key of `roles` to the full list of permission names that role holds, written exactly as the platform under test names them. A case that needs "a role with (or without) permission P" picks its role here; when the field is absent or does not settle it, the planner asks. The entries describe the seed as committed: a stand seeded before a change to the seed's roles keeps the old permissions until it is re-seeded. Ours lists only what the seed in `dataset/data/roles/` and `dataset/data/users/` shows; the store administrator is left out because its user is also a platform administrator |
+| `passwordFor` (optional) | Map from a key of `roles` to the name of the variable holding that role's password (ours: `USERS_PASSWORD` for every role). An agent signs in as the role by typing that name; the browser server's `--secrets` file holds the value. A role without an entry cannot be signed in as in the browser |
+| `coverageWeights` | `risk`, `callFrequency`, `runFrequency`, `stability`, `cost`: numbers of at least 0 |
+| `flakyRunSeries` | Repetitions that decide "flaky": an integer of at least 2 |
+| `quality.maxSteps`, `quality.maxLines`, `quality.maxExpects`, `quality.maxNesting`, `quality.maxConditionals` | Shape limits of one test, checked by `node .claude/checks/test-shape.mts <spec>…`: `test.step` calls, lines of the `test(...)` call, `expect` calls, depth of blocks in its body, and `if`, `?:`, `switch` and condition-driven loops (`for … of` over a table is not one). Integers; `maxLines` at least 1. A test over a limit is a Critical finding of the reviewer |
+| `quality.stableSeries` | Repetitions a new or changed test must pass in a row (`--repeat-each=<n> --retries=0`, judged by the run record like any run): an integer of at least 2. Separate from `flakyRunSeries`, which decides "flaky" for the healer |
+| `quality.durationBudgetMs` | Map from Playwright project to the most milliseconds a test of it may take (the median of its repetitions). A project absent from the map has no budget. Checked by `node .claude/checks/test-duration.mts <report.json> <project> [<previous report.json>]` |
+| `quality.slowdownRatio` | A test is a finding when its median duration is more than this many times its median in the previous report (a number of at least 1; applies to every project when a previous report is given) |
+| `quality.slowdownMinMs` | A test is compared with the previous report only when its previous median is at least this many milliseconds, so jitter on a fast test is no slowdown: an integer of at least 0 (0 compares every test) |
+| `autonomy` | Map from area to `apply` or `propose`; `"*"` is required and is the default. `propose` means the healer writes the fix into its report and waits |
+| `healerPaths` | Plain directories the healer may change, such as `pages/` or `dataset/`. Never the repository root, `qa`, `.qa`, `.claude`, `node_modules` or a name that starts with `.git` |
+
+The routes are `command` (the framework's own tracker command, once it exists), `cli` (the provider's command line),
+`api` (the provider's REST API), `mcp` (the provider's MCP server) and `paste`. The first route that answers is used,
+and whatever the route, `read-ticket` writes the same ticket card, so the other agents never see the difference. Text
+that arrives over `mcp` reaches the model unmasked, which is why a client's default allows only `paste` until it turns
+the others on.
+
+### Setting up in a repository
+
+1. Copy the tracked files of `.claude/` (the check scripts in `.claude/checks/` included; never a git-ignored
+   `*.local.*` file) and `.qa/project.json`, then edit the last for the repository. Keep the `.claude/checks/**` rule in `biome/layers.json`: `.claude/checks/` imports nothing outside `.claude/checks/`
+   and `core/`.
+2. Register the browser MCP server under the fixed name `playwright`. The explorer, healer and coverage agents name
+   its tools (`mcp__playwright__browser_*`), so a server under another name leaves them without a browser. For
+   signing in as a role, first run `node .claude/checks/browser-secrets.mts`: it writes the git-ignored
+   `.qa/browser-secrets.local.env` with only the variables `passwordFor` names and their values from the shell or
+   `.env`, and prints names only. Then start the server with `--secrets` and that file's absolute path (the server
+   does not start when the file is missing). An agent types a variable's name and the browser types the value and
+   masks it in what it returns. Rerun the script and restart the server when a password changes;
+   `node .claude/checks/stand.mts` prints `sign-in: ready` only while the file matches. Without `passwordFor` or the
+   file, start the server without `--secrets`: the agents then stay signed out.
+3. Keep `.claude/settings.json`. It registers the `PreToolUse` hook (`.claude/hooks/readonly-shell.mts`) that limits
+   the read-only roles to an allowlist of shell commands and confines the healer's writes. The hook command
+   (`node "$CLAUDE_PROJECT_DIR/.claude/hooks/readonly-shell.mts" || exit 2`) is bash syntax and must run under bash.
+   Under a PowerShell shell (`"shell": "powershell"`) it does not run as written: the check may not run at all or may
+   block every call, depending on the PowerShell version. Run the hook under bash, and on Windows use Git Bash.
+4. Ship `@babel/parser` as a runtime dependency of whatever carries `.claude/checks/`. `.claude/checks/prove-fails.mts`, which the judge uses
+   to prove that a test fails, imports it. Here it is a dev dependency only because one install serves the whole
+   repository.
+5. Add the git-ignore lines above.
+
+### Checking the agents
+
+`node .claude/checks/scan-prompts.mts` scans every shipped prompt, skill and command for client hosts and terms and caps each
+agent definition at 8,000 characters; it exits 1 on a finding. Run it after changing any of them.
+
+It also flags this repository's role names (`roles` keys, `roleFor` values), `rolePermissions` permission names and `passwordFor` variable names
+outside an "Example from this repository" section, as whole words in any letter case, with a space, `_` or `-` matching
+any of them and an optional plural `s`; a `-` at either edge belongs to the word. A role named like a purpose
+(`admin`, `customer`, `otherCustomer`) or a word of one (`other`) is flagged only in its exact spelling inside quotes or
+backticks (`` `Customer` ``), in the prompts and the `.claude/checks/` modules alike, never in prose, and not at
+all when that spelling is all lower case (a known limit). A role named with another plain common word (`guest`,
+`manager`) can still produce findings on generic wording; fix them by renaming the role or by moving the line into an example section. A name split over two
+lines is not found.
+
+The evaluation suite that runs each role on fixed cases, and the unit tests of the `.claude/checks/` scripts, are kept outside
+this repository.
+
 ## Scripts
 
 | Script | Does |
@@ -688,3 +861,4 @@ records whose id the platform assigns, `storedIdFrom` finds the stored one by a 
 | `npm run lint`, `npm run format` | Lint only, format only |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run codegen` | Regenerates GraphQL and REST types from the running platform |
+| `npm run facts:check` | Derives each role's permissions from the seed (`dataset/data/`) and compares them with `rolePermissions` in `.qa/project.json`; prints every difference and exits 1 (`scripts/check-role-permissions.mts`, this repository only) |

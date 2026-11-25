@@ -23,3 +23,11 @@ test. `reconcile-run.mts --contract` compares the series' real command with the 
 `arrange:` step; the judge's verdict records its mechanical and reasoned proofs; `test-shape.mts` counts the helpers a
 test calls. The framework rules cover a client suite without `arrange` (a `finally` that never fails the test) and a
 shared dataset account (`--workers=1`), and the reviewer takes style only from the repository.
+
+`node .claude/checks/prune.mts` cleans the agents' git-ignored working files under `.qa/`. `/qa`, `/qa-plan` and
+`/qa-coverage` run it first with `--fetch --yes`: it removes a contract whose cases are all in test titles on the
+default branch of `origin`, read from git without a checkout, with its run record, judge verdict and observed report,
+unless its spec files have uncommitted or unpushed changes or an unmerged local branch carries its name. Older
+contracts, reports, healer runs and probes are listed and removed only on the person's yes (`--yes --include-stale`);
+the knowledge directory and `.local.env` files are never touched. The contract check no longer reads a closing backtick
+or period into a dated source path, and asks no date for a directory.

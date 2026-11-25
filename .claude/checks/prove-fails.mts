@@ -68,7 +68,8 @@ const TEXT_MATCHERS = [
   "toHaveTitle",
 ];
 const CONTAINER_MATCHERS = ["toEqual", "toStrictEqual", "toMatchObject"];
-const CONTAINING = ["arrayContaining", "objectContaining"];
+const UNORDERED = "arrayContaining";
+const CONTAINING = [UNORDERED, "objectContaining"];
 const OPPOSITES: Readonly<Record<string, string>> = {
   toBeTruthy: "toBeFalsy",
   toBeFalsy: "toBeTruthy",
@@ -394,23 +395,43 @@ function isContaining(node: unknown): node is AstNode {
   );
 }
 
-/** The first literal (depth first) of an object, array or `expect.arrayContaining`/`objectContaining` expected value. */
-function firstLiteral(node: unknown): AstNode | undefined {
+/**
+ * The first literal (depth first) of an object, array or `expect.arrayContaining`/`objectContaining` expected value,
+ * and whether it lies inside an `arrayContaining`, whose elements match in any order.
+ */
+function firstLiteral(node: unknown, unordered = false): { literal: AstNode; unordered: boolean } | undefined {
   if (!isNode(node)) {
     return undefined;
   }
   if (mutationOf(node) !== undefined) {
-    return node;
+    return { literal: node, unordered };
   }
   let inner: unknown[] = [];
+  let innerUnordered = unordered;
   if (node.type === "ObjectExpression" && Array.isArray(node["properties"])) {
     inner = node["properties"].map((property) => (isNode(property) ? property["value"] : undefined));
   } else if (node.type === "ArrayExpression" && Array.isArray(node["elements"])) {
     inner = node["elements"];
   } else if (isContaining(node)) {
     inner = argumentsOf(node);
+    innerUnordered = unordered || nameOf(isNode(node["callee"]) ? node["callee"]["property"] : undefined) === UNORDERED;
   }
-  return inner.map(firstLiteral).find((found) => found !== undefined);
+  return inner.map((child) => firstLiteral(child, innerUnordered)).find((found) => found !== undefined);
+}
+
+/**
+ * The mutation of a literal inside an `arrayContaining`: a text no element of the actual array can equal. A number or
+ * boolean changed as usual could equal another element (`[1, 2]` to `[2, 2]`), and the assertion would still pass.
+ */
+function unorderedMutation(literal: AstNode): string | undefined {
+  const value = literal["value"];
+  return (literal.type === "NumericLiteral" || literal.type === "BooleanLiteral") && value !== undefined
+    ? jsonString(`${String(value)}${MUTATION_SUFFIX}`)
+    : mutationOf(literal);
+}
+
+function replacement(node: AstNode, text: string): Edit {
+  return { start: node.start, end: node.end, text };
 }
 
 /** The text a reference argument is replaced by: a value of another type than it, chosen by what the matcher takes. */
@@ -422,18 +443,20 @@ function referenceMutation(name: string, source: string): string {
 }
 
 function argumentEdit(matcher: MatcherCall, argument: AstNode, source: string): Edit | undefined {
-  const replace = (node: AstNode, text: string): Edit => ({ start: node.start, end: node.end, text });
   const text = mutationOf(argument);
   if (MATCHERS.includes(matcher.name) && text !== undefined) {
-    return replace(argument, text);
+    return replacement(argument, text);
   }
   if (MATCHERS.includes(matcher.name) && isReference(argument)) {
-    return replace(argument, referenceMutation(matcher.name, source.slice(argument.start, argument.end)));
+    return replacement(argument, referenceMutation(matcher.name, source.slice(argument.start, argument.end)));
   }
   if (CONTAINER_MATCHERS.includes(matcher.name) && !isReference(argument)) {
-    const literal = firstLiteral(argument);
-    const changed = literal === undefined ? undefined : mutationOf(literal);
-    return literal === undefined || changed === undefined ? undefined : replace(literal, changed);
+    const found = firstLiteral(argument);
+    if (found === undefined) {
+      return undefined;
+    }
+    const changed = found.unordered ? unorderedMutation(found.literal) : mutationOf(found.literal);
+    return changed === undefined ? undefined : replacement(found.literal, changed);
   }
   return undefined;
 }
@@ -478,7 +501,8 @@ function editOf(call: AstNode, line: number, source: string): Edit | undefined {
  *   string or plain template itself with `__mutated__` appended, a boolean its opposite, a name or member chain
  *   (`expected`, `data.cart.id`) a value of another type (plus one, the text with `__mutated__`, or in an array);
  * - `toEqual`, `toStrictEqual` and `toMatchObject` with an object, an array, or `expect.arrayContaining` or
- *   `objectContaining`: the first literal inside it is changed as above.
+ *   `objectContaining`: the first literal inside it is changed as above, except inside an `arrayContaining`, where it
+ *   becomes the text of its value with `__mutated__` appended, so it cannot equal another element.
  *
  * The line must hold that assertion and no other: every `expect` chain that starts on the line or has an argument there
  * counts, whatever its matcher, so an assertion that cannot be proved is never credited by its neighbour. A bound

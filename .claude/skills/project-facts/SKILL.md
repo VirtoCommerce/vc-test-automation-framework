@@ -153,7 +153,7 @@ titles and its title. `reconcile-run` exits 1 when a test failed, was flaky, was
 missing a repetition: the run is not done. With `--contract` it also compares the command the series was really started
 with (`config.argv` of the report) with the test commands of the contract's `## Verification`: every difference (a flag
 among `--workers`, `--repeat-each`, `--retries` and `--grep`, a project, a spec file) is listed under `differences` and
-exits 1 unless the run record holds a `deviation: <what differed and why>` line in
+exits 1 unless the run record holds one `deviation: <what differed and why>` line per difference in
 `.qa/runs/<contract-name>/deviation.txt`, which whoever ran the series differently writes, by hand (the one file of the
 run record that is). The differences stay listed with the reasons under `deviations`. A report older than the last
 edit of a spec it covers, or of a file they import, lists those files under `stale` and exits 1: run the series again.

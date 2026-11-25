@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { playwrightConfigArgs, readProjectFacts } from "./project-facts.mts";
 import { CREDENTIAL_SHAPE } from "./readonly-shell.mts";
 import { walkRoot } from "./reconcile-run.mts";
+import { contractSeries, sameSpec } from "./run-record.mts";
 
 const CLI_FILE_NAME = "contract.mts";
 const APPROVED_FLAG = "--approved";
@@ -440,15 +441,31 @@ function checkAmendments(heading: string, lines: string[]): string[] {
   return problems;
 }
 
-/** Every case id of the contract, but one an approved amendment drops, appears in the title of a listed test. */
-function checkTestsExist(rows: CaseRow[], titles: string[], dropped: string[]): string[] {
+/** A test the suite lists: its spec file, relative to the config's root directory, and its own title. */
+export type ListedTest = { file: string; title: string };
+
+/**
+ * Every case id of the contract, but one an approved amendment drops, appears in the title of a listed test of a spec
+ * file the contract's `## Verification` runs. Case ids (`C-01`) repeat from one contract to the next, so a test of
+ * another contract's spec never counts.
+ */
+function checkTestsExist(rows: CaseRow[], tests: readonly ListedTest[], markdown: string, dropped: string[]): string[] {
+  const specs = contractSeries(markdown).flatMap((series) => series.specs);
+  if (specs.length === 0) {
+    return [
+      problem(
+        "## Verification names no spec file: write the command that runs the new specs, so --implemented can find this contract's tests",
+      ),
+    ];
+  }
+  const titles = tests.filter((test) => specs.some((spec) => sameSpec(spec, test.file))).map((test) => test.title);
   return rows
     .map((row) => row.name.split(/\s+/)[0] ?? "")
     .filter((caseId) => caseId !== "" && !dropped.includes(caseId))
     .filter((caseId) => !titles.some((title) => namesCase(title, caseId)))
     .map((caseId) =>
       problem(
-        `case ${caseId} has no test: no title of the listed tests names it (the case id comes first in the title)`,
+        `case ${caseId} has no test: no title of the tests in the spec files of ## Verification names it (the case id comes first in the title)`,
       ),
     );
 }
@@ -466,12 +483,12 @@ export type ContractChecks = {
   /** The contract must also carry its `## Approval` line (`check --approved`). */
   requireApproval?: boolean;
   /**
-   * No `observed: at first run` part may be left and, when `testTitles` is given, every case id appears in the title of
-   * one of them (`check --implemented`).
+   * No `observed: at first run` part may be left and, when `listedTests` is given, every case id appears in the title of
+   * one of them in a spec file of `## Verification` (`check --implemented`).
    */
   requireImplemented?: boolean;
-  /** The titles of the tests the suite lists (`--list`), without file or describe titles. */
-  testTitles?: string[];
+  /** The tests the suite lists (`--list`): spec file and own title, without describe titles. */
+  listedTests?: ListedTest[];
 };
 
 /**
@@ -519,8 +536,8 @@ export function checkContract(markdown: string, checks: ContractChecks = {}): st
       implemented: requireImplemented,
     }),
     ...checkObservedOnly(sections.get("Observed only"), checked.rows),
-    ...(requireImplemented && checks.testTitles !== undefined
-      ? checkTestsExist(checked.rows, checks.testTitles, droppedCases(parsed))
+    ...(requireImplemented && checks.listedTests !== undefined
+      ? checkTestsExist(checked.rows, checks.listedTests, markdown, droppedCases(parsed))
       : []),
   );
   const approval = sections.get(APPROVAL_SECTION);
@@ -557,10 +574,13 @@ export type ContractReferences = {
  *
  * @returns what the contract names; a missing section gives an empty list.
  */
+function sectionLines(parsed: Section[], heading: string): string[] {
+  return parsed.find((section) => section.heading === heading)?.lines ?? [];
+}
+
 export function contractReferences(markdown: string): ContractReferences {
   const parsed = parseSections(withoutComments(markdown));
-  const lines = (heading: string): string[] => parsed.find((section) => section.heading === heading)?.lines ?? [];
-  const cases = lines("Cases");
+  const cases = sectionLines(parsed, "Cases");
   const rows = hasText(cases) ? checkCases(cases, undefined, undefined).rows : [];
   const observedReports = rows
     .flatMap((row) => sourceParts(row.oracle))
@@ -571,7 +591,7 @@ export function contractReferences(markdown: string): ContractReferences {
     caseIds: rows.map((row) => row.name.split(/\s+/)[0] ?? "").filter((caseId) => caseId !== ""),
     dropped: droppedCases(parsed),
     observedReports: [...new Set(observedReports)],
-    sourceFiles: [...new Set(lines("Source").flatMap(localStateFiles))],
+    sourceFiles: [...new Set(sectionLines(parsed, "Source").flatMap(localStateFiles))],
     approved: parsed.some((section) => section.heading === APPROVAL_SECTION),
   };
 }
@@ -584,23 +604,26 @@ function readReportFile(path: string): string | undefined {
   }
 }
 
+function twoDigits(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
 function modifiedOnDay(path: string): string | undefined {
   try {
     const time = statSync(path).mtime;
-    const pad = (value: number): string => String(value).padStart(2, "0");
-    return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())}`;
+    return `${time.getFullYear()}-${twoDigits(time.getMonth() + 1)}-${twoDigits(time.getDate())}`;
   } catch {
     return undefined;
   }
 }
 
 /**
- * The titles of every test the suite lists (`playwright test --list --reporter=json` with the suite's config), without
- * file and describe titles.
+ * Every test the suite lists (`playwright test --list --reporter=json` with the suite's config): its spec file and its
+ * own title, without describe titles.
  *
  * @throws Error when the list cannot be made or is not Playwright JSON.
  */
-function listedTitles(suiteDir: string): string[] {
+function listedTests(suiteDir: string): ListedTest[] {
   const cli = join(process.cwd(), "node_modules", "@playwright", "test", "cli.js");
   const { PLAYWRIGHT_JSON_OUTPUT_FILE: _output, ...environment } = process.env;
   const listed = spawnSync(
@@ -612,16 +635,17 @@ function listedTitles(suiteDir: string): string[] {
     const reason = ((listed.stderr || listed.stdout).trim().split("\n")[0] ?? "").trim().slice(0, MAX_REASON);
     throw new Error(`contract: --implemented could not list the tests: ${reason}`);
   }
-  const titles: string[] = [];
+  const tests: ListedTest[] = [];
   try {
     walkRoot(JSON.parse(listed.stdout), "list", (test) => {
-      titles.push(test.split(TITLE_SEPARATOR).pop() ?? "");
+      const parts = test.split(TITLE_SEPARATOR);
+      tests.push({ file: parts[0] ?? "", title: parts.at(-1) ?? "" });
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`contract: --implemented could not read the list of tests: ${reason}`);
   }
-  return titles;
+  return tests;
 }
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
@@ -655,7 +679,7 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
       modifiedOn: modifiedOnDay,
       requireApproval: flags.includes(APPROVED_FLAG),
       requireImplemented: implemented,
-      ...(implemented ? { testTitles: listedTitles(facts.suiteDir) } : {}),
+      ...(implemented ? { listedTests: listedTests(facts.suiteDir) } : {}),
     });
     if (problems.length > 0) {
       process.stderr.write(`${problems.join("\n")}\n`);

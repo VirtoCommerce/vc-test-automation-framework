@@ -115,16 +115,17 @@ node .claude/checks/prune.mts --fetch --yes
 
 which fetches `origin` and removes finished work only: a contract is finished when every case id of its cases table,
 but the ones an approved amendment drops, is in a test title on the default branch of `origin` (`origin/HEAD`, else
-`main`, else `dev`). The titles are read from the branch's spec files under `suiteDir` in git, with nothing checked out
-and no test run. A finished contract goes with its run record, its judge verdict and the `-observed` reports its
+`main`, else `dev`). Only the spec files the contract's Verification runs count, because case ids repeat from one
+contract to the next; a contract whose Verification names no spec file is never finished. The titles are read from the
+branch's spec files under `suiteDir` in git, with nothing checked out and no test run. A finished contract goes with its run record, its judge verdict and the `-observed` reports its
 oracles cite. A contract stays when its spec files have uncommitted or unpushed changes, or when a local branch that is
 not merged into the default branch carries its name. With no `origin` or no default branch ref it removes nothing and
 says `not reached`. The command reports the check's last line.
 
 Older files are listed as `ask` lines and removed only when you say yes, with `--yes --include-stale`: contracts with
 no approval unchanged for longer than `--days=<n>` (the usage line, printed for an unknown option, gives the
-default), coverage reports beyond the newest few of a scope (each line says how many are kept), an explorer report older
-than the newest of its area, healer reports and runs unchanged for as long, and probe files. A report that a remaining contract cites is never removed, nor is the knowledge directory (`knowledgeDir`,
+default), coverage reports beyond the newest few of a scope (each line says how many are kept), an `-observed` report
+older than the explorer report of its area, healer reports and runs unchanged for as long, and probe files. A report that a remaining contract cites is never removed, nor is the knowledge directory (`knowledgeDir`,
 `.qa/kb`), a `.qa/*.local.env` file, anything that matches none of these names, or anything outside `.qa/`.
 
 Run it by hand from the repository root: with no option it only prints what it would remove and why, one line each;

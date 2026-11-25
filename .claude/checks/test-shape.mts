@@ -15,7 +15,10 @@ type AstNode = Record<string, unknown> & { type: string; start: number; end: num
 
 type Shape = { steps: number; expects: number; conditionals: number; nesting: number; helpers: string[] };
 
-type Helpers = ReadonlyMap<string, AstNode>;
+/** A function of the spec: its body, and the block or program it is declared in, where its name can be called. */
+type Helper = { body: AstNode; scope: AstNode };
+
+type Helpers = ReadonlyMap<string, readonly Helper[]>;
 
 const CLI_FILE_NAME = "test-shape.mts";
 const TEST_NAME = "test";
@@ -34,6 +37,7 @@ const CONDITIONALS = [
   "DoWhileStatement",
   "ForStatement",
 ];
+const SCOPES = ["Program", "BlockStatement"];
 const MIN_TEST_ARGUMENTS = 2;
 const MAX_TITLE = 80;
 const SKIPPED_KEYS = new Set(["loc", "extra", "leadingComments", "trailingComments", "innerComments", "comments"]);
@@ -113,27 +117,39 @@ function isExpectCall(node: AstNode): boolean {
   return isCall(node) && (nameOf(callee) === EXPECT_NAME || isMemberOf(callee, EXPECT_NAME, EXPECT_VARIANTS));
 }
 
-/** The functions of a spec a test can call by name: `function` declarations and `const` arrows or function expressions. */
-function helpersOf(program: AstNode): Helpers {
-  const helpers = new Map<string, AstNode>();
-  const visit = (node: AstNode): void => {
-    const init = node["init"];
-    const name =
-      node.type === "FunctionDeclaration"
+function collectHelpers(node: AstNode, scope: AstNode, helpers: Map<string, Helper[]>): void {
+  const init = node["init"];
+  const name =
+    node.type === "FunctionDeclaration"
+      ? nameOf(node["id"])
+      : node.type === "VariableDeclarator" && isNode(init) && TEST_FUNCTIONS.includes(init.type)
         ? nameOf(node["id"])
-        : node.type === "VariableDeclarator" && isNode(init) && TEST_FUNCTIONS.includes(init.type)
-          ? nameOf(node["id"])
-          : undefined;
-    const fn = node.type === "FunctionDeclaration" ? node : init;
-    if (name !== undefined && isNode(fn) && isNode(fn["body"]) && !helpers.has(name)) {
-      helpers.set(name, fn["body"]);
-    }
-    for (const child of childrenOf(node)) {
-      visit(child);
-    }
-  };
-  visit(program);
+        : undefined;
+  const fn = node.type === "FunctionDeclaration" ? node : init;
+  if (name !== undefined && isNode(fn) && isNode(fn["body"])) {
+    helpers.set(name, [...(helpers.get(name) ?? []), { body: fn["body"], scope }]);
+  }
+  const inner = SCOPES.includes(node.type) ? node : scope;
+  for (const child of childrenOf(node)) {
+    collectHelpers(child, inner, helpers);
+  }
+}
+
+/**
+ * The functions of a spec a test can call by name, every declaration of each name with the block it is declared in:
+ * `function` declarations and `const` arrows or function expressions.
+ */
+function helpersOf(program: AstNode): Helpers {
+  const helpers = new Map<string, Helper[]>();
+  collectHelpers(program, program, helpers);
   return helpers;
+}
+
+/** The declaration a call at `position` reaches: of those whose block holds the call, the innermost. */
+function helperAt(helpers: Helpers, name: string, position: number): Helper | undefined {
+  return (helpers.get(name) ?? [])
+    .filter(({ scope }) => scope.start <= position && position < scope.end)
+    .sort((left, right) => left.scope.end - left.scope.start - (right.scope.end - right.scope.start))[0];
 }
 
 /**
@@ -152,7 +168,7 @@ function measure(body: AstNode, helpers: Helpers): Shape {
     shape.expects += isExpectCall(node) ? 1 : 0;
     shape.conditionals += CONDITIONALS.includes(node.type) ? 1 : 0;
     const called = isCall(node) ? nameOf(node["callee"]) : undefined;
-    const helper = called === undefined ? undefined : helpers.get(called);
+    const helper = called === undefined ? undefined : helperAt(helpers, called, node.start)?.body;
     if (
       called !== undefined &&
       helper !== undefined &&

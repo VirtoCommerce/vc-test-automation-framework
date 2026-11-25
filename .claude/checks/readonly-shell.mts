@@ -41,7 +41,7 @@ export const EXPLORER_WRITE_DIR = ".qa/reports";
 
 export const PROBE_DIR = ".qa/probes";
 
-const PROBE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*.(graphql|get)$/;
+const PROBE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*[.](graphql|get)$/;
 
 /** The probe files the explorer may write and `probe.mts` may send: `.qa/probes/<slug>.graphql` or `.get`. */
 export const PROBE_FILE = new RegExp(`^${PROBE_DIR.replace(/[.]/g, "[.]")}/${PROBE_NAME.source.slice(1)}`);

@@ -96,7 +96,7 @@ Create `.qa/runs/<contract-name>/` (git-ignored).
    (`quality.stableSeries`, not `flakyRunSeries`) and save the list of what should have run, exactly as "Hand-off
    Paths" names, never hand-edited. The reviewer reconciles them: a repetition that is flaky, or fails other than on a
    defect the contract lists under `## Platform defects`, fails the run. A series run unlike `## Verification` gets a
-   `deviation: <what differed and why>` line in `.qa/runs/<contract-name>/deviation.txt`.
+   `deviation: <what and why>` line per difference in `.qa/runs/<contract-name>/deviation.txt`.
 3. When the facts name a `unit` test project and the change touched code outside the specs (framework source, dataset,
    builders, `arrange`, page objects, fixtures), run the unit command too; it must pass.
 4. Every test passes in every repetition on every project it belongs to, except a test of a case under

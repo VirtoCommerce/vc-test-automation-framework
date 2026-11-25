@@ -7,7 +7,7 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { contractReferences, namesCase } from "./contract.mts";
 import { ROOT_SUITE_DIR, readProjectFacts } from "./project-facts.mts";
 import { EXPLORER_WRITE_DIR, HEALER_RUN_DIR, JUDGE_WRITE_DIR, PROBE_DIR, PROBE_FILE } from "./readonly-shell.mts";
-import { contractSeries } from "./run-record.mts";
+import { contractSeries, sameSpec } from "./run-record.mts";
 
 const CLI_FILE_NAME = "prune.mts";
 const QA_DIR = ".qa";
@@ -201,12 +201,20 @@ function readContracts(root: string): Contract[] {
   });
 }
 
-/** The spec files at the default branch that hold a test of the contract, when every live case has one; else none. */
-function doneSpecs(contract: Contract, titles: Map<string, string[]>): string[] | undefined {
+/**
+ * The spec files at the default branch that hold a test of the contract, when every live case has one; else none. Only
+ * the spec files its `## Verification` runs count: case ids (`C-01`) repeat from one contract to the next, so a title
+ * of another contract's spec never makes this one done, and a contract whose Verification names no spec file is never
+ * done.
+ */
+function doneSpecs(contract: Contract, titles: Map<string, string[]>, suiteDir: string): string[] | undefined {
   const { caseIds, dropped } = contract.references;
   const live = caseIds.filter((caseId) => !dropped.includes(caseId));
-  const specs = [...titles].filter(([, names]) =>
-    names.some((title) => live.some((caseId) => namesCase(title, caseId))),
+  const own = verificationSpecs(contract, suiteDir);
+  const specs = [...titles].filter(
+    ([file, names]) =>
+      own.some((spec) => sameSpec(spec, file)) &&
+      names.some((title) => live.some((caseId) => namesCase(title, caseId))),
   );
   const covered = live.every((caseId) => specs.some(([, names]) => names.some((title) => namesCase(title, caseId))));
   return live.length > 0 && covered ? specs.map(([file]) => file) : undefined;
@@ -296,19 +304,19 @@ function automaticClass(root: string, git: Git, contracts: Contract[], options: 
   const held: Removal[] = [];
   const done = new Set<string>();
   for (const contract of contracts) {
-    const specs = doneSpecs(contract, titles);
+    const specs = doneSpecs(contract, titles, options.suiteDir);
     if (specs === undefined) {
       continue;
     }
     const files = [...new Set([...specs, ...verificationSpecs(contract, options.suiteDir)])];
     const hold = holdReason(git, contract, files, { ref, unmerged });
+    const where = `every case is in a test title of its Verification's spec files on ${ref}`;
     if (hold !== undefined) {
-      held.push({ path: contract.path, reason: `every case is in a test title on ${ref}, but ${hold}` });
+      held.push({ path: contract.path, reason: `${where}, but ${hold}` });
       continue;
     }
     done.add(contract.path);
-    const why = `every case is in a test title on ${ref}`;
-    automatic.push(...contractFiles(root, contract).map((path) => ({ path, reason: reasonOf(path, contract, why) })));
+    automatic.push(...contractFiles(root, contract).map((path) => ({ path, reason: reasonOf(path, contract, where) })));
   }
   const cited = citedBy(contracts, done);
   for (const contract of contracts.filter((item) => done.has(item.path))) {
@@ -354,23 +362,35 @@ function oldCoverageReports(reports: readonly string[]): Removal[] {
   });
 }
 
+/**
+ * The `-observed` reports older than the explorer report of their area (`explore-<slug>-observed.md` older than
+ * `explore-<slug>.md`): the area was explored again after the values were recorded. The area report itself is never
+ * planned here: observing writes its `-observed` report after the area report, so the newer one says nothing about it.
+ */
 function olderExplorerReports(root: string, reports: readonly string[]): Removal[] {
-  const byArea = new Map<string, { file: string; changed: number }[]>();
+  const areaReports = new Map<string, string>();
+  const observed: { file: string; area: string }[] = [];
   for (const file of reports) {
-    const area = EXPLORE_REPORT.exec(file)?.[1];
-    if (area !== undefined) {
-      const changed = newestChange(join(root, EXPLORER_WRITE_DIR, file));
-      byArea.set(area, [...(byArea.get(area) ?? []), { file, changed }]);
+    const match = EXPLORE_REPORT.exec(file);
+    if (match?.[1] !== undefined) {
+      if (match[2] === undefined) {
+        areaReports.set(match[1], file);
+      } else {
+        observed.push({ file, area: match[1] });
+      }
     }
   }
-  return [...byArea].flatMap(([, files]) => {
-    const newest = files.reduce((left, right) => (right.changed > left.changed ? right : left));
-    return files
-      .filter(({ changed }) => changed < newest.changed)
-      .map(({ file }) => ({
-        path: `${EXPLORER_WRITE_DIR}/${file}`,
-        reason: `older than ${EXPLORER_WRITE_DIR}/${newest.file} of the same area`,
-      }));
+  return observed.flatMap(({ file, area }) => {
+    const areaReport = areaReports.get(area);
+    return areaReport !== undefined &&
+      newestChange(join(root, EXPLORER_WRITE_DIR, file)) < newestChange(join(root, EXPLORER_WRITE_DIR, areaReport))
+      ? [
+          {
+            path: `${EXPLORER_WRITE_DIR}/${file}`,
+            reason: `older than ${EXPLORER_WRITE_DIR}/${areaReport}, the report of the same area`,
+          },
+        ]
+      : [];
   });
 }
 
@@ -400,12 +420,12 @@ function probeFiles(root: string): Removal[] {
 
 /**
  * Plans the cleanup of the agents' local files under `.qa/`. A contract is done when every case id of its `## Cases`
- * that no approved amendment drops is in a test title of a spec file under the suite directory on the default branch
+ * that no approved amendment drops is in a test title of a spec file its `## Verification` runs, on the default branch
  * of `origin`; a done contract goes with its run record, its judge verdict and the `-observed` reports its oracles
  * cite, unless its spec files have uncommitted or unpushed changes or an unmerged local branch carries its name. The
  * ask class: contracts with no approval unchanged for `days`, coverage reports beyond the newest few per slug,
- * explorer reports older than the newest of their area (the slug, with its `-observed` report), healer reports and runs
- * unchanged for `days`, and probe files. A report a kept contract cites is never planned.
+ * `-observed` reports older than the explorer report of their area, healer reports and runs unchanged for `days`, and
+ * probe files. A report a kept contract cites is never planned.
  *
  * @param git runs git in `root`; see {@link Git}.
  * @returns the plan; nothing is removed.

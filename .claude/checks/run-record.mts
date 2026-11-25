@@ -17,6 +17,11 @@ const IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)["']([^"']+)["']/g;
 const MAX_FILES = 2000;
 const MAX_SHOWN = 8;
 const DEVIATION = /^\s*deviation:\s*(\S.*)$/i;
+const PROJECT_FLAG = "project";
+const VALUE_FLAGS = [PROJECT_FLAG, ...SERIES_FLAGS] as const;
+const SHORT_FLAGS: Readonly<Record<string, string>> = { g: "grep", j: "workers" };
+const SHELL_WORD = /(?:[^\s"']+|"[^"]*"|'[^']*')+/g;
+const QUOTED = /"([^"]*)"|'([^']*)'/g;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -30,29 +35,56 @@ function normalizedSpec(token: string): string {
     .replace(/^["']|["']$/g, "");
 }
 
-function sameSpec(left: string, right: string): boolean {
-  return left === right || left.endsWith(`/${right}`) || right.endsWith(`/${left}`);
+/** True when two spec paths name the same file: equal, or one ends with the other after a `/`. */
+export function sameSpec(left: string, right: string): boolean {
+  const [a, b] = [normalizedSpec(left), normalizedSpec(right)];
+  return a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
 }
 
+/** A flag of the Playwright CLI that takes a value: its long name and the value when it is in the same token. */
+function valueFlagOf(token: string): { name: string; value: string | undefined } | undefined {
+  const long = /^--([a-z-]+)(?:=([\s\S]*))?$/.exec(token);
+  const short = /^-([a-z])([\s\S]*)$/.exec(token);
+  const name = long?.[1] ?? SHORT_FLAGS[short?.[1] ?? ""];
+  if (name === undefined || !VALUE_FLAGS.some((flag) => flag === name)) {
+    return undefined;
+  }
+  const attached = long === null ? short?.[2] : long[2];
+  return { name, value: attached === "" ? undefined : attached };
+}
+
+/**
+ * The project, series flags and spec files of one test command, as the Playwright CLI reads them: `--name=value`,
+ * `--name value`, and the short `-g`, `-j` with the value attached or as the next word.
+ */
 function parseSeries(tokens: readonly string[]): Series {
   const series: Series = { projects: [], flags: new Map(), specs: [] };
   for (let index = 0; index < tokens.length; index += 1) {
-    const token = (tokens[index] ?? "").replace(/^["']|["']$/g, "");
-    const named = /^--([a-z-]+)=(.*)$/.exec(token);
-    const bare = /^--([a-z-]+)$/.exec(token);
-    const name = named?.[1] ?? bare?.[1];
-    const value =
-      named?.[2] ?? (bare !== null && SERIES_FLAGS.some((flag) => flag === name) ? tokens[index + 1] : undefined);
-    if (name === "project" && value !== undefined) {
-      series.projects.push(value);
-    } else if (SERIES_FLAGS.some((flag) => flag === name) && value !== undefined) {
-      series.flags.set(name ?? "", value);
-      index += named === null ? 1 : 0;
+    const token = tokens[index] ?? "";
+    const flag = valueFlagOf(token);
+    if (flag !== undefined) {
+      const value = flag.value ?? tokens[index + 1];
+      index += flag.value === undefined ? 1 : 0;
+      if (value === undefined) {
+        continue;
+      }
+      if (flag.name === PROJECT_FLAG) {
+        series.projects.push(value);
+      } else {
+        series.flags.set(flag.name, value);
+      }
     } else if (SPEC_TOKEN.test(token)) {
       series.specs.push(normalizedSpec(token));
     }
   }
   return series;
+}
+
+/** The words of a command written in the contract, as a shell splits them: quotes group words and are removed. */
+function shellWords(text: string): string[] {
+  return (text.match(SHELL_WORD) ?? []).map((word) =>
+    word.replace(QUOTED, (_: string, double: string | undefined, single: string | undefined) => double ?? single ?? ""),
+  );
 }
 
 /** The text of `## Verification` of a contract, without comments. */
@@ -74,7 +106,7 @@ export function contractSeries(markdown: string): Series[] {
     const text = line.replace(/^\s*(?:[-*]|\d+\.)\s+/, "");
     const segments = text.includes("`") ? text.split("`").filter((_, index) => index % 2 === 1) : [text];
     for (const segment of segments) {
-      const parsed = parseSeries(segment.trim().split(/\s+/));
+      const parsed = parseSeries(shellWords(segment));
       if (parsed.projects.length > 0 || parsed.flags.size > 0 || parsed.specs.length > 0) {
         series.push(parsed);
       }

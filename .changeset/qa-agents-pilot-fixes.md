@@ -16,17 +16,18 @@ not a rule.
 An API area that no page uses can now be explored: `introspect.mts` saves the stand's schema without a credential and
 `probe.mts` observes anonymous cases with one read-only query or GET, both for `qa-explorer` only. The contract has an
 Existing coverage section, Critical flow and Parameters columns, dated references to local reports and snapshots, and
-amendments that name their cases and changes; `check --implemented` requires every case id in the title of a listed
-test. `reconcile-run.mts --contract` compares the series' real command with the contract's Verification, takes a
-`deviation:` reason and refuses a report older than the specs it covers. `prove-fails.mts` mutates `toBe(true|false)`,
+amendments that name their cases and changes; `check --implemented` requires every case id in the title of a test in
+a spec file the contract's Verification runs. `reconcile-run.mts --contract` compares the series' real command
+(`--project`, `--workers`/`-j`, `--grep`/`-g` in either form) with the contract's Verification, takes one `deviation:`
+reason per difference and refuses a report older than the specs it covers. `prove-fails.mts` mutates `toBe(true|false)`,
 `.not`, name and member-chain arguments and `arrayContaining`/`objectContaining`, and refuses an assertion in an
 `arrange:` step; the judge's verdict records its mechanical and reasoned proofs; `test-shape.mts` counts the helpers a
 test calls. The framework rules cover a client suite without `arrange` (a `finally` that never fails the test) and a
 shared dataset account (`--workers=1`), and the reviewer takes style only from the repository.
 
 `node .claude/checks/prune.mts` cleans the agents' git-ignored working files under `.qa/`. `/qa`, `/qa-plan` and
-`/qa-coverage` run it first with `--fetch --yes`: it removes a contract whose cases are all in test titles on the
-default branch of `origin`, read from git without a checkout, with its run record, judge verdict and observed report,
+`/qa-coverage` run it first with `--fetch --yes`: it removes a contract whose cases are all in test titles of the spec
+files its Verification runs, on the default branch of `origin`, read from git without a checkout, with its run record, judge verdict and observed report,
 unless its spec files have uncommitted or unpushed changes or an unmerged local branch carries its name. Older
 contracts, reports, healer runs and probes are listed and removed only on the person's yes (`--yes --include-stale`);
 the knowledge directory and `.local.env` files are never touched. The contract check no longer reads a closing backtick

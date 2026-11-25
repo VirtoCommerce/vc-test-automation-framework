@@ -282,8 +282,8 @@ function readContract(argument: string | undefined): { text: string; deviationFi
 /**
  * Checks a run record's report against what it covers: the covered files must not have been edited after the run
  * started, and, with the contract, the series' real command (`config.argv` of the report) must match the contract's
- * Verification. A difference is explained by a `deviation: <reason>` line in `.qa/runs/<contract-name>/deviation.txt`,
- * which the dispatcher writes; it is still listed.
+ * Verification. Each difference is explained by its own `deviation: <reason>` line in
+ * `.qa/runs/<contract-name>/deviation.txt`, which the dispatcher writes; it is still listed.
  *
  * @throws Error when the contract argument is not `--contract=.qa/contracts/<name>.md` or the contract cannot be read.
  */
@@ -311,13 +311,13 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     const verdict = reconcileRun(readJson(listFile), report);
     const record = checkRunRecord(report, contractArgument);
     process.stdout.write(`${JSON.stringify({ ...verdict, ...record }, null, 2)}\n`);
-    const unexplained = record.differences.length > 0 && record.deviations.length === 0;
+    const unexplained = record.differences.length > record.deviations.length;
     if (verdict.failures.length > 0 || record.stale.length > 0 || unexplained) {
       process.exitCode = 1;
     }
     if (unexplained) {
       process.stderr.write(
-        "reconcile: the series differs from the contract's Verification and the run record has no deviation: line (.qa/runs/<contract-name>/deviation.txt)\n",
+        `reconcile: the series differs from the contract's Verification in ${record.differences.length} ways and the run record has ${record.deviations.length} deviation: lines (.qa/runs/<contract-name>/deviation.txt): one line per difference\n`,
       );
     }
   } catch (error) {

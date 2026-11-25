@@ -32,3 +32,12 @@ unless its spec files have uncommitted or unpushed changes or an unmerged local 
 contracts, reports, healer runs and probes are listed and removed only on the person's yes (`--yes --include-stale`);
 the knowledge directory and `.local.env` files are never touched. The contract check no longer reads a closing backtick
 or period into a dated source path, and asks no date for a directory.
+
+A suite kept as its own npm project in a subdirectory (its own `package.json` and `node_modules`, none at the root)
+now works with the agents at the repository root. `project-facts.mts` detects it from `suiteDir` and the files
+present and prints `playwright`, the command the agents start Playwright Test with: `npm exec --prefix <suiteDir> --no
+-- playwright test --config=<suiteDir>` there, `npx --no playwright test` with or without `--config` as before
+elsewhere. The skills, the read-only shell hook, `contract --implemented`, `prove-fails`, `test-shape`, `introspect`
+and `probe` use that launcher or the suite's `node_modules`, the facts check reads the suite's `package.json` and
+understands `npm --prefix <dir> run <script>`, and `npx vc-qa-agents init <dir>` writes such a suite with the agents
+and facts at the root.

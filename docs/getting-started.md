@@ -38,6 +38,24 @@ npm test                                # every project
 npm run report && npm run report:open   # the Allure report
 ```
 
+### A suite in a subdirectory
+
+A repository that keeps the suite as its own npm project in a subdirectory gives `init` that directory, run from the
+repository root with the package installed in the subdirectory:
+
+```shell
+mkdir tests-suite && cd tests-suite
+npm init -y
+npm install --save-dev --save-exact @virtocommerce/test-automation-framework
+cd ..
+npm exec --prefix tests-suite -- vc-qa-agents init tests-suite
+```
+
+The suite's files, its `package.json` and its dependencies go to `tests-suite/`; the agents (`.claude/`),
+`.qa/project.json` and `.mcp.json` stay at the root, where Claude Code must be opened, and the facts name the
+directory as `suiteDir` (see [Where the suite lives](guides/qa-agents.md#where-the-suite-lives)). Run the commands
+above in `tests-suite/`.
+
 The rest of this guide sets a suite up by hand, piece by piece.
 
 ## Install the framework

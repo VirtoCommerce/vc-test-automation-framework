@@ -23,6 +23,11 @@ export const MODULES = {
   marketing: { id: "VirtoCommerce.Marketing", minVersion: "3.1010.0" },
   notifications: { id: "VirtoCommerce.Notifications", minVersion: "3.1018.0" },
   orders: { id: "VirtoCommerce.Orders", minVersion: "3.1021.0" },
+  /**
+   * OTP sign-in: a store's authentication types turn it on or off (3.1003.0, VCST-6169). Earlier versions keep it off
+   * unless the store setting `OtpSignIn.Enabled` is on.
+   */
+  otp: { id: "VirtoCommerce.OTP", minVersion: "3.1003.0" },
   /** Page builder. The shell queries its page lists with `POST /api/page-builder-pages/list` (3.1039.0). */
   pageBuilder: { id: "VirtoCommerce.PageBuilderModule", minVersion: "3.1041.0" },
   payment: { id: "VirtoCommerce.Payment", minVersion: "3.1011.0" },

@@ -1,0 +1,5 @@
+{
+  "id": "store-authentication-scheme-otp",
+  "name": "OTP",
+  "isActive": false
+}

@@ -10,11 +10,16 @@ copy itself.
 - `checks-claimed-behaviour`: each test asserts the behaviour its case claims, on the data role and project the
   case names, against the expected value of the case's oracle. A test that asserts something easier or different is
   a fail. A test of a platform-defect case asserts the correct behaviour, not what the build does.
-- `fails-when-behaviour-breaks`: each test fails when that behaviour breaks. Prove it where the script can change a
-  literal of the assertion (evidence: the `prove-fails` output with `failed: true` and the line it changed); where
-  none can, say why and reason from the assertion. A bound (`toBeGreaterThan`, `toBeLessThan` and their `OrEqual`
-  forms) and a line with more than one assertion are never proved by the script: reason from the assertion, and pass
-  a bound only when its limit is the oracle's and the tightest the case allows. A test of a case under
+- `fails-when-behaviour-breaks`: each test fails when that behaviour breaks. Prove it where the script can change the
+  assertion (evidence: the `prove-fails` output with `failed: true` and the line it changed); where it cannot, say why
+  and reason from the assertion. A proof on an arrange guard, an assertion inside an `arrange:` step, is never credited,
+  by the script or by reasoning: the case's own `assert:` step is what must fail. A `.not` assertion the script proved
+  by removing its `.not` shows only that the line is evaluated: also reason that the value it excludes is the broken
+  behaviour. A bound (`toBeGreaterThan`, `toBeLessThan` and their `OrEqual` forms) and a line with more than one
+  assertion are never proved by the script: reason from the assertion, and pass a bound only when its limit is the
+  oracle's and the tightest the case allows. Record in the verdict's `proofs` how many cases were proved with the script
+  (`mechanical`) and how many from the assertion (`reasoned`); with no mechanical proof the criterion fails unless
+  `proofs.explanation` says why none could be made. A test of a case under
   `## Platform defects` already fails on the defect: its failure line, showing the oracle's value against the
   build's, is the evidence. An assertion that cannot fail (a tautology, a check on a value the test set itself, a
   missing await, an assertion on something that is always present) is a fail.

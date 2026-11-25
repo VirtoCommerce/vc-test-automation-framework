@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
+
+import { argvDifferences, DISK, deviationLines, staleSources } from "./run-record.mts";
 
 export type RunFailure = {
   test: string;
@@ -26,6 +28,9 @@ type Outcome = { status: string; expectedStatus: string; annotations: Annotation
 type Listed = { test: string; project: string };
 
 const CLI_FILE_NAME = "reconcile-run.mts";
+const CONTRACT_FLAG = "--contract=";
+const CONTRACT_PATH = /^\.qa\/contracts\/[\w.-]+\.md$/;
+const USAGE = `reconcile: usage is node .claude/checks/reconcile-run.mts <list.json> <report.json> [${CONTRACT_FLAG}.qa/contracts/<name>.md]`;
 const TITLE_SEPARATOR = " › ";
 const SKIP_ANNOTATIONS = ["skip", "fixme"];
 const FAIL_ANNOTATIONS = ["fail"];
@@ -252,16 +257,68 @@ export function readJson(file: string): unknown {
   }
 }
 
+/**
+ * What the run record says beyond the tests: the `differences` between the series the report recorded and the
+ * contract's Verification, the `deviations` the dispatcher wrote to explain them, and the covered files edited after
+ * the run started (`stale`).
+ */
+export type RunRecordCheck = { differences: string[]; deviations: string[]; stale: string[] };
+
+function readContract(argument: string | undefined): { text: string; deviationFile: string } | undefined {
+  if (argument === undefined) {
+    return undefined;
+  }
+  const path = argument.slice(CONTRACT_FLAG.length);
+  if (!CONTRACT_PATH.test(path)) {
+    throw new Error(`reconcile: --contract must be .qa/contracts/<name>.md, not "${path.slice(0, 80)}"`);
+  }
+  const text = DISK.read(path);
+  if (text === undefined) {
+    throw new InputError(`${path} cannot be read`);
+  }
+  return { text, deviationFile: join(".qa", "runs", basename(path, ".md"), "deviation.txt") };
+}
+
+/**
+ * Checks a run record's report against what it covers: the covered files must not have been edited after the run
+ * started, and, with the contract, the series' real command (`config.argv` of the report) must match the contract's
+ * Verification. Each difference is explained by its own `deviation: <reason>` line in
+ * `.qa/runs/<contract-name>/deviation.txt`, which the dispatcher writes; it is still listed.
+ *
+ * @throws Error when the contract argument is not `--contract=.qa/contracts/<name>.md` or the contract cannot be read.
+ */
+export function checkRunRecord(report: unknown, contractArgument: string | undefined): RunRecordCheck {
+  const contract = readContract(contractArgument);
+  return {
+    differences: contract === undefined ? [] : argvDifferences(report, contract.text),
+    deviations: contract === undefined ? [] : deviationLines(DISK.read(contract.deviationFile)),
+    stale: staleSources(report, DISK),
+  };
+}
+
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
-    const [listFile, reportFile] = process.argv.slice(2);
-    if (listFile === undefined || reportFile === undefined) {
-      throw new Error("reconcile: usage is node .claude/checks/reconcile-run.mts <list.json> <report.json>");
+    const [listFile, reportFile, ...options] = process.argv.slice(2);
+    const contractArgument = options.find((option) => option.startsWith(CONTRACT_FLAG));
+    if (
+      listFile === undefined ||
+      reportFile === undefined ||
+      options.length > (contractArgument === undefined ? 0 : 1)
+    ) {
+      throw new Error(USAGE);
     }
-    const verdict = reconcileRun(readJson(listFile), readJson(reportFile));
-    process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);
-    if (verdict.failures.length > 0) {
+    const report = readJson(reportFile);
+    const verdict = reconcileRun(readJson(listFile), report);
+    const record = checkRunRecord(report, contractArgument);
+    process.stdout.write(`${JSON.stringify({ ...verdict, ...record }, null, 2)}\n`);
+    const unexplained = record.differences.length > record.deviations.length;
+    if (verdict.failures.length > 0 || record.stale.length > 0 || unexplained) {
       process.exitCode = 1;
+    }
+    if (unexplained) {
+      process.stderr.write(
+        `reconcile: the series differs from the contract's Verification in ${record.differences.length} ways and the run record has ${record.deviations.length} deviation: lines (.qa/runs/<contract-name>/deviation.txt): one line per difference\n`,
+      );
     }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

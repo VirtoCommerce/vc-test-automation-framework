@@ -76,8 +76,9 @@ async function pricelistOf(api: HttpClient, id: string): Promise<Pricelist | und
   `(customer of their own)`.
 - `test.use({ user: <Credentials> })` signs `api` in; the account is `roles["<role>"]` from the project facts. Without
   it `api` is anonymous. `http` is always anonymous; `signIn(credentials)` returns a client signed in as another
-  user in the same test. An administration test runs as `roles[roleFor.admin]`.
-- `arrange` creates as `roleFor.admin` and removes the data after the test.
+  user in the same test. An administration test runs as `roles[roleFor.admin]`; the facts may name none: ask who administers.
+- `arrange` creates as the suite's administrator (`roleFor.admin`, if the facts have one) and removes the data after
+  the test.
 - When the create is the action under test, build the draft (`newX()` sets a client-side `id`) and register the
   `…Later` removal before the call. When the platform assigns the id, register it right after the act.
 - Paths are module-level constants (`PRICELISTS_PATH`). A read several tests repeat is a `function` declaration at the
@@ -110,12 +111,12 @@ for an endpoint that answers 404). Prove a deletion by id, never with a search.
 
 ```ts
 const INVALID_FOLDER_NAMES = [
-  { title: "whitespace only", name: " ", reason: "Folder name must not be empty" },
-  { title: "too long", name: "a".repeat(300), reason: "Maximum length is 63" },
+  { id: "C-04", title: "whitespace only", name: " ", reason: "Folder name must not be empty" },
+  { id: "C-05", title: "too long", name: "a".repeat(300), reason: "Maximum length is 63" },
 ] as const;
 
-for (const { title, name, reason } of INVALID_FOLDER_NAMES) {
-  test(`reject a folder name that is ${title}`, async ({ api, store }) => { … });
+for (const { id, title, name, reason } of INVALID_FOLDER_NAMES) {
+  test(`${id} reject a folder name that is ${title}`, async ({ api, store }) => { … });
 }
 ```
 
@@ -161,14 +162,18 @@ Never `toEqual([...])` on a whole search result: other tests create data in para
 6. Bodies typed with `@rest/generated/platform.ts`; success bodies through `expectOk().json<T>()`.
 7. Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
 8. No sleeps; index lag is waited for in `arrange` or with `INDEX_LAG_TIMEOUT_MS`.
-9. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
+9. Under a contract, a test's title starts with its case id (`C-01 …`), and each row of a table-driven test carries its
+   own case id in its title: `contract.mts check --implemented` finds a case's tests by it.
+10. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["restapi"]` (the REST project's key) from the project facts
+Run `commands.typecheck`, `commands.lint` (when the facts have one) and `commands.test["restapi"]` (the REST project's key) from the project facts
 on the changed spec, with the run record the expert agent describes.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Reference specs: `virtocommerce/tests/restapi/pricing/pricelists.spec.ts`,
   `virtocommerce/tests/restapi/security/api-keys.spec.ts`, `virtocommerce/tests/restapi/content/validation.spec.ts`.

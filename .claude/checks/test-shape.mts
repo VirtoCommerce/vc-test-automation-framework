@@ -13,7 +13,12 @@ type Limits = ProjectFacts["quality"];
 
 type AstNode = Record<string, unknown> & { type: string; start: number; end: number };
 
-type Shape = { steps: number; expects: number; conditionals: number; nesting: number };
+type Shape = { steps: number; expects: number; conditionals: number; nesting: number; helpers: string[] };
+
+/** A function of the spec: its body, and the block or program it is declared in, where its name can be called. */
+type Helper = { body: AstNode; scope: AstNode };
+
+type Helpers = ReadonlyMap<string, readonly Helper[]>;
 
 const CLI_FILE_NAME = "test-shape.mts";
 const TEST_NAME = "test";
@@ -32,6 +37,7 @@ const CONDITIONALS = [
   "DoWhileStatement",
   "ForStatement",
 ];
+const SCOPES = ["Program", "BlockStatement"];
 const MIN_TEST_ARGUMENTS = 2;
 const MAX_TITLE = 80;
 const SKIPPED_KEYS = new Set(["loc", "extra", "leadingComments", "trailingComments", "innerComments", "comments"]);
@@ -111,19 +117,73 @@ function isExpectCall(node: AstNode): boolean {
   return isCall(node) && (nameOf(callee) === EXPECT_NAME || isMemberOf(callee, EXPECT_NAME, EXPECT_VARIANTS));
 }
 
-function measure(body: AstNode): Shape {
-  const shape: Shape = { steps: 0, expects: 0, conditionals: 0, nesting: 0 };
-  const visit = (node: AstNode, depth: number): void => {
-    const here = node.type === "BlockStatement" && node !== body ? depth + 1 : depth;
+function collectHelpers(node: AstNode, scope: AstNode, helpers: Map<string, Helper[]>): void {
+  const init = node["init"];
+  const name =
+    node.type === "FunctionDeclaration"
+      ? nameOf(node["id"])
+      : node.type === "VariableDeclarator" && isNode(init) && TEST_FUNCTIONS.includes(init.type)
+        ? nameOf(node["id"])
+        : undefined;
+  const fn = node.type === "FunctionDeclaration" ? node : init;
+  if (name !== undefined && isNode(fn) && isNode(fn["body"])) {
+    helpers.set(name, [...(helpers.get(name) ?? []), { body: fn["body"], scope }]);
+  }
+  const inner = SCOPES.includes(node.type) ? node : scope;
+  for (const child of childrenOf(node)) {
+    collectHelpers(child, inner, helpers);
+  }
+}
+
+/**
+ * The functions of a spec a test can call by name, every declaration of each name with the block it is declared in:
+ * `function` declarations and `const` arrows or function expressions.
+ */
+function helpersOf(program: AstNode): Helpers {
+  const helpers = new Map<string, Helper[]>();
+  collectHelpers(program, program, helpers);
+  return helpers;
+}
+
+/** The declaration a call at `position` reaches: of those whose block holds the call, the innermost. */
+function helperAt(helpers: Helpers, name: string, position: number): Helper | undefined {
+  return (helpers.get(name) ?? [])
+    .filter(({ scope }) => scope.start <= position && position < scope.end)
+    .sort((left, right) => left.scope.end - left.scope.start - (right.scope.end - right.scope.start))[0];
+}
+
+/**
+ * Counts what a test contains, and what the helper functions of the same spec that it calls contain at each call: the
+ * body of a helper counts as if written where the call is, its own braces not as a level. A helper declared inside the
+ * test is already in the test's body and is not counted twice; a helper that calls itself, directly or through others,
+ * counts once per chain.
+ */
+function measure(body: AstNode, helpers: Helpers): Shape {
+  const shape: Shape = { steps: 0, expects: 0, conditionals: 0, nesting: 0, helpers: [] };
+  const roots = new Set<AstNode>([body]);
+  const visit = (node: AstNode, depth: number, chain: readonly string[]): void => {
+    const here = node.type === "BlockStatement" && !roots.has(node) ? depth + 1 : depth;
     shape.nesting = Math.max(shape.nesting, here);
     shape.steps += isStepCall(node) ? 1 : 0;
     shape.expects += isExpectCall(node) ? 1 : 0;
     shape.conditionals += CONDITIONALS.includes(node.type) ? 1 : 0;
+    const called = isCall(node) ? nameOf(node["callee"]) : undefined;
+    const helper = called === undefined ? undefined : helperAt(helpers, called, node.start)?.body;
+    if (
+      called !== undefined &&
+      helper !== undefined &&
+      !chain.includes(called) &&
+      !(helper.start >= body.start && helper.end <= body.end)
+    ) {
+      shape.helpers = [...new Set([...shape.helpers, called])];
+      roots.add(helper);
+      visit(helper, here, [...chain, called]);
+    }
     for (const child of childrenOf(node)) {
-      visit(child, here);
+      visit(child, here, chain);
     }
   };
-  visit(body, 0);
+  visit(body, 0, []);
   return shape;
 }
 
@@ -169,19 +229,22 @@ function overLimit(count: number, limit: number, what: string, setting: string):
  * test counts once however often a table-driven loop runs it, and a `for ... of` or `for ... in` loop is not a
  * conditional. Steps are `test.step` calls, expects are `expect`, `expect.soft` and `expect.poll` calls, nesting is
  * the depth of blocks inside the test function (its own body not counted), conditionals are `if`, `?:`, `switch`,
- * `while`, `do ... while` and `for (;;)`.
+ * `while`, `do ... while` and `for (;;)`. A function of the same spec that a test calls by name counts at each call
+ * as if its body stood there (steps, expects, conditionals and nesting alike), and the finding names such helpers.
  *
  * @throws Error when the source cannot be parsed.
  */
 export function checkTestShape(source: string, file: string, limits: Limits): QualityFinding[] {
   const findings: QualityFinding[] = [];
-  for (const call of collectTests(parseSource(source, file))) {
+  const program = parseSource(source, file);
+  const helpers = helpersOf(program);
+  for (const call of collectTests(program)) {
     const fn = argumentsOf(call).at(-1);
     if (!isNode(fn) || !isNode(fn["body"])) {
       continue;
     }
     const test = `${file}:${lineOf(call, "start")} ${titleOf(call, source)}`;
-    const shape = measure(fn["body"]);
+    const shape = measure(fn["body"], helpers);
     const lines = lineOf(call, "end") - lineOf(call, "start") + 1;
     const reasons = [
       ...overLimit(shape.steps, limits.maxSteps, "test.step calls", "quality.maxSteps"),
@@ -190,7 +253,8 @@ export function checkTestShape(source: string, file: string, limits: Limits): Qu
       ...overLimit(shape.nesting, limits.maxNesting, "levels of nesting", "quality.maxNesting"),
       ...overLimit(shape.conditionals, limits.maxConditionals, "conditionals", "quality.maxConditionals"),
     ];
-    findings.push(...reasons.map((finding) => ({ test, finding })));
+    const via = shape.helpers.length === 0 ? "" : ` (counting the helpers it calls: ${shape.helpers.join(", ")})`;
+    findings.push(...reasons.map((finding) => ({ test, finding: `${finding}${via}` })));
   }
   return findings;
 }

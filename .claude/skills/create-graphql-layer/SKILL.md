@@ -126,7 +126,7 @@ async function cart(shopper: Shopper, items: readonly CartItem[]): Promise<Arran
 ```
 
 The platform assigns GraphQL ids, so removal is registered right after the create, or before it when the removal
-finds the record itself (`removeDefaultCartLater` reads the default cart). Data created as the admin role (`roleFor.admin`)
+finds the record itself (`removeDefaultCartLater` reads the default cart). Data created as the administrator (the role `roleFor.admin` names, if the facts have one)
 uses `await admin()` from the context. Export new result types from `virtocommerce/arrange/index.ts`. A read that one
 spec uses stays in that spec, as a table row lambda or a `function` declaration at its end.
 
@@ -149,6 +149,8 @@ Some setup or checks have no xAPI operation. There are no REST clients: call the
 6. JSDoc only for what the signature cannot say; the rest of the style comes from the repository's `CLAUDE.md`.
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Reference documents: `virtocommerce/graphql/operations/cart/add-item.graphql`,
   `virtocommerce/graphql/operations/cart/get-cart.graphql`; codegen config `virtocommerce/codegen.ts`.

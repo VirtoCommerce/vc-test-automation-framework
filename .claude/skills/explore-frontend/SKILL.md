@@ -8,7 +8,8 @@ argument-hint: "<page-or-area>"
 
 Used by `qa-explorer`. The result is the first four sections of `.qa/reports/explore-<slug>.md`. It writes no
 page object and no test; the proposal is text for `qa-planner` and `qa-automation-expert`. Read first: the skill
-`framework-rules`, then `project-facts` (`node .claude/checks/project-facts.mts`).
+`framework-rules`, then `project-facts` (`node .claude/checks/project-facts.mts`). Before the first step run
+`git status --short` and keep its output: Done compares with it.
 
 ## Step 1: What Exists
 
@@ -72,10 +73,15 @@ The explorer's `observe` mode records the value one case asserts, as the page sh
 
 ## Done
 
-The four sections are in the report, each with its items or `none observed`, and every item says where it was seen.
-Nothing outside `.qa/reports/` changed (`git status`).
+The four sections are in the report, each with its items, `none observed` (looked, found nothing) or `not reached: <why>`
+(could not look: a role, a page the stand does not show), and every item says where it was seen.
+Nothing outside `.qa/reports/` changed: `git status --short` now shows what the one you took before your first write
+showed (the repository may already hold untracked or changed files, or not be under git: then say that it could not be
+compared).
 
 ## Example from this repository
+
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
 
 - Test id attribute: `data-test-id` (the default `testIdAttribute` of the framework's `defaultUse`, which
   `virtocommerce/playwright.config.ts` uses).

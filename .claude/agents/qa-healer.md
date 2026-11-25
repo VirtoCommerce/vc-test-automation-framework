@@ -78,6 +78,8 @@ proposed, product defects, stand data, flaky, escalated, and the guard result. N
 
 ## Example from this repository
 
+The framework's own suite, as an example and not a rule; another repository's values come from its facts and files.
+
 - Test projects, the keys of `commands.test`: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`. The
   healer paths are `virtocommerce/pages/` (page objects), `virtocommerce/arrange/` (the `arrange` factory),
   `virtocommerce/builders/`, `virtocommerce/support/` and `virtocommerce/dataset/`; artefacts are in

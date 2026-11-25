@@ -17,16 +17,18 @@ It adds the scripts to `package.json`, installs the peer dependencies and Chromi
 [QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the suite. It never overwrites a file that
 exists; `--skip-install` leaves the dependencies out.
 
-| Path                      | Holds                                                                              |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| `playwright.config.ts`    | The projects `restapi`, `graphql` and `e2e-frontend`, with the Allure reporter     |
-| `env.ts`, `.env`          | The environment schema, with `FRONTEND_BASE_URL` and `STORE_ID` on the framework's |
-| `fixtures/index.ts`       | `test` and `expect`: the default fixtures plus `user`, `api`, `arrange`, `shopper` |
-| `arrange/`                | The `arrange` factory, which removes test data after the test, and a first domain  |
-| `builders/`, `support/`   | Payload builders, `requireFields`, `uniqueId`, the store and the shopper           |
-| `codegen.ts`, `scripts/`  | GraphQL and REST type generation from the running platform                         |
-| `tests/restapi/security/` | The first test: a user that `arrange` creates signs in                             |
-| `CLAUDE.md`, `biome.json` | The suite's layout and code style for the agents, and the shared Biome preset      |
+| Path                      | Holds                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `playwright.config.ts`    | The projects `restapi`, `graphql` and `e2e-frontend`, with the Allure reporter      |
+| `env.ts`, `.env`          | The environment schema, with `FRONTEND_BASE_URL` and `STORE_ID` on the framework's  |
+| `fixtures/index.ts`       | `test` and `expect`: the default fixtures plus `user`, `api`, `arrange`, `shopper`  |
+| `arrange/`                | The `arrange` factory, which removes test data after the test, and a first domain   |
+| `builders/`, `support/`   | Payload builders, `requireFields`, `uniqueId`, the store and the shopper            |
+| `codegen.ts`, `scripts/`  | GraphQL and REST type generation from the running platform                          |
+| `tests/restapi/security/` | The first test: a user that `arrange` creates signs in                              |
+| `CLAUDE.md`, `biome.json` | The suite's layout and code style for the agents, and the shared Biome preset       |
+| `pages/`                  | A README for the page objects, which the first browser test fills                   |
+| `.mcp.json`               | The Playwright MCP server of the agents, see [Browser](guides/qa-agents.md#browser) |
 
 Then:
 

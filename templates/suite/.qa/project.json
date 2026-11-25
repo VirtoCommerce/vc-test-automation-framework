@@ -38,7 +38,7 @@
   "passwordFor": {
     "administrator": "ADMIN_PASSWORD",
     "customer": "CUSTOMER_PASSWORD",
-    "other customer": "CUSTOMER_PASSWORD"
+    "other customer": "OTHER_CUSTOMER_PASSWORD"
   },
   "coverageWeights": {
     "risk": 1,

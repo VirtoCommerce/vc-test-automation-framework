@@ -17,7 +17,8 @@ export type Gap = {
   factors?: Partial<Record<keyof Weights, number>>;
 };
 
-export type RankedGap = Gap & { score: number };
+/** A gap with its score. `tied` is true when another gap has the same enabled-on-stand, critical and score values, so the order between them is only the name fallback. */
+export type RankedGap = Gap & { score: number; tied: boolean };
 
 const CLI_FILE_NAME = "rank-gaps.mts";
 const STDIN = 0;
@@ -56,19 +57,36 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
-function compareRanked(left: RankedGap, right: RankedGap): number {
+type Scored = Gap & { score: number };
+
+function comparePriority(left: Scored, right: Scored): number {
   if (left.enabledOnStand !== right.enabledOnStand) {
     return left.enabledOnStand ? -1 : 1;
   }
   if (left.critical !== right.critical) {
     return left.critical ? -1 : 1;
   }
+  return right.score - left.score;
+}
+
+function compareRanked(left: Scored, right: Scored): number {
   return (
-    right.score - left.score ||
+    comparePriority(left, right) ||
     compareText(left.name, right.name) ||
     compareText(left.area, right.area) ||
     compareText(left.surface, right.surface)
   );
+}
+
+function markTied(sorted: readonly Scored[]): RankedGap[] {
+  return sorted.map((gap, index) => {
+    const before = sorted[index - 1];
+    const after = sorted[index + 1];
+    const tied =
+      (before !== undefined && comparePriority(before, gap) === 0) ||
+      (after !== undefined && comparePriority(gap, after) === 0);
+    return { ...gap, tied };
+  });
 }
 
 /**
@@ -78,12 +96,13 @@ function compareRanked(left: RankedGap, right: RankedGap): number {
  * comes first; scores are rounded to nine decimals so equal scores tie. The order is strict: gaps enabled on the stand
  * before gaps that are not (a module or flag that is off), then critical flows before the others, then by score, highest
  * first, then by name, then area, then surface. A critical gap therefore outranks a non-critical one whatever the
- * scores and weights.
+ * scores and weights. A gap whose enabled-on-stand, critical and score values equal a neighbour's is marked `tied`:
+ * nothing but the name decides which of them comes first, so the order among tied gaps is not a priority.
  *
  * @throws Error when a factor is not a number from 0 to 1.
  */
 export function rankGaps(gaps: readonly Gap[], weights: Weights): RankedGap[] {
-  return gaps.map((gap) => ({ ...gap, score: scoreOf(gap, weights) })).sort(compareRanked);
+  return markTied(gaps.map((gap) => ({ ...gap, score: scoreOf(gap, weights) })).sort(compareRanked));
 }
 
 /** Marks a gap critical when its name or its area is one of the project's critical flows (case-insensitive). */

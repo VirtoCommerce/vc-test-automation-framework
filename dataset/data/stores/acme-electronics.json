@@ -125,6 +125,15 @@
       "groupName": "Pages",
       "value": true,
       "valueType": "Boolean"
+    },
+    {
+      "objectId": "${ENV:STORE_ID}",
+      "objectType": "Store",
+      "moduleId": "VirtoCommerce.SiteBuilder",
+      "name": "SiteBuilder.Store.PreviewUserIds",
+      "groupName": "CMS|Site builder",
+      "value": "user-acme-store-employee-9\nuser-acme-store-manager-4\nuser-acme-store-administrator",
+      "valueType": "LongText"
     }
   ]
 }

@@ -83,16 +83,32 @@ export class HttpClient {
   readonly #context: APIRequestContext;
   readonly #headers: HeaderProvider;
   readonly #onUnauthorized: UnauthorizedHandler | undefined;
+  readonly #baseUrl: string | undefined;
 
-  /** @param onUnauthorized - Renews the sign-in after a 401; without it a 401 is returned as is. */
+  /**
+   * @param onUnauthorized - Renews the sign-in after a 401; without it a 401 is returned as is.
+   * @param baseUrl - Resolves relative paths in place of the context's `baseURL`; see {@link HttpClient#withBaseUrl}.
+   */
   constructor(
     context: APIRequestContext,
     headers: HeaderProvider = noHeaders,
     onUnauthorized: UnauthorizedHandler | undefined = undefined,
+    baseUrl: string | undefined = undefined,
   ) {
     this.#context = context;
     this.#headers = headers;
     this.#onUnauthorized = onUnauthorized;
+    this.#baseUrl = baseUrl;
+  }
+
+  /**
+   * Returns a new client whose relative paths resolve against `baseUrl` instead of the context's `baseURL`, for
+   * another host of the same environment, such as the frontend's `/connect/token` and `/graphql`.
+   *
+   * @param baseUrl - An origin with an optional path, such as `https://shop.example/b2b`; paths are appended to it.
+   */
+  withBaseUrl(baseUrl: string): HttpClient {
+    return new HttpClient(this.#context, this.#headers, this.#onUnauthorized, baseUrl.replace(/\/+$/, ""));
   }
 
   /**
@@ -106,6 +122,7 @@ export class HttpClient {
       this.#context,
       async () => mergeHeaders(await this.#headers(), await extraHeaders()),
       this.#onUnauthorized,
+      this.#baseUrl,
     );
   }
 
@@ -115,6 +132,7 @@ export class HttpClient {
       this.#context,
       async () => mergeHeaders(await this.#headers(), await authentication.headers()),
       authentication.renew,
+      this.#baseUrl,
     );
   }
 
@@ -198,10 +216,16 @@ export class HttpClient {
 
   async #fetch(...[path, options]: Parameters<APIRequestContext["fetch"]>): Promise<APIResponse> {
     try {
-      return await this.#context.fetch(path, options);
+      return await this.#context.fetch(this.#resolve(path), options);
     } catch (error) {
       throw new Error(Secret.mask(error instanceof Error ? error.message : String(error)));
     }
+  }
+
+  #resolve(path: Parameters<APIRequestContext["fetch"]>[0]): Parameters<APIRequestContext["fetch"]>[0] {
+    return this.#baseUrl === undefined || typeof path !== "string" || /^https?:\/\//i.test(path)
+      ? path
+      : `${this.#baseUrl}${path}`;
   }
 }
 

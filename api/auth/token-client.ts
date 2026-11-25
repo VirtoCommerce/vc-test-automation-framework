@@ -77,6 +77,20 @@ export class TokenClient {
   }
 
   /**
+   * Exchanges a Site Builder preview code (`POST /api/site-builder/preview-auth/code`) for the preview user's token,
+   * with the `site_builder_preview` grant. Send it to the host that will use the token: the frontend's
+   * `/connect/token` (`ApiSession#at`), since the platform's xAPI accepts a token only from the host it was issued on.
+   *
+   * @throws HttpError when the code is rejected (`400 invalid_grant`: used, expired or not a code) or the body is
+   * not a token.
+   */
+  async exchangeSiteBuilderPreviewCode(code: string): Promise<AuthToken> {
+    const requestedAt = Date.now();
+    const response = await this.#requestToken({ grant_type: "site_builder_preview", code });
+    return toAuthToken(response, requestedAt);
+  }
+
+  /**
    * Renews a token with its refresh token.
    *
    * @returns `undefined` when the platform rejects the refresh token with `400` (expired or revoked).

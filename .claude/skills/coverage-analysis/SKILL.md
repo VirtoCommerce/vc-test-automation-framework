@@ -31,10 +31,10 @@ Each list is a short table; count and group by area when it is long.
 ## Step 2: Coverage (What the Tests Cover)
 
 - Per Playwright project (Grep `name:` in the suite's config, `<suiteDir>/playwright.config.ts`) and area, run one
-  command at a time, with `<path>` repository-relative:
+  command at a time, with `<path>` repository-relative and `<playwright>` the facts' `playwright`:
 
 ```shell
-npx --no playwright test --config=<suiteDir> --list --reporter=list --project=<project> <path>
+<playwright> --list --reporter=list --project=<project> <path>
 ```
 
   Its `Total: N tests in M files` line is the count. Use `--reporter=json` only for one project and one path, when

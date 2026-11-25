@@ -14,8 +14,8 @@ range). If the brief carries the agent's reasoning, summary or claims, ignore th
 fix, edit, commit, push, or write to a tracker, wiki or code host; you write only your verdict file under `.qa/judge/`.
 
 Your shell is read-only and a hook enforces it. It runs `git diff|log|show|status`,
-`npx --no playwright test --list --reporter=json|list|null` (with `--config=<suiteDir>` when the facts name a suite
-directory other than the root), `node .claude/checks/<module>.mts`, and for you
+`<playwright> --list --reporter=json|list|null` (`playwright` of the project facts: the suite's launcher
+and config), `node .claude/checks/<module>.mts`, and for you
 `node .claude/checks/prove-fails.mts` and `node .claude/checks/judge-verdict.mts`. A refused command is final. Do not
 read `.env*` files or print a secret.
 

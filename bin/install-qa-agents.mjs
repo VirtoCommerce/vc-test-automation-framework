@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
+const AGENTS_ROOT = ".claude";
+const MANIFEST_FILE = ".claude/.vc-qa-agents.json";
+const AGENT_PATH = new RegExp(`^\\.claude/(${AGENT_DIRS.join("|")})/[^/]+(/[^/]+)*$`);
+const FORCE_OURS = "--force-ours";
+const USAGE =
+  "usage: vc-qa-agents [--force-ours] | vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] | " +
+  "vc-qa-agents uninstall";
+const FLAGS = { install: [FORCE_OURS], init: ["--skip-install", FORCE_OURS], uninstall: [] };
 const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
 const MCP_FILE = ".mcp.json";
 const BROWSER_SERVER = "playwright";
@@ -27,25 +36,157 @@ const GITIGNORE_LINES = [
   ".playwright-mcp/",
 ];
 
-function copyAgentFiles(target) {
-  const copied = [];
-  for (const dir of AGENT_DIRS) {
-    const source = join(PACKAGE_ROOT, ".claude", dir);
-    if (!existsSync(source)) {
+function filesUnder(dir) {
+  if (!existsSync(dir)) {
+    return [];
+  }
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? filesUnder(join(dir, entry.name)) : [join(dir, entry.name)],
+  );
+}
+
+function packageFiles() {
+  return AGENT_DIRS.flatMap((dir) => filesUnder(join(PACKAGE_ROOT, AGENTS_ROOT, dir)))
+    .map((path) => relative(PACKAGE_ROOT, path).split(sep).join("/"))
+    .sort();
+}
+
+function hashOf(path) {
+  return createHash("sha256").update(readFileSync(path, "utf8").replaceAll("\r\n", "\n")).digest("hex");
+}
+
+function packageIdentity() {
+  const { name, version } = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
+  return { name, version };
+}
+
+function readManifest(target) {
+  const path = join(target, MANIFEST_FILE);
+  if (!existsSync(path)) {
+    return null;
+  }
+  const invalid = new Error(
+    `${MANIFEST_FILE} is not the list of files vc-qa-agents installed: restore it from git, or delete it and run ` +
+      "vc-qa-agents again, which then takes as its own only the files equal to the package's.",
+  );
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    throw invalid;
+  }
+  const files = manifest?.files;
+  if (typeof files !== "object" || files === null || Array.isArray(files)) {
+    throw invalid;
+  }
+  for (const [file, hash] of Object.entries(files)) {
+    if (!AGENT_PATH.test(file) || file.split("/").includes("..") || !/^[0-9a-f]{64}$/.test(String(hash))) {
+      throw invalid;
+    }
+  }
+  return { files };
+}
+
+function writeManifest(target, files) {
+  const { name, version } = packageIdentity();
+  const sorted = Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1)));
+  mkdirSync(join(target, AGENTS_ROOT), { recursive: true });
+  writeFileSync(join(target, MANIFEST_FILE), `${JSON.stringify({ package: name, version, files: sorted }, null, 2)}\n`);
+}
+
+function copyFile(target, path) {
+  const destination = join(target, path);
+  mkdirSync(dirname(destination), { recursive: true });
+  cpSync(join(PACKAGE_ROOT, path), destination);
+}
+
+function removeFile(target, path) {
+  rmSync(join(target, path));
+  const stop = join(target, AGENTS_ROOT);
+  let dir = dirname(join(target, path));
+  while (dir !== stop && readdirSync(dir).length === 0) {
+    rmdirSync(dir);
+    dir = dirname(dir);
+  }
+}
+
+function notOursLine(path, hasManifest) {
+  return hasManifest
+    ? `Kept ${path}: it belongs to this repository, so the package's file of that name is not installed; ` +
+        "rename yours and run vc-qa-agents again to have both."
+    : `Kept ${path}: it differs from the package's file and nothing records it as the package's; if it is a copy ` +
+        "from an earlier version, delete it and run vc-qa-agents again, and if it is yours, rename it to have both.";
+}
+
+function syncAgentFiles(target, forceOurs) {
+  const manifest = readManifest(target);
+  const recorded = manifest?.files ?? {};
+  const shipped = packageFiles();
+  const files = {};
+  const notes = [];
+  const counts = { added: 0, updated: 0, current: 0, adopted: 0, removed: 0, edited: 0 };
+  for (const path of shipped) {
+    const hash = hashOf(join(PACKAGE_ROOT, path));
+    const destination = join(target, path);
+    if (!existsSync(destination)) {
+      copyFile(target, path);
+      files[path] = hash;
+      counts.added += 1;
       continue;
     }
-    cpSync(source, join(target, ".claude", dir), {
-      recursive: true,
-      force: true,
-      filter: (path) => {
-        if (statSync(path).isFile()) {
-          copied.push(relative(PACKAGE_ROOT, path));
-        }
-        return true;
-      },
-    });
+    const current = hashOf(destination);
+    if (!Object.hasOwn(recorded, path)) {
+      if (manifest === null && current === hash) {
+        files[path] = hash;
+        counts.adopted += 1;
+      } else {
+        notes.push(notOursLine(path, manifest !== null));
+      }
+    } else if (current === hash) {
+      files[path] = hash;
+      counts.current += 1;
+    } else if (current === recorded[path] || forceOurs) {
+      copyFile(target, path);
+      files[path] = hash;
+      counts.updated += 1;
+    } else {
+      files[path] = recorded[path];
+      counts.edited += 1;
+      notes.push(
+        `Kept ${path}: edited since vc-qa-agents installed it, so the package's new version is not installed.`,
+      );
+    }
   }
-  return copied;
+  for (const path of Object.keys(recorded).filter((file) => !shipped.includes(file))) {
+    if (!existsSync(join(target, path))) {
+      continue;
+    }
+    if (hashOf(join(target, path)) === recorded[path] || forceOurs) {
+      removeFile(target, path);
+      counts.removed += 1;
+    } else {
+      files[path] = recorded[path];
+      counts.edited += 1;
+      notes.push(`Kept ${path}: the package no longer ships it, but it was edited since it was installed.`);
+    }
+  }
+  writeManifest(target, files);
+  const { name, version } = packageIdentity();
+  const adopted = counts.adopted > 0 ? `, ${counts.adopted} recorded from an earlier install` : "";
+  const lines = [
+    `Installed the QA agents of ${name} ${version} into .claude/ (agents, commands, skills, checks, hooks): ` +
+      `${counts.added} added, ${counts.updated} updated, ${counts.current} unchanged${adopted}, ` +
+      `${counts.removed} removed that the package no longer ships. ${MANIFEST_FILE} lists the package's files; ` +
+      "commit it with .claude/.",
+    ...notes,
+  ];
+  if (counts.edited > 0) {
+    lines.push(
+      `To take the package's version of the edited files: vc-qa-agents ${FORCE_OURS}. It replaces or removes only ` +
+        `files that ${MANIFEST_FILE} lists.`,
+    );
+  }
+  return lines;
 }
 
 function copyIfMissing(source, destination) {
@@ -79,10 +220,8 @@ function missingIgnores(target) {
   return GITIGNORE_LINES.filter((line) => !ignored.includes(line));
 }
 
-function install(target, written = []) {
-  const lines = [];
-  const copied = copyAgentFiles(target);
-  lines.push(`Copied ${copied.length} files into .claude/ (agents, commands, skills, checks, hooks).`);
+function install(target, { written = [], forceOurs = false } = {}) {
+  const lines = syncAgentFiles(target, forceOurs);
 
   const settings = join(target, ".claude", "settings.json");
   if (copyIfMissing(join(PACKAGE_ROOT, ".claude", "settings.json"), settings)) {
@@ -119,6 +258,38 @@ function install(target, written = []) {
   const packageDirs = [...new Set([ROOT_DIR, factsSuiteDir(target)])];
   if (!packageDirs.some((dir) => existsSync(join(target, dir, "node_modules", "@babel", "parser")))) {
     lines.push("The checks need @babel/parser: npm install --save-dev --save-exact @babel/parser");
+  }
+  return lines;
+}
+
+function uninstall(target) {
+  const manifest = readManifest(target);
+  if (manifest === null) {
+    return [`No ${MANIFEST_FILE}: nothing in .claude/ is recorded as the package's, so nothing was removed.`];
+  }
+  const kept = [];
+  let removed = 0;
+  for (const [path, hash] of Object.entries(manifest.files)) {
+    if (!existsSync(join(target, path))) {
+      continue;
+    }
+    if (hashOf(join(target, path)) === hash) {
+      removeFile(target, path);
+      removed += 1;
+    } else {
+      kept.push(`Kept ${path}: edited since vc-qa-agents installed it; delete it yourself if you do not need it.`);
+    }
+  }
+  removeFile(target, MANIFEST_FILE);
+  const lines = [`Removed ${removed} files of the QA agents from .claude/, and ${MANIFEST_FILE}.`, ...kept];
+  const settings = join(target, AGENTS_ROOT, "settings.json");
+  if (existsSync(settings) && hasHook(settings)) {
+    lines.push(
+      "Kept .claude/settings.json: remove from it the PreToolUse hook that runs .claude/hooks/readonly-shell.mts.",
+    );
+  }
+  if (existsSync(join(target, FACTS_FILE))) {
+    lines.push(`Kept ${FACTS_FILE} and the agents' working files under .qa/: delete them if you do not need them.`);
   }
   return lines;
 }
@@ -213,7 +384,7 @@ function copySuiteTemplate(target, suiteDir) {
 function suiteDirOf(options) {
   const [dir, extra] = options.filter((option) => !option.startsWith("--"));
   if (extra !== undefined) {
-    throw new Error("usage: vc-qa-agents init [<suite directory>] [--skip-install]");
+    throw new Error(USAGE);
   }
   const plain = (dir ?? ROOT_DIR).replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
   if (plain === "" || plain === ROOT_DIR) {
@@ -283,7 +454,7 @@ function installDependencies(target) {
   run("npx playwright install chromium", target);
 }
 
-function init(target, { skipInstall, suiteDir }) {
+function init(target, { skipInstall, suiteDir, forceOurs }) {
   const lines = [];
   const suite = join(target, suiteDir);
   const { written, kept } = copySuiteTemplate(target, suiteDir);
@@ -306,7 +477,7 @@ function init(target, { skipInstall, suiteDir }) {
         "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
     );
   }
-  lines.push(...install(target, written));
+  lines.push(...install(target, { written, forceOurs }));
   lines.push(
     "",
     "Next:",
@@ -324,12 +495,29 @@ function init(target, { skipInstall, suiteDir }) {
   return lines;
 }
 
-const [command, ...options] = process.argv.slice(2);
+function parseArguments(args) {
+  const [first, ...rest] = args;
+  const command = first === "init" || first === "uninstall" ? first : "install";
+  const options = command === "install" ? args : rest;
+  const flags = options.filter((option) => option.startsWith("--"));
+  const unknown = flags.filter((flag) => !FLAGS[command].includes(flag));
+  if (unknown.length > 0 || (command !== "init" && flags.length !== options.length)) {
+    throw new Error(USAGE);
+  }
+  return { command, options };
+}
+
+function main(target, { command, options }) {
+  readManifest(target);
+  const forceOurs = options.includes(FORCE_OURS);
+  if (command === "init") {
+    return init(target, { skipInstall: options.includes("--skip-install"), suiteDir: suiteDirOf(options), forceOurs });
+  }
+  return command === "uninstall" ? uninstall(target) : install(target, { forceOurs });
+}
+
 try {
-  const lines =
-    command === "init"
-      ? init(process.cwd(), { skipInstall: options.includes("--skip-install"), suiteDir: suiteDirOf(options) })
-      : install(process.cwd());
+  const lines = main(process.cwd(), parseArguments(process.argv.slice(2)));
   for (const line of lines) {
     process.stdout.write(`${line}\n`);
   }

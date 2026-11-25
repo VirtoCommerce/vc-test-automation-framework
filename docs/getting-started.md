@@ -15,7 +15,8 @@ npx vc-qa-agents init
 
 It adds the scripts to `package.json`, installs the peer dependencies and Chromium, and installs the
 [QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the suite. It never overwrites a file that
-exists; `--skip-install` leaves the dependencies out.
+exists, nor an agent, command or skill of the repository's own (see
+[Update and remove](guides/qa-agents.md#update-and-remove)); `--skip-install` leaves the dependencies out.
 
 | Path                      | Holds                                                                               |
 | ------------------------- | ----------------------------------------------------------------------------------- |

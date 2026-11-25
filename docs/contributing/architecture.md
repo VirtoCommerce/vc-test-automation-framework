@@ -11,7 +11,7 @@
 | `.biome/`        | The shared Biome configuration and the area boundaries                                     |
 | `.claude/`       | The QA agents, their commands, skills, check scripts and hook, shipped with the package    |
 | `.qa/`           | The facts the QA agents work from, and the example that the package ships                  |
-| `bin/`           | `vc-qa-agents`, which installs the QA agents into a repository                             |
+| `bin/`           | `vc-qa-agents`, which installs, updates and removes the QA agents of a repository          |
 | `scripts/`       | Repository scripts, such as the documentation check                                        |
 | `tools/`         | Tools with their own dependencies, such as TypeDoc                                         |
 

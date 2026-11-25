@@ -18,13 +18,42 @@ npm install --save-dev --save-exact @babel/parser
 npx vc-qa-agents
 ```
 
-`vc-qa-agents` copies the agents, commands, skills, check scripts and hook into `.claude/`, replacing the copies of
-an earlier version. It creates `.claude/settings.json` with the read-only shell hook and `.qa/project.json` from an
-example, but never changes either one once it exists, and it lists the `.gitignore` entries that are missing. Run it
-again after you upgrade the package. Commit `.claude/` and `.qa/project.json`; the other files under `.qa/` are the
+`vc-qa-agents` copies the agents, commands, skills, check scripts and hook into `.claude/`, next to the repository's
+own agents, commands and skills, and records each file it installed, with a hash of its content, in
+`.claude/.vc-qa-agents.json`. It creates `.claude/settings.json` with the read-only shell hook and `.qa/project.json`
+from an example, but never changes either one once it exists, and it lists the `.gitignore` entries that are missing.
+Commit `.claude/` with `.claude/.vc-qa-agents.json`, and `.qa/project.json`; the other files under `.qa/` are the
 agents' working files.
 
 The check scripts are TypeScript, run by Node 22.18 or newer without a build, and parse specs with `@babel/parser`.
+
+### Update and remove
+
+Run `npx vc-qa-agents` again after you upgrade the package. `.claude/.vc-qa-agents.json` tells it which files are the
+package's, and it decides for each file of the new version:
+
+| The file in `.claude/`                                     | `vc-qa-agents`                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------- |
+| Does not exist                                             | Copies it and records it                                |
+| Is listed and unchanged since it was installed             | Replaces it with the new version                        |
+| Is listed and was edited since it was installed            | Keeps it and names it; `--force-ours` replaces it       |
+| Is not listed: the repository's own, such as its own `/qa` | Keeps it, under any option, and names it                |
+| Is listed, but the new version no longer ships it          | Removes it when unchanged; keeps and names it if edited |
+
+A difference in line endings alone is not an edit. A file of the repository is never replaced or removed, and the
+package's file of the same name is then not installed: rename the repository's file and run the command again to have
+both. `npx vc-qa-agents --force-ours` takes the package's version of the files it installed that were edited since: it
+replaces them, removes those the new version no longer ships, and touches no file the manifest does not list.
+
+A repository whose agents were installed by a version that wrote no manifest gets one on its first update: the files
+equal to the new version's are recorded as the package's, and every other file of the same name is kept and named, as
+it may be the repository's own or a copy of an earlier version. Delete a copy you know is the package's and run the
+command again to get the new version.
+
+To remove the agents, run `npx vc-qa-agents uninstall`. It removes the files the manifest lists that are unchanged since
+they were installed, the directories left empty, and the manifest itself; it names the edited files it kept, and
+touches no other file in `.claude/`. It keeps `.claude/settings.json`, from which you remove the read-only shell hook,
+and `.qa/`.
 
 ## Describe your repository
 

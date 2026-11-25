@@ -18,6 +18,7 @@ const USAGE =
   "vc-qa-agents uninstall";
 const FLAGS = { install: [FORCE_OURS], init: ["--skip-install", FORCE_OURS], uninstall: [] };
 const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
+const GUARD_FILES = [HOOK_SCRIPT, ".claude/checks/readonly-shell.mts"];
 const MCP_FILE = ".mcp.json";
 const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
@@ -120,12 +121,12 @@ function notOursLine(path, hasManifest) {
         "from an earlier version, delete it and run vc-qa-agents again, and if it is yours, rename it to have both.";
 }
 
-function earlierNameOf(path) {
+function earlierEntryOf(path) {
   const [root, dir, name, ...rest] = path.split("/");
   if (!RENAMED_DIRS.includes(dir) || !name.startsWith(NAME_PREFIX)) {
     return undefined;
   }
-  return { entry: [root, dir, name.slice(NAME_PREFIX.length)].join("/"), rest, current: [root, dir, name].join("/") };
+  return [root, dir, name.slice(NAME_PREFIX.length)].join("/") + (rest.length > 0 ? "/" : "");
 }
 
 function laterNameOf(path, shipped) {
@@ -135,23 +136,31 @@ function laterNameOf(path, shipped) {
 }
 
 function earlierNameLines(target, shipped) {
-  const lines = new Map();
-  for (const path of shipped) {
-    const earlier = earlierNameOf(path);
-    if (earlier === undefined || !existsSync(join(target, earlier.entry))) {
-      continue;
-    }
-    const isDir = earlier.rest.length > 0;
-    const entry = isDir ? `${earlier.entry}/` : earlier.entry;
-    const current = isDir ? `${earlier.current}/` : earlier.current;
-    lines.set(
-      entry,
-      `Kept ${entry}: versions before the ${NAME_PREFIX} prefix shipped it under this name, now ${current}, and ` +
-        "nothing records it as the package's; if it is a copy from an earlier version, delete it, and if it is yours, " +
-        "keep it.",
-    );
+  const entries = [
+    ...new Set(shipped.map(earlierEntryOf).filter((entry) => entry !== undefined && existsSync(join(target, entry)))),
+  ];
+  if (entries.length === 0) {
+    return [];
   }
-  return [...lines.values()];
+  return [
+    `Kept ${entries.length} agents, commands and skills under the names they had before the ${NAME_PREFIX} prefix, which ` +
+      `nothing records as the package's: ${entries.join(", ")}. The package ships each as ${NAME_PREFIX}<name>; delete ` +
+      "the ones that are copies of an earlier version, and keep yours.",
+  ];
+}
+
+function guardLines(target) {
+  const differing = GUARD_FILES.filter(
+    (path) => existsSync(join(target, path)) && hashOf(join(target, path)) !== hashOf(join(PACKAGE_ROOT, path)),
+  );
+  if (differing.length === 0) {
+    return [];
+  }
+  return [
+    `Not the package's version: ${differing.join(", ")}. The read-only agents are restricted only by the package's ` +
+      "hook, so until these are replaced they may run commands and write files it would refuse: delete a copy of an " +
+      `earlier version and run vc-qa-agents again, or use ${FORCE_OURS} on a file ${MANIFEST_FILE} lists.`,
+  ];
 }
 
 function syncAgentFiles(target, forceOurs) {
@@ -213,6 +222,7 @@ function syncAgentFiles(target, forceOurs) {
   if (manifest === null) {
     notes.push(...earlierNameLines(target, shipped));
   }
+  notes.push(...guardLines(target));
   writeManifest(target, files);
   const { name, version } = packageIdentity();
   const adopted = counts.adopted > 0 ? `, ${counts.adopted} recorded from an earlier install` : "";

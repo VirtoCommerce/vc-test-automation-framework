@@ -10,6 +10,8 @@ const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
 const AGENTS_ROOT = ".claude";
 const MANIFEST_FILE = ".claude/.vc-qa-agents.json";
 const AGENT_PATH = new RegExp(`^\\.claude/(${AGENT_DIRS.join("|")})/[^/]+(/[^/]+)*$`);
+const RENAMED_DIRS = ["agents", "commands", "skills"];
+const NAME_PREFIX = "vc-";
 const FORCE_OURS = "--force-ours";
 const USAGE =
   "usage: vc-qa-agents [--force-ours] | vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] | " +
@@ -118,6 +120,40 @@ function notOursLine(path, hasManifest) {
         "from an earlier version, delete it and run vc-qa-agents again, and if it is yours, rename it to have both.";
 }
 
+function earlierNameOf(path) {
+  const [root, dir, name, ...rest] = path.split("/");
+  if (!RENAMED_DIRS.includes(dir) || !name.startsWith(NAME_PREFIX)) {
+    return undefined;
+  }
+  return { entry: [root, dir, name.slice(NAME_PREFIX.length)].join("/"), rest, current: [root, dir, name].join("/") };
+}
+
+function laterNameOf(path, shipped) {
+  const [root, dir, name, ...rest] = path.split("/");
+  const later = [root, dir, `${NAME_PREFIX}${name}`, ...rest].join("/");
+  return RENAMED_DIRS.includes(dir) && shipped.includes(later) ? later : undefined;
+}
+
+function earlierNameLines(target, shipped) {
+  const lines = new Map();
+  for (const path of shipped) {
+    const earlier = earlierNameOf(path);
+    if (earlier === undefined || !existsSync(join(target, earlier.entry))) {
+      continue;
+    }
+    const isDir = earlier.rest.length > 0;
+    const entry = isDir ? `${earlier.entry}/` : earlier.entry;
+    const current = isDir ? `${earlier.current}/` : earlier.current;
+    lines.set(
+      entry,
+      `Kept ${entry}: versions before the ${NAME_PREFIX} prefix shipped it under this name, now ${current}, and ` +
+        "nothing records it as the package's; if it is a copy from an earlier version, delete it, and if it is yours, " +
+        "keep it.",
+    );
+  }
+  return [...lines.values()];
+}
+
 function syncAgentFiles(target, forceOurs) {
   const manifest = readManifest(target);
   const recorded = manifest?.files ?? {};
@@ -167,8 +203,15 @@ function syncAgentFiles(target, forceOurs) {
     } else {
       files[path] = recorded[path];
       counts.edited += 1;
-      notes.push(`Kept ${path}: the package no longer ships it, but it was edited since it was installed.`);
+      const later = laterNameOf(path, shipped);
+      notes.push(
+        `Kept ${path}: the package no longer ships it, but it was edited since it was installed.` +
+          (later === undefined ? "" : ` The package now ships it as ${later}.`),
+      );
     }
+  }
+  if (manifest === null) {
+    notes.push(...earlierNameLines(target, shipped));
   }
   writeManifest(target, files);
   const { name, version } = packageIdentity();
@@ -490,7 +533,7 @@ function init(target, { skipInstall, suiteDir, forceOurs }) {
     "  4. npm run report && npm run report:open",
     "  5. Replace the example accounts and tracker in .qa/project.json; node .claude/checks/project-facts.mts must pass.",
     "  6. node .claude/checks/browser-secrets.mts writes the passwords the browser server types (.qa/browser-secrets.local.env,",
-    "     git-ignored), then start claude, approve the playwright server and run /qa <task>.",
+    "     git-ignored), then start claude, approve the playwright server and run /vc-qa <task>.",
   );
   return lines;
 }

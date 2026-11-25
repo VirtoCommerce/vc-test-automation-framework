@@ -145,7 +145,9 @@ await expect.poll(() => cart.totalAmount()).toBeLessThan(before);
 5. Web-first assertions; no `waitForTimeout`, no `networkidle`, no `expect(await locator.isVisible())`.
 6. Data from `dataset`, changes through `arrange`, as the identity the browser is.
 7. Platform defects: a confirmed defect is a known issue (`framework-rules`, Platform Defects); a new one stays failing.
-8. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
+8. Under a contract, a test's title starts with its case id (`C-01 …`), and each row of a table-driven test carries its
+   own case id in its title: `contract.mts check --implemented` finds a case's tests by it.
+9. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify
 

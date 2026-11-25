@@ -47,7 +47,9 @@ Skill `plan-test-strategy` holds the matrix method. In short:
   the UI keeps only what only the UI shows.
 - Search existing specs first and name what is already covered. Reuse documents, generated types, page objects,
   `arrange` methods, builders and dataset records; add only what is missing.
-- Mark a flow listed in `critical` as such. A case whose correct behaviour the platform is known to break goes under
+- Name the flow of `critical` a case belongs to in `Critical flow`, and state in `Parameters` every request parameter
+  whose value changes the answer (a quantity, a page size, a filter, a culture) with the value the case sends.
+  A case whose correct behaviour the platform is known to break goes under
   `## Platform defects` with the defect and its tracker link, or `no ticket yet`: its test asserts the correct
   behaviour and stays failing.
 - **Every oracle names its source**: `ticket:`, `doc:`, `schema:` or `observed:`. Never invent an expected value.
@@ -69,6 +71,11 @@ run is unattended), write every question as an `assumed: <what>` line and list t
 
 Use skill `plan-implementation`: its `contract-template.md` is the shape. Save to
 `.qa/contracts/<ticket-key-or-slug>.md`.
+
+Write what the search found under `## Existing coverage`. A `## Source` line that names a report or a snapshot under
+`.qa/reports/` or `.qa/kb/` ends with the day you read it. Before you ask for approval read each of those files
+again: the check refuses a file that changed after its date, and a claim about local state you made earlier is not
+evidence.
 
 Run `node .claude/checks/contract.mts check <file>`. It prints `ok <file>` or one line per problem. Fix the
 contract, never the facts, until it prints `ok`. When the only lines left are `no recorded value` ones, stop and reply

@@ -30,7 +30,7 @@ Read each target file completely, plus what it depends on:
       whose answer is the assertion); `expect` sits in `assert:` steps, or in an `arrange:` step that checks a
       precondition. No hand-written `cleanup:` steps.
 - [ ] Setup in the test body through `arrange`; a `beforeEach` only for what every test of the describe shares.
-- [ ] Titles say what happens in plain words; one behaviour per test.
+- [ ] Titles say what happens in plain words, a contract case's id first (`C-01 …`); one behaviour per test.
 - [ ] No conditionals or `as` casts; repeated cases are one table-driven test (rows may hold small lambdas). A read
       several tests of the file repeat is a `function` declaration at the end of the spec; one several specs need
       belongs in `support/`, setup several specs need in `arrange`.

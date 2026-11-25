@@ -18,9 +18,16 @@ Take the case matrix from `plan-test-strategy`. If it does not exist yet, run th
 Copy `contract-template.md` (next to this file) to `.qa/contracts/<ticket-key-or-slug>.md`, which is git-ignored, and
 fill every section:
 
-- **Source**: first line `ticket: <key>`, `doc: <link>`, `area: <name>` or `gap: <id>`.
+- **Source**: first line `ticket: <key>`, `doc: <link>`, `area: <name>` or `gap: <id>`. A line that names a file under
+  `.qa/reports/` or `.qa/kb/` (the explorer report, the card) ends with the day you read it, `(<yyyy-mm-dd>)`. The check
+  refuses a missing date and a file that changed after it; read these files again before you ask for approval, never
+  rely on what an earlier step told you about them.
 - **Scope** and **Out of scope**: what is tested, and what is not and why.
-- **Cases**: the matrix. Every oracle starts with `ticket:`, `doc:`, `schema:` or `observed:`; every data role is a
+- **Existing coverage**: the specs that already cover a criterion and the building blocks that exist (`plan-test-strategy`
+  Step 2), or `None found` and what you searched.
+- **Cases**: the matrix. `Critical flow` is a flow of `critical` in the facts, or `no`. `Parameters` states every request
+  parameter whose value changes the answer (a quantity, a page size, a filter, a sort, a culture, a currency, a store)
+  with the value the case sends, or `none`. Every oracle starts with `ticket:`, `doc:`, `schema:` or `observed:`; every data role is a
   role from the facts or `none`. An `observed:` part holds a value the explorer recorded and its report,
   `observed: <value> (.qa/reports/explore-<slug>-observed.md)`, the value exactly as the report's line
   `- <case id>: <value> (` has it (in double quotes when it holds `;`, a `|` written `\|`). The check refuses one
@@ -52,8 +59,11 @@ Fix the contract until it passes; never edit the facts to make it pass.
 
 ## Step 5: Amendments
 
-When implementation shows the contract is wrong, the implementer stops and adds an `## Amendments` entry. It counts
-only with an `Approved: <who>, <date>` line; an unapproved amendment fails the check. The base contract's approval is
+When implementation shows the contract is wrong, the implementer stops the cases concerned and adds an `## Amendments`
+entry: a `Cases:` line with the case ids it touches, a `Changes:` line with the assertion, oracle or building block
+that changes (from and to), a `Drops:` line with the cases no test will cover when it drops one, and the reason. It
+counts only with an `Approved: <who>, <date>` line; an unapproved amendment, or one without `Cases:` and `Changes:`,
+fails the check. The base contract's approval is
 one such line under `## Approval`. Either line may end `(relayed: "<the person's words>")`. Only a person writes it,
 or a session quoting the person's words verbatim (several lines joined with " / "); the planner and the implementer
 never write it.

@@ -61,6 +61,8 @@ seed once with `commands.seed` before the first run and after a change to the se
   setup that several specs need becomes an `arrange` method.
 - No raw selectors in specs. Add them to the page objects.
 - Place a test by the platform module that owns the behaviour, not by the noun in its title.
+- Under a contract, a test's title starts with its case id (`C-01 …`), and each row of a table-driven test carries its
+  own case id in its title: `contract.mts check --implemented` finds a case's tests by it.
 
 ## Layers and Imports
 

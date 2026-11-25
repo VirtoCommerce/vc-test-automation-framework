@@ -54,6 +54,10 @@ A criterion already covered is listed as covered, not planned again.
      source of roles. A role in `roles` without an entry has an unknown permission set, never an empty one, and is
      never "a role without P". Use it only when the person confirms. A case that changes a role or a permission
      plans a new sign-in before checking its effect.
+   - **Critical flow**: the flow of `critical` in the facts the case belongs to, or `no`.
+   - **Parameters**: every request parameter whose value changes the answer (a quantity, a page size, a filter, a sort, a
+     culture, a currency, a store) and the value this case sends, or `none`. A case that does not state them cannot be
+     implemented without a guess.
    - **Oracle**: where the expected value comes from, written `ticket:`, `doc:`, `schema:` or `observed:` followed by
      the criterion, page or field. If the only source is what the stand did, the oracle is `observed:` and the case goes
      under `## Observed only`. An `observed:` oracle holds the value the explorer recorded on the stand, with its
@@ -72,15 +76,15 @@ break. This feeds Stand needs, Building blocks and Platform defects in the contr
 The matrix, in the contract's columns, with the existing coverage above it:
 
 ```markdown
-## Existing Coverage
+## Existing coverage
 - Covered: <criterion> by <spec file>
 - Reusable building blocks: <names>
 - Gaps: <what is missing>
 
 ## Cases
-| Case | Technique | Project | Data role | Oracle |
-|---|---|---|---|---|
-| C-01 <what it shows> | boundary value analysis | <project> | <role or none> | ticket: <criterion> |
+| Case | Technique | Project | Data role | Critical flow | Parameters | Oracle |
+|---|---|---|---|---|---|---|
+| C-01 <what it shows> | boundary value analysis | <project> | <role or none> | <flow or no> | <values that change the answer, or none> | ticket: <criterion> |
 ```
 
 Then `plan-implementation` turns it into the contract file.

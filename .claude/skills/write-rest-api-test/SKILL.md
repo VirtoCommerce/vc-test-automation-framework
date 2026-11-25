@@ -111,12 +111,12 @@ for an endpoint that answers 404). Prove a deletion by id, never with a search.
 
 ```ts
 const INVALID_FOLDER_NAMES = [
-  { title: "whitespace only", name: " ", reason: "Folder name must not be empty" },
-  { title: "too long", name: "a".repeat(300), reason: "Maximum length is 63" },
+  { id: "C-04", title: "whitespace only", name: " ", reason: "Folder name must not be empty" },
+  { id: "C-05", title: "too long", name: "a".repeat(300), reason: "Maximum length is 63" },
 ] as const;
 
-for (const { title, name, reason } of INVALID_FOLDER_NAMES) {
-  test(`reject a folder name that is ${title}`, async ({ api, store }) => { … });
+for (const { id, title, name, reason } of INVALID_FOLDER_NAMES) {
+  test(`${id} reject a folder name that is ${title}`, async ({ api, store }) => { … });
 }
 ```
 
@@ -162,7 +162,9 @@ Never `toEqual([...])` on a whole search result: other tests create data in para
 6. Bodies typed with `@rest/generated/platform.ts`; success bodies through `expectOk().json<T>()`.
 7. Missing data fails loudly: `requireFields(value, [...], label)`, never `?? ""` or `?? []`.
 8. No sleeps; index lag is waited for in `arrange` or with `INDEX_LAG_TIMEOUT_MS`.
-9. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
+9. Under a contract, a test's title starts with its case id (`C-01 …`), and each row of a table-driven test carries its
+   own case id in its title: `contract.mts check --implemented` finds a case's tests by it.
+10. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify
 

@@ -177,15 +177,15 @@ import { ROLE_ACCOUNT } from "@dataset/users.ts";
 import { expect, test } from "@fixtures";
 
 const INVALID_FOLDER_NAMES = [
-  { title: "whitespace only", name: " ", reason: "<reason the oracle names>" },
-  { title: "too long", name: "a".repeat(300), reason: "<reason the oracle names>" },
+  { id: "C-04", title: "whitespace only", name: " ", reason: "<reason the oracle names>" },
+  { id: "C-05", title: "too long", name: "a".repeat(300), reason: "<reason the oracle names>" },
 ] as const;
 
 test.describe("content validation (<role>)", () => {
   test.use({ user: ROLE_ACCOUNT });
 
-  for (const { title, name, reason } of INVALID_FOLDER_NAMES) {
-    test(`reject a folder name that is ${title}`, async ({ api, store }) => {
+  for (const { id, title, name, reason } of INVALID_FOLDER_NAMES) {
+    test(`${id} reject a folder name that is ${title}`, async ({ api, store }) => {
       await test.step(`act and assert: creating the folder is rejected with "${reason}"`, async () => {
         const response = await api.post(`${contentPath("pages", store.id)}/folder`, { json: { name, type: "folder" } });
         expect(response.status).toBe(400);
@@ -226,7 +226,9 @@ sleep.
 6. Removal registered by `arrange`.
 7. No credentials, tokens or keys as literals; no request outside the stand; no sleeps.
 8. No conditionals or `as` casts in the spec; constants at module level in `UPPER_SNAKE_CASE`.
-9. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
+9. Under a contract, a test's title starts with its case id (`C-01 …`), and each row of a table-driven test carries its
+   own case id in its title: `contract.mts check --implemented` finds a case's tests by it.
+10. Style (comments, naming, wording) comes from the repository's `CLAUDE.md`.
 
 ## Verify
 

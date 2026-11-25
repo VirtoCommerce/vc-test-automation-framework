@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
+import { crossCheck, placeholderProblems, readSuiteWorld } from "./facts-consistency.mts";
+
 export type Route = "command" | "cli" | "api" | "mcp" | "paste";
 
 export const ROLE_PURPOSES = ["admin", "customer", "otherCustomer"] as const;
@@ -11,11 +13,11 @@ export type ProjectFacts = {
   suiteDir: string;
   tracker: { kind: string; keyPattern: string; acceptanceCriteriaField?: string; routes: Route[] };
   docSources: { name: string; route: Route; where: string }[];
-  commands: { typecheck: string; lint: string; seed?: string; test: Record<string, string> };
+  commands: { typecheck: string; lint?: string; seed?: string; test: Record<string, string> };
   critical: string[];
   knowledgeDir: string;
   roles: Record<string, string>;
-  roleFor: { admin: string; customer: string; otherCustomer?: string };
+  roleFor: { admin?: string; customer: string; otherCustomer?: string };
   rolePermissions?: Record<string, string[]>;
   passwordFor?: Record<string, string>;
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
@@ -196,10 +198,11 @@ function parseDocSources(value: unknown): ProjectFacts["docSources"] {
 
 function parseCommands(value: unknown): ProjectFacts["commands"] {
   const commands = asRecord(value, "commands");
+  const lint = commands["lint"];
   const seed = commands["seed"];
   return {
     typecheck: asString(present(commands, "typecheck", "commands.typecheck"), "commands.typecheck"),
-    lint: asString(present(commands, "lint", "commands.lint"), "commands.lint"),
+    ...(lint === undefined ? {} : { lint: asString(lint, "commands.lint") }),
     ...(seed === undefined ? {} : { seed: asString(seed, "commands.seed") }),
     test: asStringMap(present(commands, "test", "commands.test"), "commands.test"),
   };
@@ -225,7 +228,8 @@ function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFac
   }
   const role = (purpose: RolePurpose): string =>
     asRoleName(present(roleFor, purpose, `roleFor.${purpose}`), `roleFor.${purpose}`, roles);
-  const parsed = { admin: role("admin"), customer: role("customer") };
+  const admin = roleFor["admin"] === undefined ? {} : { admin: role("admin") };
+  const parsed = { ...admin, customer: role("customer") };
   if (roleFor["otherCustomer"] === undefined) {
     return parsed;
   }
@@ -483,7 +487,16 @@ export function readProjectFactsIn(projectDir: string): ProjectFacts {
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
-    process.stdout.write(`${JSON.stringify(readProjectFacts(), null, 2)}\n`);
+    const facts = readProjectFacts();
+    const { problems, notes } = crossCheck(facts, await readSuiteWorld(process.cwd(), facts.suiteDir));
+    for (const note of notes) {
+      process.stderr.write(`project-facts: ${note}\n`);
+    }
+    const refused = [...placeholderProblems(facts), ...problems];
+    if (refused.length > 0) {
+      throw new Error(refused.map((problem) => `project.json: ${problem}`).join("\n"));
+    }
+    process.stdout.write(`${JSON.stringify(facts, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

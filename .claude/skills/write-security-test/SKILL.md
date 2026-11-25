@@ -230,7 +230,7 @@ sleep.
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["restapi"]` or `commands.test["graphql"]` (or
+Run `commands.typecheck`, `commands.lint` (when the facts have one) and `commands.test["restapi"]` or `commands.test["graphql"]` (or
 `["isolated"]` for an isolated spec) from the project facts on the changed spec, with the run record the expert agent
 describes.
 

@@ -102,7 +102,7 @@ under test.
 
 ### Step 7: Code Quality
 
-- [ ] The facts' `commands.typecheck` and `commands.lint` pass. The dispatcher runs them; the reviewer's shell is
+- [ ] The facts' `commands.typecheck` and `commands.lint` (when the facts have one) pass. The dispatcher runs them; the reviewer's shell is
       read-only, so the reviewer reports them as not checked.
 - [ ] No `any`, no `!`, no floating promises, no unused imports.
 - [ ] Named and exported functions are `function` declarations; arrows only for inline callbacks.
@@ -142,7 +142,7 @@ Playwright project in the contract's case rows, with `<specs>` the changed spec 
    also not done.
 3. Do not read the author's own `list.<project>.json` as the truth: it is theirs.
 4. Your read-only shell cannot run typecheck and lint. Say in the Summary that they were not checked and name
-   `commands.typecheck` and `commands.lint` from the facts for the dispatcher to run; a diff that is clearly
+   `commands.typecheck` and `commands.lint` (if the facts have one) for the dispatcher to run; a diff that is clearly
    type-unsafe (`any`, `!`, floating promises) is a finding on its own.
 
 5. Shape and duration of every new or changed test, with `<specs>` the changed spec files and `<project>` each

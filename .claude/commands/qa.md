@@ -143,7 +143,7 @@ framework rules and style only. After a heal whose guard ran clean, add the line
 `healer: <baseline tree id> <new tree id>` (the `healed tree` the guard recipe printed). The reviewer spares only the
 hunks of `git diff <baseline tree id> <new tree id>` under the healer paths from the scope rule, so an expert's own
 change in a healed file stays in scope. Without a clean guard, send no such line. Its shell is read-only, so run
-`commands.typecheck` and `commands.lint` from `node .claude/checks/project-facts.mts` yourself and report the result
+`commands.typecheck` and `commands.lint` (when the facts have one) from `node .claude/checks/project-facts.mts` yourself and report the result
 with the review. A failing typecheck or lint means the work is not done, whatever the verdict.
 For a pull request, fetch the diff and metadata with `gh` and pass them as files.
 
@@ -153,4 +153,4 @@ End with what ran and what is left: the flow, the contract path, the run record 
 skip's reason and every platform-defect failure with its case, the judge verdict, the review verdict, and anything
 awaiting a person (an approval, an amendment, a second judge failure, a guard finding). Say "not done" for any stage
 that did not run. Say "ready to commit" only when the contract is approved, the run was done, the judge passed, the
-review approved and typecheck and lint are clean.
+review approved and typecheck and lint (when the facts have one) are clean.

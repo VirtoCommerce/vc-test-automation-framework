@@ -79,11 +79,11 @@ platform directly with the generated types.
 
 ## Definition of Done
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["<project>"]` from the facts, never rebuilt from
+Run `commands.typecheck`, `commands.lint` (if any) and `commands.test["<project>"]` from the facts, never rebuilt from
 `package.json`. The run record's names and the series commands are in `project-facts` ("Hand-off Paths"). Create
 `.qa/runs/<contract-name>/` (git-ignored).
 
-1. Typecheck and lint are clean, and `node .claude/checks/test-shape.mts <specs>` has no finding in a test you
+1. Typecheck and lint (if the facts have one) are clean, and `node .claude/checks/test-shape.mts <specs>` has no finding in a test you
    added or changed: fix each such finding by splitting or simplifying the test, never by editing the limits. A
    finding in a test you did not touch is "already there": report it, never change it.
 2. For each Playwright project the specs belong to, run the stable series on the new and changed specs
@@ -98,8 +98,7 @@ Run `commands.typecheck`, `commands.lint` and `commands.test["<project>"]` from 
    option or the stand profile. A skip with no reason is a failure.
 5. When the stand is not reachable, report the run as not done and leave no run record. Never write one by hand.
 
-Fix every type error, lint finding and failing test your change caused before reporting. A failure you cannot
-fix without changing an expectation goes into the report as a finding.
+Fix every type error, lint finding and failing test your change caused before reporting.
 
 ## Report
 
@@ -111,8 +110,7 @@ approval; findings. End with
 ## Example from this repository
 
 - Test projects, the keys of `commands.test`: `restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`, `unit`. Specs
-  live in `virtocommerce/tests/` (`restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/`, `isolated/`). A spec of
-  the `isolated` project is tagged `DESTRUCTIVE_TAG` and runs only with `RUN_DESTRUCTIVE_TESTS=true`.
+  live in `virtocommerce/tests/` (`restapi/`, `graphql/`, `e2e/frontend/`, `e2e/backend/`, `isolated/`).
 - `roleFor.admin` is `store administrator`: its case writes `test.use({ user: STORE_ADMINISTRATOR })` from
   `@dataset/users.ts`; another role's account goes through `credentialsOf("<account>")` from the same file.
 - New dataset records need `npm run seed:vc` and a reindex before the specs that read them can pass.

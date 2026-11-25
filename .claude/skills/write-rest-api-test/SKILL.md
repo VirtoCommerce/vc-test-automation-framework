@@ -76,8 +76,9 @@ async function pricelistOf(api: HttpClient, id: string): Promise<Pricelist | und
   `(customer of their own)`.
 - `test.use({ user: <Credentials> })` signs `api` in; the account is `roles["<role>"]` from the project facts. Without
   it `api` is anonymous. `http` is always anonymous; `signIn(credentials)` returns a client signed in as another
-  user in the same test. An administration test runs as `roles[roleFor.admin]`.
-- `arrange` creates as `roleFor.admin` and removes the data after the test.
+  user in the same test. An administration test runs as `roles[roleFor.admin]`; the facts may name none: ask who administers.
+- `arrange` creates as the suite's administrator (`roleFor.admin`, if the facts have one) and removes the data after
+  the test.
 - When the create is the action under test, build the draft (`newX()` sets a client-side `id`) and register the
   `…Later` removal before the call. When the platform assigns the id, register it right after the act.
 - Paths are module-level constants (`PRICELISTS_PATH`). A read several tests repeat is a `function` declaration at the
@@ -165,7 +166,7 @@ Never `toEqual([...])` on a whole search result: other tests create data in para
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["restapi"]` (the REST project's key) from the project facts
+Run `commands.typecheck`, `commands.lint` (when the facts have one) and `commands.test["restapi"]` (the REST project's key) from the project facts
 on the changed spec, with the run record the expert agent describes.
 
 ## Example from this repository

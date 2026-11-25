@@ -149,7 +149,7 @@ await expect.poll(() => cart.totalAmount()).toBeLessThan(before);
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["<browser project>"]` from the project facts on the
+Run `commands.typecheck`, `commands.lint` (when the facts have one) and `commands.test["<browser project>"]` from the project facts on the
 changed spec, with the run record the expert agent describes. Add `--headed --workers=1` to watch a run.
 
 ## Example from this repository

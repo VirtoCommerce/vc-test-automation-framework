@@ -36,7 +36,7 @@ fill every section:
 - **Platform defects**: each case whose correct behaviour the platform is known to break, with the defect and its
   tracker link, or `no ticket yet`; `None` when there is none. Its test asserts the correct behaviour and stays
   failing, with the link as an `issue` annotation.
-- **Verification**: the typecheck, lint and test commands from the facts, then the commands that run the new specs.
+- **Verification**: the typecheck, lint (when the facts have one) and test commands from the facts, then the commands that run the new specs.
 
 ## Step 3: Order the Building Blocks
 

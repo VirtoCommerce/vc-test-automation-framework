@@ -168,7 +168,7 @@ locator.filter({ hasText: exactText(name) });
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["<browser project>"]` from the project facts on a spec
+Run `commands.typecheck`, `commands.lint` (when the facts have one) and `commands.test["<browser project>"]` from the project facts on a spec
 that uses the page object. Run the spec with each relevant setting value when the page object branches on it.
 
 ## Example from this repository

@@ -74,8 +74,10 @@ seed once with `commands.seed` before the first run and after a change to the se
 - Read seeded data from the dataset; a spec may name a dataset id as a constant. Create what the test changes with
   `arrange`, which removes it after the test, last first, so tests have no teardown code.
 - A test that changes the acting customer's own state (cart, lists, addresses, locks) uses a customer created for the
-  test, never a dataset user.
-- REST administration tests run as `roleFor.admin`, the role the project facts name for administration. A test that
+  test, never a dataset user: `shopperAs: "customer"` or an `arrange` customer method, if the suite has them; where it
+  has neither, add the `arrange` method that creates the customer (below).
+- REST administration tests run as `roleFor.admin`, the role the project facts name for administration; the facts may
+  name none, and then who administers is a scope question for the person. A test that
   locks, deletes or changes the password of the acting user creates its own user through `arrange`.
 - When the create is the action under test, register its removal with the `…Later` method of `arrange`: before the
   act when a builder gave the draft a client-side id the platform keeps, right after the act when the platform assigns
@@ -106,8 +108,10 @@ seed once with `commands.seed` before the first run and after a change to the se
 ## Waiting
 
 - Index-backed reads lag. Wait in `arrange` through its index-wait methods. In an assertion, use
-  `expect.poll(…, { timeout: INDEX_LAG_TIMEOUT_MS })` or `expect(…).toPass({ timeout })`. Inside `arrange` and shared
-  code, wait with `pollUntil(read, isDone, describe, timeoutMs)`.
+  `expect.poll(…, { timeout })` or `expect(…).toPass({ timeout })`, with the suite's index-lag constant
+  (`INDEX_LAG_TIMEOUT_MS`) if it has one, else one named constant that it declares once. Inside `arrange` and shared
+  code, wait with the suite's `pollUntil(read, isDone, describe, timeoutMs)` if it has one, else with `expect.poll`
+  there too, never a hand-written loop.
 - Never `waitForTimeout`, `networkidle` or a sleep. A browser action waits for the state or the response it causes.
 
 ## Failing Loudly
@@ -158,8 +162,9 @@ seed once with `commands.seed` before the first run and after a change to the se
 
 ## Optional Modules
 
-- A test that needs an optional module, or a module version, declares it on its describe:
-  `test.use({ modules: { pickup: MODULES.pickup } })`. The test is skipped where the module is missing or outside its
+- A test that needs an optional module, or a module version, declares it on its describe with the `modules` option, such as
+  `test.use({ modules: { pickup: MODULES.pickup } })` (`MODULES` is the suite's own list of modules and versions,
+  where it has one). The test is skipped where the module is missing or outside its
   range (`minVersion` inclusive, `beforeVersion` exclusive), and the skip reason names the module. The seed manifest
   uses the same `MODULES` entries, so a collection the seed skips and the tests that read it skip for the same reason.
 - An inner `test.use` replaces the outer `modules`; spread them to keep both.

@@ -51,7 +51,7 @@ becomes its `issue` annotation. Never a skip or a workaround. -->
 
 ## Verification
 
-- <the typecheck, lint and test commands from the facts, then the commands that run the new specs>
+- <the typecheck, lint (when the facts have one) and test commands from the facts, then the commands that run the new specs>
 
 <!-- ## Approval
 Left out until a person approves. Written only by that person, or by the session they answered, quoting their reply word

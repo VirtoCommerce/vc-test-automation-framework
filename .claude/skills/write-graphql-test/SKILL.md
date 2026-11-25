@@ -30,7 +30,7 @@ of a neighbouring spec of the same area.
 | A second customer in the same test | `const other = await arrange.customers.customer()` |
 | A customer with an organization role | `arrange.customers.customer({ role: "<role id the contract names>" })` |
 | A colleague in the same organization | `arrange.customers.customer({ organizationId: customer.organizationId })` |
-| A platform user (administration over xAPI) | `test.use({ user: ADMIN_ACCOUNT })` (`roles[roleFor.admin]`), then the `graphql` fixture |
+| A platform user (administration over xAPI) | `test.use({ user: ADMIN_ACCOUNT })` (`roles[roleFor.admin]`; the facts may name none: ask who administers), then the `graphql` fixture |
 
 A `Customer` from `arrange` is a `Shopper` too: `customer.graphql`, `customer.storeContext`.
 
@@ -138,7 +138,7 @@ fails every time is a known issue (`framework-rules`, Platform Defects): `PLATFO
 
 ## Verify
 
-Run `commands.typecheck`, `commands.lint` and `commands.test["graphql"]` (the GraphQL project's key) from the project
+Run `commands.typecheck`, `commands.lint` (when the facts have one) and `commands.test["graphql"]` (the GraphQL project's key) from the project
 facts on the changed spec, with the run record the expert agent describes.
 
 ## Example from this repository

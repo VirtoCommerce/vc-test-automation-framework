@@ -16,8 +16,8 @@ from this file.
   `"none found"` there are none: say so and take the expected behaviour from the documentation and the schema.
 - A specification or documentation page: each documented rule is one criterion.
 - An area of existing functionality or a gap, with no ticket: the criteria are the documented rules found in
-  `docSources`, the API schema, and what the explorer's report observed. Read the coverage report to see what is
-  already tested.
+  `docSources`, the API schema, and what the explorer's report observed. Read the coverage report, when there is one,
+  to see what is already tested; without it, step 2 finds out.
 - Note the surfaces involved (API operations, endpoints, pages) and the identities (roles from the facts, anonymous).
 
 ## Step 2: Explore Existing Coverage
@@ -38,9 +38,11 @@ A criterion already covered is listed as covered, not planned again.
 2. Add what the technique does not give: edge cases, negative cases (rejected input, missing permission, empty or
    absent data) and regression cases (behaviour next to the change that must not break).
 3. For each case decide:
-   - **Project**: a key of `commands.test`. A behaviour is tested once, at the lowest layer that shows it; the UI
+   - **Project**: a key of `commands.test`, and a project name is valid only if it is one: the examples at the end
+     of this file are not names to use. A behaviour is tested once, at the lowest layer that shows it; the UI
      keeps only what only the UI shows.
-   - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration,
+   - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration (when the facts have none, an administration case that needs
+     the administrator under a name is a scope question for the person; `arrange` needs no name),
      `roleFor.customer` for an ordinary signed-in customer, `roleFor.otherCustomer` for a customer of another
      organization. When the facts have no `roleFor.otherCustomer`, a cross-organization access case is a scope question
      for the person (the planner's Ask), never a role you pick. A test that changes a user's own state creates its own

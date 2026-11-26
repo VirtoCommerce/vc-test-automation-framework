@@ -1,5 +1,6 @@
 const MASK = "***";
-const DELIMITER = "[\\s\"'`=:]";
+const BEFORE = "(?<![A-Za-z0-9_-])";
+const AFTER = "(?![A-Za-z0-9_-])";
 
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -11,8 +12,7 @@ export function maskSecrets(text, secrets) {
     if (typeof secret !== "string" || secret === "") {
       continue;
     }
-    const token = new RegExp(`(?<=^|${DELIMITER})${escapeRegExp(secret)}(?=$|${DELIMITER})`, "gm");
-    result = result.replace(token, MASK);
+    result = result.replace(new RegExp(`${BEFORE}${escapeRegExp(secret)}${AFTER}`, "g"), MASK);
   }
   return result;
 }

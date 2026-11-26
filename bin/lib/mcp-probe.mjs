@@ -13,22 +13,23 @@ const NOISE_LINE = /^(at\s|Node\.js v|\^|\}$|code:)/;
 const TELLING_LINE = /error|cannot|failed|not found/i;
 const PINNED_PACKAGE = /BROWSER_SERVER_PACKAGE\s*=\s*["'`]([^"'`]+)["'`]/;
 const FALLBACK_PACKAGE = "@playwright/mcp";
+const NO_RESULT = "the browser server sent no result";
 
-function firstLine(text) {
+function firstLine(text, secrets) {
   const line = text
     .split(/\r?\n/)
     .map((part) => part.trim())
     .find((part) => part !== "");
-  return line === undefined ? "" : line.slice(0, DETAIL_LIMIT);
+  return line === undefined ? "" : maskSecrets(line, secrets).slice(0, DETAIL_LIMIT);
 }
 
-function lastTellingLine(text) {
+function lastTellingLine(text, secrets) {
   const lines = text
     .split(/\r?\n/)
     .map((part) => part.trim())
     .filter((part) => part !== "" && !NOISE_LINE.test(part));
   const line = lines.findLast((part) => TELLING_LINE.test(part)) ?? lines.at(-1) ?? "";
-  return line.slice(0, DETAIL_LIMIT);
+  return maskSecrets(line, secrets).slice(0, DETAIL_LIMIT);
 }
 
 function resultText(result) {
@@ -56,6 +57,9 @@ function killTree(child) {
     return;
   }
   if (process.platform === "win32") {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      return;
+    }
     spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
     return;
   }
@@ -110,7 +114,7 @@ function connect(child, secrets) {
   }
   child.on("error", (error) => stop(`the browser server could not start (${error.code ?? error.message})`));
   child.on("exit", () => {
-    const said = maskSecrets(lastTellingLine(stderr), secrets);
+    const said = lastTellingLine(stderr, secrets);
     stop(said === "" ? "the browser server stopped" : `the browser server stopped: ${said}`);
   });
   let nextId = 0;
@@ -150,14 +154,17 @@ async function navigate(channel, frontendUrl, options) {
     }
   }
   if (answer.error !== undefined) {
-    const said = maskSecrets(firstLine(String(answer.error.message ?? "")), options.secrets);
+    const said = firstLine(String(answer.error.message ?? ""), options.secrets);
     return {
       ok: false,
       detail: `the browser server refused browser_navigate (${said}); update the package and run init again.`,
     };
   }
-  if (answer.result?.isError === true) {
-    const said = maskSecrets(firstLine(resultText(answer.result)), options.secrets);
+  if (answer.result === undefined) {
+    return { ok: false, detail: `${NO_RESULT} to browser_navigate; update the package and run init again.` };
+  }
+  if (answer.result.isError === true) {
+    const said = firstLine(resultText(answer.result), options.secrets);
     return {
       ok: false,
       detail: `the browser server could not open ${frontendUrl} (${said}); check FRONTEND_BASE_URL in .env.`,
@@ -175,8 +182,11 @@ async function talk(channel, frontendUrl, options) {
   if (initialized.error !== undefined) {
     return {
       ok: false,
-      detail: `the browser server refused initialize (${maskSecrets(firstLine(String(initialized.error.message ?? "")), options.secrets)}); update the package and run init again.`,
+      detail: `the browser server refused initialize (${firstLine(String(initialized.error.message ?? ""), options.secrets)}); update the package and run init again.`,
     };
+  }
+  if (initialized.result === undefined) {
+    return { ok: false, detail: `${NO_RESULT} to initialize; update the package and run init again.` };
   }
   channel.send("notifications/initialized", {});
   return navigate(channel, frontendUrl, options);

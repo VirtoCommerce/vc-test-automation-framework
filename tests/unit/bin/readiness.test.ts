@@ -11,6 +11,7 @@ import { expect, test } from "@playwright/test";
 
 import { probeBrowserServer, serverPackage } from "../../../bin/lib/mcp-probe.mjs";
 import { checkAdminToken, checkReachable, formatTable, request, runReadiness } from "../../../bin/lib/readiness.mjs";
+import { maskSecrets } from "../../../bin/lib/redact.mjs";
 
 const FIXTURES = join(import.meta.dirname, "fixtures");
 const PASSWORD = "Sup3r-Secret!";
@@ -493,6 +494,43 @@ test.describe("password masking", () => {
     expect(statusOf(rows, "browser server")).toContain("http://storefront.test");
     expect(statusOf(rows, "types")).toContain("password=*** for storefront");
     expect(formatTable(rows)).toContain("http://storefront.test answers");
+  });
+
+  for (const form of [
+    "https://user:store@host/x",
+    "password=store,",
+    "(store)",
+    "store.",
+    "password=store;",
+    "key=store}",
+    "?password=store&a=1",
+  ]) {
+    test(`masks the password in ${form}`, () => {
+      const masked = maskSecrets(`said ${form} and storefront`, ["store"]);
+
+      expect(masked).toBe(`said ${form.replace("store", "***")} and storefront`);
+    });
+  }
+
+  test("masks a password at the 200-character cut instead of leaving its prefix", async () => {
+    const rows = await runReadiness({
+      projectDir: ".",
+      suiteDir: ".",
+      vars: vars({ ADMIN_PASSWORD: "Pa55word-long" }),
+      skipInstall: false,
+      skipVerify: false,
+      exec: fakeExec({ "npm run codegen": { status: 1, output: `Error ${"x".repeat(190)} Pa55word-long` } }).exec,
+      request: (url: string) =>
+        Promise.resolve(
+          url.endsWith("/connect/token")
+            ? { status: 200, body: JSON.stringify({ access_token: "t" }) }
+            : { status: 200, body: "" },
+        ),
+      probe: () => Promise.resolve({ ok: true, detail: "" }),
+    });
+
+    expect(statusOf(rows, "types")).toContain(`${"x".repeat(190)} ***`);
+    expect(statusOf(rows, "types")).not.toContain("Pa55");
   });
 });
 

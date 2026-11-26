@@ -210,7 +210,9 @@ function summary(output, secrets) {
     .map((line) => line.trim())
     .filter((line) => line !== "" && !STACK_LINE.test(line));
   const line = lines.find((candidate) => TELLING_LINE.test(candidate)) ?? lines[0] ?? "no output";
-  return maskSecrets(line.replace(/[.;]+$/, "").slice(0, DETAIL_LIMIT), secrets);
+  return maskSecrets(line, secrets)
+    .replace(/[.;]+$/, "")
+    .slice(0, DETAIL_LIMIT);
 }
 
 function secretValues(vars) {

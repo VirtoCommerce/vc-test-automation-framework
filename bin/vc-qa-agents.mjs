@@ -28,7 +28,7 @@ const USAGE = [
   "  npx vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] [--yes] [--save-passwords]",
   "      [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] [--admin-login <login>]",
   "      [--customer <email>] [--other-customer <email>] [--tracker <name>] [--key-pattern <pattern>]",
-  "      [--test-id-attribute <attribute>]",
+  "      [--docs <url | mcp:server | text>] [--test-id-attribute <attribute>]",
   "                                            write a test suite (into the directory, if given), with the agents,",
   "                                            ask for what it needs and check that it is ready",
   "  npx vc-qa-agents doctor [--skip-verify]   check again that the suite is ready",

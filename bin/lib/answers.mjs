@@ -8,6 +8,14 @@ const TEMPLATE_TRACKER = { kind: "jira", keyPattern: "^PROJ-\\d+$" };
 const KEY_PATTERN_FOR = { "azure-boards": "^\\d+$" };
 const KEY_EXAMPLE = { pattern: "^ABC-\\d+$", key: "ABC-123" };
 const KEY_EXAMPLE_FOR = { "azure-boards": { pattern: "^\\d+$", key: "1234" } };
+const TEMPLATE_DOC_SOURCES = [
+  { name: "Virto Commerce documentation", route: "api", where: "https://docs.virtocommerce.org" },
+];
+const DOC_SOURCE_NAME = "Project documentation";
+const DOCS_QUESTION =
+  "Where is your project's own documentation? (a URL, mcp:<server name>, or what to ask a person for; empty to skip)";
+const URL_PREFIX = /^https?(?::|\/\/)/i;
+const MCP_PREFIX = /^mcp:/i;
 
 function keyPatternLabel(kind) {
   const example = KEY_EXAMPLE_FOR[kind] ?? KEY_EXAMPLE;
@@ -41,6 +49,34 @@ function patternProblem(value) {
   } catch {
     return "must be a valid regular expression";
   }
+}
+
+function docsProblem(value) {
+  const text = value.trim();
+  if (text === "") {
+    return "must not be blank";
+  }
+  if (MCP_PREFIX.test(text)) {
+    return text.replace(MCP_PREFIX, "").trim() === "" ? "must name the MCP server after mcp:" : undefined;
+  }
+  if (URL_PREFIX.test(text)) {
+    const parsed = URL.parse(text);
+    return parsed !== null && (parsed.protocol === "http:" || parsed.protocol === "https:")
+      ? undefined
+      : "must be an http or https URL";
+  }
+  return undefined;
+}
+
+function docSourceFor(value) {
+  const text = value.trim();
+  if (MCP_PREFIX.test(text)) {
+    return { name: DOC_SOURCE_NAME, route: "mcp", where: text.replace(MCP_PREFIX, "").trim() };
+  }
+  if (URL_PREFIX.test(text)) {
+    return { name: DOC_SOURCE_NAME, route: "api", where: text };
+  }
+  return { name: DOC_SOURCE_NAME, route: "paste", where: text };
 }
 
 const SETTINGS = [
@@ -162,6 +198,7 @@ export function checkGivenValues(input) {
     givenValue({ flag, check: blankProblem }, input);
   }
   givenValue({ flag: "--key-pattern", check: patternProblem }, input);
+  givenValue({ flag: "--docs", check: docsProblem }, input);
   if (input.switches.has("--save-passwords")) {
     for (const name of PASSWORD_NAMES) {
       const fromShell = given(input.shell[name]);
@@ -250,6 +287,40 @@ async function resolveTracker(input, answers) {
   return keyPattern === undefined ? undefined : { kind, keyPattern };
 }
 
+function isTemplateDocSources(facts) {
+  const sources = facts["docSources"];
+  return (
+    Array.isArray(sources) &&
+    sources.length === TEMPLATE_DOC_SOURCES.length &&
+    sources.every((source, index) => {
+      const template = TEMPLATE_DOC_SOURCES[index];
+      return (
+        source !== null &&
+        typeof source === "object" &&
+        source.name === template.name &&
+        source.route === template.route &&
+        source.where === template.where
+      );
+    })
+  );
+}
+
+async function resolveDocs(input, answers) {
+  if (!isTemplateDocSources(input.facts)) {
+    if (given(input.values["--docs"]) !== undefined) {
+      answers.notes.push(
+        "Kept docSources from .qa/project.json; --docs was not applied (edit .qa/project.json to change it).",
+      );
+    }
+    return undefined;
+  }
+  const reply = await resolveField(
+    { name: "documentation", flag: "--docs", label: DOCS_QUESTION, check: docsProblem },
+    input,
+  );
+  return reply === undefined ? undefined : docSourceFor(reply);
+}
+
 export async function resolveAnswers(input) {
   const answers = { env: {}, passwords: {}, persistPasswords: [], roles: {}, notes: [] };
   for (const field of SETTINGS) {
@@ -269,6 +340,10 @@ export async function resolveAnswers(input) {
   const tracker = await resolveTracker(input, answers);
   if (tracker !== undefined) {
     answers.tracker = tracker;
+  }
+  const docs = await resolveDocs(input, answers);
+  if (docs !== undefined) {
+    answers.docs = docs;
   }
   await resolveSetting(TEST_ID, input, answers);
   return answers;

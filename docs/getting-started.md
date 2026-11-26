@@ -44,12 +44,15 @@ In a terminal, `init` asks once for each of these and writes the answers to `.en
 3. The login of a customer and of another customer, with their passwords. The logins go to `roles` in
    `.qa/project.json`; the passwords go to `.env`.
 4. The tracker, which has no default and must be answered, and the pattern of its ticket keys.
-5. The attribute that marks an element for tests, `data-test-id` by default. It is `FRONTEND_TEST_ID_ATTRIBUTE` in
+5. Where your project's own documentation is: a URL, `mcp:<server name>`, or what to ask a person for. The agents
+   read it before the public Virto Commerce documentation, which stays in `docSources` after it. An empty answer skips
+   the question.
+6. The attribute that marks an element for tests, `data-test-id` by default. It is `FRONTEND_TEST_ID_ATTRIBUTE` in
    `.env`, which `playwright.config.ts` passes to `defaultUse` as `testIdAttribute`; a suite that keeps
    `defaultUse(env)` uses `data-test-id`.
 
 Passwords are typed with hidden input. A value that is already set is not asked again: a key that is not empty in
-`.env`, or a role or tracker in `.qa/project.json` that you changed from the template, stays as it is, so running
+`.env`, or a role, tracker or `docSources` in `.qa/project.json` that you changed from the template, stays as it is, so running
 `init` again is safe. A flag for a key that `.env` already holds is not applied, and `init` prints one line saying so;
 edit `.env` to change that value.
 
@@ -105,6 +108,7 @@ npx vc-qa-agents init --yes \
 | `--admin-login`                   | `ADMIN_USERNAME`                                                            |
 | `--customer`, `--other-customer`  | The logins of the customer and of the other customer in `.qa/project.json`  |
 | `--tracker`, `--key-pattern`      | The tracker kind and the pattern of its ticket keys                         |
+| `--docs`                          | Your documentation: a URL, `mcp:<name>` or text, first in `docSources`      |
 | `--test-id-attribute`             | `FRONTEND_TEST_ID_ATTRIBUTE`                                                |
 | `--yes`                           | Asks nothing, even in a terminal                                            |
 | `--save-passwords`                | Writes the passwords that came from the shell to `.env`                     |

@@ -12,6 +12,7 @@ type Answers = {
   persistPasswords: string[];
   roles: { customer?: string; otherCustomer?: string };
   tracker?: { kind: string; keyPattern: string };
+  docs?: { name: string; route: string; where: string };
   notes: string[];
 };
 
@@ -40,7 +41,12 @@ const CHANGED_FACTS = {
   ...TEMPLATE_FACTS,
   roles: { administrator: "admin", customer: "buyer@shop.test", "other customer": "second@shop.test" },
   tracker: { kind: "azure-boards", keyPattern: "^\\d+$", routes: ["paste"] },
+  docSources: [{ name: "Team wiki", route: "paste", where: "the wiki page" }],
 };
+
+const DOCS_QUESTION =
+  "Where is your project's own documentation? (a URL, mcp:<server name>, or what to ask a person for; empty to skip)";
+const TEMPLATE_DOC_SOURCE = TEMPLATE_FACTS.docSources[0];
 
 function fakePrompter(replies: string[]) {
   const asked: string[] = [];
@@ -146,6 +152,7 @@ test.describe("resolveAnswers", () => {
       "jira",
       "",
       "",
+      "",
     ]);
 
     const answers = await resolveAnswers(input({ prompter }));
@@ -154,6 +161,7 @@ test.describe("resolveAnswers", () => {
     expect(answers.persistPasswords).toEqual(["ADMIN_PASSWORD"]);
     expect(answers.roles).toEqual({ customer: "buyer@shop.test", otherCustomer: "second@shop.test" });
     expect(answers.tracker).toBeUndefined();
+    expect(answers.docs).toBeUndefined();
     expect(answers.env).toEqual({
       BACKEND_BASE_URL: "https://back.example.test",
       FRONTEND_BASE_URL: "https://front.example.test",
@@ -397,6 +405,133 @@ test.describe("resolveAnswers", () => {
     expect(both.tracker).toEqual({ kind: "jira", keyPattern: "^A-\\d+$" });
   });
 
+  test("the documentation question comes after the tracker and has no default", async () => {
+    const prompter = fakePrompter(["jira", "^ABC-\\d+$", ""]);
+    const facts = { ...TEMPLATE_FACTS, roles: CHANGED_FACTS.roles };
+
+    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
+
+    expect(prompter.asked).toEqual([
+      "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
+      "Ticket key pattern, such as ^ABC-\\d+$ for keys like ABC-123",
+      DOCS_QUESTION,
+    ]);
+    expect(answers.docs).toBeUndefined();
+  });
+
+  test("a typed documentation answer is mapped by its shape: URL, mcp server, or text", async () => {
+    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
+    const expected = [
+      ["https://wiki.example.test/docs", { route: "api", where: "https://wiki.example.test/docs" }],
+      ["  http://wiki.example.test  ", { route: "api", where: "http://wiki.example.test" }],
+      ["mcp:team-wiki", { route: "mcp", where: "team-wiki" }],
+      ["mcp: team wiki ", { route: "mcp", where: "team wiki" }],
+      ["ask the product owner for the spec", { route: "paste", where: "ask the product owner for the spec" }],
+    ] as const;
+
+    for (const [typed, source] of expected) {
+      const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter([typed]) }));
+
+      expect(answers.docs).toEqual({ name: "Project documentation", ...source });
+    }
+  });
+
+  test("an empty documentation answer skips the question and writes nothing", async () => {
+    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
+
+    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter([""]) }));
+
+    expect(answers.docs).toBeUndefined();
+    expect(applyFacts(facts, answers, "admin")["docSources"]).toEqual(TEMPLATE_FACTS.docSources);
+  });
+
+  test("a documentation answer that is not a URL or has no server name is asked again", async () => {
+    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
+    const prompter = fakePrompter(["https://", "mcp:  ", "mcp:wiki"]);
+
+    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
+
+    expect(prompter.asked).toEqual([
+      DOCS_QUESTION,
+      `${DOCS_QUESTION} (must be an http or https URL)`,
+      `${DOCS_QUESTION} (must name the MCP server after mcp:)`,
+    ]);
+    expect(answers.docs).toEqual({ name: "Project documentation", route: "mcp", where: "wiki" });
+  });
+
+  test("the project's documentation is written first and the template's entry stays after it", async () => {
+    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
+    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, values: { "--docs": "mcp:wiki" } }));
+
+    const written = applyFacts(facts, answers, "admin");
+
+    expect(written["docSources"]).toEqual([
+      { name: "Project documentation", route: "mcp", where: "wiki" },
+      TEMPLATE_DOC_SOURCE,
+    ]);
+    expect(facts.docSources).toEqual([TEMPLATE_DOC_SOURCE]);
+  });
+
+  test("the documentation question is asked only while docSources is the template's, and a re-run asks nothing", async () => {
+    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
+    const first = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter(["https://wiki.example.test"]) }),
+    );
+    const written = applyFacts(facts, first, "admin");
+    const second = fakePrompter([]);
+
+    const again = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts: written, prompter: second }));
+    const edited = await resolveAnswers(
+      input({
+        existingEnv: FILLED_ENV,
+        facts: { ...facts, docSources: [{ ...TEMPLATE_DOC_SOURCE, where: "https://other.example.test" }] },
+        prompter: second,
+      }),
+    );
+    const extended = await resolveAnswers(
+      input({
+        existingEnv: FILLED_ENV,
+        facts: { ...facts, docSources: [TEMPLATE_DOC_SOURCE, TEMPLATE_DOC_SOURCE] },
+        prompter: second,
+      }),
+    );
+
+    expect(second.asked).toEqual([]);
+    for (const answers of [again, edited, extended]) {
+      expect(answers.docs).toBeUndefined();
+      expect(answers.notes).toEqual([]);
+    }
+  });
+
+  test("--docs applies while docSources is the template's and is reported as not applied once it changed", async () => {
+    const values = { "--docs": "https://wiki.example.test" };
+
+    const fresh = await resolveAnswers(input({ existingEnv: FILLED_ENV, values }));
+    const changed = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts: CHANGED_FACTS, values }));
+
+    expect(fresh.docs).toEqual({ name: "Project documentation", route: "api", where: "https://wiki.example.test" });
+    expect(fresh.notes).toEqual([]);
+    expect(changed.docs).toBeUndefined();
+    expect(changed.notes).toEqual([
+      "Kept docSources from .qa/project.json; --docs was not applied (edit .qa/project.json to change it).",
+    ]);
+  });
+
+  test("a non-interactive run without --docs leaves docSources as the template", async () => {
+    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV }));
+
+    expect(answers.docs).toBeUndefined();
+    expect(applyFacts(TEMPLATE_FACTS, answers, "admin")["docSources"]).toEqual(TEMPLATE_FACTS.docSources);
+  });
+
+  test("an invalid --docs throws naming the flag", async () => {
+    const mcp = resolveAnswers(input({ values: { "--docs": "mcp:   " } }));
+    const url = resolveAnswers(input({ values: { "--docs": "https://" } }));
+
+    await expect(mcp).rejects.toThrow(/--docs must name the MCP server after mcp:/);
+    await expect(url).rejects.toThrow(/--docs must be an http or https URL/);
+  });
+
   test("a typed password that .env cannot hold is asked again", async () => {
     const prompter = fakePrompter(["a'b\"c`d #e", "good"]);
 
@@ -429,6 +564,12 @@ test.describe("checkGivenValues", () => {
     );
     expect(() => checkGivenValues({ values: {}, switches, shell: { STORE_ID: "   " } })).toThrow(/STORE_ID/);
     expect(() => checkGivenValues({ values: { "--key-pattern": "(" }, switches, shell: {} })).toThrow(/--key-pattern/);
+    expect(() => checkGivenValues({ values: { "--docs": "mcp:" }, switches, shell: {} })).toThrow(/--docs/);
+    expect(() => checkGivenValues({ values: { "--docs": "https://" }, switches, shell: {} })).toThrow(/--docs/);
+    expect(() => checkGivenValues({ values: { "--docs": "http//wiki.example.test" }, switches, shell: {} })).toThrow(
+      /--docs/,
+    );
+    expect(() => checkGivenValues({ values: { "--docs": "   " }, switches, shell: {} })).toThrow(/--docs/);
     expect(() =>
       checkGivenValues({
         values: {},
@@ -436,6 +577,12 @@ test.describe("checkGivenValues", () => {
         shell: { ADMIN_PASSWORD: "a'b\"c`d\ne" },
       }),
     ).toThrow(/^ADMIN_PASSWORD /);
+  });
+
+  test("accepts a documentation URL, an mcp server and plain text", () => {
+    for (const docs of ["https://wiki.example.test/a?b=1", "mcp:wiki", "ask the product owner", "httpd handbook"]) {
+      expect(() => checkGivenValues({ values: { "--docs": docs }, switches, shell: {} })).not.toThrow();
+    }
   });
 
   test("accepts valid values and a shell password that is not to be saved", () => {

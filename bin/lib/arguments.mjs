@@ -7,6 +7,7 @@ export const VALUE_FLAGS = [
   "--other-customer",
   "--tracker",
   "--key-pattern",
+  "--docs",
   "--test-id-attribute",
 ];
 

@@ -107,6 +107,10 @@ export function applyFacts(facts, answers, adminLogin) {
     const tracker = isRecord(result["tracker"]) ? result["tracker"] : {};
     result["tracker"] = { ...tracker, kind: answers.tracker.kind, keyPattern: answers.tracker.keyPattern };
   }
+  if (answers.docs !== undefined) {
+    const sources = Array.isArray(result["docSources"]) ? result["docSources"] : [];
+    result["docSources"] = [answers.docs, ...sources];
+  }
   return result;
 }
 

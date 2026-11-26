@@ -82,6 +82,15 @@ test.describe("applyFacts", () => {
     expect(TEMPLATE_FACTS.roles.customer).toBe("customer@your-company.test");
   });
 
+  test("puts the project's documentation before the template's entry", () => {
+    const docs = { name: "Project documentation", route: "paste", where: "ask the product owner" };
+
+    const facts = applyFacts(TEMPLATE_FACTS, { ...noAnswers(), docs }, "admin");
+
+    expect(facts["docSources"]).toEqual([docs, ...TEMPLATE_FACTS.docSources]);
+    expect(TEMPLATE_FACTS.docSources).toHaveLength(1);
+  });
+
   test("changes nothing the answers do not carry", () => {
     expect(applyFacts(TEMPLATE_FACTS, noAnswers(), "admin")).toEqual(TEMPLATE_FACTS);
   });

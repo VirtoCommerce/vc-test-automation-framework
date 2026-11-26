@@ -342,6 +342,38 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     });
   });
 
+  test("writes --docs first in docSources, keeps the template's entry, and a second run changes nothing", () => {
+    const args = ["--skip-install", "--skip-verify", "--yes", ...FLAGS, "--docs", "mcp:team-wiki"];
+
+    const result = initRun(dir, args);
+
+    expect(result.status, result.stderr).toBe(0);
+    const facts = readJson(join(dir, ".qa", "project.json"));
+    expect(facts).toMatchObject({
+      docSources: [
+        { name: "Project documentation", route: "mcp", where: "team-wiki" },
+        { name: "Virto Commerce documentation", route: "api", where: "https://docs.virtocommerce.org" },
+      ],
+    });
+    const before = readFileSync(join(dir, ".qa", "project.json"), "utf8");
+
+    const again = initRun(dir, [...args.slice(0, -1), "https://wiki.example.test"]);
+
+    expect(again.status, again.stderr).toBe(0);
+    expect(again.stdout).toContain(
+      "Kept docSources from .qa/project.json; --docs was not applied (edit .qa/project.json to change it).",
+    );
+    expect(readFileSync(join(dir, ".qa", "project.json"), "utf8")).toBe(before);
+  });
+
+  test("refuses an invalid --docs before writing anything", () => {
+    const refused = initRun(dir, ["--skip-install", "--skip-verify", "--yes", "--docs", "mcp:"]);
+
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain("--docs");
+    expect(existsSync(join(dir, ".env"))).toBe(false);
+  });
+
   test("keeps a password from the shell out of .env unless --save-passwords is given", () => {
     const secret = "shell-only-secret";
     const unsaved = initRun(dir, ["--skip-install", "--skip-verify", "--yes"], { ADMIN_PASSWORD: secret });

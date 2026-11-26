@@ -53,7 +53,17 @@ if (!base) {
   process.exit(1);
 }
 
-const origin = new URL(base).origin;
+const parsed = URL.parse(base);
+
+if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+  process.stderr.write(
+    `BACKEND_BASE_URL "${base}" is not a valid http or https URL. Fix it in .env, then run npm run codegen again.
+`,
+  );
+  process.exit(1);
+}
+
+const origin = parsed.origin;
 const url = new URL(SWAGGER_PATH, origin);
 let failure: string | undefined;
 
@@ -68,6 +78,6 @@ for (let attempt = 1; attempt <= attempts; attempt++) {
 }
 
 process.stderr.write(
-  `The platform at ${origin} did not answer GET ${SWAGGER_PATH} (${failure}) after ${attempts} attempts. A platform that is still starting needs a minute: wait, then run npm run codegen again.\n`,
+  `The platform at ${origin} did not answer GET ${SWAGGER_PATH} (${failure}) after ${attempts} ${attempts === 1 ? "attempt" : "attempts"}. A platform that is still starting needs a minute: wait, then run npm run codegen again.\n`,
 );
 process.exit(1);

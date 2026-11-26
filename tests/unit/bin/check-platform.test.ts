@@ -3,7 +3,6 @@ import type { AddressInfo } from "node:net";
 
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
@@ -46,7 +45,6 @@ function run(env: Record<string, string>): Promise<Run> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [SCRIPT, "--attempts", "3", "--delay-ms", "10"], {
       env: { ...process.env, BACKEND_BASE_URL: "", ...env },
-      cwd: tmpdir(),
     });
     let stderr = "";
     child.stderr.setEncoding("utf8");
@@ -97,5 +95,15 @@ test.describe("check-platform", () => {
     const result = await run({});
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("BACKEND_BASE_URL");
+  });
+  test("names the variable and the value when BACKEND_BASE_URL is not an http or https URL", async () => {
+    for (const value of ["not a url", "ftp://example.com"]) {
+      const result = await run({ BACKEND_BASE_URL: value });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("BACKEND_BASE_URL");
+      expect(result.stderr).toContain(value);
+      expect(result.stderr).toContain("http or https");
+      expect(result.stderr).not.toContain("TypeError");
+    }
   });
 });

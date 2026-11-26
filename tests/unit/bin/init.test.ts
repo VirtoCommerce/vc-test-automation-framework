@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
 import { BROWSER_SECRETS_PATH, passwordNames } from "../../../.claude/checks/browser-secrets.mts";
+import { browserServerKind } from "../../../bin/lib/browser-server.mjs";
 
 const BIN = fileURLToPath(new URL("../../../bin/install-qa-agents.mjs", import.meta.url));
 const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
@@ -116,14 +117,36 @@ test.describe("vc-qa-agents init", () => {
     expect(output).toContain("Kept the files that already exist: env.ts");
   });
 
-  test("writes the browser server that the agents sign in with, on the secrets file the check writes", () => {
+  test("writes the browser server that the agents sign in with, started by the launcher on every platform", () => {
     initIn(dir);
 
-    const servers = readJson(join(dir, ".mcp.json"))["mcpServers"] as Record<string, { args: string[] }>;
-    const args = servers["playwright"]?.args ?? [];
-    expect(args.some((arg) => /^@playwright\/mcp@\d+\.\d+\.\d+$/.test(arg))).toBe(true);
-    expect(args[args.indexOf("--secrets") + 1]).toBe(BROWSER_SECRETS_PATH);
+    const servers = readJson(join(dir, ".mcp.json"))["mcpServers"] as Record<
+      string,
+      { command: string; args: string[] }
+    >;
+    expect(servers["playwright"]).toEqual({ command: "node", args: [".claude/checks/browser-mcp.mts"] });
+    expect(existsSync(join(dir, ".claude", "checks", "browser-mcp.mts"))).toBe(true);
+    expect(browserServerKind(dir)).toBe("launcher");
     expect(readFileSync(join(dir, ".gitignore"), "utf8")).toContain(".qa/*.local.env");
+  });
+
+  test("tells a suite whose browser server runs @playwright/mcp directly how to switch, and leaves the file", () => {
+    const direct = `${JSON.stringify({
+      mcpServers: {
+        playwright: {
+          command: "npx",
+          args: ["-y", "@playwright/mcp@0.0.84", "--secrets", BROWSER_SECRETS_PATH],
+        },
+      },
+    })}\n`;
+    expect(browserServerKind(dir)).toBe("none");
+    writeFileSync(join(dir, ".mcp.json"), direct);
+
+    const output = execFileSync(process.execPath, [BIN], { cwd: dir, encoding: "utf8" });
+
+    expect(browserServerKind(dir)).toBe("direct");
+    expect(output).toContain(".claude/checks/browser-mcp.mts");
+    expect(readFileSync(join(dir, ".mcp.json"), "utf8")).toBe(direct);
   });
 
   test("names, in the template's own .env.example, every password its facts name", () => {

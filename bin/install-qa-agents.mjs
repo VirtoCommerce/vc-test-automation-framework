@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rm
 import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
 import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -257,18 +258,6 @@ function hasHook(settingsPath) {
   return readFileSync(settingsPath, "utf8").includes(HOOK_SCRIPT.split("/").pop());
 }
 
-function hasBrowserServer(target) {
-  const path = join(target, MCP_FILE);
-  if (!existsSync(path)) {
-    return false;
-  }
-  try {
-    return Object.hasOwn(JSON.parse(readFileSync(path, "utf8")).mcpServers ?? {}, BROWSER_SERVER);
-  } catch {
-    return false;
-  }
-}
-
 function missingIgnores(target) {
   const path = join(target, ".gitignore");
   const ignored = existsSync(path) ? readFileSync(path, "utf8").split(/\r?\n/) : [];
@@ -299,10 +288,16 @@ function install(target, { written = [], forceOurs = false } = {}) {
   } else {
     lines.push("Kept your .qa/project.json.");
   }
-  if (!written.includes(MCP_FILE) && !hasBrowserServer(target)) {
+  const serverKind = written.includes(MCP_FILE) ? "launcher" : browserServerKind(target);
+  if (serverKind === "none") {
     lines.push(
-      `No ${BROWSER_SERVER} server in ${MCP_FILE}: the agents that open the frontend need a Playwright MCP server named ` +
-        `"${BROWSER_SERVER}" (see the QA agents guide, Browser).`,
+      `No ${BROWSER_SERVER} server in ${MCP_FILE}: the agents that open the frontend need it. Add to its mcpServers: ` +
+        `${LAUNCHER_SNIPPET} (see the QA agents guide, Browser).`,
+    );
+  } else if (serverKind === "direct") {
+    lines.push(
+      `The ${BROWSER_SERVER} server in ${MCP_FILE} starts @playwright/mcp itself, so nothing writes its secrets file: ` +
+        `replace it with ${LAUNCHER_SNIPPET}`,
     );
   }
 
@@ -399,17 +394,6 @@ function templateFiles(dir) {
   );
 }
 
-function wrapForWindows(path) {
-  const config = JSON.parse(readFileSync(path, "utf8"));
-  for (const server of Object.values(config.mcpServers)) {
-    if (server.command === "npx") {
-      server.args = ["/c", "npx", ...server.args];
-      server.command = "cmd";
-    }
-  }
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
-}
-
 function inSuite(suiteDir, path) {
   return suiteDir === ROOT_DIR ? path : `${suiteDir}/${path}`;
 }
@@ -430,9 +414,6 @@ function copySuiteTemplate(target, suiteDir) {
   const env = inSuite(suiteDir, ".env");
   if (copyIfMissing(join(SUITE_TEMPLATE, "env.example"), join(target, env))) {
     written.push(env);
-  }
-  if (written.includes(MCP_FILE) && process.platform === "win32") {
-    wrapForWindows(join(target, MCP_FILE));
   }
   return { written, kept };
 }

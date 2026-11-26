@@ -3,25 +3,19 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseEnv } from "node:util";
 
-import { readProjectFactsIn, suiteEnvPath } from "./project-facts.mts";
+import { PROJECT_FACTS_PATH, ROOT_SUITE_DIR, readProjectFactsIn, suiteEnvPath } from "./project-facts.mts";
 
 export const BROWSER_SECRETS_PATH = ".qa/browser-secrets.local.env";
 const CLI_FILE_NAME = "browser-secrets.mts";
 const OWNER_ONLY = 0o600;
 const UNSAFE_VALUE = /['\r\n]/;
 
-type Vars = Readonly<Record<string, string | undefined>>;
+export type Vars = Readonly<Record<string, string | undefined>>;
 
 type Run = (command: string, args: string[]) => unknown;
 
-/**
- * The variables of the run, as the tests see them: the suite's `.env` (`<suiteDir>/.env` of the project facts), and
- * one set in the shell wins over the same one there.
- *
- * @throws Error when the project facts cannot be read.
- */
-export function runVariables(projectDir: string, shell: Vars = process.env): Record<string, string | undefined> {
-  const envPath = join(projectDir, suiteEnvPath(readProjectFactsIn(projectDir).suiteDir));
+function suiteVariables(projectDir: string, suiteDir: string, shell: Vars): Record<string, string | undefined> {
+  const envPath = join(projectDir, suiteEnvPath(suiteDir));
   const fromFile = existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
   const merged: Record<string, string | undefined> = { ...fromFile };
   for (const [name, value] of Object.entries(shell)) {
@@ -32,9 +26,68 @@ export function runVariables(projectDir: string, shell: Vars = process.env): Rec
   return merged;
 }
 
+/**
+ * The variables of the run, as the tests see them: the suite's `.env` (`<suiteDir>/.env` of the project facts), and
+ * one set in the shell wins over the same one there.
+ *
+ * @throws Error when the project facts cannot be read.
+ */
+export function runVariables(projectDir: string, shell: Vars = process.env): Record<string, string | undefined> {
+  return suiteVariables(projectDir, readProjectFactsIn(projectDir).suiteDir, shell);
+}
+
+/**
+ * {@link runVariables} for a reader that must not stop: the project facts are read as plain JSON without validation,
+ * so facts that still hold the template's examples work. Only `suiteDir` (a string, else `"."`) and the string values
+ * of `passwordFor` are taken. Facts that cannot be read give a warning, the root `.env` and no password name.
+ */
+export function tolerantRunVariables(
+  projectDir: string,
+  shell: Vars = process.env,
+): { vars: Record<string, string | undefined>; names: string[]; warnings: string[] } {
+  let json: unknown;
+  try {
+    json = JSON.parse(readFileSync(join(projectDir, PROJECT_FACTS_PATH), "utf8"));
+  } catch (error) {
+    const reason = error instanceof SyntaxError ? "is not valid JSON" : "cannot be read";
+    return {
+      vars: suiteVariables(projectDir, ROOT_SUITE_DIR, shell),
+      names: [],
+      warnings: [`${PROJECT_FACTS_PATH} ${reason}, so no password is passed to the browser server`],
+    };
+  }
+  const facts = typeof json === "object" && json !== null ? (json as Record<string, unknown>) : {};
+  const suiteDir = typeof facts["suiteDir"] === "string" ? facts["suiteDir"] : ROOT_SUITE_DIR;
+  const passwordFor =
+    typeof facts["passwordFor"] === "object" && facts["passwordFor"] !== null ? facts["passwordFor"] : {};
+  const names = passwordNames(
+    Object.fromEntries(
+      Object.entries(passwordFor).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    ),
+  );
+  return { vars: suiteVariables(projectDir, suiteDir, shell), names, warnings: [] };
+}
+
 /** The distinct variable names `passwordFor` lists, sorted. */
 export function passwordNames(passwordFor: Readonly<Record<string, string>> | undefined): string[] {
   return [...new Set(Object.values(passwordFor ?? {}))].sort();
+}
+
+/**
+ * Why the secrets file cannot hold the variable `name` of the run's variables, without its value: it is unset, or it
+ * holds a quote or a line break.
+ *
+ * @returns the reason, or `undefined` when the file can hold it.
+ */
+export function secretProblem(name: string, vars: Vars): string | undefined {
+  const value = vars[name];
+  if (value === undefined || value === "") {
+    return `${name} is not set in the suite's .env or the shell`;
+  }
+  if (UNSAFE_VALUE.test(value)) {
+    return `${name} holds a quote or a line break, which the secrets file cannot hold`;
+  }
+  return undefined;
 }
 
 /**
@@ -45,14 +98,11 @@ export function passwordNames(passwordFor: Readonly<Record<string, string>> | un
 export function browserSecrets(names: readonly string[], vars: Vars): Record<string, string> {
   return Object.fromEntries(
     names.map((name) => {
-      const value = vars[name];
-      if (value === undefined || value === "") {
-        throw new Error(`browser-secrets: ${name} is not set in the suite's .env or the shell`);
+      const problem = secretProblem(name, vars);
+      if (problem !== undefined) {
+        throw new Error(`browser-secrets: ${problem}`);
       }
-      if (UNSAFE_VALUE.test(value)) {
-        throw new Error(`browser-secrets: ${name} holds a quote or a line break, which the secrets file cannot hold`);
-      }
-      return [name, value];
+      return [name, vars[name] ?? ""];
     }),
   );
 }
@@ -101,9 +151,9 @@ export function secretsFileText(secrets: Readonly<Record<string, string>>): stri
 }
 
 /**
- * Whether an agent can sign in as a role in the browser: `ready`, or why not. Compares the secrets file with the run's
- * variables without printing a value. The browser server reads the file when it starts, so a file written later
- * counts only after the server restarts.
+ * Whether an agent can sign in as a role in the browser: `ready` when every password variable `passwordFor` names is
+ * set in the run's variables, otherwise the unset ones, without printing a value. The browser server reads them when it
+ * starts, so a change applies after it restarts.
  */
 export function signInStatus(projectDir: string, shell: Vars = process.env): string {
   let names: string[];
@@ -115,15 +165,10 @@ export function signInStatus(projectDir: string, shell: Vars = process.env): str
   if (names.length === 0) {
     return "not available (the project facts have no passwordFor)";
   }
-  const filePath = join(projectDir, BROWSER_SECRETS_PATH);
-  if (!existsSync(filePath)) {
-    return `not available (${BROWSER_SECRETS_PATH} is missing: run node .claude/checks/browser-secrets.mts)`;
-  }
-  const inFile = parseEnv(readFileSync(filePath, "utf8"));
   const vars = runVariables(projectDir, shell);
-  const stale = names.filter((name) => vars[name] === undefined || vars[name] === "" || inFile[name] !== vars[name]);
-  if (stale.length > 0) {
-    return `not available (${BROWSER_SECRETS_PATH} does not match ${stale.join(", ")}: run node .claude/checks/browser-secrets.mts and restart the browser server)`;
+  const unset = names.filter((name) => vars[name] === undefined || vars[name] === "");
+  if (unset.length > 0) {
+    return `not available (${unset.join(", ")} not set in the suite's .env or the shell)`;
   }
   return "ready";
 }

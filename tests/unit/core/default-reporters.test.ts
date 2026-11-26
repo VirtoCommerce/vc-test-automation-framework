@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
@@ -5,11 +6,20 @@ import { expect, test } from "@playwright/test";
 import { defaultReporters, MASKED, Secret } from "@/core";
 
 test.describe("defaultReporters", () => {
-  test("returns the list reporter and the Allure results in the output directory", () => {
+  test("returns the list reporter, the Allure results in the output directory and the masking of the results", () => {
+    const resultsDir = join("runs", "reports", "allure-results");
+
     expect(defaultReporters({ outputDir: join("runs", "reports") })).toEqual([
       ["list"],
-      ["allure-playwright", { resultsDir: join("runs", "reports", "allure-results"), environmentInfo: {} }],
+      ["allure-playwright", { resultsDir, environmentInfo: {} }],
+      [expect.stringMatching(/secret-masking-reporter.(ts|js)$/), { dirs: [resultsDir] }],
     ]);
+  });
+
+  test("points the masking reporter at a module that exists", () => {
+    const [, , [path] = []] = defaultReporters({ outputDir: "reports" });
+
+    expect(existsSync(String(path))).toBe(true);
   });
 
   test("passes the environment to the report", () => {

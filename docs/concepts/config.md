@@ -88,6 +88,13 @@ The Allure reporter needs `allure-playwright`, an optional peer dependency of th
 suite, together with `allure`, which generates the report from the results. A test suite that reports in another way
 sets its own `reporter`, or adds its reporters to the default ones.
 
+The last default reporter, `SecretMaskingReporter`, masks registered secrets when the run ends: in the text files of
+`allure-results` and of each project's output directory, where Playwright keeps the error context of a failed test.
+It covers what Playwright itself puts in a step title, such as the password of a `locator.fill` step in a UI sign-in.
+It knows the secrets registered in the main process, such as those of the environment that the config parses. A run
+that is killed rather than interrupted leaves its files unmasked. Traces, screenshots and videos are not masked: a
+trace keeps the values that a test types, so a test suite that must not keep them sets `trace: "off"` in `use`.
+
 The framework writes nothing to the report itself. What it does reaches the report through Playwright:
 
 | Framework output                                        | In the report                   |

@@ -385,7 +385,8 @@ const SUITE_SCRIPTS = {
   typecheck: "tsc --noEmit",
   check: "biome check --write .",
   "check:ci": "biome ci .",
-  codegen: "graphql-codegen --config codegen.ts && node scripts/generate-rest-types.ts",
+  codegen:
+    "node scripts/check-platform.ts && graphql-codegen --config codegen.ts && node scripts/generate-rest-types.ts",
   pretest: "node -e \"require('node:fs').rmSync('reports/allure-results', { recursive: true, force: true })\"",
   test: "playwright test",
   report: "allure generate reports/allure-results --clean",

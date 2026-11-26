@@ -15,7 +15,8 @@ pull request. Read `vc-framework-rules` first, then `vc-project-facts`.
 - The id is the pull request number, with the repository when the project has more than one. Ask for it when the
   request does not give it.
 - The routes to try are `tracker.routes` of the facts, in that order. The facts have no separate route list for the
-  code host yet, so `tracker.routes` is used for it until one exists. A route not listed is never used.
+  code host yet, so `tracker.routes` is used for it until one exists. A route not listed is never used. Facts without
+  `tracker` allow only `paste`.
 
 ## Step 2: Try the Routes in Order
 

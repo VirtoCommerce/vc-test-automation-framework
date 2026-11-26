@@ -1,30 +1,20 @@
-import { applyFacts, envValueProblem, roleNameFor } from "./suite-files.mjs";
+import { applyFacts, envValueProblem, FRONTEND_SIGN_INS, roleNameFor } from "./suite-files.mjs";
 import { keyPatternProblem, trackerKind, trackerKindProblem } from "./tracker-key.mjs";
 
 export const PASSWORD_NAMES = ["ADMIN_PASSWORD", "CUSTOMER_PASSWORD", "OTHER_CUSTOMER_PASSWORD"];
 
 const ATTEMPTS = 3;
-const NO_OTHER_CUSTOMER = "--no-other-customer";
 const PLACEHOLDER_DOMAIN = "@your-company.test";
 const TEMPLATE_TRACKER = { kind: "jira", keyPattern: "^PROJ-\\d+$" };
 const KEY_PATTERN_FOR = { "azure-boards": "^\\d+$" };
-const KEY_EXAMPLE = { pattern: "^ABC-\\d+$", key: "ABC-123" };
-const KEY_EXAMPLE_FOR = { "azure-boards": { pattern: "^\\d+$", key: "1234" } };
 const TEMPLATE_DOC_SOURCES = [
   { name: "Virto Commerce documentation", route: "api", where: "https://docs.virtocommerce.org" },
 ];
 const DOC_SOURCE_NAME = "Project documentation";
-const DOCS_QUESTION =
-  "Where is your project's own documentation? (a URL, mcp:<server name>, or what to ask a person for; empty to skip)";
-const CUSTOMER_QUESTION = "Customer login (email; required: the tests sign in to the frontend as this customer)";
-const OTHER_CUSTOMER_QUESTION = "Other customer login (email; empty if the stand has none)";
+const CUSTOMER_QUESTION = "Customer accounts already on the stand? Customer login (email; empty if none)";
+const OTHER_CUSTOMER_QUESTION = "Other customer login (email of a customer of another organization; empty if none)";
 const URL_PREFIX = /^https?(?::|\/\/)/i;
 const MCP_PREFIX = /^mcp:/i;
-
-function keyPatternLabel(kind) {
-  const example = KEY_EXAMPLE_FOR[kind] ?? KEY_EXAMPLE;
-  return `Ticket key pattern, such as ${example.pattern} for keys like ${example.key}`;
-}
 
 function urlProblem(value) {
   const parsed = URL.parse(value);
@@ -123,7 +113,7 @@ function givenValue({ flag, shellName, check }, input) {
 }
 
 async function resolveField(field, input) {
-  const { name, label, check, fallback, required } = field;
+  const { name, label, check, fallback } = field;
   const fromGiven = givenValue(field, input);
   if (fromGiven !== undefined) {
     return fromGiven;
@@ -135,10 +125,10 @@ async function resolveField(field, input) {
   for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
     const question = problem === undefined ? label : `${label} (${problem})`;
     const reply = (await input.prompter.ask(question, fallback)).trim();
-    if (reply === "" && required !== true) {
+    if (reply === "") {
       return fallback;
     }
-    problem = reply === "" ? blankProblem(reply) : check(reply);
+    problem = check(reply);
     if (problem === undefined) {
       return reply;
     }
@@ -185,6 +175,10 @@ function settingCheck(field) {
   return (value) => field.check(value) ?? envValueProblem(value);
 }
 
+function frontendSignInProblem(value) {
+  return FRONTEND_SIGN_INS.includes(value) ? undefined : `must be ${FRONTEND_SIGN_INS.join(" or ")}`;
+}
+
 export function checkGivenValues(input) {
   for (const field of [...SETTINGS, TEST_ID]) {
     givenValue({ ...field, check: settingCheck(field), shellName: field.name }, input);
@@ -192,12 +186,10 @@ export function checkGivenValues(input) {
   for (const flag of ["--customer", "--other-customer"]) {
     givenValue({ flag, check: blankProblem }, input);
   }
-  if (input.switches.has(NO_OTHER_CUSTOMER) && given(input.values["--other-customer"]) !== undefined) {
-    throw new Error(`${NO_OTHER_CUSTOMER} and --other-customer cannot be given together`);
-  }
   const kind = givenValue({ flag: "--tracker", check: trackerKindProblem }, input);
   givenValue({ flag: "--key-pattern", check: (value) => keyPatternProblem(kind, value) }, input);
   givenValue({ flag: "--docs", check: docsProblem }, input);
+  givenValue({ flag: "--frontend-sign-in", check: frontendSignInProblem }, input);
   if (input.switches.has("--save-passwords")) {
     for (const name of PASSWORD_NAMES) {
       const fromShell = given(input.shell[name]);
@@ -248,39 +240,56 @@ async function resolveRolePassword(name, label, input, answers) {
   }
 }
 
-async function resolveCustomer(input, answers) {
-  if (!isPlaceholder(roleOf(input.facts, roleNameFor(input.facts, "customer")))) {
-    return;
-  }
-  const login = await resolveField(
-    { name: "customer login", flag: "--customer", label: CUSTOMER_QUESTION, check: blankProblem, required: true },
-    input,
-  );
-  if (login !== undefined) {
-    answers.roles.customer = login;
-  }
+function hasCustomer(facts) {
+  const roleFor = facts["roleFor"];
+  return roleFor !== null && typeof roleFor === "object" && roleOf(facts, roleFor["customer"]) !== undefined;
 }
 
-async function resolveOtherCustomer(input, answers) {
-  const role = roleNameFor(input.facts, "otherCustomer");
-  if (input.switches.has(NO_OTHER_CUSTOMER)) {
-    if (roleOf(input.facts, role) !== undefined) {
-      answers.roles.otherCustomer = null;
+function resolveCustomerRole(purpose, flag, input, answers) {
+  const login = givenValue({ flag, check: blankProblem }, input);
+  if (login === undefined) {
+    return;
+  }
+  const role = roleNameFor(input.facts, purpose);
+  const held = roleOf(input.facts, role);
+  if (held !== undefined && !isPlaceholder(held)) {
+    if (held.toLowerCase() !== login.toLowerCase()) {
+      answers.notes.push(
+        `Kept roles["${role}"] from .qa/project.json; ${flag} was not applied (edit .qa/project.json to change it).`,
+      );
     }
     return;
   }
-  if (!isPlaceholder(roleOf(input.facts, role))) {
-    return;
+  answers.roles[purpose] = login;
+}
+
+function resolveCustomerFlags(input, answers) {
+  resolveCustomerRole("customer", "--customer", input, answers);
+  resolveCustomerRole("otherCustomer", "--other-customer", input, answers);
+  if (answers.roles.otherCustomer !== undefined && answers.roles.customer === undefined && !hasCustomer(input.facts)) {
+    throw new Error("--other-customer needs --customer: the other customer is a customer of another organization");
   }
-  const login = await resolveField(
-    { name: "other customer login", flag: "--other-customer", label: OTHER_CUSTOMER_QUESTION, check: blankProblem },
-    input,
-  );
+}
+
+async function askCustomer(purpose, label, input, answers) {
+  const login = await resolveField({ name: `${purpose} login`, label, check: blankProblem }, input);
   if (login !== undefined) {
-    answers.roles.otherCustomer = login;
-  } else if (input.prompter !== undefined) {
-    answers.roles.otherCustomer = null;
+    answers.roles[purpose] = login;
   }
+}
+
+async function resolveCustomers(input, answers) {
+  resolveCustomerFlags(input, answers);
+  const interactive = input.prompter !== undefined;
+  if (interactive && answers.roles.customer === undefined && !hasCustomer(input.facts)) {
+    await askCustomer("customer", CUSTOMER_QUESTION, input, answers);
+  }
+  await resolveRolePassword("CUSTOMER_PASSWORD", "Customer password", input, answers);
+  const otherHeld = roleOf(input.facts, roleNameFor(input.facts, "otherCustomer")) !== undefined;
+  if (interactive && answers.roles.customer !== undefined && answers.roles.otherCustomer === undefined && !otherHeld) {
+    await askCustomer("otherCustomer", OTHER_CUSTOMER_QUESTION, input, answers);
+  }
+  await resolveRolePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
 }
 
 function isTemplateTracker(facts) {
@@ -293,41 +302,35 @@ function isTemplateTracker(facts) {
   );
 }
 
-async function resolveTracker(input, answers) {
-  if (!isTemplateTracker(input.facts)) {
+function hasTracker(facts) {
+  const tracker = facts["tracker"];
+  return tracker !== null && typeof tracker === "object" && !isTemplateTracker(facts);
+}
+
+function resolveTracker(input, answers) {
+  const answered = givenValue({ flag: "--tracker", check: trackerKindProblem }, input);
+  if (answered === undefined && given(input.values["--key-pattern"]) === undefined) {
     return undefined;
   }
-  const flagged = given(input.values["--tracker"]) !== undefined || given(input.values["--key-pattern"]) !== undefined;
-  if (!flagged && input.prompter === undefined) {
+  if (hasTracker(input.facts)) {
+    answers.notes.push(
+      "Kept tracker from .qa/project.json; --tracker and --key-pattern were not applied (edit .qa/project.json to change it).",
+    );
     return undefined;
   }
-  const answered = await resolveField(
-    {
-      name: "tracker kind",
-      flag: "--tracker",
-      label: "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
-      check: trackerKindProblem,
-      required: true,
-    },
-    input,
-  );
   if (answered === undefined) {
     answers.notes.push("Ignored --key-pattern: the tracker kind is not given; pass --tracker too.");
     return undefined;
   }
   const kind = trackerKind(answered);
-  const keyPattern = await resolveField(
-    {
-      name: "ticket-key pattern",
-      flag: "--key-pattern",
-      label: keyPatternLabel(kind),
-      check: (value) => keyPatternProblem(kind, value),
-      fallback: KEY_PATTERN_FOR[kind],
-      required: KEY_PATTERN_FOR[kind] === undefined,
-    },
-    input,
-  );
-  return keyPattern === undefined ? undefined : { kind, keyPattern };
+  const keyPattern =
+    givenValue({ flag: "--key-pattern", check: (value) => keyPatternProblem(kind, value) }, input) ??
+    KEY_PATTERN_FOR[kind];
+  if (keyPattern === undefined) {
+    answers.notes.push(`Ignored --tracker: a ${kind} tracker needs --key-pattern too.`);
+    return undefined;
+  }
+  return { kind, keyPattern };
 }
 
 function isTemplateDocSources(facts) {
@@ -348,7 +351,7 @@ function isTemplateDocSources(facts) {
   );
 }
 
-async function resolveDocs(input, answers) {
+function resolveDocs(input, answers) {
   if (!isTemplateDocSources(input.facts)) {
     if (given(input.values["--docs"]) !== undefined) {
       answers.notes.push(
@@ -357,10 +360,7 @@ async function resolveDocs(input, answers) {
     }
     return undefined;
   }
-  const reply = await resolveField(
-    { name: "documentation", flag: "--docs", label: DOCS_QUESTION, check: docsProblem },
-    input,
-  );
+  const reply = givenValue({ flag: "--docs", check: docsProblem }, input);
   return reply === undefined ? undefined : docSourceFor(reply);
 }
 
@@ -370,18 +370,15 @@ export async function resolveAnswers(input) {
     await resolveSetting(field, input, answers);
   }
   await resolvePassword("ADMIN_PASSWORD", "Administrator password", input, answers);
-  await resolveCustomer(input, answers);
-  await resolveRolePassword("CUSTOMER_PASSWORD", "Customer password", input, answers);
-  await resolveOtherCustomer(input, answers);
-  await resolveRolePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
-  const tracker = await resolveTracker(input, answers);
+  await resolveCustomers(input, answers);
+  const tracker = resolveTracker(input, answers);
   if (tracker !== undefined) {
     answers.tracker = tracker;
   }
-  const docs = await resolveDocs(input, answers);
+  const docs = resolveDocs(input, answers);
   if (docs !== undefined) {
     answers.docs = docs;
   }
-  await resolveSetting(TEST_ID, input, answers);
+  await resolveSetting(TEST_ID, { ...input, prompter: undefined }, answers);
   return answers;
 }

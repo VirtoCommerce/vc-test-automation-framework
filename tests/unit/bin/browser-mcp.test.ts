@@ -13,7 +13,17 @@ const CHECKS = fileURLToPath(new URL("../../../.claude/checks", import.meta.url)
 const TEMPLATE_FACTS = fileURLToPath(new URL("../../../templates/suite/.qa/project.json", import.meta.url));
 const PASSWORD_NAMES = ["ADMIN_PASSWORD", "CUSTOMER_PASSWORD", "OTHER_CUSTOMER_PASSWORD"];
 
-function writeProject(dir: string, env: string, factsText = readFileSync(TEMPLATE_FACTS, "utf8")): void {
+function withCustomers(): string {
+  const facts = JSON.parse(readFileSync(TEMPLATE_FACTS, "utf8"));
+  return JSON.stringify({
+    ...facts,
+    roles: { ...facts.roles, customer: "buyer@shop.test", "other customer": "second@shop.test" },
+    roleFor: { ...facts.roleFor, customer: "customer", otherCustomer: "other customer" },
+    passwordFor: { ...facts.passwordFor, customer: "CUSTOMER_PASSWORD", "other customer": "OTHER_CUSTOMER_PASSWORD" },
+  });
+}
+
+function writeProject(dir: string, env: string, factsText = withCustomers()): void {
   mkdirSync(join(dir, ".qa"), { recursive: true });
   writeFileSync(join(dir, ".qa", "project.json"), factsText);
   writeFileSync(join(dir, ".env"), env);
@@ -52,7 +62,7 @@ test.describe("browser MCP launcher", () => {
     expect(launch.warnings.join("\n")).not.toContain("a'b");
   });
 
-  test("reads the passwords of facts that are still the template, and the suite's .env of its suiteDir", () => {
+  test("reads the administrator's password of the template's facts, and the suite's .env of its suiteDir", () => {
     const facts = { ...JSON.parse(readFileSync(TEMPLATE_FACTS, "utf8")), suiteDir: "suite" };
     writeProject(dir, "", JSON.stringify(facts));
     mkdirSync(join(dir, "suite"));
@@ -60,7 +70,7 @@ test.describe("browser MCP launcher", () => {
 
     const read = tolerantRunVariables(dir, {});
 
-    expect(read.names).toEqual(PASSWORD_NAMES);
+    expect(read.names).toEqual(["ADMIN_PASSWORD"]);
     expect(read.warnings).toEqual([]);
     expect(read.vars["ADMIN_PASSWORD"]).toBe("from-suite");
     expect(prepareLaunch(dir, {}).secrets).toEqual({ ADMIN_PASSWORD: "from-suite" });
@@ -117,7 +127,7 @@ test.describe("browser MCP launcher", () => {
   });
 
   test("takes no suiteDir outside the repository, and warns instead of stopping on a .env it cannot read", () => {
-    const facts = { ...JSON.parse(readFileSync(TEMPLATE_FACTS, "utf8")), suiteDir: "../elsewhere" };
+    const facts = { ...JSON.parse(withCustomers()), suiteDir: "../elsewhere" };
     writeProject(dir, "ADMIN_PASSWORD=from-root\n", JSON.stringify(facts));
 
     const outside = tolerantRunVariables(dir, {});

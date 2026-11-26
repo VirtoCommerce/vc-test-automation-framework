@@ -9,9 +9,11 @@ one file, `.qa/project.json`.
 
 A new test suite gets the agents from `npx vc-qa-agents init` (see
 [Getting started](../getting-started.md#start-from-the-template)), with a `.qa/project.json` that matches it: `init`
-asks for the stand's URLs, store, logins and passwords, tracker and test-id attribute, writes them, and ends with a
-readiness table, so that nothing is left but to start `claude`. `npx vc-qa-agents doctor` prints that table again and
-exits with 1 when a row fails. An existing suite installs the agents on their own.
+asks only for the stand's URLs, store and administrator, and optionally for customer accounts already on the stand,
+writes them, and ends with a readiness table, so that nothing is left but to start `claude`. Customers are added when they are seeded (or with
+`--customer`), and until then the agents look at the frontend anonymously; a tracker is added with `--tracker` or by
+editing the file, and until then a ticket is read from pasted text. `npx vc-qa-agents doctor` prints that table again
+and exits with 1 when a row fails. An existing suite installs the agents on their own.
 
 The agents run from your repository's `.claude/` directory, so the package copies them there:
 
@@ -89,12 +91,12 @@ files present.
 | Field             | Holds                                                                                                       |
 | ----------------- | ----------------------------------------------------------------------------------------------------------- |
 | `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.` for the root            |
-| `tracker`         | The tracker kind, the pattern of its keys and the routes the agents may read a ticket by                    |
+| `tracker`         | The tracker kind, its key pattern and the routes to read a ticket by (optional: else pasted text only)      |
 | `docSources`      | Where the agents look up how the product should behave                                                      |
 | `commands`        | The type check, one test command for each Playwright project plus `unit` and `all`, and the lint (optional) |
 | `critical`        | The flows that coverage ranks first                                                                         |
 | `roles`           | The data roles of the tests, each with its account                                                          |
-| `roleFor`         | Which role is a customer, and optionally which administers (`admin`) and which is another customer          |
+| `roleFor`         | Which role administers (`admin`), is a customer and is another customer; each optional                      |
 | `rolePermissions` | The permissions of each role, for security tests                                                            |
 | `passwordFor`     | The environment variable that holds each role's password                                                    |
 | `quality`         | Limits on the size of a test, the stable series and the time budget of each project                         |

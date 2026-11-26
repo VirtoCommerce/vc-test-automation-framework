@@ -37,32 +37,33 @@ file that exists, nor an agent, command or skill of the repository's own (see
 
 ### What `init` asks
 
-In a terminal, `init` asks once for each of these and writes the answers to `.env` and `.qa/project.json`:
+`init` asks only what the suite cannot start without. In a terminal, it asks once for each of these and writes the
+answers to `.env`:
 
 1. The backend URL, the frontend URL and the store (`BACKEND_BASE_URL`, `FRONTEND_BASE_URL`, `STORE_ID`).
 2. The administrator's login (`ADMIN_USERNAME`) and password.
-3. The login of a customer and of another customer, with their passwords. The logins go to `roles` in
-   `.qa/project.json`; the passwords go to `.env`. The customer is required, because the tests sign in to the frontend
-   as that customer: a blank answer is asked again. The other customer, who tests that one customer cannot reach
-   another's data, may be left empty when the stand has none, or removed with `--no-other-customer`; `init` then
-   removes that role from `roles`, `roleFor` and `passwordFor` and does not ask for its password, on this run or a
-   later one. Both questions are for the roles that `roleFor.customer` and `roleFor.otherCustomer` name.
-4. The tracker, which has no default and must be answered, and the pattern of its ticket keys. `init` checks both as
-   `.qa/project.json` does and asks again with the reason: one tracker only (enter the main one, not a list), and a
-   pattern that matches a key of that tracker, such as `ABC-123` for `jira` or a numeric id for `azure-boards`. An
-   answer that starts with `jira` (`Jira Cloud`) is written as `jira`, and `Azure Boards` or `Azure DevOps` as
-   `azure-boards`. The pattern of `azure-boards` defaults to `^\d+$`; for any other tracker it must be answered. A
-   `--tracker` or `--key-pattern` flag that fails the same check stops `init` before it writes anything.
-5. Where your project's own documentation is: a URL, `mcp:<server name>`, or what to ask a person for. The agents
-   read it before the public Virto Commerce documentation, which stays in `docSources` after it. An empty answer skips
-   the question.
-6. The attribute that marks an element for tests, `data-test-id` by default. It is `FRONTEND_TEST_ID_ATTRIBUTE` in
-   `.env`, which `playwright.config.ts` passes to `defaultUse` as `testIdAttribute`; a suite that keeps
-   `defaultUse(env)` uses `data-test-id`.
+
+Then one optional step, for a stand where test data cannot be seeded, such as a client's read-only stand: whether
+customer accounts already exist there. Leave the customer login empty and `init` asks nothing more. A customer login
+is followed by its password and by the login of another customer, a customer of another organization, which may be
+empty; an answered one is followed by its password. The logins go to `roles`, `roleFor` and `passwordFor` in
+`.qa/project.json` (`CUSTOMER_PASSWORD`, `OTHER_CUSTOMER_PASSWORD`), the passwords to `.env`. The template has no
+customer: customers are added when they are seeded, or with `--customer` and `--other-customer`, and until then the
+agents look at the frontend anonymously and say that signed-in customer coverage was not reached.
+
+Everything else is set later, by a flag or by editing `.qa/project.json`: the tracker and the pattern of its ticket
+keys (`--tracker`, `--key-pattern`; without a tracker the agents read a ticket from text you paste), your project's
+documentation (`--docs`), and the attribute that marks an element for tests (`--test-id-attribute`, `data-test-id` by
+default, `FRONTEND_TEST_ID_ATTRIBUTE` in `.env`, which `playwright.config.ts` passes to `defaultUse` as
+`testIdAttribute`). `init` checks a `--tracker` or `--key-pattern` as `.qa/project.json` does: one tracker only, and
+a pattern that matches a key of that tracker, such as `ABC-123` for `jira` or a numeric id for `azure-boards`. A
+value that starts with `jira` (`Jira Cloud`) is written as `jira`, and `Azure Boards` or `Azure DevOps` as
+`azure-boards`, whose pattern defaults to `^\d+$`; any other tracker needs `--key-pattern`. A flag that fails its
+check stops `init` before it writes anything.
 
 Passwords are typed with hidden input. A value that is already set is not asked again: a key that is not empty in
-`.env`, or a role, tracker or `docSources` in `.qa/project.json` that you changed from the template, stays as it is, so running
-`init` again is safe. A flag for a key that `.env` already holds is not applied, and `init` prints one line saying so;
+`.env`, or a role, tracker or `docSources` in `.qa/project.json`, stays as it is, so running `init` again is safe. While
+the facts have no customer, a run in a terminal asks the optional customer question again. A flag for a key that `.env` already holds is not applied, and `init` prints one line saying so;
 edit `.env` to change that value.
 
 The new `.env` holds no stand values: each key is empty, with an example and the format in the comment above it. A value you leave blank stays empty, and the readiness table names it.
@@ -92,28 +93,22 @@ so it is not ready.
 When there is no terminal (CI, or an agent runs `init`) or you pass `--yes`, `init` asks nothing; without a terminal and
 without `--yes` it prints one line saying so. It takes the values
 from flags and from the shell, and a value still missing keeps the template's default or stays empty, which the table
-shows as a failing or skipped row. Without `--other-customer` or `--no-other-customer` the other customer stays the
-template's example account, so the `project facts` row fails until you give one of them. Set the passwords in the environment first, from the secret store of your CI or
+shows as a failing or skipped row. Set the passwords in the environment first, from the secret store of your CI or
 without typing the value on the command line, so that it stays out of the shell history:
 
 ```shell
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-read -rs CUSTOMER_PASSWORD && export CUSTOMER_PASSWORD
-read -rs OTHER_CUSTOMER_PASSWORD && export OTHER_CUSTOMER_PASSWORD
 ```
 
 ```powershell
 $env:ADMIN_PASSWORD = Read-Host -MaskInput "ADMIN_PASSWORD"
-$env:CUSTOMER_PASSWORD = Read-Host -MaskInput "CUSTOMER_PASSWORD"
-$env:OTHER_CUSTOMER_PASSWORD = Read-Host -MaskInput "OTHER_CUSTOMER_PASSWORD"
 ```
 
 Then run `init` on its own line:
 
 ```shell
 npx vc-qa-agents init --yes \
-  --backend-url https://platform.example.com --frontend-url https://shop.example.com --store-id B2B-store \
-  --customer customer@example.com --other-customer other@example.com
+  --backend-url https://platform.example.com --frontend-url https://shop.example.com --store-id B2B-store
 ```
 
 | Flag                              | Sets                                                                        |
@@ -121,22 +116,28 @@ npx vc-qa-agents init --yes \
 | `--backend-url`, `--frontend-url` | `BACKEND_BASE_URL`, `FRONTEND_BASE_URL`, each an origin: no path or query   |
 | `--store-id`                      | `STORE_ID`                                                                  |
 | `--admin-login`                   | `ADMIN_USERNAME`                                                            |
-| `--customer`, `--other-customer`  | The logins of the customer and of the other customer in `.qa/project.json`  |
-| `--no-other-customer`             | Removes the other customer's role, for a stand that has none                |
+| `--customer`, `--other-customer`  | Adds the customer and the other customer to `.qa/project.json`              |
 | `--tracker`, `--key-pattern`      | The tracker kind and the pattern of its ticket keys                         |
 | `--docs`                          | Your documentation: a URL, `mcp:<name>` or text, first in `docSources`      |
 | `--test-id-attribute`             | `FRONTEND_TEST_ID_ATTRIBUTE`                                                |
+| `--frontend-sign-in`              | `oauth` (default) or `cookie`: how the frontend signs a user in             |
 | `--yes`                           | Asks nothing, even in a terminal                                            |
 | `--save-passwords`                | Writes the passwords that came from the shell to `.env`                     |
 | `--skip-verify`                   | Makes no request: skips the reachability rows, the types and the first test |
 | `--skip-install`                  | Leaves the dependencies out, and with them the types and the first test     |
 | `--force-ours`                    | Replaces the agent files you edited                                         |
 
+`--frontend-sign-in cookie` is for a frontend that keeps its session in cookies rather than the Virto Commerce
+frontend's OAuth token. `init` then writes `fixtures/index.ts` with a `cookieSignIn` strategy passed to
+`defaultFixtures` as `frontendSignIn`, whose body throws until you write the frontend's sign-in requests there (see
+[Authentication](concepts/auth.md#sign-in-strategies)). It changes only a `fixtures/index.ts` that this run created;
+an existing one is kept, and `init` says so.
+
 A value that starts with `--` is written `--flag=value`, because `--flag --value` reads as two flags.
 
 **Passwords are never flags**; set them in the environment, not on the command line, so they stay out of the shell
 history and the process list. Typed passwords go to `.env`. Passwords that come from the shell variables `ADMIN_PASSWORD`, `CUSTOMER_PASSWORD` and
-`OTHER_CUSTOMER_PASSWORD` are used for the run only and stay in the shell, unless you pass `--save-passwords`; the
+`OTHER_CUSTOMER_PASSWORD` (set those two too when you pass `--customer`) are used for the run only and stay in the shell, unless you pass `--save-passwords`; the
 table says "Passwords from the shell, not saved" so that a failure in a new terminal is no surprise. The `browser
 server` row does not hand them to the launcher either, so they are not written to `.qa/browser-secrets.local.env`.
 

@@ -24,7 +24,8 @@ area. Before the first step run `git status --short` and keep its output: Done c
 - **Frontend pages:** from the page objects, the frontend's routes where the project facts or the README say where its
   source lives, or a sitemap or menu seen with the browser on the frontend origin `node .claude/checks/stand.mts`
   prints: first anonymously, then signed in as `roleFor.customer` when it prints `sign-in: ready`. Each page says
-  which look reached it. Nothing exposes them: "not available".
+  which look reached it. Nothing exposes them: "not available". No `roleFor.customer` in the facts: the anonymous look
+  only, and the report says signed-in customer coverage was not reached because the project declares no customer.
 
 Each list is a short table; count and group by area when it is long.
 

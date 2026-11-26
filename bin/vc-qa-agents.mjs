@@ -13,7 +13,7 @@ import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependenci
 import { installServerBrowser } from "./lib/mcp-probe.mjs";
 import { createPrompter, isInteractive } from "./lib/prompts.mjs";
 import { formatTable, runReadiness, secretValues } from "./lib/readiness.mjs";
-import { discardOnFailure, removeIfCreated, writeAnswers } from "./lib/suite-files.mjs";
+import { discardOnFailure, removeIfCreated, withCookieSignIn, writeAnswers } from "./lib/suite-files.mjs";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
@@ -28,9 +28,9 @@ const USAGE = [
   "  npx vc-qa-agents [--force-ours]           install the QA agents into .claude/",
   "  npx vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] [--yes] [--save-passwords]",
   "      [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] [--admin-login <login>]",
-  "      [--customer <email>] [--other-customer <email> | --no-other-customer] [--tracker <name>]",
+  "      [--customer <email>] [--other-customer <email>] [--tracker <name>]",
   "      [--key-pattern <pattern>]",
-  "      [--docs <url | mcp:server | text>] [--test-id-attribute <attribute>]",
+  "      [--docs <url | mcp:server | text>] [--test-id-attribute <attribute>] [--frontend-sign-in oauth|cookie]",
   "                                            write a test suite (into the directory, if given), with the agents,",
   "                                            ask for what it needs and check that it is ready",
   "  npx vc-qa-agents doctor [--skip-verify]   check again that the suite is ready",
@@ -41,6 +41,7 @@ const GUARD_FILES = [HOOK_SCRIPT, ".claude/checks/readonly-shell.mts"];
 const MCP_FILE = ".mcp.json";
 const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
+const FIXTURES_FILE = "fixtures/index.ts";
 const FACTS_CHECK = ".claude/checks/project-facts.mts";
 const CANCELLED = "cancelled";
 const NO_TERMINAL = "No terminal: nothing was asked; pass the values as flags or edit .env.";
@@ -306,9 +307,7 @@ function install(target, { written = [], forceOurs = false, wizard = false } = {
   if (written.includes(FACTS_FILE) && wizard) {
     lines.push("Wrote .qa/project.json for the suite.");
   } else if (written.includes(FACTS_FILE)) {
-    lines.push(
-      "Wrote .qa/project.json for the suite. Replace its example accounts and tracker with this repository's facts:",
-    );
+    lines.push("Wrote .qa/project.json for the suite. Replace its example values with this repository's facts:");
     lines.push("every agent reads it, and node .claude/checks/project-facts.mts refuses it until you have.");
   } else if (copyIfMissing(join(PACKAGE_ROOT, ".qa", "project.example.json"), join(target, ".qa", "project.json"))) {
     lines.push("Created .qa/project.json from the example. Replace its example values with this repository's facts:");
@@ -444,6 +443,23 @@ function copySuiteTemplate(target, suiteDir) {
     written.push(env);
   }
   return { written, kept };
+}
+
+function applyFrontendSignIn(target, suiteDir, written, signIn) {
+  if (signIn !== "cookie") {
+    return [];
+  }
+  const fixtures = inSuite(suiteDir, FIXTURES_FILE);
+  if (!written.includes(fixtures)) {
+    return [
+      `Kept your ${fixtures}; --frontend-sign-in cookie was not applied (pass frontendSignIn to defaultFixtures there).`,
+    ];
+  }
+  const path = join(target, fixtures);
+  writeFileSync(path, withCookieSignIn(readFileSync(path, "utf8")));
+  return [
+    `Wrote ${fixtures} with a cookie sign-in of the frontend: write its sign-in requests there before a test signs in.`,
+  ];
 }
 
 function suiteDirOf(positional) {
@@ -641,6 +657,7 @@ async function init(target, { switches, values, suiteDir }) {
       pointFactsAtSuite(target, suiteDir);
       lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
     }
+    lines.push(...applyFrontendSignIn(target, suiteDir, written, values["--frontend-sign-in"]));
     mergePackageJson(suite, own);
     lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
     if (written.includes(MCP_FILE)) {

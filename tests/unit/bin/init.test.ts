@@ -21,6 +21,7 @@ import { browserServerKind } from "../../../bin/lib/browser-server.mjs";
 
 const BIN = fileURLToPath(new URL("../../../bin/vc-qa-agents.mjs", import.meta.url));
 const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
+const TEMPLATE_DIR = fileURLToPath(new URL("../../../templates/suite", import.meta.url));
 
 const ASKED_VARIABLES = [
   "BACKEND_BASE_URL",
@@ -195,7 +196,7 @@ test.describe("vc-qa-agents init", () => {
     }
   });
 
-  test("gives the suite facts that fail only on the placeholders, until they are replaced", () => {
+  test("gives the suite facts that pass with only the administrator: no customer, no tracker, no placeholder", () => {
     initIn(dir);
     symlinkSync(NODE_MODULES, join(dir, "node_modules"), "junction");
 
@@ -204,12 +205,11 @@ test.describe("vc-qa-agents init", () => {
       encoding: "utf8",
     });
 
-    expect(result.status).toBe(1);
-    expect(result.stdout).toBe("");
-    const lines = result.stderr.trim().split(/\r?\n/);
-    expect(lines).toHaveLength(3);
-    expect(lines.join("\n")).toContain("template's example account");
-    expect(lines.join("\n")).toContain("template's example key pattern");
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    const facts = readJson(join(dir, ".qa", "project.json"));
+    expect(facts["roleFor"]).toEqual({ admin: "administrator" });
+    expect(facts["tracker"]).toBeUndefined();
   });
   test("writes a suite in a directory as its own npm project, with the agents and the facts at the root", () => {
     const suiteDir = "tests-suite";
@@ -227,11 +227,6 @@ test.describe("vc-qa-agents init", () => {
     const factsPath = join(dir, ".qa", "project.json");
     const facts = readJson(factsPath);
     expect(facts).toMatchObject({ suiteDir, healerPaths: expect.arrayContaining([`${suiteDir}/pages/`]) });
-    const placeholders = readFileSync(factsPath, "utf8")
-      .replaceAll("@your-company.test", "@example.org")
-      .replace("PROJ-", "SUITE-");
-    writeFileSync(factsPath, placeholders);
-
     const result = spawnSync(process.execPath, [join(dir, ".claude", "checks", "project-facts.mts")], {
       cwd: dir,
       encoding: "utf8",
@@ -241,6 +236,39 @@ test.describe("vc-qa-agents init", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       playwright: `npm exec --prefix ${suiteDir} --no -- playwright test --config=${suiteDir}`,
     });
+  });
+
+  test("--frontend-sign-in cookie writes the cookie stub into the fixtures it creates, and never into existing ones", () => {
+    const first = initIn(dir, "--frontend-sign-in", "cookie");
+    const fixtures = join(dir, "fixtures", "index.ts");
+    const written = readFileSync(fixtures, "utf8");
+    writeFileSync(fixtures, "export const test = 1;\n");
+
+    const again = initIn(dir, "--frontend-sign-in", "cookie");
+
+    expect(first).toContain("Wrote fixtures/index.ts with a cookie sign-in of the frontend");
+    expect(written).toContain("defaultFixtures(env, { frontendSignIn })");
+    expect(again).toContain("Kept your fixtures/index.ts; --frontend-sign-in cookie was not applied");
+    expect(readFileSync(fixtures, "utf8")).toBe("export const test = 1;\n");
+  });
+
+  test("--frontend-sign-in oauth or none keeps the template's fixtures, and another value is refused before any write", () => {
+    initIn(dir, "--frontend-sign-in", "oauth");
+    const template = readFileSync(join(TEMPLATE_DIR, "fixtures", "index.ts"), "utf8");
+    const other = mkdtempSync(join(tmpdir(), "vc-sign-in-"));
+    try {
+      const refused = spawnSync(process.execPath, [BIN, "init", "--skip-install", "--frontend-sign-in", "token"], {
+        cwd: other,
+        encoding: "utf8",
+      });
+
+      expect(readFileSync(join(dir, "fixtures", "index.ts"), "utf8")).toBe(template);
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain("--frontend-sign-in must be oauth or cookie");
+      expect(existsSync(join(other, ".qa"))).toBe(false);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
   });
 
   test("refuses a suite directory outside the repository", () => {
@@ -296,9 +324,10 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes"]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toMatch(/^Not ready:$/m);
+    expect(result.stdout).toMatch(/^Not verified: backend /m);
     expect(result.stdout).not.toContain("Ready:");
     expect(result.stdout).toMatch(/^skipped\s+backend\s+--skip-verify: no network checks$/m);
+    expect(result.stdout).toMatch(/^ok\s+project facts\s/m);
     expect(result.stdout).not.toContain("Next:");
     expect(result.stdout).not.toContain("signs a new user in");
   });

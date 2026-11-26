@@ -9,11 +9,12 @@ export const VALUE_FLAGS = [
   "--key-pattern",
   "--docs",
   "--test-id-attribute",
+  "--frontend-sign-in",
 ];
 
 export const SWITCHES = {
   install: ["--force-ours"],
-  init: ["--skip-install", "--force-ours", "--yes", "--save-passwords", "--skip-verify", "--no-other-customer"],
+  init: ["--skip-install", "--force-ours", "--yes", "--save-passwords", "--skip-verify"],
   uninstall: [],
   doctor: ["--skip-verify"],
 };

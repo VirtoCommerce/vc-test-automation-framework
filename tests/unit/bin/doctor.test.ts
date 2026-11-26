@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,6 +58,12 @@ test.describe("vc-qa-agents doctor", () => {
   });
 
   test("exits 1 when a row fails, where init with the same facts exits 0", () => {
+    agents(dir, "init", "--skip-install", "--skip-verify", "--yes");
+    const factsPath = join(dir, ".qa", "project.json");
+    const facts = JSON.parse(readFileSync(factsPath, "utf8"));
+    facts.roles.customer = "customer@your-company.test";
+    facts.roleFor.customer = "customer";
+    writeFileSync(factsPath, JSON.stringify(facts));
     const init = agents(dir, "init", "--skip-install", "--skip-verify", "--yes");
     symlinkSync(NODE_MODULES, join(dir, "node_modules"), "junction");
 

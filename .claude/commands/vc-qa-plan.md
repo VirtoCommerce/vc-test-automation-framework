@@ -7,7 +7,8 @@ You are orchestrating the planning stage. Spawn the `vc-qa-planner` agent to tur
 ## Input
 
 `$ARGUMENTS` is one of:
-- a ticket key (checked against `tracker.keyPattern` in the project facts)
+- a ticket key (checked against `tracker.keyPattern` in the project facts; facts without `tracker` check no key and
+  read the ticket by `paste`)
 - a specification or documentation link
 - an area of existing functionality ("cover the cart") or a gap id from the coverage report
 - a plain-text requirement

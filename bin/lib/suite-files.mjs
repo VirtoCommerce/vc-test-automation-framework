@@ -6,6 +6,7 @@ const ASSIGNMENT = /^(\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=)(.*)$/;
 const EMPTY_WITH_COMMENT = /^\s*(?:(["'`])\1)?\s*(#.*)?$/;
 const TEMPLATE_ADMINISTRATOR = "admin";
 const ROLE_FOR_PURPOSE = { customer: "customer", otherCustomer: "other customer" };
+const PASSWORD_FOR_PURPOSE = { customer: "CUSTOMER_PASSWORD", otherCustomer: "OTHER_CUSTOMER_PASSWORD" };
 
 function lineEnding(text) {
   return text.includes("\r\n") ? "\r\n" : "\n";
@@ -94,18 +95,13 @@ export function roleNameFor(facts, purpose) {
   return typeof name === "string" && name !== "" ? name : ROLE_FOR_PURPOSE[purpose];
 }
 
-function withoutOtherCustomer(facts, roles) {
-  const roleFor = isRecord(facts["roleFor"]) ? facts["roleFor"] : {};
-  const role = roleNameFor(facts, "otherCustomer");
-  delete roleFor["otherCustomer"];
-  if (Object.values(roleFor).includes(role)) {
-    return;
-  }
-  delete roles[role];
-  for (const key of ["passwordFor", "rolePermissions"]) {
-    if (isRecord(facts[key])) {
-      delete facts[key][role];
-    }
+function withRole(facts, roles, purpose, login) {
+  const role = roleNameFor(facts, purpose);
+  roles[role] = login;
+  facts["roleFor"] = { ...(isRecord(facts["roleFor"]) ? facts["roleFor"] : {}), [purpose]: role };
+  const passwordFor = isRecord(facts["passwordFor"]) ? facts["passwordFor"] : {};
+  if (passwordFor[role] === undefined) {
+    facts["passwordFor"] = { ...passwordFor, [role]: PASSWORD_FOR_PURPOSE[purpose] };
   }
 }
 
@@ -116,13 +112,10 @@ export function applyFacts(facts, answers, adminLogin) {
   if (adminLogin && (administrator === undefined || administrator === TEMPLATE_ADMINISTRATOR)) {
     roles["administrator"] = adminLogin;
   }
-  if (answers.roles.customer !== undefined) {
-    roles[roleNameFor(result, "customer")] = answers.roles.customer;
-  }
-  if (answers.roles.otherCustomer === null) {
-    withoutOtherCustomer(result, roles);
-  } else if (answers.roles.otherCustomer !== undefined) {
-    roles[roleNameFor(result, "otherCustomer")] = answers.roles.otherCustomer;
+  for (const purpose of ["customer", "otherCustomer"]) {
+    if (answers.roles[purpose] !== undefined) {
+      withRole(result, roles, purpose, answers.roles[purpose]);
+    }
   }
   if (Object.keys(roles).length > 0) {
     result["roles"] = roles;
@@ -142,6 +135,42 @@ export function removeIfCreated(path, created) {
   if (created) {
     rmSync(path, { force: true });
   }
+}
+
+export const FRONTEND_SIGN_INS = ["oauth", "cookie"];
+
+const COOKIE_SIGN_IN = [
+  "/** Signs a user in to the frontend with a cookie session. Write the frontend's sign-in requests here. */",
+  "const frontendSignIn = cookieSignIn(async (_http, _credentials) => {",
+  "  throw new Error(",
+  '    "The frontend\'s cookie sign-in is not written yet: write its sign-in requests in fixtures/index.ts " +',
+  '      "(see docs/concepts/auth.md of @virtocommerce/test-automation-framework)",',
+  "  );",
+  "});",
+  "",
+  "",
+];
+
+const COOKIE_EDITS = [
+  [
+    'import { anonymousVisitorState } from "@virtocommerce/test-automation-framework/auth";',
+    'import { anonymousVisitorState, cookieSignIn } from "@virtocommerce/test-automation-framework/auth";',
+  ],
+  ["defaultFixtures(env))", "defaultFixtures(env, { frontendSignIn }))"],
+  [
+    "/** The app that a browser test opens. */",
+    `${COOKIE_SIGN_IN.join("\n")}/** The app that a browser test opens. */`,
+  ],
+];
+
+export function withCookieSignIn(text) {
+  const eol = lineEnding(text);
+  return COOKIE_EDITS.reduce((result, [from, to]) => {
+    if (!result.includes(from)) {
+      throw new Error(`fixtures/index.ts has no ${JSON.stringify(from)} to change for the cookie sign-in`);
+    }
+    return result.replace(from, to.replaceAll("\n", eol));
+  }, text);
 }
 
 export async function discardOnFailure(path, created, work) {

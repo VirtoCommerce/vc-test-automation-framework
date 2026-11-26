@@ -50,7 +50,8 @@ delete, confirm or send, and dismiss a dialog that asks to confirm one.
 Look anonymously first. Then sign in once as `roleFor.customer`, only as the skill `vc-project-facts` says (Passwords):
 never sign out or sign in over a session that is already open, and record no content seen under an account that is
 not in `roles`. A page neither look reaches is "not reached: needs <role>", with the `sign-in` reason or the
-refusal.
+refusal. When the facts have no `roleFor.customer`, look anonymously only and say in the output that signed-in
+customer coverage was not reached because the project declares no customer.
 
 ## Rules
 

@@ -5,7 +5,14 @@ import { parseEnv } from "node:util";
 
 import { expect, test } from "@playwright/test";
 
-import { applyFacts, discardOnFailure, fillEnvText, setEnvValue, writeAnswers } from "../../../bin/lib/suite-files.mjs";
+import {
+  applyFacts,
+  discardOnFailure,
+  fillEnvText,
+  setEnvValue,
+  withCookieSignIn,
+  writeAnswers,
+} from "../../../bin/lib/suite-files.mjs";
 
 const TEMPLATE = join(import.meta.dirname, "..", "..", "..", "templates", "suite");
 const TEMPLATE_FACTS = JSON.parse(readFileSync(join(TEMPLATE, ".qa", "project.json"), "utf8"));
@@ -61,7 +68,7 @@ test.describe("setEnvValue", () => {
 });
 
 test.describe("applyFacts", () => {
-  test("replaces the template's logins and tracker and leaves the rest", () => {
+  test("adds the customers' roles and the tracker to the template and leaves the rest", () => {
     const facts = applyFacts(
       TEMPLATE_FACTS,
       {
@@ -77,9 +84,16 @@ test.describe("applyFacts", () => {
       customer: "buyer@shop.test",
       "other customer": "second@shop.test",
     });
-    expect(facts["tracker"]).toEqual({ ...TEMPLATE_FACTS.tracker, kind: "azure-boards", keyPattern: "^\\d+$" });
+    expect(facts["roleFor"]).toEqual({ admin: "administrator", customer: "customer", otherCustomer: "other customer" });
+    expect(facts["passwordFor"]).toEqual({
+      administrator: "ADMIN_PASSWORD",
+      customer: "CUSTOMER_PASSWORD",
+      "other customer": "OTHER_CUSTOMER_PASSWORD",
+    });
+    expect(facts["tracker"]).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
     expect(facts["commands"]).toEqual(TEMPLATE_FACTS.commands);
-    expect(TEMPLATE_FACTS.roles.customer).toBe("customer@your-company.test");
+    expect(TEMPLATE_FACTS.roles).toEqual({ administrator: "admin" });
+    expect(TEMPLATE_FACTS.tracker).toBeUndefined();
   });
 
   test("puts the project's documentation before the template's entry", () => {
@@ -130,16 +144,13 @@ test.describe("writeAnswers", () => {
     const env = readFileSync(join(project, "tests-suite", ".env"), "utf8");
     expect(env).toContain("ADMIN_PASSWORD=typed-secret\n");
     expect(env).not.toContain("shell-secret");
-    expect(env).toContain("CUSTOMER_PASSWORD=\n");
+    expect(env).not.toMatch(/^CUSTOMER_PASSWORD=/m);
     expect(env).toContain("STORE_ID=Held-store\n");
     expect(env).toContain("ADMIN_USERNAME=root\n");
 
     const facts = JSON.parse(readFileSync(join(project, ".qa", "project.json"), "utf8"));
-    expect(facts.roles).toEqual({
-      administrator: "root",
-      customer: "buyer@shop.test",
-      "other customer": "other.customer@your-company.test",
-    });
+    expect(facts.roles).toEqual({ administrator: "root", customer: "buyer@shop.test" });
+    expect(facts.passwordFor).toEqual({ administrator: "ADMIN_PASSWORD", customer: "CUSTOMER_PASSWORD" });
     expect(JSON.stringify(facts)).not.toContain("secret");
   });
 
@@ -208,5 +219,26 @@ test.describe("discardOnFailure", () => {
 
     expect(value).toBe(42);
     expect(existsSync(join(project, ".env"))).toBe(true);
+  });
+});
+
+test.describe("withCookieSignIn", () => {
+  const fixtures = readFileSync(join(TEMPLATE, "fixtures", "index.ts"), "utf8");
+
+  test("passes a cookie sign-in stub that throws to defaultFixtures, keeping the file's line endings", () => {
+    const changed = withCookieSignIn(fixtures);
+    const crlf = withCookieSignIn(fixtures.replaceAll("\n", "\r\n"));
+
+    expect(changed).toContain(
+      'import { anonymousVisitorState, cookieSignIn } from "@virtocommerce/test-automation-framework/auth";',
+    );
+    expect(changed).toContain("const frontendSignIn = cookieSignIn(async (_http, _credentials) => {");
+    expect(changed).toContain("throw new Error(");
+    expect(changed).toContain("defaultFixtures(env, { frontendSignIn })");
+    expect(crlf).toBe(changed.replaceAll("\n", "\r\n"));
+  });
+
+  test("refuses a file without the template's anchors instead of writing half a change", () => {
+    expect(() => withCookieSignIn("export const test = 1;\n")).toThrow(/has no .* to change for the cookie sign-in/);
   });
 });

@@ -45,7 +45,9 @@ A criterion already covered is listed as covered, not planned again.
      the administrator under a name is a scope question for the person; `arrange` needs no name),
      `roleFor.customer` for an ordinary signed-in customer, `roleFor.otherCustomer` for a customer of another
      organization. When the facts have no `roleFor.otherCustomer`, a cross-organization access case is a scope question
-     for the person (the planner's Ask), never a role you pick. A test that changes a user's own state creates its own
+     for the person (the planner's Ask), never a role you pick. When they have no `roleFor.customer`, plan no case as a
+     signed-in customer (anonymous and administration cases only) and say in the strategy that signed-in customer coverage was not reached because the project declares
+     no customer. A test that changes a user's own state creates its own
      user.
    - **A role with or without permission P**: take it from `rolePermissions`, a role whose list holds P or one whose
      list lacks it. When `rolePermissions` is absent, lists no fitting role, or does not settle the question, it is a

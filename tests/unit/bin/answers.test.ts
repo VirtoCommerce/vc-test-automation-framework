@@ -42,14 +42,18 @@ const FILLED_ENV = {
 const CHANGED_FACTS = {
   ...TEMPLATE_FACTS,
   roles: { administrator: "admin", customer: "buyer@shop.test", "other customer": "second@shop.test" },
+  roleFor: { admin: "administrator", customer: "customer", otherCustomer: "other customer" },
+  passwordFor: {
+    administrator: "ADMIN_PASSWORD",
+    customer: "CUSTOMER_PASSWORD",
+    "other customer": "OTHER_CUSTOMER_PASSWORD",
+  },
   tracker: { kind: "azure-boards", keyPattern: "^\\d+$", routes: ["paste"] },
   docSources: [{ name: "Team wiki", route: "paste", where: "the wiki page" }],
 };
 
-const CUSTOMER_QUESTION = "Customer login (email; required: the tests sign in to the frontend as this customer)";
-const OTHER_CUSTOMER_QUESTION = "Other customer login (email; empty if the stand has none)";
-const DOCS_QUESTION =
-  "Where is your project's own documentation? (a URL, mcp:<server name>, or what to ask a person for; empty to skip)";
+const CUSTOMER_QUESTION = "Customer accounts already on the stand? Customer login (email; empty if none)";
+const OTHER_CUSTOMER_QUESTION = "Other customer login (email of a customer of another organization; empty if none)";
 const TEMPLATE_DOC_SOURCE = TEMPLATE_FACTS.docSources[0];
 
 function fakePrompter(replies: string[]) {
@@ -142,37 +146,255 @@ test.describe("resolveAnswers", () => {
     expect(saved.persistPasswords).toEqual(["ADMIN_PASSWORD"]);
   });
 
-  test("a typed password is persisted, a blank one is left out", async () => {
+  test("a fresh interactive run asks the five stand questions, then the optional customer, and nothing else", async () => {
     const prompter = fakePrompter([
       "https://back.example.test",
       "https://front.example.test",
       "Store",
-      "",
+      "root",
       "typed-secret",
-      "buyer@shop.test",
-      "",
-      "second@shop.test",
-      "",
-      "azure-boards",
-      "",
-      "",
       "",
     ]);
 
     const answers = await resolveAnswers(input({ prompter }));
 
+    expect(prompter.asked).toEqual([
+      "Backend (platform) URL",
+      "Frontend URL",
+      "Store id",
+      "Administrator login",
+      CUSTOMER_QUESTION,
+    ]);
+    expect(prompter.secretAsked).toEqual(["Administrator password"]);
     expect(answers.passwords).toEqual({ ADMIN_PASSWORD: "typed-secret" });
     expect(answers.persistPasswords).toEqual(["ADMIN_PASSWORD"]);
-    expect(answers.roles).toEqual({ customer: "buyer@shop.test", otherCustomer: "second@shop.test" });
-    expect(answers.tracker).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
+    expect(answers.roles).toEqual({});
+    expect(answers.tracker).toBeUndefined();
     expect(answers.docs).toBeUndefined();
     expect(answers.env).toEqual({
       BACKEND_BASE_URL: "https://back.example.test",
       FRONTEND_BASE_URL: "https://front.example.test",
       STORE_ID: "Store",
+      ADMIN_USERNAME: "root",
       FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id",
     });
-    expect(prompter.secretAsked).toHaveLength(3);
+    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, answers, "root"));
+    expect(facts.roleFor).toEqual({ admin: "administrator" });
+    expect(placeholderProblems(facts)).toEqual([]);
+  });
+
+  test("the questions for the URLs, the store and the login carry no default, and the test-id attribute is not asked", async () => {
+    const prompter = fakePrompter(["", "https://front.example.test", "", ""]);
+
+    const asked = await resolveAnswers(
+      input({
+        existingEnv: {
+          ...FILLED_ENV,
+          BACKEND_BASE_URL: "",
+          FRONTEND_BASE_URL: "",
+          STORE_ID: "",
+          ADMIN_USERNAME: "",
+          FRONTEND_TEST_ID_ATTRIBUTE: "",
+        },
+        facts: CHANGED_FACTS,
+        prompter,
+      }),
+    );
+
+    expect(prompter.asked).toEqual(["Backend (platform) URL", "Frontend URL", "Store id", "Administrator login"]);
+    expect(asked.env).toEqual({
+      FRONTEND_BASE_URL: "https://front.example.test",
+      FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id",
+    });
+  });
+
+  test("answered customers are asked their passwords and give facts that parse and hold no template account", async () => {
+    const env = { ...FILLED_ENV, CUSTOMER_PASSWORD: "", OTHER_CUSTOMER_PASSWORD: "" };
+    const prompter = fakePrompter(["buyer@shop.test", "c-secret", "second@shop.test", "o-secret"]);
+
+    const answers = await resolveAnswers(input({ existingEnv: env, prompter }));
+    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, answers, "admin"));
+
+    expect(prompter.asked).toEqual([CUSTOMER_QUESTION, OTHER_CUSTOMER_QUESTION]);
+    expect(prompter.secretAsked).toEqual(["Customer password", "Other customer password"]);
+    expect(answers.passwords).toEqual({ CUSTOMER_PASSWORD: "c-secret", OTHER_CUSTOMER_PASSWORD: "o-secret" });
+    expect(answers.persistPasswords).toEqual(["CUSTOMER_PASSWORD", "OTHER_CUSTOMER_PASSWORD"]);
+    expect(facts.roles).toEqual({
+      administrator: "admin",
+      customer: "buyer@shop.test",
+      "other customer": "second@shop.test",
+    });
+    expect(facts.roleFor).toEqual({ admin: "administrator", customer: "customer", otherCustomer: "other customer" });
+    expect(facts.passwordFor).toEqual({
+      administrator: "ADMIN_PASSWORD",
+      customer: "CUSTOMER_PASSWORD",
+      "other customer": "OTHER_CUSTOMER_PASSWORD",
+    });
+    expect(placeholderProblems(facts)).toEqual([]);
+  });
+
+  test("an empty customer asks nothing more, and an empty other customer adds only the customer", async () => {
+    const env = { ...FILLED_ENV, CUSTOMER_PASSWORD: "", OTHER_CUSTOMER_PASSWORD: "" };
+    const none = fakePrompter([""]);
+    const one = fakePrompter(["buyer@shop.test", "", ""]);
+
+    const without = await resolveAnswers(input({ existingEnv: env, prompter: none }));
+    const only = await resolveAnswers(input({ existingEnv: env, prompter: one }));
+
+    expect(none.asked).toEqual([CUSTOMER_QUESTION]);
+    expect(none.secretAsked).toEqual([]);
+    expect(without.roles).toEqual({});
+    expect(one.asked).toEqual([CUSTOMER_QUESTION, OTHER_CUSTOMER_QUESTION]);
+    expect(one.secretAsked).toEqual(["Customer password"]);
+    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, only, "admin"));
+    expect(facts.roles).toEqual({ administrator: "admin", customer: "buyer@shop.test" });
+    expect(facts.roleFor).toEqual({ admin: "administrator", customer: "customer" });
+    expect(facts.passwordFor).toEqual({ administrator: "ADMIN_PASSWORD", customer: "CUSTOMER_PASSWORD" });
+  });
+
+  test("a re-run asks nothing once a customer role exists, and asks the customer again only while none does", async () => {
+    const first = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, prompter: fakePrompter(["buyer@shop.test", ""]) }),
+    );
+    const facts = applyFacts(TEMPLATE_FACTS, first, "admin");
+    const second = fakePrompter([]);
+    const withoutCustomer = fakePrompter([""]);
+
+    const again = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: second }));
+    const quiet = await resolveAnswers(input({ existingEnv: FILLED_ENV }));
+    await resolveAnswers(input({ existingEnv: FILLED_ENV, prompter: withoutCustomer }));
+
+    expect(second.asked).toEqual([]);
+    expect(second.secretAsked).toEqual([]);
+    expect(again.roles).toEqual({});
+    expect(again.passwords).toEqual({});
+    expect(quiet.roles).toEqual({});
+    expect(withoutCustomer.asked).toEqual([CUSTOMER_QUESTION]);
+  });
+
+  test("--customer and --other-customer add the roles without asking their logins; the passwords come from the shell", async () => {
+    const values = { "--customer": "buyer@shop.test", "--other-customer": "second@shop.test" };
+    const shell = { CUSTOMER_PASSWORD: "c-shell" };
+
+    const answers = await resolveAnswers(input({ values, shell }));
+    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, answers, "admin"));
+
+    expect(answers.roles).toEqual({ customer: "buyer@shop.test", otherCustomer: "second@shop.test" });
+    expect(answers.passwords).toEqual({ CUSTOMER_PASSWORD: "c-shell" });
+    expect(answers.persistPasswords).toEqual([]);
+    expect(facts.roleFor).toEqual({ admin: "administrator", customer: "customer", otherCustomer: "other customer" });
+  });
+
+  test("--other-customer without a customer is refused", async () => {
+    const refused = resolveAnswers(input({ values: { "--other-customer": "second@shop.test" } }));
+
+    await expect(refused).rejects.toThrow(/^--other-customer needs --customer/);
+  });
+
+  test("a customer flag keeps a customer the facts already hold, and says so", async () => {
+    const answers = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, facts: CHANGED_FACTS, values: { "--customer": "new@shop.test" } }),
+    );
+
+    expect(answers.roles).toEqual({});
+    expect(answers.notes).toEqual([
+      'Kept roles["customer"] from .qa/project.json; --customer was not applied (edit .qa/project.json to change it).',
+    ]);
+  });
+
+  test("writes the customers' logins to the roles roleFor names", async () => {
+    const facts = {
+      ...TEMPLATE_FACTS,
+      roles: { administrator: "admin", buyer: "buyer@your-company.test", rival: "rival@your-company.test" },
+      roleFor: { admin: "administrator", customer: "buyer", otherCustomer: "rival" },
+      passwordFor: { administrator: "ADMIN_PASSWORD", buyer: "CUSTOMER_PASSWORD", rival: "OTHER_CUSTOMER_PASSWORD" },
+    };
+    const answered = await resolveAnswers(
+      input({
+        existingEnv: FILLED_ENV,
+        facts,
+        values: { "--customer": "b@shop.test", "--other-customer": "r@shop.test" },
+      }),
+    );
+
+    expect(parseProjectFacts(applyFacts(facts, answered, "admin")).roles).toEqual({
+      administrator: "admin",
+      buyer: "b@shop.test",
+      rival: "r@shop.test",
+    });
+  });
+
+  test("the tracker is never asked, and --tracker with --key-pattern writes it to facts that have none", async () => {
+    const prompter = fakePrompter([""]);
+    const asked = await resolveAnswers(input({ existingEnv: FILLED_ENV, prompter }));
+    const flagged = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, values: { "--tracker": "jira", "--key-pattern": "^ABC-\\d+$" } }),
+    );
+    const boards = await resolveAnswers(input({ existingEnv: FILLED_ENV, values: { "--tracker": "azure boards" } }));
+    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, flagged, "admin"));
+
+    expect(prompter.asked).toEqual([CUSTOMER_QUESTION]);
+    expect(asked.tracker).toBeUndefined();
+    expect(flagged.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$" });
+    expect(facts.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$", routes: ["paste"] });
+    expect(boards.tracker).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
+  });
+
+  test("--tracker is not applied over a tracker the facts already hold, and a jira tracker needs --key-pattern", async () => {
+    const kept = await resolveAnswers(
+      input({
+        existingEnv: FILLED_ENV,
+        facts: CHANGED_FACTS,
+        values: { "--tracker": "jira", "--key-pattern": "^A-\\d+$" },
+      }),
+    );
+    const kindOnly = await resolveAnswers(input({ existingEnv: FILLED_ENV, values: { "--tracker": "jira" } }));
+
+    expect(kept.tracker).toBeUndefined();
+    expect(kept.notes).toEqual([
+      "Kept tracker from .qa/project.json; --tracker and --key-pattern were not applied (edit .qa/project.json to change it).",
+    ]);
+    expect(kindOnly.tracker).toBeUndefined();
+    expect(kindOnly.notes).toEqual(["Ignored --tracker: a jira tracker needs --key-pattern too."]);
+  });
+
+  test("--docs is mapped by its shape: URL, mcp server, or text", async () => {
+    const expected = [
+      ["https://wiki.example.test/docs", { route: "api", where: "https://wiki.example.test/docs" }],
+      ["  http://wiki.example.test  ", { route: "api", where: "http://wiki.example.test" }],
+      ["mcp:team-wiki", { route: "mcp", where: "team-wiki" }],
+      ["mcp: team wiki ", { route: "mcp", where: "team wiki" }],
+      ["ask the product owner for the spec", { route: "paste", where: "ask the product owner for the spec" }],
+    ] as const;
+
+    for (const [given, source] of expected) {
+      const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, values: { "--docs": given } }));
+
+      expect(answers.docs).toEqual({ name: "Project documentation", ...source });
+    }
+  });
+
+  test("the documentation and the test-id attribute are never asked", async () => {
+    const prompter = fakePrompter([""]);
+
+    const answers = await resolveAnswers(
+      input({ existingEnv: { ...FILLED_ENV, FRONTEND_TEST_ID_ATTRIBUTE: "" }, prompter }),
+    );
+
+    expect(prompter.asked).toEqual([CUSTOMER_QUESTION]);
+    expect(answers.docs).toBeUndefined();
+    expect(answers.env).toEqual({ FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id" });
+  });
+
+  test("a --test-id-attribute flag is written", async () => {
+    const answers = await resolveAnswers(
+      input({
+        existingEnv: { ...FILLED_ENV, FRONTEND_TEST_ID_ATTRIBUTE: "" },
+        values: { "--test-id-attribute": "data-qa" },
+      }),
+    );
+
+    expect(answers.env).toEqual({ FRONTEND_TEST_ID_ATTRIBUTE: "data-qa" });
   });
 
   test("an invalid URL flag throws naming --backend-url", async () => {
@@ -255,37 +477,6 @@ test.describe("resolveAnswers", () => {
     expect(answers.env).toEqual({});
   });
 
-  test("the questions for the URLs, the store and the login carry no default", async () => {
-    const prompter = fakePrompter(["", "https://front.example.test", "", "", ""]);
-
-    const asked = await resolveAnswers(
-      input({
-        existingEnv: {
-          ...FILLED_ENV,
-          BACKEND_BASE_URL: "",
-          FRONTEND_BASE_URL: "",
-          STORE_ID: "",
-          ADMIN_USERNAME: "",
-          FRONTEND_TEST_ID_ATTRIBUTE: "",
-        },
-        facts: CHANGED_FACTS,
-        prompter,
-      }),
-    );
-
-    expect(prompter.asked).toEqual([
-      "Backend (platform) URL",
-      "Frontend URL",
-      "Store id",
-      "Administrator login",
-      "Test-id attribute of the frontend",
-    ]);
-    expect(asked.env).toEqual({
-      FRONTEND_BASE_URL: "https://front.example.test",
-      FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id",
-    });
-  });
-
   test("a non-interactive run without flags leaves every stand value out", async () => {
     const answers = await resolveAnswers(input({ values: { "--store-id": "Flag-store" } }));
 
@@ -309,17 +500,6 @@ test.describe("resolveAnswers", () => {
     expect(answers.tracker).toBeUndefined();
   });
 
-  test("the customer question is skipped once roles.customer is not a placeholder", async () => {
-    const facts = { ...CHANGED_FACTS, roles: { ...TEMPLATE_FACTS.roles, customer: "buyer@shop.test" } };
-    const prompter = fakePrompter(["second@shop.test"]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
-
-    expect(prompter.asked).toHaveLength(1);
-    expect(prompter.asked[0]).toMatch(/other customer/i);
-    expect(answers.roles).toEqual({ otherCustomer: "second@shop.test" });
-  });
-
   test("role and tracker flags apply only while the facts hold the template's values", async () => {
     const values = { "--customer": "buyer@shop.test", "--tracker": "azure-boards", "--key-pattern": "^\\d+$" };
 
@@ -331,230 +511,6 @@ test.describe("resolveAnswers", () => {
     expect(changed.roles).toEqual({});
     expect(changed.tracker).toBeUndefined();
   });
-  test("the customer is required: a blank login is asked again with the reason, and refused after the attempts", async () => {
-    const prompter = fakePrompter(["", "buyer@shop.test", "", "jira", "^ABC-\\d+$", ""]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, prompter }));
-
-    expect(prompter.asked.slice(0, 3)).toEqual([
-      CUSTOMER_QUESTION,
-      `${CUSTOMER_QUESTION} (must not be blank)`,
-      OTHER_CUSTOMER_QUESTION,
-    ]);
-    expect(answers.roles.customer).toBe("buyer@shop.test");
-    const refused = resolveAnswers(input({ existingEnv: FILLED_ENV, prompter: fakePrompter(["", "", ""]) }));
-    await expect(refused).rejects.toThrow(/customer login must not be blank; asked 3 times/);
-  });
-
-  test("answered customers give facts that parse and hold no template account", async () => {
-    const prompter = fakePrompter(["buyer@shop.test", "second@shop.test", "jira", "^ABC-\\d+$", ""]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, prompter }));
-    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, answers, "admin"));
-
-    expect(facts.roles).toEqual({
-      administrator: "admin",
-      customer: "buyer@shop.test",
-      "other customer": "second@shop.test",
-    });
-    expect(facts.roleFor.otherCustomer).toBe("other customer");
-    expect(facts.passwordFor?.["other customer"]).toBe("OTHER_CUSTOMER_PASSWORD");
-    expect(placeholderProblems(facts)).toEqual([]);
-  });
-
-  test("an empty other customer removes that role, its purpose and its password from facts that still parse", async () => {
-    const prompter = fakePrompter(["buyer@shop.test", "", "", "jira", "^ABC-\\d+$", ""]);
-
-    const answers = await resolveAnswers(
-      input({ existingEnv: { ...FILLED_ENV, OTHER_CUSTOMER_PASSWORD: "" }, prompter }),
-    );
-    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, answers, "admin"));
-
-    expect(answers.roles.otherCustomer).toBeNull();
-    expect(prompter.secretAsked).toEqual([]);
-    expect(facts.roles).toEqual({ administrator: "admin", customer: "buyer@shop.test" });
-    expect(facts.roleFor).toEqual({ admin: "administrator", customer: "customer" });
-    expect(facts.passwordFor).toEqual({ administrator: "ADMIN_PASSWORD", customer: "CUSTOMER_PASSWORD" });
-    expect(placeholderProblems(facts)).toEqual([]);
-  });
-
-  test("a re-run after the other customer was removed asks nothing, its password neither", async () => {
-    const env = { ...FILLED_ENV, OTHER_CUSTOMER_PASSWORD: "" };
-    const first = await resolveAnswers(
-      input({
-        existingEnv: env,
-        prompter: fakePrompter(["buyer@shop.test", "", "jira", "^ABC-\\d+$", "ask the product owner"]),
-      }),
-    );
-    const facts = applyFacts(TEMPLATE_FACTS, first, "admin");
-    const second = fakePrompter([]);
-
-    const again = await resolveAnswers(input({ existingEnv: env, facts, prompter: second }));
-
-    expect(second.asked).toEqual([]);
-    expect(second.secretAsked).toEqual([]);
-    expect(again.roles).toEqual({});
-    expect(again.passwords).toEqual({});
-  });
-
-  test("--no-other-customer removes the other customer without asking, and conflicts with --other-customer", async () => {
-    const switches = new Set(["--no-other-customer"]);
-    const prompter = fakePrompter(["buyer@shop.test", "jira", "^ABC-\\d+$", ""]);
-
-    const answers = await resolveAnswers(
-      input({ existingEnv: { ...FILLED_ENV, OTHER_CUSTOMER_PASSWORD: "" }, switches, prompter }),
-    );
-    const quiet = await resolveAnswers(
-      input({ existingEnv: FILLED_ENV, switches, values: { "--customer": "buyer@shop.test" } }),
-    );
-    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, quiet, "admin"));
-
-    expect(prompter.asked).not.toContain(OTHER_CUSTOMER_QUESTION);
-    expect(prompter.secretAsked).toEqual([]);
-    expect(answers.roles.otherCustomer).toBeNull();
-    expect(facts.roles).toEqual({ administrator: "admin", customer: "buyer@shop.test" });
-    expect(facts.roleFor.otherCustomer).toBeUndefined();
-    expect(() => checkGivenValues({ values: { "--other-customer": "second@shop.test" }, switches, shell: {} })).toThrow(
-      /^--no-other-customer and --other-customer cannot be given together/,
-    );
-  });
-
-  test("asks for the customers by the roles roleFor names, and writes their logins there", async () => {
-    const facts = {
-      ...TEMPLATE_FACTS,
-      roles: { administrator: "admin", buyer: "buyer@your-company.test", rival: "rival@your-company.test" },
-      roleFor: { admin: "administrator", customer: "buyer", otherCustomer: "rival" },
-      passwordFor: { administrator: "ADMIN_PASSWORD", buyer: "CUSTOMER_PASSWORD", rival: "OTHER_CUSTOMER_PASSWORD" },
-    };
-    const answered = await resolveAnswers(
-      input({
-        existingEnv: FILLED_ENV,
-        facts,
-        prompter: fakePrompter(["b@shop.test", "r@shop.test", "jira", "^ABC-\\d+$", ""]),
-      }),
-    );
-    const removed = await resolveAnswers(
-      input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter(["b@shop.test", "", "jira", "^ABC-\\d+$", ""]) }),
-    );
-
-    expect(parseProjectFacts(applyFacts(facts, answered, "admin")).roles).toEqual({
-      administrator: "admin",
-      buyer: "b@shop.test",
-      rival: "r@shop.test",
-    });
-    const without = parseProjectFacts(applyFacts(facts, removed, "admin"));
-    expect(without.roles).toEqual({ administrator: "admin", buyer: "b@shop.test" });
-    expect(without.passwordFor).toEqual({ administrator: "ADMIN_PASSWORD", buyer: "CUSTOMER_PASSWORD" });
-  });
-
-  test("without a terminal and without --other-customer the template's other customer stays for the facts check", async () => {
-    const answers = await resolveAnswers(
-      input({ existingEnv: FILLED_ENV, values: { "--customer": "buyer@shop.test" } }),
-    );
-    const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, answers, "admin"));
-
-    expect(answers.roles).toEqual({ customer: "buyer@shop.test" });
-    expect(facts.roles["other customer"]).toBe("other.customer@your-company.test");
-    expect(placeholderProblems(facts)).toEqual([
-      `roles["other customer"] is the template's example account: replace it with an account of this repository's stand`,
-      "tracker.keyPattern is the template's example key pattern (PROJ): replace it with this tracker's project key",
-    ]);
-  });
-
-  test("a tracker answer the facts would refuse is asked again with the reason", async () => {
-    const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
-    const kindQuestion = "Where are your tickets tracked? (jira, azure-boards or another tracker's name)";
-    const patternQuestion = "Ticket key pattern, such as ^ABC-\\d+$ for keys like ABC-123";
-    const prompter = fakePrompter(["jira, azure-boards", "Jira", "^SHOP$", "^SHOP-\\d+$", ""]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
-
-    expect(prompter.asked.slice(0, 4)).toEqual([
-      kindQuestion,
-      `${kindQuestion} (one tracker only for now (enter the main one))`,
-      patternQuestion,
-      `${patternQuestion} (must match a jira key such as ABC-123: the project key, a dash and the number, as in ^ABC-\\d+$)`,
-    ]);
-    expect(answers.tracker).toEqual({ kind: "jira", keyPattern: "^SHOP-\\d+$" });
-    expect(() => parseProjectFacts(applyFacts(facts, answers, "admin"))).not.toThrow();
-  });
-
-  test("an azure-boards pattern that matches no work item id is asked again", async () => {
-    const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
-    const prompter = fakePrompter(["azure boards", "SHOP", "", ""]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
-
-    expect(prompter.asked[2]).toMatch(/\(must match an azure-boards work item id such as 1234/);
-    expect(answers.tracker).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
-  });
-
-  test("an answered tracker is written, and the next run asks nothing about it", async () => {
-    const first = fakePrompter(["jira", "^ABC-\\d+$"]);
-    const answers = await resolveAnswers(
-      input({ existingEnv: FILLED_ENV, facts: { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker }, prompter: first }),
-    );
-    expect(answers.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$" });
-
-    const second = fakePrompter([]);
-    const facts = applyFacts({ ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker }, answers, "admin");
-    const again = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: second }));
-
-    expect(second.asked).toEqual([]);
-    expect(again.tracker).toBeUndefined();
-  });
-
-  test("the template's PROJ pattern is never offered: a blank pattern of a kind with no default is asked again", async () => {
-    const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
-    const prompter = fakePrompter(["jira", "", "^ABC-\\d+$"]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
-
-    expect(answers.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$" });
-    expect(prompter.asked[1]).not.toContain("PROJ");
-    expect(prompter.asked[2]).toMatch(/\(must not be blank\)$/);
-    for (const kind of ["jira", "YouTrack"]) {
-      const refused = resolveAnswers(
-        input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter([kind, "", "", ""]) }),
-      );
-      await expect(refused).rejects.toThrow(/ticket-key pattern must not be blank; asked 3 times/);
-    }
-  });
-
-  test("the tracker question has no default, says what it wants, and shows an example key for the kind", async () => {
-    const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
-    const jira = fakePrompter(["jira", "^ABC-\\d+$"]);
-    const boards = fakePrompter(["azure-boards", ""]);
-
-    const answered = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: jira }));
-    const defaulted = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: boards }));
-
-    expect(jira.asked).toEqual([
-      "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
-      "Ticket key pattern, such as ^ABC-\\d+$ for keys like ABC-123",
-    ]);
-    expect(boards.asked[1]).toBe("Ticket key pattern, such as ^\\d+$ for keys like 1234");
-    expect(answered.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$" });
-    expect(defaulted.tracker).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
-  });
-
-  test("a blank tracker kind is asked again, and refused after the attempts", async () => {
-    const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
-    const question = "Where are your tickets tracked? (jira, azure-boards or another tracker's name)";
-    const prompter = fakePrompter(["", "  ", "jira", "^ABC-\\d+$"]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
-
-    expect(answers.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$" });
-    expect(prompter.asked.slice(0, 3)).toEqual([
-      question,
-      `${question} (must not be blank)`,
-      `${question} (must not be blank)`,
-    ]);
-    const refused = resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter(["", "", ""]) }));
-    await expect(refused).rejects.toThrow(/tracker kind must not be blank; asked 3 times/);
-  });
-
   test("without a prompter the tracker is left to do unless --tracker is given", async () => {
     const none = await resolveAnswers(input({ existingEnv: FILLED_ENV }));
     const patternOnly = await resolveAnswers(
@@ -573,60 +529,6 @@ test.describe("resolveAnswers", () => {
     expect(both.tracker).toEqual({ kind: "jira", keyPattern: "^AB-\\d+$" });
   });
 
-  test("the documentation question comes after the tracker and has no default", async () => {
-    const prompter = fakePrompter(["jira", "^ABC-\\d+$", ""]);
-    const facts = { ...TEMPLATE_FACTS, roles: CHANGED_FACTS.roles };
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
-
-    expect(prompter.asked).toEqual([
-      "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
-      "Ticket key pattern, such as ^ABC-\\d+$ for keys like ABC-123",
-      DOCS_QUESTION,
-    ]);
-    expect(answers.docs).toBeUndefined();
-  });
-
-  test("a typed documentation answer is mapped by its shape: URL, mcp server, or text", async () => {
-    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
-    const expected = [
-      ["https://wiki.example.test/docs", { route: "api", where: "https://wiki.example.test/docs" }],
-      ["  http://wiki.example.test  ", { route: "api", where: "http://wiki.example.test" }],
-      ["mcp:team-wiki", { route: "mcp", where: "team-wiki" }],
-      ["mcp: team wiki ", { route: "mcp", where: "team wiki" }],
-      ["ask the product owner for the spec", { route: "paste", where: "ask the product owner for the spec" }],
-    ] as const;
-
-    for (const [typed, source] of expected) {
-      const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter([typed]) }));
-
-      expect(answers.docs).toEqual({ name: "Project documentation", ...source });
-    }
-  });
-
-  test("an empty documentation answer skips the question and writes nothing", async () => {
-    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter([""]) }));
-
-    expect(answers.docs).toBeUndefined();
-    expect(applyFacts(facts, answers, "admin")["docSources"]).toEqual(TEMPLATE_FACTS.docSources);
-  });
-
-  test("a documentation answer that is not a URL or has no server name is asked again", async () => {
-    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
-    const prompter = fakePrompter(["https://", "mcp:  ", "mcp:wiki"]);
-
-    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
-
-    expect(prompter.asked).toEqual([
-      DOCS_QUESTION,
-      `${DOCS_QUESTION} (must be an http or https URL)`,
-      `${DOCS_QUESTION} (must name the MCP server after mcp:)`,
-    ]);
-    expect(answers.docs).toEqual({ name: "Project documentation", route: "mcp", where: "wiki" });
-  });
-
   test("the project's documentation is written first and the template's entry stays after it", async () => {
     const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
     const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, values: { "--docs": "mcp:wiki" } }));
@@ -638,37 +540,6 @@ test.describe("resolveAnswers", () => {
       TEMPLATE_DOC_SOURCE,
     ]);
     expect(facts.docSources).toEqual([TEMPLATE_DOC_SOURCE]);
-  });
-
-  test("the documentation question is asked only while docSources is the template's, and a re-run asks nothing", async () => {
-    const facts = { ...CHANGED_FACTS, docSources: TEMPLATE_FACTS.docSources };
-    const first = await resolveAnswers(
-      input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter(["https://wiki.example.test"]) }),
-    );
-    const written = applyFacts(facts, first, "admin");
-    const second = fakePrompter([]);
-
-    const again = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts: written, prompter: second }));
-    const edited = await resolveAnswers(
-      input({
-        existingEnv: FILLED_ENV,
-        facts: { ...facts, docSources: [{ ...TEMPLATE_DOC_SOURCE, where: "https://other.example.test" }] },
-        prompter: second,
-      }),
-    );
-    const extended = await resolveAnswers(
-      input({
-        existingEnv: FILLED_ENV,
-        facts: { ...facts, docSources: [TEMPLATE_DOC_SOURCE, TEMPLATE_DOC_SOURCE] },
-        prompter: second,
-      }),
-    );
-
-    expect(second.asked).toEqual([]);
-    for (const answers of [again, edited, extended]) {
-      expect(answers.docs).toBeUndefined();
-      expect(answers.notes).toEqual([]);
-    }
   });
 
   test("--docs applies while docSources is the template's and is reported as not applied once it changed", async () => {
@@ -759,6 +630,15 @@ test.describe("checkGivenValues", () => {
     ).toThrow(/^ADMIN_PASSWORD /);
   });
 
+  test("accepts --frontend-sign-in oauth or cookie and refuses anything else", () => {
+    for (const signIn of ["oauth", "cookie"]) {
+      expect(() => checkGivenValues({ values: { "--frontend-sign-in": signIn }, switches, shell: {} })).not.toThrow();
+    }
+    expect(() => checkGivenValues({ values: { "--frontend-sign-in": "token" }, switches, shell: {} })).toThrow(
+      /^--frontend-sign-in must be oauth or cookie: token/,
+    );
+  });
+
   test("accepts a documentation URL, an mcp server and plain text", () => {
     for (const docs of ["https://wiki.example.test/a?b=1", "mcp:wiki", "ask the product owner", "httpd handbook"]) {
       expect(() => checkGivenValues({ values: { "--docs": docs }, switches, shell: {} })).not.toThrow();
@@ -777,5 +657,38 @@ test.describe("checkGivenValues", () => {
         shell: { ADMIN_PASSWORD: "a'b\"c`d\ne" },
       }),
     ).not.toThrow();
+  });
+});
+
+test.describe("parseProjectFacts of the template", () => {
+  test("accepts the facts without a tracker, a customer or another customer", () => {
+    const facts = parseProjectFacts(TEMPLATE_FACTS);
+
+    expect(facts.tracker).toBeUndefined();
+    expect(facts.roleFor).toEqual({ admin: "administrator" });
+    expect(placeholderProblems(facts)).toEqual([]);
+  });
+
+  test("still refuses a tracker that is present and wrong", () => {
+    expect(() => parseProjectFacts({ ...TEMPLATE_FACTS, tracker: { kind: "jira" } })).toThrow(
+      /^project.json: tracker.keyPattern is missing/,
+    );
+    expect(() =>
+      parseProjectFacts({ ...TEMPLATE_FACTS, tracker: { kind: "jira", keyPattern: "^ABC-\\d+$", routes: [] } }),
+    ).toThrow(/^project.json: tracker.routes is empty/);
+  });
+
+  test("refuses another customer without a customer, and the customer and the other as one role or account", () => {
+    const roles = { administrator: "admin", buyer: "b@shop.test", rival: "B@shop.test" };
+
+    expect(() =>
+      parseProjectFacts({ ...TEMPLATE_FACTS, roles, roleFor: { admin: "administrator", otherCustomer: "rival" } }),
+    ).toThrow(/^project.json: roleFor.otherCustomer needs roleFor.customer$/);
+    expect(() =>
+      parseProjectFacts({ ...TEMPLATE_FACTS, roles, roleFor: { customer: "buyer", otherCustomer: "buyer" } }),
+    ).toThrow(/is the same role as roleFor.customer/);
+    expect(() =>
+      parseProjectFacts({ ...TEMPLATE_FACTS, roles, roleFor: { customer: "buyer", otherCustomer: "rival" } }),
+    ).toThrow(/is the same account as roleFor.customer/);
   });
 });

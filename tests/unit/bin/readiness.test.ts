@@ -629,7 +629,7 @@ test.describe("runReadiness", () => {
     expect(statusOf(failed, "project facts")).not.toContain(" at ");
   });
 
-  test("tells a template example account to be replaced by answering init again, keeping the check's own reason", async () => {
+  test("tells a template example account to be replaced or its role removed, keeping the check's own reason", async () => {
     const example = fakeExec({
       "node .claude/checks/project-facts.mts": {
         status: 1,
@@ -650,7 +650,7 @@ test.describe("runReadiness", () => {
     const detail = statusOf(rows, "project facts");
     expect(detail).toContain('roles["customer"] is the template\'s example account');
     expect(detail).toMatch(
-      /; run npx vc-qa-agents init again and answer the customer questions \(leave the other customer empty if the stand has none\), or pass --customer and either --other-customer or --no-other-customer.$/,
+      /stand; or remove that role and its roleFor and passwordFor entries from \.qa\/project\.json until its account is seeded\.$/,
     );
     expect(detail).not.toContain("fix .qa/project.json");
   });

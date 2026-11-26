@@ -128,10 +128,10 @@ test.describe("resolveAnswers", () => {
     expect(answers.env["ADMIN_USERNAME"]).toBe("root");
   });
 
-  test("a shell variable is used and the env schema's own default fills the test-id attribute, nothing else", async () => {
+  test("a shell variable is used and the test-id attribute is left for the browser server row to detect", async () => {
     const answers = await resolveAnswers(input({ shell: { STORE_ID: "Shell-store" } }));
 
-    expect(answers.env).toEqual({ STORE_ID: "Shell-store", FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id" });
+    expect(answers.env).toEqual({ STORE_ID: "Shell-store" });
   });
 
   test("a shell password is used but saved only with --save-passwords", async () => {
@@ -176,7 +176,6 @@ test.describe("resolveAnswers", () => {
       FRONTEND_BASE_URL: "https://front.example.test",
       STORE_ID: "Store",
       ADMIN_USERNAME: "root",
-      FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id",
     });
     const facts = parseProjectFacts(applyFacts(TEMPLATE_FACTS, answers, "root"));
     expect(facts.roleFor).toEqual({ admin: "administrator" });
@@ -204,7 +203,6 @@ test.describe("resolveAnswers", () => {
     expect(prompter.asked).toEqual(["Backend (platform) URL", "Frontend URL", "Store id", "Administrator login"]);
     expect(asked.env).toEqual({
       FRONTEND_BASE_URL: "https://front.example.test",
-      FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id",
     });
   });
 
@@ -421,7 +419,7 @@ test.describe("resolveAnswers", () => {
 
     expect(prompter.asked).toEqual([CUSTOMER_QUESTION]);
     expect(answers.docs).toBeUndefined();
-    expect(answers.env).toEqual({ FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id" });
+    expect(answers.env).toEqual({});
   });
 
   test("a --test-id-attribute flag is written", async () => {

@@ -7,7 +7,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { probeBrowserServer } from "./mcp-probe.mjs";
 import { maskSecrets } from "./redact.mjs";
-import { setEnvValue } from "./suite-files.mjs";
+import { fillEnvText, setEnvValue } from "./suite-files.mjs";
 
 const CERTIFICATE_CODES = new Set([
   "DEPTH_ZERO_SELF_SIGNED_CERT",
@@ -46,6 +46,8 @@ const EXAMPLE_ACCOUNT_FIX =
 const CERTIFICATE_QUESTION = "The certificate is not trusted (self-signed?). Set VERIFY_SSL=false in .env?";
 const NO_PLATFORM = "the platform does not answer";
 const CANCELLED = "cancelled";
+const TEST_ID_NAME = "FRONTEND_TEST_ID_ATTRIBUTE";
+const TEST_ID_DEFAULT = "data-test-id";
 
 export function request(url, options) {
   return new Promise((resolve, reject) => {
@@ -281,6 +283,30 @@ function blank(value) {
   return value === undefined || value.trim() === "";
 }
 
+function testIdNote(context, detected) {
+  const held = context.vars[TEST_ID_NAME]?.trim() ?? "";
+  if (detected === undefined) {
+    return `test ids: none found (${held === "" ? `default ${TEST_ID_DEFAULT}` : `${held} as set`})`;
+  }
+  if (held === detected) {
+    return `test ids: ${detected} (as set)`;
+  }
+  if (held !== "") {
+    return `test ids: the frontend uses ${detected}; ${TEST_ID_NAME} is ${held}`;
+  }
+  if (context.testIdGiven) {
+    return `test ids: ${detected} (not written: --test-id-attribute was given)`;
+  }
+  const envPath = join(context.projectDir, context.suiteDir, ".env");
+  try {
+    const text = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
+    writeFileSync(envPath, fillEnvText(text, { [TEST_ID_NAME]: detected }));
+  } catch {
+    return `test ids: ${detected} (not written; set ${TEST_ID_NAME}=${detected} in ${envFileName(context.suiteDir)})`;
+  }
+  return `test ids: ${detected} (written to .env)`;
+}
+
 function trustBackend(context, verdict) {
   const envPath = join(context.projectDir, context.suiteDir, ".env");
   const text = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
@@ -493,7 +519,11 @@ export async function runReadiness(context) {
         detail: `the browser server could not be checked (${error?.code ?? "error"}); run node .claude/checks/browser-mcp.mts to see why.`,
       };
     }
-    rows.browser = row("browser server", result.ok ? "ok" : "fail", result.detail);
+    rows.browser = row(
+      "browser server",
+      result.ok ? "ok" : "fail",
+      result.ok ? `${result.detail}; ${testIdNote(context, result.testIdAttribute)}` : result.detail,
+    );
   }
 
   return [rows.backend, rows.frontend, rows.administrator, rows.facts, rows.types, rows.firstTest, rows.browser];

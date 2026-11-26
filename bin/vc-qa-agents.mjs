@@ -59,6 +59,7 @@ const GITIGNORE_LINES = [
   ".qa/judge/",
   ".qa/*.local.env",
   ".qa/client-terms.local.txt",
+  ".claude/settings.local.json",
   ".playwright-mcp/",
 ];
 
@@ -583,7 +584,7 @@ function certificateConfirmer(switches) {
   };
 }
 
-function readiness(target, suiteDir, switches, skipInstall, withheld = []) {
+function readiness(target, suiteDir, switches, skipInstall, withheld = [], testIdGiven = false) {
   return runReadiness({
     projectDir: target,
     suiteDir,
@@ -592,6 +593,7 @@ function readiness(target, suiteDir, switches, skipInstall, withheld = []) {
     skipVerify: switches.has("--skip-verify"),
     prompter: certificateConfirmer(switches),
     withheld,
+    testIdGiven,
     progress: printProgress,
   });
 }
@@ -699,7 +701,8 @@ async function init(target, { switches, values, suiteDir }) {
     installDependencies(suite, own);
     installBrowserOfServer(target, suiteDir);
   }
-  const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers));
+  const testIdGiven = typeof values["--test-id-attribute"] === "string" && values["--test-id-attribute"] !== "";
+  const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers), testIdGiven);
   return ["", formatTable(rows), "", ...unsavedLines(answers), ...verdictLines(target, rows)];
 }
 

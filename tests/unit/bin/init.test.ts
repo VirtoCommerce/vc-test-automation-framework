@@ -102,7 +102,7 @@ test.describe("vc-qa-agents init", () => {
 
     const example = readFileSync(join(dir, ".env.example"), "utf8");
     expect(example).toContain("FRONTEND_TEST_ID_ATTRIBUTE=\n");
-    expect(example).toMatch(/^# .*left empty it is data-test-id$/m);
+    expect(example).toMatch(/^# .*left empty: detected by init, else data-test-id$/m);
     expect(readFileSync(join(dir, "playwright.config.ts"), "utf8")).toContain(
       "testIdAttribute: env.FRONTEND_TEST_ID_ATTRIBUTE",
     );
@@ -163,6 +163,7 @@ test.describe("vc-qa-agents init", () => {
     expect(existsSync(join(dir, ".claude", "checks", "browser-mcp.mts"))).toBe(true);
     expect(browserServerKind(dir)).toBe("launcher");
     expect(readFileSync(join(dir, ".gitignore"), "utf8")).toContain(".qa/*.local.env");
+    expect(readFileSync(join(dir, ".gitignore"), "utf8")).toContain(".claude/settings.local.json");
   });
 
   test("tells a suite whose browser server runs @playwright/mcp directly how to switch, and leaves the file", () => {
@@ -402,7 +403,7 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     expect(env).toContain("FRONTEND_BASE_URL=https://front.example.test\n");
     expect(env).toContain("STORE_ID=Flag-store\n");
     expect(env).toContain("ADMIN_USERNAME=\n");
-    expect(env).toContain("FRONTEND_TEST_ID_ATTRIBUTE=data-test-id\n");
+    expect(env).toContain("FRONTEND_TEST_ID_ATTRIBUTE=\n");
     const facts = readJson(join(dir, ".qa", "project.json"));
     expect(facts).toMatchObject({
       roles: { administrator: "admin", customer: "buyer@shop.test", "other customer": "second@shop.test" },
@@ -569,6 +570,7 @@ test.describe("vc-qa-agents install", () => {
     expect(lines.slice(0, 3)).toEqual(["node_modules/", ".qa/runs/", ".qa/contracts/"]);
     expect(lines.filter((line) => line === ".qa/runs/")).toHaveLength(1);
     expect(lines).toContain(".playwright-mcp/");
+    expect(lines).toContain(".claude/settings.local.json");
     expect(output).toContain("Added to .gitignore: .qa/contracts/");
   });
 

@@ -898,6 +898,123 @@ test.describe("password masking", () => {
   });
 });
 
+test.describe("runReadiness test-id attribute", () => {
+  let dir = "";
+
+  test.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vc test ids "));
+  });
+
+  test.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  async function browserRow(
+    detected: string | undefined,
+    overrides: Record<string, string | undefined> = {},
+    extra: Record<string, unknown> = {},
+  ) {
+    const rows = await runReadiness({
+      projectDir: dir,
+      suiteDir: ".",
+      vars: vars(overrides),
+      skipInstall: false,
+      skipVerify: false,
+      exec: fakeExec().exec,
+      request: () => Promise.resolve({ status: 200, body: '{"access_token":"t"}' }),
+      probe: () =>
+        Promise.resolve({
+          ok: true,
+          detail: "opened http://frontend.test through the browser server",
+          testIdAttribute: detected,
+        }),
+      attempts: 1,
+      delayMs: 0,
+      ...extra,
+    });
+    return statusOf(rows, "browser server");
+  }
+
+  test("writes the detected attribute to an empty FRONTEND_TEST_ID_ATTRIBUTE and keeps the rest of .env", async () => {
+    writeFileSync(join(dir, ".env"), "STORE_ID=Store\r\nFRONTEND_TEST_ID_ATTRIBUTE=\r\nVERIFY_SSL=true\r\n");
+
+    const status = await browserRow("data-testid", { FRONTEND_TEST_ID_ATTRIBUTE: "" });
+
+    expect(status).toBe(
+      "ok: opened http://frontend.test through the browser server; test ids: data-testid (written to .env)",
+    );
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(
+      "STORE_ID=Store\r\nFRONTEND_TEST_ID_ATTRIBUTE=data-testid\r\nVERIFY_SSL=true\r\n",
+    );
+  });
+
+  test("adds the attribute to a .env that has no line for it", async () => {
+    writeFileSync(join(dir, ".env"), "STORE_ID=Store\n");
+
+    await browserRow("data-qa");
+
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe("STORE_ID=Store\nFRONTEND_TEST_ID_ATTRIBUTE=data-qa\n");
+  });
+
+  test("says the attribute is as set when it matches", async () => {
+    writeFileSync(join(dir, ".env"), "FRONTEND_TEST_ID_ATTRIBUTE=data-testid\n");
+
+    const status = await browserRow("data-testid", { FRONTEND_TEST_ID_ATTRIBUTE: "data-testid" });
+
+    expect(status).toBe("ok: opened http://frontend.test through the browser server; test ids: data-testid (as set)");
+  });
+
+  test("keeps a value the user set and notes the attribute the frontend uses", async () => {
+    const before = "FRONTEND_TEST_ID_ATTRIBUTE=data-test-id\n";
+    writeFileSync(join(dir, ".env"), before);
+
+    const status = await browserRow("data-testid", { FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id" });
+
+    expect(status).toBe(
+      "ok: opened http://frontend.test through the browser server; test ids: the frontend uses data-testid; FRONTEND_TEST_ID_ATTRIBUTE is data-test-id",
+    );
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(before);
+  });
+
+  test("writes nothing when --test-id-attribute was given", async () => {
+    const before = "FRONTEND_TEST_ID_ATTRIBUTE=\n";
+    writeFileSync(join(dir, ".env"), before);
+
+    const status = await browserRow("data-testid", {}, { testIdGiven: true });
+
+    expect(status).toMatch(/test ids: data-testid \(not written: --test-id-attribute was given\)$/);
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(before);
+  });
+
+  test("names the default when the frontend carries no test-id attribute, and writes nothing", async () => {
+    const before = "FRONTEND_TEST_ID_ATTRIBUTE=\n";
+    writeFileSync(join(dir, ".env"), before);
+
+    const status = await browserRow(undefined);
+    const set = await browserRow(undefined, { FRONTEND_TEST_ID_ATTRIBUTE: "data-qa" });
+
+    expect(status).toBe(
+      "ok: opened http://frontend.test through the browser server; test ids: none found (default data-test-id)",
+    );
+    expect(set).toMatch(/test ids: none found \(data-qa as set\)$/);
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(before);
+  });
+
+  test("leaves a failed browser row as the probe said", async () => {
+    writeFileSync(join(dir, ".env"), "FRONTEND_TEST_ID_ATTRIBUTE=\n");
+
+    const status = await browserRow(
+      undefined,
+      {},
+      {
+        probe: () => Promise.resolve({ ok: false, detail: "the browser server stopped" }),
+      },
+    );
+
+    expect(status).toBe("fail: the browser server stopped");
+  });
+});
+
 test.describe("formatTable", () => {
   test("prints one line per row with the status first and masks a password-looking value", () => {
     const text = formatTable([
@@ -921,6 +1038,7 @@ import { createInterface } from "node:readline";
 
 export const BROWSER_SERVER_PACKAGE = "@playwright/mcp@9.9.9";
 const MODE = "__MODE__";
+const EVALUATE = '__EVALUATE__';
 const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
 writeFileSync("server.pid", String(process.pid));
 writeFileSync("grandchild.pid", String(grandchild.pid));
@@ -947,6 +1065,18 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       missing(message.id);
     } else {
       send({ id: message.id, result: { content: [{ type: "text", text: "navigated to " + message.params.arguments.url }] } });
+    }
+  } else if (message.method === "tools/call" && message.params.name === "browser_evaluate") {
+    writeFileSync("evaluate.json", JSON.stringify(message.params.arguments));
+    if (EVALUATE === "error") {
+      send({ id: message.id, error: { code: -32602, message: "unknown tool" } });
+    } else if (EVALUATE === "is-error") {
+      send({ id: message.id, result: { isError: true, content: [{ type: "text", text: "### Error\nReferenceError: document" }] } });
+    } else if (EVALUATE.startsWith("{")) {
+      const text = "### Result\n" + EVALUATE + "\n### Ran Playwright code\n\x60\x60\x60js\nawait page.evaluate('() => 1');\n\x60\x60\x60\n### Page\n- Page URL: https://frontend.test/";
+      send({ id: message.id, result: { content: [{ type: "text", text }] } });
+    } else if (EVALUATE !== "silent") {
+      send({ id: message.id, result: { content: [{ type: "text", text: "### Result\n{}" }] } });
     }
   } else if (message.method === "tools/call" && message.params.name === "browser_install") {
     send({ id: message.id, result: { content: [{ type: "text", text: "installed" }] } });
@@ -995,11 +1125,72 @@ test.describe("probeBrowserServer", () => {
       const calls = readFileSync(join(dir, "calls.log"), "utf8").trim().split("\n");
       expect(calls).toEqual(
         missing
-          ? ["initialize", "notifications/initialized", "browser_navigate", "browser_install", "browser_navigate"]
-          : ["initialize", "notifications/initialized", "browser_navigate"],
+          ? [
+              "initialize",
+              "notifications/initialized",
+              "browser_navigate",
+              "browser_install",
+              "browser_navigate",
+              "browser_evaluate",
+            ]
+          : ["initialize", "notifications/initialized", "browser_navigate", "browser_evaluate"],
       );
       expect(alive(pidIn("server.pid"))).toBe(false);
       expect(alive(pidIn("grandchild.pid"))).toBe(false);
+    });
+  }
+
+  test("counts the elements of each test-id attribute and picks the most used one", async () => {
+    writeFileSync(
+      join(dir, ".claude", "checks", "browser-mcp.mts"),
+      FAKE_SERVER.replace("__MODE__", "ok").replace(
+        "__EVALUATE__",
+        JSON.stringify({ "data-testid": 41, "data-test-id": 2, "data-test": 0, "data-qa": 0, "data-cy": 0 }),
+      ),
+    );
+
+    const result = await probeBrowserServer({
+      projectDir: dir,
+      frontendUrl: "http://frontend.test",
+      timeoutMs: 20_000,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      detail: "opened http://frontend.test through the browser server",
+      testIdAttribute: "data-testid",
+    });
+    const sent = JSON.parse(readFileSync(join(dir, "evaluate.json"), "utf8")) as { function: string };
+    expect(Object.keys(sent)).toEqual(["function"]);
+    for (const name of ["data-testid", "data-test-id", "data-test", "data-qa", "data-cy"]) {
+      expect(sent.function).toContain(`"${name}"`);
+    }
+  });
+
+  for (const [evaluate, why] of [
+    [JSON.stringify({ "data-testid": 0, "data-test-id": 0 }), "no element carries one"],
+    [JSON.stringify({ "data-qa": 3, "data-cy": 3 }), "two attributes tie"],
+    ["error", "the server refuses the evaluate call"],
+    ["is-error", "the evaluation fails"],
+    ["silent", "the evaluation does not answer"],
+  ] as [string, string][]) {
+    test(`opens the frontend and decides no test-id attribute when ${why}`, async () => {
+      writeFileSync(
+        join(dir, ".claude", "checks", "browser-mcp.mts"),
+        FAKE_SERVER.replace("__MODE__", "ok").replace("__EVALUATE__", evaluate),
+      );
+
+      const result = await probeBrowserServer({
+        projectDir: dir,
+        frontendUrl: "http://frontend.test",
+        timeoutMs: 20_000,
+        evaluateTimeoutMs: 1_000,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(result.detail).toBe("opened http://frontend.test through the browser server");
+      expect(result.testIdAttribute).toBeUndefined();
+      expect(alive(pidIn("server.pid"))).toBe(false);
     });
   }
 

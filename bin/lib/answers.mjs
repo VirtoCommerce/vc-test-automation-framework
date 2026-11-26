@@ -81,7 +81,6 @@ const TEST_ID = {
   flag: "--test-id-attribute",
   label: "Test-id attribute of the frontend",
   check: blankProblem,
-  fallback: "data-test-id",
 };
 
 function given(value) {

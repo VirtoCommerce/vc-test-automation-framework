@@ -16,6 +16,11 @@ const PINNED_PACKAGE = /BROWSER_SERVER_PACKAGE\s*=\s*["'`]([^"'`]+)["'`]/;
 const FALLBACK_PACKAGE = "@playwright/mcp";
 const NO_RESULT = "the browser server sent no result";
 const EXEC_MAX_BUFFER = 64 * 1_048_576;
+const TEST_ID_ATTRIBUTES = ["data-testid", "data-test-id", "data-test", "data-qa", "data-cy"];
+const COUNT_TEST_IDS = `() => Object.fromEntries(${JSON.stringify(TEST_ID_ATTRIBUTES)}.map((name) => [name, document.querySelectorAll("[" + name + "]").length]))`;
+const EVALUATE_TIMEOUT_MS = 20_000;
+const RESULT_SECTION = /^### Result[ \t]*\r?\n([\s\S]*?)(?=^### |(?![\s\S]))/m;
+const CODE_FENCE = /^```\w*\s*|\s*```$/g;
 
 function firstLine(text, secrets) {
   const line = text
@@ -169,6 +174,49 @@ function connect(child, secrets) {
   };
 }
 
+export function chosenTestIdAttribute(counts) {
+  if (counts === null || typeof counts !== "object") {
+    return undefined;
+  }
+  const ranked = TEST_ID_ATTRIBUTES.map((name) => [name, Number(counts[name])])
+    .filter(([, count]) => Number.isInteger(count) && count > 0)
+    .sort((left, right) => right[1] - left[1]);
+  if (ranked.length === 0 || (ranked.length > 1 && ranked[0][1] === ranked[1][1])) {
+    return undefined;
+  }
+  return ranked[0][0];
+}
+
+function evaluationCounts(text) {
+  const section = RESULT_SECTION.exec(text)?.[1] ?? text;
+  try {
+    return JSON.parse(section.trim().replace(CODE_FENCE, ""));
+  } catch {
+    return undefined;
+  }
+}
+
+async function detectTestIdAttribute(channel, options) {
+  let timer;
+  const late = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(undefined), options.evaluateTimeoutMs ?? EVALUATE_TIMEOUT_MS);
+  });
+  try {
+    const answer = await Promise.race([
+      channel.call("tools/call", { name: "browser_evaluate", arguments: { function: COUNT_TEST_IDS } }),
+      late,
+    ]);
+    if (answer?.result === undefined || answer.result.isError === true) {
+      return undefined;
+    }
+    return chosenTestIdAttribute(evaluationCounts(resultText(answer.result)));
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function missingBrowser(answer) {
   return answer.result?.isError === true && MISSING_BROWSER.test(resultText(answer.result));
 }
@@ -203,7 +251,11 @@ async function navigate(channel, frontendUrl, options) {
       detail: `the browser server could not open ${frontendUrl} (${said}); check FRONTEND_BASE_URL in .env.`,
     };
   }
-  return { ok: true, detail: `opened ${frontendUrl} through the browser server` };
+  return {
+    ok: true,
+    detail: `opened ${frontendUrl} through the browser server`,
+    testIdAttribute: await detectTestIdAttribute(channel, options),
+  };
 }
 
 async function talk(channel, frontendUrl, options) {
@@ -253,10 +305,12 @@ export async function probeBrowserServer(options) {
   });
   try {
     return await Promise.race([
-      talk(channel, frontendUrl, { projectDir, secrets }).catch((error) => ({
-        ok: false,
-        detail: `${maskSecrets(error.message, secrets)}; run node ${LAUNCHER} to see its errors.`,
-      })),
+      talk(channel, frontendUrl, { projectDir, secrets, evaluateTimeoutMs: options.evaluateTimeoutMs }).catch(
+        (error) => ({
+          ok: false,
+          detail: `${maskSecrets(error.message, secrets)}; run node ${LAUNCHER} to see its errors.`,
+        }),
+      ),
       timeout,
     ]);
   } finally {

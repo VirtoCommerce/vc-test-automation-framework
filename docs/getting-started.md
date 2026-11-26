@@ -53,9 +53,12 @@ agents look at the frontend anonymously and say that signed-in customer coverage
 
 Everything else is set later, by a flag or by editing `.qa/project.json`: the tracker and the pattern of its ticket
 keys (`--tracker`, `--key-pattern`; without a tracker the agents read a ticket from text you paste), your project's
-documentation (`--docs`), and the attribute that marks an element for tests (`--test-id-attribute`, `data-test-id` by
-default, `FRONTEND_TEST_ID_ATTRIBUTE` in `.env`, which `playwright.config.ts` passes to `defaultUse` as
-`testIdAttribute`). `init` checks a `--tracker` or `--key-pattern` as `.qa/project.json` does: one tracker only, and
+documentation (`--docs`), and the attribute that marks an element for tests (`FRONTEND_TEST_ID_ATTRIBUTE` in `.env`,
+which `playwright.config.ts` passes to `defaultUse` as `testIdAttribute`). When it is empty, the browser server row of
+`init` and `doctor` counts the elements of the frontend that carry `data-testid`, `data-test-id`, `data-test`,
+`data-qa` or `data-cy` and writes the most used one; with none found or a tie it stays empty, which means
+`data-test-id`. A value you set is never changed: when the frontend uses another attribute, the row says so.
+`--test-id-attribute` sets it and overrides the detection. `init` checks a `--tracker` or `--key-pattern` as `.qa/project.json` does: one tracker only, and
 a pattern that matches a key of that tracker, such as `ABC-123` for `jira` or a numeric id for `azure-boards`. A
 value that starts with `jira` (`Jira Cloud`) is written as `jira`, and `Azure Boards` or `Azure DevOps` as
 `azure-boards`, whose pattern defaults to `^\d+$`; any other tracker needs `--key-pattern`, and `--key-pattern` needs
@@ -121,7 +124,7 @@ npx vc-qa-agents init --yes \
 | `--customer`, `--other-customer`  | Adds the customer and the other customer to `.qa/project.json`              |
 | `--tracker`, `--key-pattern`      | The tracker kind and the pattern of its ticket keys                         |
 | `--docs`                          | Your documentation: a URL, `mcp:<name>` or text, first in `docSources`      |
-| `--test-id-attribute`             | `FRONTEND_TEST_ID_ATTRIBUTE`                                                |
+| `--test-id-attribute`             | `FRONTEND_TEST_ID_ATTRIBUTE`; without it init detects it from the frontend  |
 | `--frontend-sign-in`              | `oauth` (default) or `cookie`: how the frontend signs a user in             |
 | `--yes`                           | Asks nothing, even in a terminal                                            |
 | `--save-passwords`                | Writes the passwords that came from the shell to `.env`                     |

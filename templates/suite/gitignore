@@ -10,4 +10,5 @@ test-results/
 .qa/judge/
 .qa/*.local.env
 .qa/client-terms.local.txt
+.claude/settings.local.json
 .playwright-mcp/

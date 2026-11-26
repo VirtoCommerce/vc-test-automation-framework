@@ -207,6 +207,29 @@ test.describe("resolveAnswers", () => {
     expect(answers.env).toEqual({});
   });
 
+  test("a default per key is offered when asked and kept when nothing gave a value", async () => {
+    const defaults = { BACKEND_BASE_URL: "http://localhost:8090", STORE_ID: "B2B-store" };
+    const prompter = fakePrompter(["", "https://front.example.test", ""]);
+
+    const asked = await resolveAnswers(
+      input({
+        existingEnv: { ...FILLED_ENV, BACKEND_BASE_URL: "", FRONTEND_BASE_URL: "", STORE_ID: "" },
+        facts: CHANGED_FACTS,
+        defaults,
+        prompter,
+      }),
+    );
+    const quiet = await resolveAnswers(input({ defaults, values: { "--store-id": "Flag-store" } }));
+
+    expect(asked.env).toEqual({
+      BACKEND_BASE_URL: "http://localhost:8090",
+      FRONTEND_BASE_URL: "https://front.example.test",
+      STORE_ID: "B2B-store",
+    });
+    expect(quiet.env["BACKEND_BASE_URL"]).toBe("http://localhost:8090");
+    expect(quiet.env["STORE_ID"]).toBe("Flag-store");
+  });
+
   test("a whitespace-only shell STORE_ID is rejected", async () => {
     await expect(resolveAnswers(input({ shell: { STORE_ID: "   " } }))).rejects.toThrow(/STORE_ID/);
   });

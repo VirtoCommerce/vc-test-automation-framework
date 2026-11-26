@@ -136,7 +136,8 @@ async function resolveSetting(field, input, answers) {
   function check(value) {
     return field.check(value) ?? envValueProblem(value);
   }
-  const value = await resolveField({ ...field, check, shellName: field.name }, input);
+  const fallback = given(input.defaults?.[field.name]) ?? field.fallback;
+  const value = await resolveField({ ...field, check, fallback, shellName: field.name }, input);
   if (value !== undefined) {
     answers.env[field.name] = value;
   }

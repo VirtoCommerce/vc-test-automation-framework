@@ -73,6 +73,7 @@ test.describe("parseArguments", () => {
 
   test("routes doctor and uninstall", () => {
     expect(parse("doctor")).toMatchObject({ command: "doctor", positional: [] });
+    expect(parse("doctor", "--skip-verify").switches.has("--skip-verify")).toBe(true);
     expect(parse("uninstall").command).toBe("uninstall");
   });
 

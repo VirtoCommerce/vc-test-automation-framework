@@ -143,6 +143,20 @@ test.describe("writeAnswers", () => {
     expect(facts.roles.administrator).toBe("root");
   });
 
+  test("replaces the values .env already holds when told to", () => {
+    writeAnswers(
+      project,
+      "tests-suite",
+      { ...noAnswers(), env: { STORE_ID: "Other-store", BACKEND_BASE_URL: "https://back.example.test" } },
+      { replace: true },
+    );
+
+    const env = readFileSync(join(project, "tests-suite", ".env"), "utf8");
+    expect(env).toContain("STORE_ID=Other-store\n");
+    expect(env).toContain("BACKEND_BASE_URL=https://back.example.test\n");
+    expect(env).toContain("ADMIN_USERNAME=admin\n");
+  });
+
   test("writes the suite at the project root when suiteDir is .", () => {
     writeFileSync(join(project, ".env"), "ADMIN_PASSWORD=\n");
 

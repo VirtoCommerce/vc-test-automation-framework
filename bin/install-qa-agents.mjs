@@ -4,10 +4,15 @@ import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
+import { resolveAnswers } from "./lib/answers.mjs";
 import { parseArguments } from "./lib/arguments.mjs";
 import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
 import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
+import { createPrompter, isInteractive } from "./lib/prompts.mjs";
+import { formatTable, runReadiness } from "./lib/readiness.mjs";
+import { writeAnswers } from "./lib/suite-files.mjs";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
@@ -21,12 +26,15 @@ const USAGE =
   "usage: vc-qa-agents [--force-ours] | vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] " +
   "[--yes] [--save-passwords] [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] " +
   "[--admin-login <login>] [--customer <email>] [--other-customer <email>] [--tracker <name>] " +
-  "[--key-pattern <pattern>] [--test-id-attribute <attribute>] | vc-qa-agents doctor | vc-qa-agents uninstall";
+  "[--key-pattern <pattern>] [--test-id-attribute <attribute>] | vc-qa-agents doctor [--skip-verify] | " +
+  "vc-qa-agents uninstall";
 const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
 const GUARD_FILES = [HOOK_SCRIPT, ".claude/checks/readonly-shell.mts"];
 const MCP_FILE = ".mcp.json";
 const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
+const FACTS_CHECK = ".claude/checks/project-facts.mts";
+const CANCELLED = "cancelled";
 const ROOT_DIR = ".";
 const QA_DIR = ".qa/";
 const SUITE_DIR = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*$/;
@@ -496,7 +504,88 @@ function installDependencies(target, own) {
   run("npx playwright install chromium", target);
 }
 
-function init(target, { skipInstall, suiteDir, forceOurs }) {
+function runVariables(target, suiteDir) {
+  const envPath = join(target, suiteDir, ".env");
+  const vars = existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value !== undefined && value !== "") {
+      vars[name] = value;
+    }
+  }
+  return vars;
+}
+
+function certificateConfirmer(switches) {
+  if (!isInteractive(switches)) {
+    return undefined;
+  }
+  return {
+    async confirm(text) {
+      const prompter = createPrompter();
+      try {
+        return await prompter.confirm(text);
+      } finally {
+        prompter.close();
+      }
+    },
+  };
+}
+
+function readiness(target, suiteDir, switches, skipInstall) {
+  return runReadiness({
+    projectDir: target,
+    suiteDir,
+    vars: runVariables(target, suiteDir),
+    skipInstall,
+    skipVerify: switches.has("--skip-verify"),
+    prompter: certificateConfirmer(switches),
+  });
+}
+
+function verdictLines(target, rows) {
+  const failing = rows.filter((row) => row.status === "fail");
+  if (failing.length === 0) {
+    return [`Ready: run claude in ${target} and approve the ${BROWSER_SERVER} server when it asks.`];
+  }
+  return [
+    "Not ready:",
+    ...formatTable(failing)
+      .split("\n")
+      .map((line) => `  ${line}`),
+  ];
+}
+
+function unsavedLines(answers) {
+  const unsaved = Object.keys(answers.passwords).filter((name) => !answers.persistPasswords.includes(name));
+  if (unsaved.length === 0) {
+    return [];
+  }
+  return [
+    `Passwords from the shell, not saved: ${unsaved.join(", ")}. A new terminal needs them set again; ` +
+      "vc-qa-agents init --save-passwords writes them to .env.",
+  ];
+}
+
+async function askAnswers({ values, switches, envText, firstRun, facts }) {
+  const fromFile = parseEnv(envText);
+  const prompter = isInteractive(switches) ? createPrompter() : undefined;
+  try {
+    return await resolveAnswers({
+      values,
+      switches,
+      shell: process.env,
+      existingEnv: firstRun ? {} : fromFile,
+      defaults: firstRun ? fromFile : {},
+      facts,
+      prompter,
+    });
+  } finally {
+    prompter?.close();
+  }
+}
+
+async function init(target, { switches, values, suiteDir }) {
+  const skipInstall = switches.has("--skip-install");
   const lines = [];
   const suite = join(target, suiteDir);
   const { written, kept } = copySuiteTemplate(target, suiteDir);
@@ -511,51 +600,61 @@ function init(target, { skipInstall, suiteDir, forceOurs }) {
   const own = readOwnManifest();
   mergePackageJson(suite, own);
   lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
-  if (!skipInstall) {
-    installDependencies(suite, own);
-  }
   if (written.includes(MCP_FILE)) {
     lines.push(
       `Wrote ${MCP_FILE}: the Playwright MCP server "${BROWSER_SERVER}" that the agents open the frontend with, ` +
         "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
     );
   }
-  lines.push(...install(target, { written, forceOurs }));
-  lines.push(
-    "",
-    "Next:",
-    ...(suiteDir === ROOT_DIR
-      ? []
-      : [`  Steps 1 to 4 run in ${suiteDir}/; the rest, and claude, in this directory, the repository root.`]),
-    `  1. Fill in ${inSuite(suiteDir, ".env")}: the platform, the frontend, the administrator, STORE_ID and the customer passwords.`,
-    "  2. npm run codegen     GraphQL and REST types from the platform",
-    "  3. npm test            the first test signs a new user in",
-    "  4. npm run report && npm run report:open",
-    "  5. Replace the example accounts and tracker in .qa/project.json; node .claude/checks/project-facts.mts must pass.",
-    "  6. node .claude/checks/browser-secrets.mts writes the passwords the browser server types (.qa/browser-secrets.local.env,",
-    "     git-ignored), then start claude, approve the playwright server and run /vc-qa <task>.",
-  );
-  return lines;
+  lines.push(...install(target, { written, forceOurs: switches.has(FORCE_OURS) }));
+  printLines(lines);
+
+  const envFile = inSuite(suiteDir, ".env");
+  const firstRun = written.includes(envFile);
+  const answers = await askAnswers({
+    values,
+    switches,
+    envText: readFileSync(join(target, envFile), "utf8"),
+    firstRun,
+    facts: JSON.parse(readFileSync(join(target, FACTS_FILE), "utf8")),
+  });
+  writeAnswers(target, suiteDir, answers, { replace: firstRun });
+  if (!skipInstall) {
+    installDependencies(suite, own);
+  }
+  const rows = await readiness(target, suiteDir, switches, skipInstall);
+  return ["", formatTable(rows), "", ...unsavedLines(answers), ...verdictLines(target, rows)];
 }
 
-function main(target, { command, positional, switches }) {
+async function doctor(target, switches) {
+  if (!existsSync(join(target, FACTS_CHECK))) {
+    throw new Error("Run npx vc-qa-agents first: .claude/checks is missing.");
+  }
+  const rows = await readiness(target, suiteDirOf([factsSuiteDir(target)]), switches, false);
+  return [formatTable(rows), "", ...verdictLines(target, rows)];
+}
+
+function main(target, { command, positional, switches, values }) {
   readManifest(target);
-  const forceOurs = switches.has(FORCE_OURS);
   if (command === "init") {
-    return init(target, { skipInstall: switches.has("--skip-install"), suiteDir: suiteDirOf(positional), forceOurs });
+    return init(target, { switches, values, suiteDir: suiteDirOf(positional) });
   }
   if (command === "doctor") {
-    throw new Error("vc-qa-agents doctor is not available yet.");
+    return doctor(target, switches);
   }
-  return command === "uninstall" ? uninstall(target) : install(target, { forceOurs });
+  return command === "uninstall" ? uninstall(target) : install(target, { forceOurs: switches.has(FORCE_OURS) });
 }
 
-try {
-  const lines = main(process.cwd(), parseArguments(process.argv.slice(2), USAGE));
+function printLines(lines) {
   for (const line of lines) {
     process.stdout.write(`${line}\n`);
   }
+}
+
+try {
+  printLines(await main(process.cwd(), parseArguments(process.argv.slice(2), USAGE)));
 } catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`${message}\n`);
+  process.exitCode = message === CANCELLED ? 130 : 1;
 }

@@ -13,8 +13,31 @@ import { browserServerKind } from "../../../bin/lib/browser-server.mjs";
 const BIN = fileURLToPath(new URL("../../../bin/install-qa-agents.mjs", import.meta.url));
 const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
 
+const ASKED_VARIABLES = [
+  "BACKEND_BASE_URL",
+  "FRONTEND_BASE_URL",
+  "STORE_ID",
+  "ADMIN_USERNAME",
+  "ADMIN_PASSWORD",
+  "CUSTOMER_PASSWORD",
+  "OTHER_CUSTOMER_PASSWORD",
+  "FRONTEND_TEST_ID_ATTRIBUTE",
+];
+
+function shellWith(variables: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const shell = { ...process.env };
+  for (const name of ASKED_VARIABLES) {
+    delete shell[name];
+  }
+  return { ...shell, ...variables };
+}
+
 function initIn(dir: string, ...args: string[]): string {
-  return execFileSync(process.execPath, [BIN, "init", ...args, "--skip-install"], { cwd: dir, encoding: "utf8" });
+  return execFileSync(process.execPath, [BIN, "init", ...args, "--skip-install", "--skip-verify", "--yes"], {
+    cwd: dir,
+    encoding: "utf8",
+    env: shellWith(),
+  });
 }
 
 function readJson(path: string): Record<string, unknown> {
@@ -218,6 +241,123 @@ test.describe("vc-qa-agents init", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("plain directory inside the repository");
     expect(existsSync(join(dir, ".qa"))).toBe(false);
+  });
+});
+
+const FLAGS = [
+  "--backend-url",
+  "https://back.example.test",
+  "--frontend-url",
+  "https://front.example.test",
+  "--store-id",
+  "Flag-store",
+  "--customer",
+  "buyer@shop.test",
+  "--other-customer",
+  "second@shop.test",
+  "--tracker",
+  "jira",
+  "--key-pattern",
+  "^VCST-\\d+$",
+];
+
+function initRun(dir: string, args: string[], variables: Record<string, string> = {}) {
+  return spawnSync(process.execPath, [BIN, "init", ...args], {
+    cwd: dir,
+    encoding: "utf8",
+    env: shellWith(variables),
+    timeout: 20_000,
+  });
+}
+
+test.describe("vc-qa-agents init, asked and answered", () => {
+  let dir = "";
+
+  test.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vc-init-answers-"));
+  });
+
+  test.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("ends with the readiness table and one verdict line, without the old list of next steps", () => {
+    const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(
+      /^(Ready: run claude in .+ and approve the playwright server when it asks\.|Not ready:)/m,
+    );
+    expect(result.stdout).toMatch(/^skipped\s+backend\s+--skip-verify: no network checks$/m);
+    expect(result.stdout).not.toContain("Next:");
+    expect(result.stdout).not.toContain("signs a new user in");
+  });
+
+  test("writes the flags to .env and the logins and key pattern to the project facts", () => {
+    const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes", ...FLAGS]);
+
+    expect(result.status, result.stderr).toBe(0);
+    const env = readFileSync(join(dir, ".env"), "utf8");
+    expect(env).toContain("BACKEND_BASE_URL=https://back.example.test\n");
+    expect(env).toContain("FRONTEND_BASE_URL=https://front.example.test\n");
+    expect(env).toContain("STORE_ID=Flag-store\n");
+    expect(env).toContain("ADMIN_USERNAME=admin\n");
+    const facts = readJson(join(dir, ".qa", "project.json"));
+    expect(facts).toMatchObject({
+      roles: { administrator: "admin", customer: "buyer@shop.test", "other customer": "second@shop.test" },
+      tracker: { kind: "jira", keyPattern: "^VCST-\\d+$" },
+    });
+  });
+
+  test("keeps a password from the shell out of .env unless --save-passwords is given", () => {
+    const secret = "shell-only-secret";
+    const unsaved = initRun(dir, ["--skip-install", "--skip-verify", "--yes"], { ADMIN_PASSWORD: secret });
+    const other = mkdtempSync(join(tmpdir(), "vc-init-saved-"));
+    try {
+      const saved = initRun(other, ["--skip-install", "--skip-verify", "--yes", "--save-passwords"], {
+        ADMIN_PASSWORD: secret,
+      });
+
+      expect(unsaved.status).toBe(0);
+      expect(saved.status).toBe(0);
+      expect(readFileSync(join(dir, ".env"), "utf8")).not.toContain(secret);
+      expect(readFileSync(join(other, ".env"), "utf8")).toContain(`ADMIN_PASSWORD=${secret}\n`);
+      expect(unsaved.stdout + saved.stdout).not.toContain(secret);
+      expect(readFileSync(join(other, ".qa", "project.json"), "utf8")).not.toContain(secret);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
+  });
+
+  test("a second identical run leaves .env, the project facts and package.json byte-identical", () => {
+    const args = ["--skip-install", "--skip-verify", "--yes", ...FLAGS];
+    initRun(dir, args);
+    const files = [".env", ".qa/project.json", "package.json"];
+    const before = files.map((file) => readFileSync(join(dir, file), "utf8"));
+
+    const again = initRun(dir, args);
+
+    expect(again.status, again.stderr).toBe(0);
+    expect(files.map((file) => readFileSync(join(dir, file), "utf8"))).toEqual(before);
+  });
+
+  test("refuses an invalid --backend-url before writing an answer", () => {
+    const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes", "--backend-url", "localhost:8090"]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("--backend-url");
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(
+      readFileSync(join(PACKAGE_ROOT, "templates", "suite", "env.example"), "utf8"),
+    );
+  });
+
+  test("never waits for input without a terminal", () => {
+    test.setTimeout(30_000);
+
+    const result = initRun(dir, ["--skip-install", "--skip-verify"]);
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
   });
 });
 

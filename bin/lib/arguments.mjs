@@ -14,7 +14,7 @@ export const SWITCHES = {
   install: ["--force-ours"],
   init: ["--skip-install", "--force-ours", "--yes", "--save-passwords", "--skip-verify"],
   uninstall: [],
-  doctor: [],
+  doctor: ["--skip-verify"],
 };
 
 const COMMANDS = ["init", "uninstall", "doctor"];

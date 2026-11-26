@@ -110,7 +110,7 @@ export function applyFacts(facts, answers, adminLogin) {
   return result;
 }
 
-export function writeAnswers(projectDir, suiteDir, answers) {
+export function writeAnswers(projectDir, suiteDir, answers, { replace = false } = {}) {
   const envPath = join(projectDir, suiteDir, ".env");
   const envText = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
   const values = { ...answers.env };
@@ -119,7 +119,9 @@ export function writeAnswers(projectDir, suiteDir, answers) {
       values[name] = answers.passwords[name];
     }
   }
-  const filledText = fillEnvText(envText, values);
+  const filledText = replace
+    ? Object.entries(values).reduce((text, [key, value]) => setEnvValue(text, key, value), envText)
+    : fillEnvText(envText, values);
   if (filledText !== envText) {
     writeFileSync(envPath, filledText);
   }

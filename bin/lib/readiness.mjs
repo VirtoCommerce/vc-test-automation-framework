@@ -15,7 +15,10 @@ const CERTIFICATE_CODES = new Set([
   "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
   "CERT_HAS_EXPIRED",
   "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "CERT_UNTRUSTED",
 ]);
+const HOST_MISMATCH = "ERR_TLS_CERT_ALTNAME_INVALID";
+const TRUST_ANY_CERTIFICATE = { NODE_TLS_REJECT_UNAUTHORIZED: "0" };
 const REACH_TIMEOUT_MS = 10_000;
 const TOKEN_TIMEOUT_MS = 30_000;
 const PROBE_TIMEOUT_MS = 180_000;
@@ -33,6 +36,7 @@ const TELLING_LINE = /error|cannot|failed|missing|not /i;
 const BABEL_MISSING =
   /@babel\/parser (is not installed|.*cannot be found)|Cannot find (package|module) '@babel\/parser'/;
 const PROJECT_FACTS = ".claude/checks/project-facts.mts";
+const FACTS_FILE = ".qa/project.json";
 const FACTS_NOTE = /^project-facts:/;
 const CERTIFICATE_QUESTION = "The certificate is not trusted (self-signed?). Set VERIFY_SSL=false in .env?";
 const NO_PLATFORM = "the platform does not answer";
@@ -87,6 +91,13 @@ export async function checkReachable(url, options) {
       last = `answered ${status}`;
     } catch (error) {
       const code = error?.code ?? "no answer";
+      if (code === HOST_MISMATCH) {
+        return {
+          ok: false,
+          detail: `the certificate of ${url} does not match its host (${code}); use in .env the host name the certificate is issued for.`,
+          certificate: false,
+        };
+      }
       if (CERTIFICATE_CODES.has(code)) {
         return {
           ok: false,
@@ -179,9 +190,10 @@ export function formatTable(rows) {
     .join("\n");
 }
 
-function defaultExec(command, args, cwd) {
+function defaultExec(command, args, cwd, env) {
   const result = spawnSync(command, args, {
     cwd,
+    env: env === undefined ? process.env : { ...process.env, ...env },
     shell: process.platform === "win32",
     encoding: "utf8",
     timeout: EXEC_TIMEOUT_MS,
@@ -216,9 +228,21 @@ function summary(output, secrets) {
     .slice(0, DETAIL_LIMIT);
 }
 
-function secretValues(vars) {
-  return Object.entries(vars)
-    .filter(([key]) => /PASSWORD|SECRET/.test(key))
+function passwordForNames(projectDir) {
+  try {
+    const passwordFor = JSON.parse(readFileSync(join(projectDir, FACTS_FILE), "utf8"))?.passwordFor;
+    return passwordFor !== null && typeof passwordFor === "object"
+      ? Object.values(passwordFor).filter((name) => typeof name === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function secretValues(context) {
+  const named = new Set(passwordForNames(context.projectDir));
+  return Object.entries(context.vars)
+    .filter(([key]) => /PASSWORD|SECRET/.test(key) || named.has(key))
     .map(([, value]) => value)
     .filter((value) => typeof value === "string" && value !== "");
 }
@@ -284,8 +308,8 @@ async function reachRow(check, key, context, verdict) {
   return row(check, result.ok ? "ok" : "fail", result.detail);
 }
 
-function execRow(check, context, command, args, cwd, onFail) {
-  const result = (context.exec ?? defaultExec)(command, args, cwd);
+function execRow(check, context, command, args, cwd, onFail, env) {
+  const result = (context.exec ?? defaultExec)(command, args, cwd, env);
   return result.status === 0 ? row(check, "ok", `${[command, ...args].join(" ")} passes`) : onFail(result.output);
 }
 
@@ -302,7 +326,7 @@ function projectFactsRow(context) {
     if (problems.length === 0 && BABEL_MISSING.test(output)) {
       return row("project facts", "skipped", "dependencies not installed");
     }
-    const said = summary(problems.length === 0 ? output : (problems[0] ?? ""), secretValues(context.vars));
+    const said = summary(problems.length === 0 ? output : (problems[0] ?? ""), secretValues(context));
     return row("project facts", "fail", `${said}; fix .qa/project.json until node ${PROJECT_FACTS} passes.`);
   });
 }
@@ -356,16 +380,24 @@ export async function runReadiness(context) {
   rows.facts = projectFactsRow(context);
 
   const suiteCwd = join(context.projectDir, context.suiteDir);
-  const secrets = secretValues(context.vars);
+  const secrets = secretValues(context);
+  const childEnv = verdict.verifySsl ? undefined : TRUST_ANY_CERTIFICATE;
   const typesReason = suiteReason(context, rows);
   rows.types =
     typesReason === undefined
-      ? execRow("types", context, "npm", ["run", "codegen"], suiteCwd, (output) =>
-          row(
-            "types",
-            "fail",
-            `npm run codegen failed: ${summary(output, secrets)}; run it in ${context.suiteDir} to see the whole output.`,
-          ),
+      ? execRow(
+          "types",
+          context,
+          "npm",
+          ["run", "codegen"],
+          suiteCwd,
+          (output) =>
+            row(
+              "types",
+              "fail",
+              `npm run codegen failed: ${summary(output, secrets)}; run it in ${context.suiteDir} to see the whole output.`,
+            ),
+          childEnv,
         )
       : row("types", "skipped", typesReason);
 
@@ -378,12 +410,19 @@ export async function runReadiness(context) {
   }
   rows.firstTest =
     testReason === undefined
-      ? execRow("first test", context, "npm", ["test"], suiteCwd, (output) =>
-          row(
-            "first test",
-            "fail",
-            `npm test failed: ${summary(output, secrets)}; run it in ${context.suiteDir} to see the report.`,
-          ),
+      ? execRow(
+          "first test",
+          context,
+          "npm",
+          ["test"],
+          suiteCwd,
+          (output) =>
+            row(
+              "first test",
+              "fail",
+              `npm test failed: ${summary(output, secrets)}; run it in ${context.suiteDir} to see the report.`,
+            ),
+          childEnv,
         )
       : row("first test", "skipped", testReason);
 
@@ -400,6 +439,7 @@ export async function runReadiness(context) {
         frontendUrl: context.vars["FRONTEND_BASE_URL"] ?? "",
         timeoutMs: PROBE_TIMEOUT_MS,
         secrets,
+        withheld: context.withheld ?? [],
       });
     } catch (error) {
       result = {

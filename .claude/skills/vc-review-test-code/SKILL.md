@@ -86,8 +86,8 @@ under test.
 ### Step 6: Infrastructure Files
 
 - [ ] Page objects: one class per file in kebab case under the right `pages/` directory; `readonly` locators built in
-      the constructor, `data-test-id` first, `.vc-*` classes only in `ui-kit/` and `vc-shell/`, settings hidden
-      behind methods, no test assertions, no API calls, imports only Playwright and other page objects.
+      the constructor, the suite's test id (`getByTestId`) first, `.vc-*` classes only in `ui-kit/` and `vc-shell/`,
+      settings hidden behind methods, no test assertions, no API calls, imports only Playwright and other page objects.
 - [ ] Builders: pure `newX()` functions with unique values (`uniqueId`), and a client-side `id` where the platform
       keeps it.
 - [ ] `arrange` methods: on the right domain, declared in its interface with a JSDoc that says what is created and

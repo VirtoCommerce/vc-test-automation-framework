@@ -2,12 +2,16 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
 const SCRIPT = fileURLToPath(new URL("../../../templates/suite/scripts/check-platform.ts", import.meta.url));
+const FIXTURES = join(import.meta.dirname, "fixtures");
 const SWAGGER_PATH = "/docs/PlatformUI/swagger.json";
 
 interface Run {
@@ -89,6 +93,32 @@ test.describe("check-platform", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("ECONNREFUSED");
     expect(result.stderr).toContain(origin);
+  });
+
+  test("accepts a self-signed certificate only with VERIFY_SSL=false", async () => {
+    const server = createHttpsServer(
+      {
+        key: readFileSync(join(FIXTURES, "test-only-localhost.key.pem")),
+        cert: readFileSync(join(FIXTURES, "test-only-localhost.cert.pem")),
+      },
+      (_request, response) => {
+        response.writeHead(200);
+        response.end();
+      },
+    );
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    try {
+      const origin = `https://localhost:${(server.address() as AddressInfo).port}`;
+
+      const strict = await run({ BACKEND_BASE_URL: origin, VERIFY_SSL: "true", NODE_TLS_REJECT_UNAUTHORIZED: "" });
+      const relaxed = await run({ BACKEND_BASE_URL: origin, VERIFY_SSL: "false", NODE_TLS_REJECT_UNAUTHORIZED: "" });
+
+      expect(strict.status).toBe(1);
+      expect(strict.stderr).toContain("DEPTH_ZERO_SELF_SIGNED_CERT");
+      expect(relaxed.status, relaxed.stderr).toBe(0);
+    } finally {
+      await close(server);
+    }
   });
 
   test("names the variable when BACKEND_BASE_URL is unset", async () => {

@@ -54,14 +54,14 @@ function refused(): Promise<never> {
   return Promise.reject(Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }));
 }
 
-type Call = { command: string; args: string[]; cwd: string };
+type Call = { command: string; args: string[]; cwd: string; env?: Record<string, string> };
 
 function fakeExec(results: Record<string, { status: number; output: string }> = {}) {
   const calls: Call[] = [];
   return {
     calls,
-    exec(command: string, args: string[], cwd: string) {
-      calls.push({ command, args, cwd });
+    exec(command: string, args: string[], cwd: string, env?: Record<string, string>) {
+      calls.push({ command, args, cwd, ...(env === undefined ? {} : { env }) });
       return results[[command, ...args].join(" ")] ?? { status: 0, output: "" };
     },
   };
@@ -147,6 +147,36 @@ test.describe("checkReachable", () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+});
+
+test.describe("checkReachable, certificate errors", () => {
+  function failing(code: string) {
+    return () => Promise.reject(Object.assign(new Error(code), { code }));
+  }
+
+  test("takes CERT_UNTRUSTED as a certificate problem", async () => {
+    const result = await checkReachable("https://b.test", {
+      verifySsl: true,
+      ...FAST,
+      request: failing("CERT_UNTRUSTED"),
+    });
+
+    expect(result.certificate).toBe(true);
+    expect(result.detail).toContain("VERIFY_SSL=false");
+  });
+
+  test("says a certificate for another host does not match, without offering VERIFY_SSL", async () => {
+    const result = await checkReachable("https://b.test", {
+      verifySsl: true,
+      ...FAST,
+      request: failing("ERR_TLS_CERT_ALTNAME_INVALID"),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.certificate).toBe(false);
+    expect(result.detail).toContain("does not match its host");
+    expect(result.detail).not.toContain("VERIFY_SSL");
   });
 });
 
@@ -469,6 +499,109 @@ test.describe("runReadiness", () => {
     expect(statusOf(rows, "administrator")).toMatch(/^ok/);
   });
 
+  test("with VERIFY_SSL=false, codegen and the first test run with certificate checks off, and not otherwise", async () => {
+    const answered = (url: string) =>
+      Promise.resolve(
+        url.endsWith("/connect/token")
+          ? { status: 200, body: JSON.stringify({ access_token: "t" }) }
+          : { status: 200, body: "" },
+      );
+    const relaxed = fakeExec();
+    const strict = fakeExec();
+    const context = {
+      projectDir: dir,
+      suiteDir: ".",
+      skipInstall: false,
+      skipVerify: false,
+      request: answered,
+      probe: () => Promise.resolve({ ok: true, detail: "" }),
+    };
+
+    await runReadiness({ ...context, vars: vars({ VERIFY_SSL: "false" }), exec: relaxed.exec });
+    await runReadiness({ ...context, vars: vars(), exec: strict.exec });
+
+    expect(relaxed.calls.map((call) => call.env)).toEqual([
+      undefined,
+      { NODE_TLS_REJECT_UNAUTHORIZED: "0" },
+      { NODE_TLS_REJECT_UNAUTHORIZED: "0" },
+    ]);
+    expect(strict.calls.map((call) => call.env)).toEqual([undefined, undefined, undefined]);
+  });
+
+  test("after VERIFY_SSL=false is accepted, codegen runs with certificate checks off", async () => {
+    writeFileSync(join(dir, ".env"), "VERIFY_SSL=true\n");
+    const { exec, calls } = fakeExec();
+    await runReadiness({
+      projectDir: dir,
+      suiteDir: ".",
+      vars: vars({ BACKEND_BASE_URL: "https://backend.test" }),
+      skipInstall: false,
+      skipVerify: false,
+      exec,
+      prompter: {
+        ask: () => Promise.resolve(""),
+        askSecret: () => Promise.resolve(""),
+        confirm: () => Promise.resolve(true),
+        close() {},
+      },
+      request(url: string, options: { verifySsl: boolean }) {
+        if (url.startsWith("https://backend.test") && options.verifySsl) {
+          return Promise.reject(Object.assign(new Error("self-signed"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }));
+        }
+        return Promise.resolve(
+          url.endsWith("/connect/token")
+            ? { status: 200, body: JSON.stringify({ access_token: "t" }) }
+            : { status: 200, body: "" },
+        );
+      },
+      probe: () => Promise.resolve({ ok: true, detail: "" }),
+    });
+
+    expect(calls[1]).toMatchObject({ args: ["run", "codegen"], env: { NODE_TLS_REJECT_UNAUTHORIZED: "0" } });
+  });
+
+  test("hands the probe the password names it must not pass on", async () => {
+    const seen: unknown[] = [];
+    await runReadiness({
+      projectDir: dir,
+      suiteDir: ".",
+      vars: vars(),
+      skipInstall: true,
+      skipVerify: false,
+      exec: fakeExec().exec,
+      withheld: ["ADMIN_PASSWORD"],
+      request: () => Promise.resolve({ status: 200, body: "" }),
+      probe(options: { withheld: string[] }) {
+        seen.push(options.withheld);
+        return Promise.resolve({ ok: true, detail: "" });
+      },
+    });
+
+    expect(seen).toEqual([["ADMIN_PASSWORD"]]);
+  });
+
+  test("masks the value of every variable passwordFor names, whatever its name", async () => {
+    mkdirSync(join(dir, ".qa"));
+    writeFileSync(join(dir, ".qa", "project.json"), JSON.stringify({ passwordFor: { buyer: "BUYER_PIN" } }));
+    const rows = await runReadiness({
+      projectDir: dir,
+      suiteDir: ".",
+      vars: vars({ BUYER_PIN: "pin-4711" }),
+      skipInstall: false,
+      skipVerify: false,
+      exec: fakeExec({ "npm run codegen": { status: 1, output: "Error: rejected pin-4711 for the buyer" } }).exec,
+      request: (url: string) =>
+        Promise.resolve(
+          url.endsWith("/connect/token")
+            ? { status: 200, body: JSON.stringify({ access_token: "t" }) }
+            : { status: 200, body: "" },
+        ),
+      probe: () => Promise.resolve({ ok: true, detail: "" }),
+    });
+
+    expect(statusOf(rows, "types")).toContain("rejected *** for the buyer");
+  });
+
   test("takes a cancelled certificate question as a no: the backend row fails with its own detail", async () => {
     mkdirSync(join(dir, "suite"));
     writeFileSync(join(dir, "suite", ".env"), "BACKEND_BASE_URL=https://backend.test\nVERIFY_SSL=true\n");
@@ -685,6 +818,39 @@ test.describe("probeBrowserServer", () => {
 
     expect(serverPackage(dir)).toBe("@playwright/mcp@9.9.9");
     expect(serverPackage(join(dir, "missing"))).toBe("@playwright/mcp");
+  });
+
+  test("starts the launcher without the passwords it must not pass on, and with the others", async () => {
+    writeFileSync(
+      join(dir, ".claude", "checks", "browser-mcp.mts"),
+      'import { writeFileSync } from "node:fs";\nwriteFileSync("env-names.json", JSON.stringify(Object.keys(process.env)));\n',
+    );
+    const before = {
+      ADMIN_PASSWORD: process.env["ADMIN_PASSWORD"],
+      CUSTOMER_PASSWORD: process.env["CUSTOMER_PASSWORD"],
+    };
+    process.env["ADMIN_PASSWORD"] = "shell-only";
+    process.env["CUSTOMER_PASSWORD"] = "saved";
+    try {
+      await probeBrowserServer({
+        projectDir: dir,
+        frontendUrl: "http://frontend.test",
+        timeoutMs: 20_000,
+        withheld: ["ADMIN_PASSWORD"],
+      });
+    } finally {
+      for (const [name, value] of Object.entries(before)) {
+        if (value === undefined) {
+          delete process.env[name];
+        } else {
+          process.env[name] = value;
+        }
+      }
+    }
+
+    const names = JSON.parse(readFileSync(join(dir, "env-names.json"), "utf8")) as string[];
+    expect(names.map((name) => name.toUpperCase())).not.toContain("ADMIN_PASSWORD");
+    expect(names).toContain("CUSTOMER_PASSWORD");
   });
 
   test("masks a password in the launcher's error output", async () => {

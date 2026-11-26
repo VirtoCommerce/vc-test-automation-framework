@@ -8,12 +8,19 @@ const TEMPLATE_TRACKER = { kind: "jira", keyPattern: "^PROJ-\\d+$" };
 const KEY_PATTERN_FOR = { "azure-boards": "^\\d+$" };
 
 function urlProblem(value) {
-  try {
-    const { protocol } = new URL(value);
-    return protocol === "http:" || protocol === "https:" ? undefined : "must be an http or https URL";
-  } catch {
+  const parsed = URL.parse(value);
+  if (parsed === null || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
     return "must be an http or https URL";
   }
+  const origin =
+    parsed.pathname === "/" &&
+    parsed.search === "" &&
+    parsed.hash === "" &&
+    parsed.username === "" &&
+    parsed.password === "";
+  return origin
+    ? undefined
+    : "must be an origin such as https://host:port, without a path, query, fragment or user name";
 }
 
 function blankProblem(value) {
@@ -161,7 +168,12 @@ export function checkGivenValues(input) {
 }
 
 async function resolveSetting(field, input, answers) {
-  if (filled(input.existingEnv[field.name])) {
+  const held = input.existingEnv[field.name];
+  if (filled(held)) {
+    const fromFlag = given(input.values[field.flag]);
+    if (fromFlag !== undefined && fromFlag.trim() !== held.trim()) {
+      answers.notes.push(`Kept ${field.name} from .env; ${field.flag} was not applied (edit .env to change it).`);
+    }
     return;
   }
   const check = settingCheck(field);
@@ -230,7 +242,7 @@ async function resolveTracker(input) {
 }
 
 export async function resolveAnswers(input) {
-  const answers = { env: {}, passwords: {}, persistPasswords: [], roles: {} };
+  const answers = { env: {}, passwords: {}, persistPasswords: [], roles: {}, notes: [] };
   for (const field of SETTINGS) {
     await resolveSetting(field, input, answers);
   }

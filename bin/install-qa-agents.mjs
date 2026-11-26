@@ -35,6 +35,7 @@ const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
 const FACTS_CHECK = ".claude/checks/project-facts.mts";
 const CANCELLED = "cancelled";
+const NO_TERMINAL = "No terminal: nothing was asked; pass the values as flags or edit .env.";
 const ROOT_DIR = ".";
 const QA_DIR = ".qa/";
 const SUITE_DIR = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*$/;
@@ -533,7 +534,7 @@ function certificateConfirmer(switches) {
   };
 }
 
-function readiness(target, suiteDir, switches, skipInstall) {
+function readiness(target, suiteDir, switches, skipInstall, withheld = []) {
   return runReadiness({
     projectDir: target,
     suiteDir,
@@ -541,6 +542,7 @@ function readiness(target, suiteDir, switches, skipInstall) {
     skipInstall,
     skipVerify: switches.has("--skip-verify"),
     prompter: certificateConfirmer(switches),
+    withheld,
   });
 }
 
@@ -564,8 +566,12 @@ function verdictLines(target, rows) {
   return [`Ready: run claude in ${target} and approve the ${BROWSER_SERVER} server when it asks.`];
 }
 
+function unsavedPasswords(answers) {
+  return Object.keys(answers.passwords).filter((name) => !answers.persistPasswords.includes(name));
+}
+
 function unsavedLines(answers) {
-  const unsaved = Object.keys(answers.passwords).filter((name) => !answers.persistPasswords.includes(name));
+  const unsaved = unsavedPasswords(answers);
   if (unsaved.length === 0) {
     return [];
   }
@@ -596,33 +602,34 @@ async function askAnswers({ values, switches, envText, firstRun, facts, onInterr
 async function init(target, { switches, values, suiteDir }) {
   checkGivenValues({ values, switches, shell: process.env });
   const skipInstall = switches.has("--skip-install");
-  const lines = [];
   const suite = join(target, suiteDir);
-  const { written, kept } = copySuiteTemplate(target, suiteDir);
-  lines.push(`Wrote ${written.length} files of the test suite.`);
-  if (kept.length > 0) {
-    lines.push(`Kept the files that already exist: ${kept.join(", ")}`);
-  }
-  if (suiteDir !== ROOT_DIR && written.includes(FACTS_FILE)) {
-    pointFactsAtSuite(target, suiteDir);
-    lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
-  }
   const own = readOwnManifest();
-  mergePackageJson(suite, own);
-  lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
-  if (written.includes(MCP_FILE)) {
-    lines.push(
-      `Wrote ${MCP_FILE}: the Playwright MCP server "${BROWSER_SERVER}" that the agents open the frontend with, ` +
-        "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
-    );
-  }
-  lines.push(...install(target, { written, forceOurs: switches.has(FORCE_OURS), wizard: true }));
-  printLines(lines);
-
+  const { written, kept } = copySuiteTemplate(target, suiteDir);
   const envFile = inSuite(suiteDir, ".env");
   const envPath = join(target, envFile);
   const firstRun = written.includes(envFile);
   const answers = await discardOnFailure(envPath, firstRun, async () => {
+    const lines = [`Wrote ${written.length} files of the test suite.`];
+    if (kept.length > 0) {
+      lines.push(`Kept the files that already exist: ${kept.join(", ")}`);
+    }
+    if (suiteDir !== ROOT_DIR && written.includes(FACTS_FILE)) {
+      pointFactsAtSuite(target, suiteDir);
+      lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
+    }
+    mergePackageJson(suite, own);
+    lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
+    if (written.includes(MCP_FILE)) {
+      lines.push(
+        `Wrote ${MCP_FILE}: the Playwright MCP server "${BROWSER_SERVER}" that the agents open the frontend with, ` +
+          "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
+      );
+    }
+    lines.push(...install(target, { written, forceOurs: switches.has(FORCE_OURS), wizard: true }));
+    if (!switches.has("--yes") && !isInteractive(switches)) {
+      lines.push(NO_TERMINAL);
+    }
+    printLines(lines);
     const resolved = await askAnswers({
       values,
       switches,
@@ -637,10 +644,11 @@ async function init(target, { switches, values, suiteDir }) {
     writeAnswers(target, suiteDir, resolved, { replace: firstRun });
     return resolved;
   });
+  printLines(answers.notes);
   if (!skipInstall) {
     installDependencies(suite, own);
   }
-  const rows = await readiness(target, suiteDir, switches, skipInstall);
+  const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers));
   return ["", formatTable(rows), "", ...unsavedLines(answers), ...verdictLines(target, rows)];
 }
 

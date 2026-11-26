@@ -363,6 +363,41 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     expect(readFileSync(join(dir, ".env"), "utf8")).toContain("BACKEND_BASE_URL=https://b.test\n");
   });
 
+  test("removes the .env it created when a later step fails, so the retry takes the flags", () => {
+    writeFileSync(join(dir, "package.json"), "{ not json");
+
+    const failed = initRun(dir, ["--skip-install", "--skip-verify", "--yes", ...FLAGS]);
+
+    expect(failed.status).toBe(1);
+    expect(existsSync(join(dir, ".env"))).toBe(false);
+
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "suite" }));
+    const retried = initRun(dir, ["--skip-install", "--skip-verify", "--yes", ...FLAGS]);
+
+    expect(retried.status, retried.stderr).toBe(0);
+    expect(readFileSync(join(dir, ".env"), "utf8")).toContain("BACKEND_BASE_URL=https://back.example.test\n");
+  });
+
+  test("says which flags it did not apply because .env already holds their keys", () => {
+    initRun(dir, ["--skip-install", "--skip-verify", "--yes", ...FLAGS]);
+
+    const again = initRun(dir, [
+      "--skip-install",
+      "--skip-verify",
+      "--yes",
+      ...FLAGS,
+      "--frontend-url",
+      "https://moved.example.test",
+    ]);
+
+    expect(again.status, again.stderr).toBe(0);
+    expect(again.stdout).toContain(
+      "Kept FRONTEND_BASE_URL from .env; --frontend-url was not applied (edit .env to change it).",
+    );
+    expect(again.stdout).not.toContain("Kept BACKEND_BASE_URL");
+    expect(readFileSync(join(dir, ".env"), "utf8")).toContain("FRONTEND_BASE_URL=https://front.example.test\n");
+  });
+
   test("leaves to the readiness table what plain install would tell the user to do by hand", () => {
     const initOutput = initRun(dir, ["--skip-install", "--skip-verify", "--yes"]).stdout;
     const other = mkdtempSync(join(tmpdir(), "vc-install-"));
@@ -385,6 +420,8 @@ test.describe("vc-qa-agents init, asked and answered", () => {
 
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(0);
+    expect(result.stdout).toContain("No terminal: nothing was asked; pass the values as flags or edit .env.");
+    expect(initRun(dir, ["--skip-install", "--skip-verify", "--yes"]).stdout).not.toContain("No terminal");
   });
 });
 

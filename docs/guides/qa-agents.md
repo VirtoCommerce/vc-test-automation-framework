@@ -166,7 +166,7 @@ lists them). The launcher writes them for the server, so there is no step for yo
 server, the launcher reads the variables of the run, writes `.qa/browser-secrets.local.env` (git-ignored) with the
 passwords that are set, restricts the file to the current user (mode `0600` on Linux and macOS, `icacls` on Windows),
 and starts the pinned `@playwright/mcp` with `--browser chromium --isolated`, adding `--secrets` only when the file
-holds a password. A password that changed in `.env` is therefore picked up when Claude Code restarts the server, and no
+holds a password, and `--ignore-https-errors` only when the run's variables have `VERIFY_SSL=false`. A password that changed in `.env` is therefore picked up when Claude Code restarts the server, and no
 stale file is left behind. A password that is not set is a warning on stderr, and the agents cannot sign in with that
 role. The launcher writes nothing else to stdout, which is the channel of the protocol, and it does not stop when
 `.qa/project.json` is unreadable or still the template's: it falls back to the suite's `.env` and warns.

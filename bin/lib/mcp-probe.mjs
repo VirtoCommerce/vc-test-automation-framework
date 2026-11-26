@@ -192,11 +192,17 @@ async function talk(channel, frontendUrl, options) {
   return navigate(channel, frontendUrl, options);
 }
 
+function envWithout(names) {
+  const withheld = new Set(names.map((name) => name.toUpperCase()));
+  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !withheld.has(name.toUpperCase())));
+}
+
 export async function probeBrowserServer(options) {
   const { projectDir, frontendUrl, timeoutMs } = options;
   const secrets = options.secrets ?? [];
   const child = spawn("node", [LAUNCHER], {
     cwd: projectDir,
+    env: envWithout(options.withheld ?? []),
     stdio: ["pipe", "pipe", "pipe"],
     detached: process.platform !== "win32",
     windowsHide: true,

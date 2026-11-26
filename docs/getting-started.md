@@ -47,14 +47,17 @@ In a terminal, `init` asks once for each of these and writes the answers to `.en
 
 Passwords are typed with hidden input. A value that is already set is not asked again: a key that is not empty in
 `.env`, or a role or tracker in `.qa/project.json` that you changed from the template, stays as it is, so running
-`init` again is safe.
+`init` again is safe. A flag for a key that `.env` already holds is not applied, and `init` prints one line saying so;
+edit `.env` to change that value.
 
 `init` then installs the dependencies and prints a table with one row for each check: `backend` and `frontend` answer,
 `administrator` can sign in, `project facts` pass, `types` are generated, `first test` passes and `browser server`
 starts. A failing row names the single fix. `init` exits with 0 once it has written its files, whatever the table says,
 because a platform that is still starting needs a minute; it exits with 1 only when it could not do its own work. When
 the platform does not answer, the types and the first test are skipped. If the backend uses a self-signed certificate,
-`init` asks whether to set `VERIFY_SSL=false`.
+`init` asks whether to set `VERIFY_SSL=false`. That setting holds for the whole run: the types, the first test and the
+browser server accept the certificate too. A certificate issued for another host name is a failing row of its own:
+use in `.env` the host name the certificate names.
 
 When every row passes, the last line tells you to run `claude` in the directory. Claude Code asks once whether to
 approve the `playwright` server of `.mcp.json`; approve it, and the agents can open the frontend. With a failing or a
@@ -64,7 +67,8 @@ so it is not ready.
 
 ### Without a terminal
 
-When there is no terminal (CI, or an agent runs `init`) or you pass `--yes`, `init` asks nothing. It takes the values
+When there is no terminal (CI, or an agent runs `init`) or you pass `--yes`, `init` asks nothing; without a terminal and
+without `--yes` it prints one line saying so. It takes the values
 from flags and from the shell, and a value still missing keeps the template's default or stays empty, which the table
 shows as a failing or skipped row. Set the passwords in the environment first, from the secret store of your CI or
 without typing the value on the command line, so that it stays out of the shell history:
@@ -91,7 +95,7 @@ npx vc-qa-agents init --yes \
 
 | Flag                              | Sets                                                                        |
 | --------------------------------- | --------------------------------------------------------------------------- |
-| `--backend-url`, `--frontend-url` | `BACKEND_BASE_URL`, `FRONTEND_BASE_URL`                                     |
+| `--backend-url`, `--frontend-url` | `BACKEND_BASE_URL`, `FRONTEND_BASE_URL`, each an origin: no path or query   |
 | `--store-id`                      | `STORE_ID`                                                                  |
 | `--admin-login`                   | `ADMIN_USERNAME`                                                            |
 | `--customer`, `--other-customer`  | The logins of the customer and of the other customer in `.qa/project.json`  |
@@ -108,7 +112,8 @@ A value that starts with `--` is written `--flag=value`, because `--flag --value
 **Passwords are never flags**; set them in the environment, not on the command line, so they stay out of the shell
 history and the process list. Typed passwords go to `.env`. Passwords that come from the shell variables `ADMIN_PASSWORD`, `CUSTOMER_PASSWORD` and
 `OTHER_CUSTOMER_PASSWORD` are used for the run only and stay in the shell, unless you pass `--save-passwords`; the
-table says "Passwords from the shell, not saved" so that a failure in a new terminal is no surprise.
+table says "Passwords from the shell, not saved" so that a failure in a new terminal is no surprise. The `browser
+server` row does not hand them to the launcher either, so they are not written to `.qa/browser-secrets.local.env`.
 
 ### Check it again
 
@@ -116,9 +121,11 @@ table says "Passwords from the shell, not saved" so that a failure in a new term
 npx vc-qa-agents doctor
 ```
 
-`doctor` prints the same table without writing anything, for example after a change to `.env` or when the platform was
-down during `init`. It exits with 1 when a row fails, so CI can use it, and `--skip-verify` makes it offline. It needs
-the agents' check scripts, so run `npx vc-qa-agents` first in a suite that does not have them.
+`doctor` checks the same rows again and prints the same table, for example after a change to `.env` or when the platform
+was down during `init`. It is not read-only: it runs codegen and the first test, may set `VERIFY_SSL=false` in `.env`
+after asking, and its `browser server` row starts the launcher, which rewrites `.qa/browser-secrets.local.env` from
+the variables of the run. It exits with 1 when a row fails, so CI can use it, and `--skip-verify` makes it offline. It
+needs the agents' check scripts, so run `npx vc-qa-agents` first in a suite that does not have them.
 
 ### Run the tests
 

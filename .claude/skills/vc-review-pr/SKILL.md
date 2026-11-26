@@ -48,7 +48,7 @@ gh pr checks <number>
 
 **Page objects (`virtocommerce/pages/**`):**
 - One class per file, named and placed as `virtocommerce/pages/README.md` says.
-- `readonly` locators built in the constructor, `data-test-id` first, actions that wait for what they trigger.
+- `readonly` locators built in the constructor, the suite's test id (`getByTestId`) first, actions that wait for what they trigger.
 - Frontend settings handled inside the page object; no test assertions, no API calls.
 
 **Suite data (`virtocommerce/arrange/`, `builders/`, `support/`, `dataset/`):**

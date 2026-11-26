@@ -11,6 +11,10 @@ if (existsSync(ENV_FILE)) {
   process.loadEnvFile(ENV_FILE);
 }
 
+if (process.env["VERIFY_SSL"] === "false") {
+  process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+}
+
 const { values } = parseArgs({
   options: { attempts: { type: "string", default: "4" }, "delay-ms": { type: "string", default: "5000" } },
 });

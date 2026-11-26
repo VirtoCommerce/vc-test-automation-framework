@@ -22,12 +22,18 @@ const WARNING = "warning:";
 const FORWARDED_SIGNALS = ["SIGINT", "SIGTERM"] as const;
 
 /** What the launcher starts the server with: the secrets it can pass, the names it skipped, and why. */
-export type Launch = { secrets: Record<string, string>; skipped: string[]; warnings: string[] };
+export type Launch = {
+  secrets: Record<string, string>;
+  skipped: string[];
+  warnings: string[];
+  ignoreHttpsErrors: boolean;
+};
 
 /**
  * The secrets for the browser server: each password variable `passwordFor` names that is set in the run's variables
  * ({@link tolerantRunVariables}). A name that is unset, or whose value the secrets file cannot hold, is skipped with a
- * warning that never holds a value. Never throws: a launcher that stops leaves the agents with no browser at all.
+ * warning that never holds a value. `VERIFY_SSL=false` in the run's variables makes the browser accept a certificate it
+ * cannot verify, as the suite does. Never throws: a launcher that stops leaves the agents with no browser at all.
  */
 export function prepareLaunch(projectDir: string, shell: Vars = process.env): Launch {
   const { vars, names, warnings } = tolerantRunVariables(projectDir, shell);
@@ -44,11 +50,14 @@ export function prepareLaunch(projectDir: string, shell: Vars = process.env): La
       all.push(`${problem ?? `${name} is not set`}: the agents cannot sign in with it`);
     }
   }
-  return { secrets, skipped, warnings: all };
+  return { secrets, skipped, warnings: all, ignoreHttpsErrors: vars["VERIFY_SSL"] === "false" };
 }
 
-/** The arguments of `npx` that start the pinned server, with the secrets file only when it was written. */
-export function serverArguments(withSecrets: boolean): string[] {
+/**
+ * The arguments of `npx` that start the pinned server, with the secrets file only when it was written, and accepting a
+ * certificate it cannot verify only when asked to.
+ */
+export function serverArguments(withSecrets: boolean, ignoreHttpsErrors = false): string[] {
   return [
     "-y",
     BROWSER_SERVER_PACKAGE,
@@ -56,6 +65,7 @@ export function serverArguments(withSecrets: boolean): string[] {
     "chromium",
     "--isolated",
     ...(withSecrets ? ["--secrets", BROWSER_SECRETS_PATH] : []),
+    ...(ignoreHttpsErrors ? ["--ignore-https-errors"] : []),
   ];
 }
 
@@ -90,9 +100,9 @@ function removeStaleSecrets(projectDir: string, warnings: string[]): void {
   }
 }
 
-function startServer(projectDir: string, withSecrets: boolean): void {
+function startServer(projectDir: string, withSecrets: boolean, ignoreHttpsErrors: boolean): void {
   const windows = process.platform === "win32";
-  const args = serverArguments(withSecrets);
+  const args = serverArguments(withSecrets, ignoreHttpsErrors);
   const child = windows
     ? spawn(["npx.cmd", ...args].join(" "), { cwd: projectDir, stdio: "inherit", shell: true })
     : spawn("npx", args, { cwd: projectDir, stdio: "inherit" });
@@ -110,7 +120,7 @@ function startServer(projectDir: string, withSecrets: boolean): void {
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   const projectDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const { secrets, warnings } = prepareLaunch(projectDir);
+  const { secrets, warnings, ignoreHttpsErrors } = prepareLaunch(projectDir);
   const withSecrets = Object.keys(secrets).length > 0 && writeSecrets(projectDir, secrets, warnings);
   if (!withSecrets) {
     removeStaleSecrets(projectDir, warnings);
@@ -119,6 +129,6 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
     process.stderr.write(`browser-mcp: ${warning}\n`);
   }
   if (!process.argv.includes(PREPARE_ONLY)) {
-    startServer(projectDir, withSecrets);
+    startServer(projectDir, withSecrets, ignoreHttpsErrors);
   }
 }

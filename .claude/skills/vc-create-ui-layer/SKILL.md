@@ -160,7 +160,7 @@ locator.filter({ hasText: exactText(name) });
 
 1. Public locators and child components are `readonly` fields assigned in the constructor; other state is
    `readonly #private`.
-2. `data-test-id` first; ask for a test id in the frontend when a stable one is missing.
+2. The suite's test id (`getByTestId`) first; ask for a test id in the frontend when a stable one is missing.
 3. No test assertions, API calls or test data; imports only from `@playwright/test` and other page objects.
 4. No `waitForTimeout`, no `networkidle`; wait for locators, states or responses.
 5. Settings-dependent behaviour is hidden in the page object; specs never branch or skip on settings.

@@ -85,6 +85,19 @@ test.describe("browser MCP launcher", () => {
     expect(serverArguments(true).slice(-2)).toEqual(["--secrets", BROWSER_SECRETS_PATH]);
   });
 
+  test("lets the browser accept an unverifiable certificate only when the run's variables say VERIFY_SSL=false", () => {
+    writeProject(dir, "VERIFY_SSL=false\n");
+
+    expect(prepareLaunch(dir, {}).ignoreHttpsErrors).toBe(true);
+    expect(prepareLaunch(dir, { VERIFY_SSL: "true" }).ignoreHttpsErrors).toBe(false);
+    writeProject(dir, "VERIFY_SSL=true\n");
+    expect(prepareLaunch(dir, {}).ignoreHttpsErrors).toBe(false);
+    expect(prepareLaunch(dir, { VERIFY_SSL: "false" }).ignoreHttpsErrors).toBe(true);
+    expect(serverArguments(false, true).at(-1)).toBe("--ignore-https-errors");
+    expect(serverArguments(true, true).slice(-3)).toEqual(["--secrets", BROWSER_SECRETS_PATH, "--ignore-https-errors"]);
+    expect(serverArguments(true)).not.toContain("--ignore-https-errors");
+  });
+
   test("--prepare-only writes the secrets file of a project in a path with a space, and prints nothing", () => {
     cpSync(CHECKS, join(dir, ".claude", "checks"), { recursive: true });
     writeProject(dir, "ADMIN_PASSWORD=admin-secret\n");

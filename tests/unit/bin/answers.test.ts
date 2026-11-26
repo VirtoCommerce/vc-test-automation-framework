@@ -12,6 +12,7 @@ type Answers = {
   persistPasswords: string[];
   roles: { customer?: string; otherCustomer?: string };
   tracker?: { kind: string; keyPattern: string };
+  notes: string[];
 };
 
 type Input = Parameters<typeof resolveUntyped>[0];
@@ -168,6 +169,42 @@ test.describe("resolveAnswers", () => {
   test("an invalid URL flag throws naming --backend-url", async () => {
     await expect(resolveAnswers(input({ values: { "--backend-url": "not a url" } }))).rejects.toThrow(/--backend-url/);
     await expect(resolveAnswers(input({ values: { "--frontend-url": "ftp://x" } }))).rejects.toThrow(/--frontend-url/);
+  });
+
+  test("a URL with a path, query, fragment or user name is refused as not an origin, naming the flag", async () => {
+    for (const [flag, value] of [
+      ["--frontend-url", "https://shop.example.com/en-US/"],
+      ["--backend-url", "https://plat.example.com/admin"],
+      ["--backend-url", "https://plat.example.com/?a=1"],
+      ["--backend-url", "https://plat.example.com/#top"],
+      ["--backend-url", "https://user:pw@plat.example.com"],
+    ] as const) {
+      const given = resolveAnswers(input({ values: { [flag]: value } }));
+      await expect(given).rejects.toThrow(flag);
+      await expect(given).rejects.toThrow("an origin such as https://host:port");
+    }
+    const answers = await resolveAnswers(input({ values: { "--backend-url": "https://x.test/" } }));
+    expect(answers.env["BACKEND_BASE_URL"]).toBe("https://x.test/");
+  });
+
+  test("a valid flag for a key .env already holds is not applied and says so once", async () => {
+    const answers = await resolveAnswers(
+      input({
+        existingEnv: FILLED_ENV,
+        facts: CHANGED_FACTS,
+        values: {
+          "--frontend-url": "https://other.example.test",
+          "--backend-url": FILLED_ENV.BACKEND_BASE_URL,
+          "--store-id": "Other",
+        },
+      }),
+    );
+
+    expect(answers.env).toEqual({});
+    expect(answers.notes).toEqual([
+      "Kept FRONTEND_BASE_URL from .env; --frontend-url was not applied (edit .env to change it).",
+      "Kept STORE_ID from .env; --store-id was not applied (edit .env to change it).",
+    ]);
   });
 
   test("an invalid shell value throws naming the variable", async () => {

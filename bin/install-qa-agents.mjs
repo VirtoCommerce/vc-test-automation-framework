@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rm
 import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseArguments } from "./lib/arguments.mjs";
 import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
 import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
 
@@ -17,9 +18,10 @@ const RENAMED_DIRS = ["agents", "commands", "skills"];
 const NAME_PREFIX = "vc-";
 const FORCE_OURS = "--force-ours";
 const USAGE =
-  "usage: vc-qa-agents [--force-ours] | vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] | " +
-  "vc-qa-agents uninstall";
-const FLAGS = { install: [FORCE_OURS], init: ["--skip-install", FORCE_OURS], uninstall: [] };
+  "usage: vc-qa-agents [--force-ours] | vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] " +
+  "[--yes] [--save-passwords] [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] " +
+  "[--admin-login <login>] [--customer <email>] [--other-customer <email>] [--tracker <name>] " +
+  "[--key-pattern <pattern>] [--test-id-attribute <attribute>] | vc-qa-agents doctor | vc-qa-agents uninstall";
 const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
 const GUARD_FILES = [HOOK_SCRIPT, ".claude/checks/readonly-shell.mts"];
 const MCP_FILE = ".mcp.json";
@@ -418,8 +420,8 @@ function copySuiteTemplate(target, suiteDir) {
   return { written, kept };
 }
 
-function suiteDirOf(options) {
-  const [dir, extra] = options.filter((option) => !option.startsWith("--"));
+function suiteDirOf(positional) {
+  const [dir, extra] = positional;
   if (extra !== undefined) {
     throw new Error(USAGE);
   }
@@ -536,29 +538,20 @@ function init(target, { skipInstall, suiteDir, forceOurs }) {
   return lines;
 }
 
-function parseArguments(args) {
-  const [first, ...rest] = args;
-  const command = first === "init" || first === "uninstall" ? first : "install";
-  const options = command === "install" ? args : rest;
-  const flags = options.filter((option) => option.startsWith("--"));
-  const unknown = flags.filter((flag) => !FLAGS[command].includes(flag));
-  if (unknown.length > 0 || (command !== "init" && flags.length !== options.length)) {
-    throw new Error(USAGE);
-  }
-  return { command, options };
-}
-
-function main(target, { command, options }) {
+function main(target, { command, positional, switches }) {
   readManifest(target);
-  const forceOurs = options.includes(FORCE_OURS);
+  const forceOurs = switches.has(FORCE_OURS);
   if (command === "init") {
-    return init(target, { skipInstall: options.includes("--skip-install"), suiteDir: suiteDirOf(options), forceOurs });
+    return init(target, { skipInstall: switches.has("--skip-install"), suiteDir: suiteDirOf(positional), forceOurs });
+  }
+  if (command === "doctor") {
+    throw new Error("vc-qa-agents doctor is not available yet.");
   }
   return command === "uninstall" ? uninstall(target) : install(target, { forceOurs });
 }
 
 try {
-  const lines = main(process.cwd(), parseArguments(process.argv.slice(2)));
+  const lines = main(process.cwd(), parseArguments(process.argv.slice(2), USAGE));
   for (const line of lines) {
     process.stdout.write(`${line}\n`);
   }

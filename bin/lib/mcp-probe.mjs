@@ -1,4 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { maskSecrets } from "./redact.mjs";
 
 const LAUNCHER = ".claude/checks/browser-mcp.mts";
 const PROTOCOL_VERSION = "2025-06-18";
@@ -7,6 +11,8 @@ const MISSING_BROWSER = /Executable doesn't exist|browser_install/;
 const DETAIL_LIMIT = 200;
 const NOISE_LINE = /^(at\s|Node\.js v|\^|\}$|code:)/;
 const TELLING_LINE = /error|cannot|failed|not found/i;
+const PINNED_PACKAGE = /BROWSER_SERVER_PACKAGE\s*=\s*["'`]([^"'`]+)["'`]/;
+const FALLBACK_PACKAGE = "@playwright/mcp";
 
 function firstLine(text) {
   const line = text
@@ -33,8 +39,20 @@ function resultText(result) {
     .join("\n");
 }
 
+export function serverPackage(projectDir) {
+  try {
+    return PINNED_PACKAGE.exec(readFileSync(join(projectDir, LAUNCHER), "utf8"))?.[1] ?? FALLBACK_PACKAGE;
+  } catch {
+    return FALLBACK_PACKAGE;
+  }
+}
+
+function installHint(projectDir) {
+  return `the browser server has no browser and could not install it; run npx -y ${serverPackage(projectDir)} install-browser chromium.`;
+}
+
 function killTree(child) {
-  if (child.pid === undefined || child.exitCode !== null) {
+  if (child.pid === undefined) {
     return;
   }
   if (process.platform === "win32") {
@@ -44,11 +62,13 @@ function killTree(child) {
   try {
     process.kill(-child.pid, "SIGKILL");
   } catch {
-    child.kill("SIGKILL");
+    if (child.exitCode === null) {
+      child.kill("SIGKILL");
+    }
   }
 }
 
-function connect(child) {
+function connect(child, secrets) {
   const waiting = new Map();
   let buffer = "";
   let stderr = "";
@@ -66,6 +86,9 @@ function connect(child) {
       try {
         message = JSON.parse(line);
       } catch {
+        continue;
+      }
+      if (message?.method !== undefined) {
         continue;
       }
       const pending = waiting.get(message?.id);
@@ -87,7 +110,7 @@ function connect(child) {
   }
   child.on("error", (error) => stop(`the browser server could not start (${error.code ?? error.message})`));
   child.on("exit", () => {
-    const said = lastTellingLine(stderr);
+    const said = maskSecrets(lastTellingLine(stderr), secrets);
     stop(said === "" ? "the browser server stopped" : `the browser server stopped: ${said}`);
   });
   let nextId = 0;
@@ -109,36 +132,41 @@ function connect(child) {
   };
 }
 
-async function navigate(channel, frontendUrl) {
+function missingBrowser(answer) {
+  return answer.result?.isError === true && MISSING_BROWSER.test(resultText(answer.result));
+}
+
+async function navigate(channel, frontendUrl, options) {
   const call = () => channel.call("tools/call", { name: "browser_navigate", arguments: { url: frontendUrl } });
   let answer = await call();
-  if (answer.result?.isError === true && MISSING_BROWSER.test(resultText(answer.result))) {
+  if (missingBrowser(answer)) {
     const installed = await channel.call("tools/call", { name: "browser_install", arguments: {} });
     if (installed.error !== undefined || installed.result?.isError === true) {
-      return {
-        ok: false,
-        detail:
-          "the browser server has no browser and could not install it; run npx @playwright/mcp install-browser chromium.",
-      };
+      return { ok: false, detail: installHint(options.projectDir) };
     }
     answer = await call();
+    if (missingBrowser(answer)) {
+      return { ok: false, detail: installHint(options.projectDir) };
+    }
   }
   if (answer.error !== undefined) {
+    const said = maskSecrets(firstLine(String(answer.error.message ?? "")), options.secrets);
     return {
       ok: false,
-      detail: `the browser server refused browser_navigate (${firstLine(String(answer.error.message ?? ""))}); update the package and run init again.`,
+      detail: `the browser server refused browser_navigate (${said}); update the package and run init again.`,
     };
   }
   if (answer.result?.isError === true) {
+    const said = maskSecrets(firstLine(resultText(answer.result)), options.secrets);
     return {
       ok: false,
-      detail: `the browser server could not open ${frontendUrl} (${firstLine(resultText(answer.result))}); check FRONTEND_BASE_URL in .env.`,
+      detail: `the browser server could not open ${frontendUrl} (${said}); check FRONTEND_BASE_URL in .env.`,
     };
   }
   return { ok: true, detail: `opened ${frontendUrl} through the browser server` };
 }
 
-async function talk(channel, frontendUrl) {
+async function talk(channel, frontendUrl, options) {
   const initialized = await channel.call("initialize", {
     protocolVersion: PROTOCOL_VERSION,
     capabilities: {},
@@ -147,21 +175,23 @@ async function talk(channel, frontendUrl) {
   if (initialized.error !== undefined) {
     return {
       ok: false,
-      detail: `the browser server refused initialize (${firstLine(String(initialized.error.message ?? ""))}); update the package and run init again.`,
+      detail: `the browser server refused initialize (${maskSecrets(firstLine(String(initialized.error.message ?? "")), options.secrets)}); update the package and run init again.`,
     };
   }
   channel.send("notifications/initialized", {});
-  return navigate(channel, frontendUrl);
+  return navigate(channel, frontendUrl, options);
 }
 
-export async function probeBrowserServer({ projectDir, frontendUrl, timeoutMs }) {
+export async function probeBrowserServer(options) {
+  const { projectDir, frontendUrl, timeoutMs } = options;
+  const secrets = options.secrets ?? [];
   const child = spawn("node", [LAUNCHER], {
     cwd: projectDir,
     stdio: ["pipe", "pipe", "pipe"],
     detached: process.platform !== "win32",
     windowsHide: true,
   });
-  const channel = connect(child);
+  const channel = connect(child, secrets);
   child.stdin.on("error", () => {});
   let timer;
   const timeout = new Promise((resolve) => {
@@ -174,9 +204,9 @@ export async function probeBrowserServer({ projectDir, frontendUrl, timeoutMs })
   });
   try {
     return await Promise.race([
-      talk(channel, frontendUrl).catch((error) => ({
+      talk(channel, frontendUrl, { projectDir, secrets }).catch((error) => ({
         ok: false,
-        detail: `${error.message}; run node ${LAUNCHER} to see its errors.`,
+        detail: `${maskSecrets(error.message, secrets)}; run node ${LAUNCHER} to see its errors.`,
       })),
       timeout,
     ]);

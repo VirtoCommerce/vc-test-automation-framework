@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { probeBrowserServer } from "../../../bin/lib/mcp-probe.mjs";
+import { probeBrowserServer, serverPackage } from "../../../bin/lib/mcp-probe.mjs";
 import { checkAdminToken, checkReachable, formatTable, request, runReadiness } from "../../../bin/lib/readiness.mjs";
 
 const FIXTURES = join(import.meta.dirname, "fixtures");
@@ -196,6 +196,26 @@ test.describe("checkAdminToken", () => {
       await server.close();
     }
   });
+
+  for (const status of [401, 404, 405, 500]) {
+    test(`on ${status} points at ${status === 401 ? "the credentials" : "BACKEND_BASE_URL"}`, async () => {
+      const result = await checkAdminToken(
+        "http://backend.test",
+        { username: "admin", password: PASSWORD },
+        { verifySsl: true, request: () => Promise.resolve({ status, body: "" }) },
+      );
+
+      expect(result.ok).toBe(false);
+      if (status === 401) {
+        expect(result.detail).toContain("check ADMIN_USERNAME and ADMIN_PASSWORD");
+      } else {
+        expect(result.detail).toContain(
+          `the platform has no /connect/token at BACKEND_BASE_URL (it answered ${status})`,
+        );
+        expect(result.detail).not.toContain("ADMIN_PASSWORD");
+      }
+    });
+  }
 });
 
 test.describe("runReadiness", () => {
@@ -449,6 +469,33 @@ test.describe("runReadiness", () => {
   });
 });
 
+test.describe("password masking", () => {
+  test("keeps text the code writes and masks a password only as a whole token in child output", async () => {
+    const rows = await runReadiness({
+      projectDir: ".",
+      suiteDir: ".",
+      vars: vars({ ADMIN_PASSWORD: "store", FRONTEND_BASE_URL: "http://storefront.test" }),
+      skipInstall: false,
+      skipVerify: false,
+      exec: fakeExec({
+        "npm run codegen": { status: 1, output: "Error: login failed with password=store for storefront" },
+      }).exec,
+      request: (url: string) =>
+        Promise.resolve(
+          url.endsWith("/connect/token")
+            ? { status: 200, body: JSON.stringify({ access_token: "t" }) }
+            : { status: 200, body: "" },
+        ),
+      probe: () => Promise.resolve({ ok: true, detail: "opened http://storefront.test through the browser server" }),
+    });
+
+    expect(statusOf(rows, "frontend")).toBe("ok: http://storefront.test answers (200)");
+    expect(statusOf(rows, "browser server")).toContain("http://storefront.test");
+    expect(statusOf(rows, "types")).toContain("password=*** for storefront");
+    expect(formatTable(rows)).toContain("http://storefront.test answers");
+  });
+});
+
 test.describe("formatTable", () => {
   test("prints one line per row with the status first and masks a password-looking value", () => {
     const text = formatTable([
@@ -466,28 +513,37 @@ test.describe("formatTable", () => {
   });
 });
 
-const FAKE_SERVER = String.raw`import { appendFileSync, writeFileSync } from "node:fs";
+const FAKE_SERVER = String.raw`import { spawn } from "node:child_process";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
+export const BROWSER_SERVER_PACKAGE = "@playwright/mcp@9.9.9";
+const MODE = "__MODE__";
+const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
 writeFileSync("server.pid", String(process.pid));
+writeFileSync("grandchild.pid", String(grandchild.pid));
 let navigations = 0;
-function answer(id, result) {
-  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n");
+function send(message) {
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
+}
+function missing(id) {
+  send({ id, result: { isError: true, content: [{ type: "text", text: "Executable doesn't exist at chromium" }] } });
 }
 createInterface({ input: process.stdin }).on("line", (line) => {
   const message = JSON.parse(line);
   appendFileSync("calls.log", (message.params?.name ?? message.method) + "\n");
   if (message.method === "initialize") {
-    answer(message.id, { protocolVersion: message.params.protocolVersion, capabilities: {}, serverInfo: { name: "fake" } });
+    send({ id: message.id, method: "roots/list", params: {} });
+    send({ id: message.id, result: { protocolVersion: message.params.protocolVersion, capabilities: {}, serverInfo: { name: "fake" } } });
   } else if (message.method === "tools/call" && message.params.name === "browser_navigate") {
     navigations += 1;
-    if (MISSING && navigations === 1) {
-      answer(message.id, { isError: true, content: [{ type: "text", text: "Executable doesn't exist at chromium" }] });
+    if ((MODE === "missing-once" && navigations === 1) || MODE === "missing-always") {
+      missing(message.id);
     } else {
-      answer(message.id, { content: [{ type: "text", text: "navigated to " + message.params.arguments.url } ] });
+      send({ id: message.id, result: { content: [{ type: "text", text: "navigated to " + message.params.arguments.url }] } });
     }
   } else if (message.method === "tools/call" && message.params.name === "browser_install") {
-    answer(message.id, { content: [{ type: "text", text: "installed" }] });
+    send({ id: message.id, result: { content: [{ type: "text", text: "installed" }] } });
   }
 });
 setInterval(() => {}, 1000);
@@ -514,11 +570,15 @@ test.describe("probeBrowserServer", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  function pidIn(name: string): number {
+    return Number(readFileSync(join(dir, name), "utf8"));
+  }
+
   for (const missing of [false, true]) {
-    test(`opens the frontend through the launcher and stops it${missing ? ", installing a missing browser once" : ""}`, async () => {
+    test(`opens the frontend through the launcher and stops its whole tree${missing ? ", installing a missing browser once" : ""}`, async () => {
       writeFileSync(
         join(dir, ".claude", "checks", "browser-mcp.mts"),
-        FAKE_SERVER.replace("MISSING &&", missing ? "true &&" : "false &&"),
+        FAKE_SERVER.replace("__MODE__", missing ? "missing-once" : "ok"),
       );
 
       const result = await probeBrowserServer({
@@ -534,9 +594,49 @@ test.describe("probeBrowserServer", () => {
           ? ["initialize", "notifications/initialized", "browser_navigate", "browser_install", "browser_navigate"]
           : ["initialize", "notifications/initialized", "browser_navigate"],
       );
-      expect(alive(Number(readFileSync(join(dir, "server.pid"), "utf8")))).toBe(false);
+      expect(alive(pidIn("server.pid"))).toBe(false);
+      expect(alive(pidIn("grandchild.pid"))).toBe(false);
     });
   }
+
+  test("names the launcher's pinned package when the browser is still missing after the install", async () => {
+    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER.replace("__MODE__", "missing-always"));
+
+    const result = await probeBrowserServer({
+      projectDir: dir,
+      frontendUrl: "http://frontend.test",
+      timeoutMs: 20_000,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      detail:
+        "the browser server has no browser and could not install it; run npx -y @playwright/mcp@9.9.9 install-browser chromium.",
+    });
+  });
+
+  test("reads the pinned package of the launcher, and names the bare package when it cannot", () => {
+    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER);
+
+    expect(serverPackage(dir)).toBe("@playwright/mcp@9.9.9");
+    expect(serverPackage(join(dir, "missing"))).toBe("@playwright/mcp");
+  });
+
+  test("masks a password in the launcher's error output", async () => {
+    writeFileSync(
+      join(dir, ".claude", "checks", "browser-mcp.mts"),
+      'throw new Error("bad config password=store for storefront");\n',
+    );
+
+    const result = await probeBrowserServer({
+      projectDir: dir,
+      frontendUrl: "http://storefront.test",
+      timeoutMs: 20_000,
+      secrets: ["store"],
+    });
+
+    expect(result.detail).toContain("password=*** for storefront");
+  });
 
   test("fails naming the launcher's error when it stops", async () => {
     writeFileSync(
@@ -556,11 +656,15 @@ test.describe("probeBrowserServer", () => {
   });
 
   test("fails with the fix when the launcher does not answer in time", async () => {
-    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), "setInterval(() => {}, 1000);\n");
+    writeFileSync(
+      join(dir, ".claude", "checks", "browser-mcp.mts"),
+      'import { writeFileSync } from "node:fs";\nwriteFileSync("server.pid", String(process.pid));\nsetInterval(() => {}, 1000);\n',
+    );
 
     const result = await probeBrowserServer({ projectDir: dir, frontendUrl: "http://frontend.test", timeoutMs: 1_000 });
 
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("node .claude/checks/browser-mcp.mts");
+    expect(alive(pidIn("server.pid"))).toBe(false);
   });
 });

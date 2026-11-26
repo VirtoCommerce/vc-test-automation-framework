@@ -99,7 +99,9 @@ test.describe("vc-qa-agents init", () => {
   test("makes the test id attribute a setting of the suite, and tells the agents where it is", () => {
     initIn(dir);
 
-    expect(readFileSync(join(dir, ".env.example"), "utf8")).toContain("FRONTEND_TEST_ID_ATTRIBUTE=data-test-id");
+    const example = readFileSync(join(dir, ".env.example"), "utf8");
+    expect(example).toContain("FRONTEND_TEST_ID_ATTRIBUTE=\n");
+    expect(example).toMatch(/^# .*left empty it is data-test-id$/m);
     expect(readFileSync(join(dir, "playwright.config.ts"), "utf8")).toContain(
       "testIdAttribute: env.FRONTEND_TEST_ID_ATTRIBUTE",
     );
@@ -301,6 +303,18 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     expect(result.stdout).not.toContain("signs a new user in");
   });
 
+  test("a run without flags reports the unset stand values in the table instead of crashing", () => {
+    const result = initRun(dir, ["--skip-install", "--yes"]);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/^fail\s+backend\s+BACKEND_BASE_URL is empty; set it in \.env\.$/m);
+    expect(result.stdout).toMatch(/^fail\s+frontend\s+FRONTEND_BASE_URL is empty; set it in \.env\.$/m);
+    expect(result.stdout).toMatch(/^skipped\s+administrator\s+the platform does not answer$/m);
+    const env = readFileSync(join(dir, ".env"), "utf8");
+    expect(env).toContain("BACKEND_BASE_URL=\n");
+    expect(env).toContain("STORE_ID=\n");
+  });
+
   test("a run with skipped rows and no failing row says Not verified, never Ready", () => {
     const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes", ...FLAGS]);
 
@@ -319,7 +333,8 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     expect(env).toContain("BACKEND_BASE_URL=https://back.example.test\n");
     expect(env).toContain("FRONTEND_BASE_URL=https://front.example.test\n");
     expect(env).toContain("STORE_ID=Flag-store\n");
-    expect(env).toContain("ADMIN_USERNAME=admin\n");
+    expect(env).toContain("ADMIN_USERNAME=\n");
+    expect(env).toContain("FRONTEND_TEST_ID_ATTRIBUTE=data-test-id\n");
     const facts = readJson(join(dir, ".qa", "project.json"));
     expect(facts).toMatchObject({
       roles: { administrator: "admin", customer: "buyer@shop.test", "other customer": "second@shop.test" },

@@ -350,6 +350,30 @@ test.describe("runReadiness", () => {
     expect(calls).toHaveLength(1);
   });
 
+  test("with an empty ADMIN_USERNAME skips the administrator, types and first test without a token request", async () => {
+    const { exec, calls } = fakeExec();
+    const urls: string[] = [];
+    const rows = await runReadiness({
+      projectDir: dir,
+      suiteDir: ".",
+      vars: vars({ ADMIN_USERNAME: "" }),
+      skipInstall: false,
+      skipVerify: false,
+      exec,
+      request: (url: string) => {
+        urls.push(url);
+        return Promise.resolve({ status: 200, body: "" });
+      },
+      probe: () => Promise.resolve({ ok: true, detail: "" }),
+    });
+
+    for (const check of ["administrator", "types", "first test"]) {
+      expect(statusOf(rows, check)).toMatch(/^skipped: ADMIN_USERNAME is empty; set it in \.env/);
+    }
+    expect(urls.some((url) => url.includes("/connect/token"))).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+
   test("runs codegen and the first test in the suite when everything before them passes", async () => {
     const { exec, calls } = fakeExec();
     const rows = await runReadiness({

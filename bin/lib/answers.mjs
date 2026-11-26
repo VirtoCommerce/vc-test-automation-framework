@@ -6,6 +6,13 @@ const ATTEMPTS = 3;
 const PLACEHOLDER_DOMAIN = "@your-company.test";
 const TEMPLATE_TRACKER = { kind: "jira", keyPattern: "^PROJ-\\d+$" };
 const KEY_PATTERN_FOR = { "azure-boards": "^\\d+$" };
+const KEY_EXAMPLE = { pattern: "^VCST-\\d+$", key: "VCST-123" };
+const KEY_EXAMPLE_FOR = { "azure-boards": { pattern: "^\\d+$", key: "1234" } };
+
+function keyPatternLabel(kind) {
+  const example = KEY_EXAMPLE_FOR[kind] ?? KEY_EXAMPLE;
+  return `Ticket key pattern, such as ${example.pattern} for keys like ${example.key}`;
+}
 
 function urlProblem(value) {
   const parsed = URL.parse(value);
@@ -45,7 +52,6 @@ const SETTINGS = [
     flag: "--admin-login",
     label: "Administrator login",
     check: blankProblem,
-    fallback: "admin",
   },
 ];
 
@@ -86,7 +92,7 @@ function givenValue({ flag, shellName, check }, input) {
 }
 
 async function resolveField(field, input) {
-  const { name, label, check, fallback } = field;
+  const { name, label, check, fallback, required } = field;
   const fromGiven = givenValue(field, input);
   if (fromGiven !== undefined) {
     return fromGiven;
@@ -98,10 +104,10 @@ async function resolveField(field, input) {
   for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
     const question = problem === undefined ? label : `${label} (${problem})`;
     const reply = (await input.prompter.ask(question, fallback)).trim();
-    if (reply === "") {
+    if (reply === "" && required !== true) {
       return fallback;
     }
-    problem = check(reply);
+    problem = reply === "" ? blankProblem(reply) : check(reply);
     if (problem === undefined) {
       return reply;
     }
@@ -177,8 +183,7 @@ async function resolveSetting(field, input, answers) {
     return;
   }
   const check = settingCheck(field);
-  const fallback = given(input.defaults?.[field.name]) ?? field.fallback;
-  const value = await resolveField({ ...field, check, fallback, shellName: field.name }, input);
+  const value = await resolveField({ ...field, check, shellName: field.name }, input);
   if (value !== undefined) {
     answers.env[field.name] = value;
   }
@@ -210,7 +215,7 @@ function isTemplateTracker(facts) {
   );
 }
 
-async function resolveTracker(input) {
+async function resolveTracker(input, answers) {
   if (!isTemplateTracker(input.facts)) {
     return undefined;
   }
@@ -222,17 +227,21 @@ async function resolveTracker(input) {
     {
       name: "tracker kind",
       flag: "--tracker",
-      label: "Tracker kind (jira, azure-boards or another)",
+      label: "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
       check: blankProblem,
-      fallback: TEMPLATE_TRACKER.kind,
+      required: true,
     },
     input,
   );
+  if (kind === undefined) {
+    answers.notes.push("Ignored --key-pattern: the tracker kind is not given; pass --tracker too.");
+    return undefined;
+  }
   const keyPattern = await resolveField(
     {
       name: "ticket-key pattern",
       flag: "--key-pattern",
-      label: "Ticket-key pattern, a regular expression such as ^ABC-\\d+$",
+      label: keyPatternLabel(kind),
       check: patternProblem,
       fallback: KEY_PATTERN_FOR[kind],
     },
@@ -257,7 +266,7 @@ export async function resolveAnswers(input) {
     answers.roles.otherCustomer = otherCustomer;
   }
   await resolvePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
-  const tracker = await resolveTracker(input);
+  const tracker = await resolveTracker(input, answers);
   if (tracker !== undefined) {
     answers.tracker = tracker;
   }

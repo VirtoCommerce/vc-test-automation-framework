@@ -603,7 +603,6 @@ async function askAnswers({ values, switches, envText, firstRun, facts, onInterr
       switches,
       shell: process.env,
       existingEnv: firstRun ? {} : fromFile,
-      defaults: firstRun ? fromFile : {},
       facts,
       prompter,
     });

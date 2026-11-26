@@ -114,12 +114,10 @@ test.describe("resolveAnswers", () => {
     expect(answers.env["ADMIN_USERNAME"]).toBe("root");
   });
 
-  test("a shell variable beats the default, and the default fills what nothing gave", async () => {
+  test("a shell variable is used and the env schema's own default fills the test-id attribute, nothing else", async () => {
     const answers = await resolveAnswers(input({ shell: { STORE_ID: "Shell-store" } }));
 
-    expect(answers.env["STORE_ID"]).toBe("Shell-store");
-    expect(answers.env["ADMIN_USERNAME"]).toBe("admin");
-    expect(answers.env["FRONTEND_TEST_ID_ATTRIBUTE"]).toBe("data-test-id");
+    expect(answers.env).toEqual({ STORE_ID: "Shell-store", FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id" });
   });
 
   test("a shell password is used but saved only with --save-passwords", async () => {
@@ -145,7 +143,7 @@ test.describe("resolveAnswers", () => {
       "",
       "second@shop.test",
       "",
-      "",
+      "jira",
       "",
       "",
     ]);
@@ -160,7 +158,6 @@ test.describe("resolveAnswers", () => {
       BACKEND_BASE_URL: "https://back.example.test",
       FRONTEND_BASE_URL: "https://front.example.test",
       STORE_ID: "Store",
-      ADMIN_USERNAME: "admin",
       FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id",
     });
     expect(prompter.secretAsked).toHaveLength(3);
@@ -212,7 +209,9 @@ test.describe("resolveAnswers", () => {
   });
 
   test("an invalid key pattern flag throws naming --key-pattern", async () => {
-    await expect(resolveAnswers(input({ values: { "--key-pattern": "([" } }))).rejects.toThrow(/--key-pattern/);
+    await expect(resolveAnswers(input({ values: { "--tracker": "jira", "--key-pattern": "([" } }))).rejects.toThrow(
+      /--key-pattern/,
+    );
   });
 
   test("an invalid typed URL is asked again", async () => {
@@ -244,27 +243,44 @@ test.describe("resolveAnswers", () => {
     expect(answers.env).toEqual({});
   });
 
-  test("a default per key is offered when asked and kept when nothing gave a value", async () => {
-    const defaults = { BACKEND_BASE_URL: "http://localhost:8090", STORE_ID: "B2B-store" };
-    const prompter = fakePrompter(["", "https://front.example.test", ""]);
+  test("the questions for the URLs, the store and the login carry no default", async () => {
+    const prompter = fakePrompter(["", "https://front.example.test", "", "", ""]);
 
     const asked = await resolveAnswers(
       input({
-        existingEnv: { ...FILLED_ENV, BACKEND_BASE_URL: "", FRONTEND_BASE_URL: "", STORE_ID: "" },
+        existingEnv: {
+          ...FILLED_ENV,
+          BACKEND_BASE_URL: "",
+          FRONTEND_BASE_URL: "",
+          STORE_ID: "",
+          ADMIN_USERNAME: "",
+          FRONTEND_TEST_ID_ATTRIBUTE: "",
+        },
         facts: CHANGED_FACTS,
-        defaults,
         prompter,
       }),
     );
-    const quiet = await resolveAnswers(input({ defaults, values: { "--store-id": "Flag-store" } }));
 
+    expect(prompter.asked).toEqual([
+      "Backend (platform) URL",
+      "Frontend (storefront) URL",
+      "Store id",
+      "Administrator login",
+      "Test-id attribute of the storefront",
+    ]);
     expect(asked.env).toEqual({
-      BACKEND_BASE_URL: "http://localhost:8090",
       FRONTEND_BASE_URL: "https://front.example.test",
-      STORE_ID: "B2B-store",
+      FRONTEND_TEST_ID_ATTRIBUTE: "data-test-id",
     });
-    expect(quiet.env["BACKEND_BASE_URL"]).toBe("http://localhost:8090");
-    expect(quiet.env["STORE_ID"]).toBe("Flag-store");
+  });
+
+  test("a non-interactive run without flags leaves every stand value out", async () => {
+    const answers = await resolveAnswers(input({ values: { "--store-id": "Flag-store" } }));
+
+    expect(answers.env["BACKEND_BASE_URL"]).toBeUndefined();
+    expect(answers.env["FRONTEND_BASE_URL"]).toBeUndefined();
+    expect(answers.env["ADMIN_USERNAME"]).toBeUndefined();
+    expect(answers.env["STORE_ID"]).toBe("Flag-store");
   });
 
   test("a whitespace-only shell STORE_ID is rejected", async () => {
@@ -304,7 +320,7 @@ test.describe("resolveAnswers", () => {
     expect(changed.tracker).toBeUndefined();
   });
   test("an answered tracker is written, and the next run asks nothing about it", async () => {
-    const first = fakePrompter(["", "^ABC-\\d+$"]);
+    const first = fakePrompter(["jira", "^ABC-\\d+$"]);
     const answers = await resolveAnswers(
       input({ existingEnv: FILLED_ENV, facts: { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker }, prompter: first }),
     );
@@ -319,7 +335,7 @@ test.describe("resolveAnswers", () => {
   });
 
   test("the template's PROJ pattern is never offered: a blank jira pattern leaves the tracker to do", async () => {
-    const prompter = fakePrompter(["", ""]);
+    const prompter = fakePrompter(["jira", ""]);
 
     const answers = await resolveAnswers(
       input({ existingEnv: FILLED_ENV, facts: { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker }, prompter }),
@@ -327,6 +343,58 @@ test.describe("resolveAnswers", () => {
 
     expect(answers.tracker).toBeUndefined();
     expect(prompter.asked[1]).not.toContain("PROJ");
+  });
+
+  test("the tracker question has no default, says what it wants, and shows an example key for the kind", async () => {
+    const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
+    const jira = fakePrompter(["jira", "^VCST-\\d+$"]);
+    const boards = fakePrompter(["azure-boards", ""]);
+
+    const answered = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: jira }));
+    const defaulted = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: boards }));
+
+    expect(jira.asked).toEqual([
+      "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
+      "Ticket key pattern, such as ^VCST-\\d+$ for keys like VCST-123",
+    ]);
+    expect(boards.asked[1]).toBe("Ticket key pattern, such as ^\\d+$ for keys like 1234");
+    expect(answered.tracker).toEqual({ kind: "jira", keyPattern: "^VCST-\\d+$" });
+    expect(defaulted.tracker).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
+  });
+
+  test("a blank tracker kind is asked again, and refused after the attempts", async () => {
+    const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
+    const question = "Where are your tickets tracked? (jira, azure-boards or another tracker's name)";
+    const prompter = fakePrompter(["", "  ", "jira", ""]);
+
+    const answers = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
+
+    expect(answers.tracker).toBeUndefined();
+    expect(prompter.asked.slice(0, 3)).toEqual([
+      question,
+      `${question} (must not be blank)`,
+      `${question} (must not be blank)`,
+    ]);
+    const refused = resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: fakePrompter(["", "", ""]) }));
+    await expect(refused).rejects.toThrow(/tracker kind must not be blank; asked 3 times/);
+  });
+
+  test("without a prompter the tracker is left to do unless --tracker is given", async () => {
+    const none = await resolveAnswers(input({ existingEnv: FILLED_ENV }));
+    const patternOnly = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, values: { "--key-pattern": "^A-\\d+$" } }),
+    );
+    const kindOnly = await resolveAnswers(input({ existingEnv: FILLED_ENV, values: { "--tracker": "jira" } }));
+    const both = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, values: { "--tracker": "jira", "--key-pattern": "^A-\\d+$" } }),
+    );
+
+    expect(none.tracker).toBeUndefined();
+    expect(none.notes).toEqual([]);
+    expect(patternOnly.tracker).toBeUndefined();
+    expect(patternOnly.notes).toEqual(["Ignored --key-pattern: the tracker kind is not given; pass --tracker too."]);
+    expect(kindOnly.tracker).toBeUndefined();
+    expect(both.tracker).toEqual({ kind: "jira", keyPattern: "^A-\\d+$" });
   });
 
   test("a typed password that .env cannot hold is asked again", async () => {

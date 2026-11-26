@@ -341,8 +341,10 @@ function suiteReason(context, rows) {
   if (rows.backend.status !== "ok") {
     return NO_PLATFORM;
   }
-  if (blank(context.vars["ADMIN_PASSWORD"])) {
-    return `ADMIN_PASSWORD is empty; set it in ${envFileName(context.suiteDir)}`;
+  for (const name of ["ADMIN_USERNAME", "ADMIN_PASSWORD"]) {
+    if (blank(context.vars[name])) {
+      return `${name} is empty; set it in ${envFileName(context.suiteDir)}`;
+    }
   }
   return undefined;
 }
@@ -362,6 +364,12 @@ export async function runReadiness(context) {
     rows.administrator = row("administrator", "skipped", offline);
   } else if (rows.backend.status !== "ok") {
     rows.administrator = row("administrator", "skipped", NO_PLATFORM);
+  } else if (blank(context.vars["ADMIN_USERNAME"])) {
+    rows.administrator = row(
+      "administrator",
+      "skipped",
+      `ADMIN_USERNAME is empty; set it in ${envFileName(context.suiteDir)}`,
+    );
   } else if (blank(context.vars["ADMIN_PASSWORD"])) {
     rows.administrator = row(
       "administrator",
@@ -371,7 +379,7 @@ export async function runReadiness(context) {
   } else {
     const token = await checkAdminToken(
       context.vars["BACKEND_BASE_URL"] ?? "",
-      { username: context.vars["ADMIN_USERNAME"] || "admin", password: context.vars["ADMIN_PASSWORD"] ?? "" },
+      { username: context.vars["ADMIN_USERNAME"] ?? "", password: context.vars["ADMIN_PASSWORD"] ?? "" },
       { verifySsl: verdict.verifySsl, ...(context.request === undefined ? {} : { request: context.request }) },
     );
     rows.administrator = row("administrator", token.ok ? "ok" : "fail", token.detail);

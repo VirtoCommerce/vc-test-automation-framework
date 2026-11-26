@@ -40,10 +40,10 @@ file that exists, nor an agent, command or skill of the repository's own (see
 In a terminal, `init` asks once for each of these and writes the answers to `.env` and `.qa/project.json`:
 
 1. The backend URL, the frontend URL and the store (`BACKEND_BASE_URL`, `FRONTEND_BASE_URL`, `STORE_ID`).
-2. The administrator's login (`ADMIN_USERNAME`, `admin` by default) and password.
+2. The administrator's login (`ADMIN_USERNAME`) and password.
 3. The login of a customer and of another customer, with their passwords. The logins go to `roles` in
    `.qa/project.json`; the passwords go to `.env`.
-4. The tracker and the pattern of its ticket keys.
+4. The tracker, which has no default and must be answered, and the pattern of its ticket keys.
 5. The attribute that marks an element for tests, `data-test-id` by default. It is `FRONTEND_TEST_ID_ATTRIBUTE` in
    `.env`, which `playwright.config.ts` passes to `defaultUse` as `testIdAttribute`; a suite that keeps
    `defaultUse(env)` uses `data-test-id`.
@@ -52,6 +52,8 @@ Passwords are typed with hidden input. A value that is already set is not asked 
 `.env`, or a role or tracker in `.qa/project.json` that you changed from the template, stays as it is, so running
 `init` again is safe. A flag for a key that `.env` already holds is not applied, and `init` prints one line saying so;
 edit `.env` to change that value.
+
+The new `.env` holds no stand values: each key is empty, with an example and the format in the comment above it. A value you leave blank stays empty, and the readiness table names it.
 
 `init` then installs the dependencies and prints a table with one row for each check: `backend` and `frontend` answer,
 `administrator` can sign in, `project facts` pass, `types` are generated, `first test` passes and `browser server`

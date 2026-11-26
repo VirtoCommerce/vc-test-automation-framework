@@ -108,7 +108,9 @@ test.describe("writeAnswers", () => {
     rmSync(project, { recursive: true, force: true });
   });
 
-  test("writes only the persisted passwords, the env values and the facts", () => {
+  test("writes only the persisted passwords, the env values and the facts, and keeps a value .env holds", () => {
+    const envPath = join(project, "tests-suite", ".env");
+    writeFileSync(envPath, readFileSync(envPath, "utf8").replace("STORE_ID=", "STORE_ID=Held-store"));
     writeAnswers(project, "tests-suite", {
       env: { STORE_ID: "Other-store", ADMIN_USERNAME: "root" },
       passwords: { ADMIN_PASSWORD: "typed-secret", CUSTOMER_PASSWORD: "shell-secret" },
@@ -120,21 +122,20 @@ test.describe("writeAnswers", () => {
     expect(env).toContain("ADMIN_PASSWORD=typed-secret\n");
     expect(env).not.toContain("shell-secret");
     expect(env).toContain("CUSTOMER_PASSWORD=\n");
-    expect(env).toContain("STORE_ID=B2B-store\n");
-    expect(env).toContain("ADMIN_USERNAME=admin\n");
+    expect(env).toContain("STORE_ID=Held-store\n");
+    expect(env).toContain("ADMIN_USERNAME=root\n");
 
     const facts = JSON.parse(readFileSync(join(project, ".qa", "project.json"), "utf8"));
     expect(facts.roles).toEqual({
-      administrator: "admin",
+      administrator: "root",
       customer: "buyer@shop.test",
       "other customer": "other.customer@your-company.test",
     });
     expect(JSON.stringify(facts)).not.toContain("secret");
   });
 
-  test("names the administrator after the login of an emptied ADMIN_USERNAME", () => {
+  test("names the administrator after the login written into the empty ADMIN_USERNAME", () => {
     const envPath = join(project, "tests-suite", ".env");
-    writeFileSync(envPath, readFileSync(envPath, "utf8").replace("ADMIN_USERNAME=admin", "ADMIN_USERNAME="));
 
     writeAnswers(project, "tests-suite", { ...noAnswers(), env: { ADMIN_USERNAME: "root" } });
 
@@ -154,7 +155,7 @@ test.describe("writeAnswers", () => {
     const env = readFileSync(join(project, "tests-suite", ".env"), "utf8");
     expect(env).toContain("STORE_ID=Other-store\n");
     expect(env).toContain("BACKEND_BASE_URL=https://back.example.test\n");
-    expect(env).toContain("ADMIN_USERNAME=admin\n");
+    expect(env).toContain("ADMIN_USERNAME=\n");
   });
 
   test("writes the suite at the project root when suiteDir is .", () => {

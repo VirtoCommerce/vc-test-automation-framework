@@ -546,15 +546,22 @@ function readiness(target, suiteDir, switches, skipInstall) {
 
 function verdictLines(target, rows) {
   const failing = rows.filter((row) => row.status === "fail");
-  if (failing.length === 0) {
-    return [`Ready: run claude in ${target} and approve the ${BROWSER_SERVER} server when it asks.`];
+  if (failing.length > 0) {
+    return [
+      "Not ready:",
+      ...formatTable(failing)
+        .split("\n")
+        .map((line) => `  ${line}`),
+    ];
   }
-  return [
-    "Not ready:",
-    ...formatTable(failing)
-      .split("\n")
-      .map((line) => `  ${line}`),
-  ];
+  const skipped = rows.filter((row) => row.status === "skipped");
+  if (skipped.length > 0) {
+    return [
+      `Not verified: ${skipped.map((row) => `${row.check} (${row.detail})`).join(", ")}`,
+      "Run npx vc-qa-agents doctor once that is fixed.",
+    ];
+  }
+  return [`Ready: run claude in ${target} and approve the ${BROWSER_SERVER} server when it asks.`];
 }
 
 function unsavedLines(answers) {

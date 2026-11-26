@@ -285,12 +285,21 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes"]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toMatch(
-      /^(Ready: run claude in .+ and approve the playwright server when it asks\.|Not ready:)/m,
-    );
+    expect(result.stdout).toMatch(/^Not ready:$/m);
+    expect(result.stdout).not.toContain("Ready:");
     expect(result.stdout).toMatch(/^skipped\s+backend\s+--skip-verify: no network checks$/m);
     expect(result.stdout).not.toContain("Next:");
     expect(result.stdout).not.toContain("signs a new user in");
+  });
+
+  test("a run with skipped rows and no failing row says Not verified, never Ready", () => {
+    const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes", ...FLAGS]);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/^Not verified: backend \(--skip-verify: no network checks\), /m);
+    expect(result.stdout).toMatch(/^Run npx vc-qa-agents doctor once that is fixed\.$/m);
+    expect(result.stdout).not.toContain("Ready:");
+    expect(result.stdout).not.toContain("Not ready:");
   });
 
   test("writes the flags to .env and the logins and key pattern to the project facts", () => {

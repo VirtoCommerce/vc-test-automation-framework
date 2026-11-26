@@ -41,7 +41,7 @@ test.describe("vc-qa-agents doctor", () => {
     expect(result.stderr).toContain("Run npx vc-qa-agents first: .claude/checks is missing.");
   });
 
-  test("prints the readiness table of an initialized directory and exits 0 when no row fails", () => {
+  test("prints the readiness table of an initialized directory and exits 0 when no row fails, without calling skipped rows ready", () => {
     expect(agents(dir, "init", "--skip-install", "--skip-verify", "--yes", ...FACT_FLAGS).status).toBe(0);
     symlinkSync(NODE_MODULES, join(dir, "node_modules"), "junction");
 
@@ -51,7 +51,8 @@ test.describe("vc-qa-agents doctor", () => {
     expect(result.stdout).toMatch(/^skipped\s+backend\s+--skip-verify: no network checks$/m);
     expect(result.stdout).toMatch(/^skipped\s+browser server\s/m);
     expect(result.stdout).toMatch(/^ok\s+project facts\s/m);
-    expect(result.stdout).toMatch(/^Ready: /m);
+    expect(result.stdout).toMatch(/^Not verified: backend /m);
+    expect(result.stdout).not.toContain("Ready:");
     expect(result.stdout).not.toContain("Installed the QA agents");
   });
 

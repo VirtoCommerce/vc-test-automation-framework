@@ -56,18 +56,35 @@ because a platform that is still starting needs a minute; it exits with 1 only w
 the platform does not answer, the types and the first test are skipped. If the backend uses a self-signed certificate,
 `init` asks whether to set `VERIFY_SSL=false`.
 
-The last line tells you to run `claude` in the directory. Claude Code asks once whether to approve the `playwright`
-server of `.mcp.json`; approve it, and the agents can open the frontend.
+When every row passes, the last line tells you to run `claude` in the directory. Claude Code asks once whether to
+approve the `playwright` server of `.mcp.json`; approve it, and the agents can open the frontend. With a failing or a
+skipped row, the last lines say `Not ready:` and list the failing rows, or say `Not verified:` and name each skipped
+row with its reason, followed by `Run npx vc-qa-agents doctor once that is fixed.`: a skipped row has not been checked,
+so it is not ready.
 
 ### Without a terminal
 
 When there is no terminal (CI, or an agent runs `init`) or you pass `--yes`, `init` asks nothing. It takes the values
 from flags and from the shell, and a value still missing keeps the template's default or stays empty, which the table
-shows as a failing row with the fix:
+shows as a failing or skipped row. Set the passwords in the environment first, from the secret store of your CI or
+without typing the value on the command line, so that it stays out of the shell history:
 
 ```shell
-ADMIN_PASSWORD=... CUSTOMER_PASSWORD=... OTHER_CUSTOMER_PASSWORD=... \
-  npx vc-qa-agents init --yes \
+read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
+read -rs CUSTOMER_PASSWORD && export CUSTOMER_PASSWORD
+read -rs OTHER_CUSTOMER_PASSWORD && export OTHER_CUSTOMER_PASSWORD
+```
+
+```powershell
+$env:ADMIN_PASSWORD = Read-Host -MaskInput "ADMIN_PASSWORD"
+$env:CUSTOMER_PASSWORD = Read-Host -MaskInput "CUSTOMER_PASSWORD"
+$env:OTHER_CUSTOMER_PASSWORD = Read-Host -MaskInput "OTHER_CUSTOMER_PASSWORD"
+```
+
+Then run `init` on its own line:
+
+```shell
+npx vc-qa-agents init --yes \
   --backend-url https://platform.example.com --frontend-url https://shop.example.com --store-id B2B-store \
   --customer customer@example.com --other-customer other@example.com
 ```
@@ -88,8 +105,8 @@ ADMIN_PASSWORD=... CUSTOMER_PASSWORD=... OTHER_CUSTOMER_PASSWORD=... \
 
 A value that starts with `--` is written `--flag=value`, because `--flag --value` reads as two flags.
 
-**Passwords are never flags**, so they stay out of the shell history and the process list. Typed passwords go to
-`.env`. Passwords that come from the shell variables `ADMIN_PASSWORD`, `CUSTOMER_PASSWORD` and
+**Passwords are never flags**; set them in the environment, not on the command line, so they stay out of the shell
+history and the process list. Typed passwords go to `.env`. Passwords that come from the shell variables `ADMIN_PASSWORD`, `CUSTOMER_PASSWORD` and
 `OTHER_CUSTOMER_PASSWORD` are used for the run only and stay in the shell, unless you pass `--save-passwords`; the
 table says "Passwords from the shell, not saved" so that a failure in a new terminal is no surprise.
 

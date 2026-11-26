@@ -305,6 +305,33 @@ test.describe("resolveAnswers", () => {
     expect(flagged.notes).toEqual([]);
   });
 
+  test("an empty other customer removes a placeholder other customer, with its purpose, password and permissions", async () => {
+    const facts = {
+      ...TEMPLATE_FACTS,
+      roles: { administrator: "admin", buyer: "buyer@your-company.test", rival: "rival@your-company.test" },
+      roleFor: { admin: "administrator", customer: "buyer", otherCustomer: "rival" },
+      passwordFor: { administrator: "ADMIN_PASSWORD", buyer: "CUSTOMER_PASSWORD", rival: "OTHER_CUSTOMER_PASSWORD" },
+      rolePermissions: { buyer: ["order:read"], rival: ["order:read"] },
+    };
+    const prompter = fakePrompter(["b@shop.test", ""]);
+
+    const answers = await resolveAnswers(
+      input({ existingEnv: { ...FILLED_ENV, OTHER_CUSTOMER_PASSWORD: "" }, facts, prompter }),
+    );
+    const written = parseProjectFacts(applyFacts(facts, answers, "admin"));
+
+    expect(prompter.secretAsked).toEqual([]);
+    expect(answers.roles).toEqual({ customer: "b@shop.test", otherCustomer: null });
+    expect(written.roles).toEqual({ administrator: "admin", buyer: "b@shop.test" });
+    expect(written.roleFor).toEqual({ admin: "administrator", customer: "buyer" });
+    expect(written.passwordFor).toEqual({ administrator: "ADMIN_PASSWORD", buyer: "CUSTOMER_PASSWORD" });
+    expect(written.rolePermissions).toEqual({ buyer: ["order:read"] });
+    expect(placeholderProblems(written)).toEqual([]);
+
+    const none = await resolveAnswers(input({ existingEnv: FILLED_ENV, prompter: fakePrompter(["b@shop.test", ""]) }));
+    expect(none.roles).toEqual({ customer: "b@shop.test" });
+  });
+
   test("a customer flag keeps a customer the facts already hold, and says so", async () => {
     const answers = await resolveAnswers(
       input({ existingEnv: FILLED_ENV, facts: CHANGED_FACTS, values: { "--customer": "new@shop.test" } }),

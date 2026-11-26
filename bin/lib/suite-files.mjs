@@ -105,6 +105,21 @@ function withRole(facts, roles, purpose, login) {
   }
 }
 
+function withoutRole(facts, roles, purpose) {
+  const roleFor = isRecord(facts["roleFor"]) ? facts["roleFor"] : {};
+  const role = roleNameFor(facts, purpose);
+  delete roleFor[purpose];
+  if (Object.values(roleFor).includes(role)) {
+    return;
+  }
+  delete roles[role];
+  for (const key of ["passwordFor", "rolePermissions"]) {
+    if (isRecord(facts[key])) {
+      delete facts[key][role];
+    }
+  }
+}
+
 export function applyFacts(facts, answers, adminLogin) {
   const result = structuredClone(facts);
   const roles = isRecord(result["roles"]) ? result["roles"] : {};
@@ -113,7 +128,9 @@ export function applyFacts(facts, answers, adminLogin) {
     roles["administrator"] = adminLogin;
   }
   for (const purpose of ["customer", "otherCustomer"]) {
-    if (answers.roles[purpose] !== undefined) {
+    if (answers.roles[purpose] === null) {
+      withoutRole(result, roles, purpose);
+    } else if (answers.roles[purpose] !== undefined) {
       withRole(result, roles, purpose, answers.roles[purpose]);
     }
   }

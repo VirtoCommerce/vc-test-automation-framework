@@ -301,6 +301,10 @@ async function resolveCustomers(input, answers) {
   const otherHeld = heldAccount(input.facts, roleNameFor(input.facts, "otherCustomer"));
   if (interactive && answers.roles.customer !== undefined && answers.roles.otherCustomer === undefined && !otherHeld) {
     await askCustomer("otherCustomer", OTHER_CUSTOMER_QUESTION, input, answers);
+    const placeholder = roleOf(input.facts, roleNameFor(input.facts, "otherCustomer")) !== undefined;
+    if (answers.roles.otherCustomer === undefined && placeholder) {
+      answers.roles.otherCustomer = null;
+    }
   }
   await resolveRolePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
 }

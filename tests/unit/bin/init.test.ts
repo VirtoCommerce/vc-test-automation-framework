@@ -271,6 +271,45 @@ test.describe("vc-qa-agents init", () => {
     }
   });
 
+  test("refuses --other-customer without a customer before it writes anything, the cookie stub included", () => {
+    const refused = spawnSync(
+      process.execPath,
+      [BIN, "init", "--skip-install", "--yes", "--frontend-sign-in", "cookie", "--other-customer", "second@shop.test"],
+      { cwd: dir, encoding: "utf8", env: shellWith() },
+    );
+    const sameAccount = spawnSync(
+      process.execPath,
+      [BIN, "init", "--skip-install", "--yes", "--customer", "a@shop.test", "--other-customer", "A@shop.test"],
+      { cwd: dir, encoding: "utf8", env: shellWith() },
+    );
+
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain("--other-customer needs --customer");
+    expect(sameAccount.status).toBe(1);
+    expect(sameAccount.stderr).toContain("--customer and --other-customer must be two accounts");
+    expect(readdirSync(dir)).toEqual([]);
+
+    const fine = initIn(
+      dir,
+      "--frontend-sign-in",
+      "cookie",
+      "--customer",
+      "a@shop.test",
+      "--other-customer",
+      "b@shop.test",
+    );
+
+    expect(fine).toContain("Wrote fixtures/index.ts with a cookie sign-in of the frontend");
+    expect(readFileSync(join(dir, "fixtures", "index.ts"), "utf8")).toContain(
+      "defaultFixtures(env, { frontendSignIn })",
+    );
+    expect(readJson(join(dir, ".qa", "project.json"))["roleFor"]).toEqual({
+      admin: "administrator",
+      customer: "customer",
+      otherCustomer: "other customer",
+    });
+  });
+
   test("refuses a suite directory outside the repository", () => {
     const result = spawnSync(process.execPath, [BIN, "init", "../elsewhere", "--skip-install"], {
       cwd: dir,

@@ -154,6 +154,21 @@ test.describe("writeAnswers", () => {
     expect(JSON.stringify(facts)).not.toContain("secret");
   });
 
+  test("writes each typed customer password once, on a line of its own", () => {
+    writeAnswers(project, "tests-suite", {
+      ...noAnswers(),
+      passwords: { CUSTOMER_PASSWORD: "c-secret", OTHER_CUSTOMER_PASSWORD: "o-secret" },
+      persistPasswords: ["CUSTOMER_PASSWORD", "OTHER_CUSTOMER_PASSWORD"],
+      roles: { customer: "buyer@shop.test", otherCustomer: "second@shop.test" },
+    });
+
+    const env = readFileSync(join(project, "tests-suite", ".env"), "utf8");
+    expect(env.match(/CUSTOMER_PASSWORD=/g)).toHaveLength(2);
+    expect(env.match(/^CUSTOMER_PASSWORD=c-secret$/gm)).toHaveLength(1);
+    expect(env.match(/^OTHER_CUSTOMER_PASSWORD=o-secret$/gm)).toHaveLength(1);
+    expect(parseEnv(env)).toMatchObject({ CUSTOMER_PASSWORD: "c-secret", OTHER_CUSTOMER_PASSWORD: "o-secret" });
+  });
+
   test("names the administrator after the login written into the empty ADMIN_USERNAME", () => {
     const envPath = join(project, "tests-suite", ".env");
 

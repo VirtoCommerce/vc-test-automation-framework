@@ -42,7 +42,7 @@ const FACTS_FILE = ".qa/project.json";
 const FACTS_NOTE = /^project-facts:/;
 const EXAMPLE_ACCOUNT = /is the template's example account/;
 const EXAMPLE_ACCOUNT_FIX =
-  "or remove that role and its roleFor and passwordFor entries from .qa/project.json until its account is seeded";
+  "or, for a customer, give its account with npx vc-qa-agents init --customer or --other-customer, or remove that role and its roleFor and passwordFor entries from .qa/project.json until its account is seeded";
 const CERTIFICATE_QUESTION = "The certificate is not trusted (self-signed?). Set VERIFY_SSL=false in .env?";
 const NO_PLATFORM = "the platform does not answer";
 const CANCELLED = "cancelled";

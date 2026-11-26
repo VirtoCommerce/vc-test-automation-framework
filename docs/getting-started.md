@@ -58,8 +58,10 @@ default, `FRONTEND_TEST_ID_ATTRIBUTE` in `.env`, which `playwright.config.ts` pa
 `testIdAttribute`). `init` checks a `--tracker` or `--key-pattern` as `.qa/project.json` does: one tracker only, and
 a pattern that matches a key of that tracker, such as `ABC-123` for `jira` or a numeric id for `azure-boards`. A
 value that starts with `jira` (`Jira Cloud`) is written as `jira`, and `Azure Boards` or `Azure DevOps` as
-`azure-boards`, whose pattern defaults to `^\d+$`; any other tracker needs `--key-pattern`. A flag that fails its
-check stops `init` before it writes anything.
+`azure-boards`, whose pattern defaults to `^\d+$`; any other tracker needs `--key-pattern`, and `--key-pattern` needs
+`--tracker`. `--other-customer` needs a customer, from `--customer` or already in `.qa/project.json`, and the two must
+be different accounts; a placeholder account in the example domain counts as no customer, so the optional question is
+asked and `--customer` replaces it. A flag that fails its check stops `init` before it writes anything.
 
 Passwords are typed with hidden input. A value that is already set is not asked again: a key that is not empty in
 `.env`, or a role, tracker or `docSources` in `.qa/project.json`, stays as it is, so running `init` again is safe. While

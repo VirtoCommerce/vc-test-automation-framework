@@ -285,10 +285,24 @@ test.describe("resolveAnswers", () => {
     expect(facts.roleFor).toEqual({ admin: "administrator", customer: "customer", otherCustomer: "other customer" });
   });
 
-  test("--other-customer without a customer is refused", async () => {
-    const refused = resolveAnswers(input({ values: { "--other-customer": "second@shop.test" } }));
+  test("a placeholder customer counts as none: the customer is asked, and --customer replaces it", async () => {
+    const facts = {
+      ...TEMPLATE_FACTS,
+      roles: { administrator: "admin", buyer: "buyer@your-company.test", rival: "rival@your-company.test" },
+      roleFor: { admin: "administrator", customer: "buyer", otherCustomer: "rival" },
+      passwordFor: { administrator: "ADMIN_PASSWORD", buyer: "CUSTOMER_PASSWORD", rival: "OTHER_CUSTOMER_PASSWORD" },
+    };
+    const prompter = fakePrompter(["b@shop.test", "r@shop.test"]);
 
-    await expect(refused).rejects.toThrow(/^--other-customer needs --customer/);
+    const asked = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter }));
+    const flagged = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, facts, values: { "--customer": "b@shop.test" } }),
+    );
+
+    expect(prompter.asked).toEqual([CUSTOMER_QUESTION, OTHER_CUSTOMER_QUESTION]);
+    expect(asked.roles).toEqual({ customer: "b@shop.test", otherCustomer: "r@shop.test" });
+    expect(flagged.roles).toEqual({ customer: "b@shop.test" });
+    expect(flagged.notes).toEqual([]);
   });
 
   test("a customer flag keeps a customer the facts already hold, and says so", async () => {
@@ -340,7 +354,7 @@ test.describe("resolveAnswers", () => {
     expect(boards.tracker).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
   });
 
-  test("--tracker is not applied over a tracker the facts already hold, and a jira tracker needs --key-pattern", async () => {
+  test("--tracker is not applied over a tracker the facts already hold", async () => {
     const kept = await resolveAnswers(
       input({
         existingEnv: FILLED_ENV,
@@ -348,14 +362,11 @@ test.describe("resolveAnswers", () => {
         values: { "--tracker": "jira", "--key-pattern": "^A-\\d+$" },
       }),
     );
-    const kindOnly = await resolveAnswers(input({ existingEnv: FILLED_ENV, values: { "--tracker": "jira" } }));
 
     expect(kept.tracker).toBeUndefined();
     expect(kept.notes).toEqual([
       "Kept tracker from .qa/project.json; --tracker and --key-pattern were not applied (edit .qa/project.json to change it).",
     ]);
-    expect(kindOnly.tracker).toBeUndefined();
-    expect(kindOnly.notes).toEqual(["Ignored --tracker: a jira tracker needs --key-pattern too."]);
   });
 
   test("--docs is mapped by its shape: URL, mcp server, or text", async () => {
@@ -513,19 +524,12 @@ test.describe("resolveAnswers", () => {
   });
   test("without a prompter the tracker is left to do unless --tracker is given", async () => {
     const none = await resolveAnswers(input({ existingEnv: FILLED_ENV }));
-    const patternOnly = await resolveAnswers(
-      input({ existingEnv: FILLED_ENV, values: { "--key-pattern": "^AB-\\d+$" } }),
-    );
-    const kindOnly = await resolveAnswers(input({ existingEnv: FILLED_ENV, values: { "--tracker": "jira" } }));
     const both = await resolveAnswers(
       input({ existingEnv: FILLED_ENV, values: { "--tracker": "jira", "--key-pattern": "^AB-\\d+$" } }),
     );
 
     expect(none.tracker).toBeUndefined();
     expect(none.notes).toEqual([]);
-    expect(patternOnly.tracker).toBeUndefined();
-    expect(patternOnly.notes).toEqual(["Ignored --key-pattern: the tracker kind is not given; pass --tracker too."]);
-    expect(kindOnly.tracker).toBeUndefined();
     expect(both.tracker).toEqual({ kind: "jira", keyPattern: "^AB-\\d+$" });
   });
 
@@ -650,6 +654,7 @@ test.describe("checkGivenValues", () => {
       checkGivenValues({
         values: {
           "--backend-url": "https://back.example.test",
+          "--tracker": "jira",
           "--key-pattern": "^AB-\\d+$",
           "--customer": "a@b.test",
         },
@@ -657,6 +662,38 @@ test.describe("checkGivenValues", () => {
         shell: { ADMIN_PASSWORD: "a'b\"c`d\ne" },
       }),
     ).not.toThrow();
+  });
+
+  test("refuses a tracker flag without its pair, except the azure-boards default pattern", () => {
+    const check = (values: Record<string, string>) => () => checkGivenValues({ values, switches, shell: {} });
+
+    expect(check({ "--tracker": "jira" })).toThrow(/^--tracker jira needs --key-pattern$/);
+    expect(check({ "--tracker": "YouTrack" })).toThrow(/needs --key-pattern$/);
+    expect(check({ "--key-pattern": "^AB-\\d+$" })).toThrow(/^--key-pattern needs --tracker$/);
+    expect(check({ "--tracker": "Azure Boards" })).not.toThrow();
+  });
+
+  test("refuses --other-customer without a customer in the flags or the facts, and one account for both", () => {
+    const customerFacts = {
+      ...TEMPLATE_FACTS,
+      roles: { administrator: "admin", customer: "buyer@shop.test" },
+      roleFor: { admin: "administrator", customer: "customer" },
+    };
+    const placeholderFacts = {
+      ...customerFacts,
+      roles: { administrator: "admin", customer: "customer@your-company.test" },
+    };
+    const other = { "--other-customer": "second@shop.test" };
+    const check = (values: Record<string, string>, facts: unknown) => () =>
+      checkGivenValues({ values, switches, shell: {}, facts });
+
+    expect(check(other, TEMPLATE_FACTS)).toThrow(/^--other-customer needs --customer/);
+    expect(check(other, placeholderFacts)).toThrow(/^--other-customer needs --customer/);
+    expect(check(other, customerFacts)).not.toThrow();
+    expect(check({ ...other, "--customer": "buyer@shop.test" }, TEMPLATE_FACTS)).not.toThrow();
+    expect(check({ "--customer": "Same@shop.test", "--other-customer": "same@SHOP.test" }, TEMPLATE_FACTS)).toThrow(
+      /^--customer and --other-customer must be two accounts, not one$/,
+    );
   });
 });
 

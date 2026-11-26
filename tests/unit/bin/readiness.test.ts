@@ -650,7 +650,7 @@ test.describe("runReadiness", () => {
     const detail = statusOf(rows, "project facts");
     expect(detail).toContain('roles["customer"] is the template\'s example account');
     expect(detail).toMatch(
-      /stand; or remove that role and its roleFor and passwordFor entries from \.qa\/project\.json until its account is seeded\.$/,
+      /stand; or, for a customer, give its account with npx vc-qa-agents init --customer or --other-customer, or remove that role and its roleFor and passwordFor entries from \.qa\/project\.json until its account is seeded\.$/,
     );
     expect(detail).not.toContain("fix .qa/project.json");
   });

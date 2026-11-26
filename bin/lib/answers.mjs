@@ -183,11 +183,22 @@ export function checkGivenValues(input) {
   for (const field of [...SETTINGS, TEST_ID]) {
     givenValue({ ...field, check: settingCheck(field), shellName: field.name }, input);
   }
-  for (const flag of ["--customer", "--other-customer"]) {
-    givenValue({ flag, check: blankProblem }, input);
+  const customer = givenValue({ flag: "--customer", check: blankProblem }, input);
+  const otherCustomer = givenValue({ flag: "--other-customer", check: blankProblem }, input);
+  if (customer !== undefined && otherCustomer !== undefined && customer.toLowerCase() === otherCustomer.toLowerCase()) {
+    throw new Error("--customer and --other-customer must be two accounts, not one");
+  }
+  if (otherCustomer !== undefined && customer === undefined && !hasCustomer(input.facts ?? {})) {
+    throw new Error("--other-customer needs --customer: the other customer is a customer of another organization");
   }
   const kind = givenValue({ flag: "--tracker", check: trackerKindProblem }, input);
-  givenValue({ flag: "--key-pattern", check: (value) => keyPatternProblem(kind, value) }, input);
+  const keyPattern = givenValue({ flag: "--key-pattern", check: (value) => keyPatternProblem(kind, value) }, input);
+  if (keyPattern !== undefined && kind === undefined) {
+    throw new Error("--key-pattern needs --tracker");
+  }
+  if (kind !== undefined && keyPattern === undefined && KEY_PATTERN_FOR[trackerKind(kind)] === undefined) {
+    throw new Error(`--tracker ${trackerKind(kind)} needs --key-pattern`);
+  }
   givenValue({ flag: "--docs", check: docsProblem }, input);
   givenValue({ flag: "--frontend-sign-in", check: frontendSignInProblem }, input);
   if (input.switches.has("--save-passwords")) {
@@ -240,9 +251,14 @@ async function resolveRolePassword(name, label, input, answers) {
   }
 }
 
+function heldAccount(facts, role) {
+  const account = roleOf(facts, role);
+  return account !== undefined && !isPlaceholder(account);
+}
+
 function hasCustomer(facts) {
   const roleFor = facts["roleFor"];
-  return roleFor !== null && typeof roleFor === "object" && roleOf(facts, roleFor["customer"]) !== undefined;
+  return roleFor !== null && typeof roleFor === "object" && heldAccount(facts, roleFor["customer"]);
 }
 
 function resolveCustomerRole(purpose, flag, input, answers) {
@@ -252,7 +268,7 @@ function resolveCustomerRole(purpose, flag, input, answers) {
   }
   const role = roleNameFor(input.facts, purpose);
   const held = roleOf(input.facts, role);
-  if (held !== undefined && !isPlaceholder(held)) {
+  if (heldAccount(input.facts, role)) {
     if (held.toLowerCase() !== login.toLowerCase()) {
       answers.notes.push(
         `Kept roles["${role}"] from .qa/project.json; ${flag} was not applied (edit .qa/project.json to change it).`,
@@ -266,9 +282,6 @@ function resolveCustomerRole(purpose, flag, input, answers) {
 function resolveCustomerFlags(input, answers) {
   resolveCustomerRole("customer", "--customer", input, answers);
   resolveCustomerRole("otherCustomer", "--other-customer", input, answers);
-  if (answers.roles.otherCustomer !== undefined && answers.roles.customer === undefined && !hasCustomer(input.facts)) {
-    throw new Error("--other-customer needs --customer: the other customer is a customer of another organization");
-  }
 }
 
 async function askCustomer(purpose, label, input, answers) {
@@ -285,7 +298,7 @@ async function resolveCustomers(input, answers) {
     await askCustomer("customer", CUSTOMER_QUESTION, input, answers);
   }
   await resolveRolePassword("CUSTOMER_PASSWORD", "Customer password", input, answers);
-  const otherHeld = roleOf(input.facts, roleNameFor(input.facts, "otherCustomer")) !== undefined;
+  const otherHeld = heldAccount(input.facts, roleNameFor(input.facts, "otherCustomer"));
   if (interactive && answers.roles.customer !== undefined && answers.roles.otherCustomer === undefined && !otherHeld) {
     await askCustomer("otherCustomer", OTHER_CUSTOMER_QUESTION, input, answers);
   }
@@ -309,7 +322,7 @@ function hasTracker(facts) {
 
 function resolveTracker(input, answers) {
   const answered = givenValue({ flag: "--tracker", check: trackerKindProblem }, input);
-  if (answered === undefined && given(input.values["--key-pattern"]) === undefined) {
+  if (answered === undefined) {
     return undefined;
   }
   if (hasTracker(input.facts)) {
@@ -318,18 +331,10 @@ function resolveTracker(input, answers) {
     );
     return undefined;
   }
-  if (answered === undefined) {
-    answers.notes.push("Ignored --key-pattern: the tracker kind is not given; pass --tracker too.");
-    return undefined;
-  }
   const kind = trackerKind(answered);
   const keyPattern =
     givenValue({ flag: "--key-pattern", check: (value) => keyPatternProblem(kind, value) }, input) ??
     KEY_PATTERN_FOR[kind];
-  if (keyPattern === undefined) {
-    answers.notes.push(`Ignored --tracker: a ${kind} tracker needs --key-pattern too.`);
-    return undefined;
-  }
   return { kind, keyPattern };
 }
 

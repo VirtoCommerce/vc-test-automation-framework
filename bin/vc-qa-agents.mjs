@@ -445,6 +445,15 @@ function copySuiteTemplate(target, suiteDir) {
   return { written, kept };
 }
 
+function factsBefore(target) {
+  const own = join(target, FACTS_FILE);
+  try {
+    return JSON.parse(readFileSync(existsSync(own) ? own : join(SUITE_TEMPLATE, FACTS_FILE), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
 function applyFrontendSignIn(target, suiteDir, written, signIn) {
   if (signIn !== "cookie") {
     return [];
@@ -640,7 +649,7 @@ async function askAnswers({ values, switches, envText, firstRun, facts, onInterr
 }
 
 async function init(target, { switches, values, suiteDir }) {
-  checkGivenValues({ values, switches, shell: process.env });
+  checkGivenValues({ values, switches, shell: process.env, facts: factsBefore(target) });
   const skipInstall = switches.has("--skip-install");
   const suite = join(target, suiteDir);
   const own = readOwnManifest();
@@ -657,7 +666,6 @@ async function init(target, { switches, values, suiteDir }) {
       pointFactsAtSuite(target, suiteDir);
       lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
     }
-    lines.push(...applyFrontendSignIn(target, suiteDir, written, values["--frontend-sign-in"]));
     mergePackageJson(suite, own);
     lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
     if (written.includes(MCP_FILE)) {
@@ -683,6 +691,7 @@ async function init(target, { switches, values, suiteDir }) {
       },
     });
     writeAnswers(target, suiteDir, resolved, { replace: firstRun });
+    resolved.notes.push(...applyFrontendSignIn(target, suiteDir, written, values["--frontend-sign-in"]));
     return resolved;
   });
   printLines(answers.notes);

@@ -10,7 +10,7 @@ import { checkGivenValues, resolveAnswers } from "./lib/answers.mjs";
 import { parseArguments } from "./lib/arguments.mjs";
 import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
 import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
-import { browserInstallCommand } from "./lib/mcp-probe.mjs";
+import { installServerBrowser } from "./lib/mcp-probe.mjs";
 import { createPrompter, isInteractive } from "./lib/prompts.mjs";
 import { formatTable, runReadiness } from "./lib/readiness.mjs";
 import { discardOnFailure, removeIfCreated, writeAnswers } from "./lib/suite-files.mjs";
@@ -42,6 +42,7 @@ const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
 const FACTS_CHECK = ".claude/checks/project-facts.mts";
 const CANCELLED = "cancelled";
+const SECRET_NAME = /PASSWORD|SECRET/;
 const NO_TERMINAL = "No terminal: nothing was asked; pass the values as flags or edit .env.";
 const ROOT_DIR = ".";
 const QA_DIR = ".qa/";
@@ -521,15 +522,6 @@ function installDependencies(target, own) {
   run("npx playwright install chromium", target);
 }
 
-function installServerBrowser(root, suite) {
-  try {
-    run(browserInstallCommand(root), suite);
-  } catch (error) {
-    process.stdout.write(`The browser server's own browser was not installed (${error.message}).
-`);
-  }
-}
-
 function runVariables(target, suiteDir) {
   const envPath = join(target, suiteDir, ".env");
   const vars = existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
@@ -539,6 +531,21 @@ function runVariables(target, suiteDir) {
     }
   }
   return vars;
+}
+
+function passwordValues(vars) {
+  return Object.entries(vars)
+    .filter(([name, value]) => SECRET_NAME.test(name) && typeof value === "string" && value !== "")
+    .map(([, value]) => value);
+}
+
+function installBrowserOfServer(target, suiteDir) {
+  const secrets = passwordValues(runVariables(target, suiteDir));
+  printLines([installServerBrowser(target, join(target, suiteDir), { secrets })]);
+}
+
+function printProgress(line) {
+  process.stdout.write(`${line}\n`);
 }
 
 function certificateConfirmer(switches) {
@@ -566,6 +573,7 @@ function readiness(target, suiteDir, switches, skipInstall, withheld = []) {
     skipVerify: switches.has("--skip-verify"),
     prompter: certificateConfirmer(switches),
     withheld,
+    progress: printProgress,
   });
 }
 
@@ -669,7 +677,7 @@ async function init(target, { switches, values, suiteDir }) {
   printLines(answers.notes);
   if (!skipInstall) {
     installDependencies(suite, own);
-    installServerBrowser(target, suite);
+    installBrowserOfServer(target, suiteDir);
   }
   const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers));
   return ["", formatTable(rows), "", ...unsavedLines(answers), ...verdictLines(target, rows)];

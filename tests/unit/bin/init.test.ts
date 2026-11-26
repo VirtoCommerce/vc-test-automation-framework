@@ -790,7 +790,9 @@ test.describe("vc-qa-agents install and uninstall", () => {
 const SHIM_SCRIPT_WINDOWS = [
   "@echo off",
   'echo %~n0 %* >> "%SHIM_LOG%"',
-  'echo %* | findstr /c:"install-browser" >nul && if "%SHIM_FAIL%"=="1" exit /b 1',
+  'echo %* | findstr /c:"install-browser" >nul || exit /b 0',
+  "echo WARNING: running without first installing your project's dependencies",
+  'if "%SHIM_FAIL%"=="1" (echo Error: download of the browser failed 1>&2 & exit /b 1)',
   "exit /b 0",
   "",
 ].join("\r\n");
@@ -798,7 +800,9 @@ const SHIM_SCRIPT_WINDOWS = [
 const SHIM_SCRIPT_POSIX = [
   "#!/bin/sh",
   'echo "$(basename "$0") $*" >> "$SHIM_LOG"',
-  'case "$*" in *install-browser*) [ "$SHIM_FAIL" = 1 ] && exit 1;; esac',
+  'case "$*" in *install-browser*) ;; *) exit 0;; esac',
+  'echo "WARNING: running without first installing your project\'s dependencies"',
+  'if [ "$SHIM_FAIL" = 1 ]; then echo "Error: download of the browser failed" >&2; exit 1; fi',
   "exit 0",
   "",
 ].join("\n");
@@ -854,7 +858,9 @@ test.describe("vc-qa-agents init, installing", () => {
     expect(calls[0]).toMatch(/^npm install --save-dev --save-exact /);
     expect(calls[1]).toBe("npx playwright install chromium");
     expect(calls[2]).toMatch(/^npx -y @playwright\/mcp@\d+\.\d+\.\d+ install-browser chrome-for-testing$/);
-    expect(result.stdout).toContain("install-browser chrome-for-testing");
+    expect(result.stdout).toMatch(/^Installed the browser server's browser \(@playwright\/mcp@\d+\.\d+\.\d+\)\.$/m);
+    expect(result.stdout).not.toContain("WARNING");
+    expect(result.stdout).not.toContain("install-browser");
   });
 
   test("goes on to the readiness table when the browser server's browser cannot be installed", () => {
@@ -863,7 +869,10 @@ test.describe("vc-qa-agents init, installing", () => {
     const result = shimmedRun(dir, shimDir, log, true);
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("The browser server's own browser was not installed");
+    expect(result.stdout).toContain(
+      "The browser server's own browser was not installed (Error: download of the browser failed).",
+    );
+    expect(result.stdout).not.toContain("WARNING");
     expect(result.stdout).toMatch(/^\S+\s+browser server\s/m);
   });
 });

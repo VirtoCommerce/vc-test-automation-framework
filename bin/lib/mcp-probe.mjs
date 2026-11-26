@@ -53,6 +53,26 @@ export function browserInstallCommand(projectDir) {
   return `npx -y ${serverPackage(projectDir)} install-browser ${SERVER_BROWSER}`;
 }
 
+function runCaptured(command, cwd) {
+  const result = spawnSync(command, { cwd, shell: true, encoding: "utf8", windowsHide: true });
+  const output = [result.stdout, result.stderr].filter((part) => typeof part === "string" && part !== "").join("\n");
+  if (result.error !== undefined) {
+    return { status: 1, output: `${output}\n${result.error.code ?? result.error.message}` };
+  }
+  return { status: result.status ?? 1, output };
+}
+
+export function installServerBrowser(projectDir, cwd, options = {}) {
+  const command = browserInstallCommand(projectDir);
+  const result = (options.exec ?? runCaptured)(command, cwd);
+  if (result.status === 0) {
+    return `Installed the browser server's browser (${serverPackage(projectDir)}).`;
+  }
+  const said = lastTellingLine(result.output, options.secrets ?? []);
+  const reason = said === "" ? `"${command}" failed with exit code ${result.status}` : said;
+  return `The browser server's own browser was not installed (${reason}).`;
+}
+
 function installHint(projectDir) {
   return `the browser server has no browser and could not install it; run ${browserInstallCommand(projectDir)}.`;
 }

@@ -19,11 +19,12 @@ const CERTIFICATE_CODES = new Set([
 ]);
 const HOST_MISMATCH = "ERR_TLS_CERT_ALTNAME_INVALID";
 const TRUST_ANY_CERTIFICATE = { NODE_TLS_REJECT_UNAUTHORIZED: "0" };
-const REACH_TIMEOUT_MS = 10_000;
+const REACH_TIMEOUT_MS = 20_000;
 const TOKEN_TIMEOUT_MS = 30_000;
 const PROBE_TIMEOUT_MS = 180_000;
-const DEFAULT_ATTEMPTS = 5;
-const DEFAULT_DELAY_MS = 3_000;
+const DEFAULT_ATTEMPTS = 24;
+const DEFAULT_DELAY_MS = 5_000;
+const DEFAULT_WAIT_MS = 120_000;
 const BODY_LIMIT = 1_048_576;
 const EXEC_TIMEOUT_MS = 600_000;
 const EXEC_MAX_BUFFER = 64 * 1_048_576;
@@ -40,7 +41,7 @@ const FACTS_FILE = ".qa/project.json";
 const FACTS_NOTE = /^project-facts:/;
 const EXAMPLE_ACCOUNT = /is the template's example account/;
 const EXAMPLE_ACCOUNT_FIX =
-  "run npx vc-qa-agents init again and answer the customer questions, or pass --customer and --other-customer";
+  "run npx vc-qa-agents init again and answer the customer questions (leave the other customer empty if the stand has none), or pass --customer and --other-customer";
 const CERTIFICATE_QUESTION = "The certificate is not trusted (self-signed?). Set VERIFY_SSL=false in .env?";
 const NO_PLATFORM = "the platform does not answer";
 const CANCELLED = "cancelled";
@@ -84,10 +85,15 @@ export function request(url, options) {
 
 export async function checkReachable(url, options) {
   const send = options.request ?? request;
+  const started = Date.now();
+  const waitMs = options.waitMs ?? DEFAULT_WAIT_MS;
+  const timeoutMs = options.timeoutMs ?? REACH_TIMEOUT_MS;
   let last = "";
+  let attempts = 0;
   for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
+    attempts = attempt;
     try {
-      const { status } = await send(url, { verifySsl: options.verifySsl, timeoutMs: REACH_TIMEOUT_MS });
+      const { status } = await send(url, { verifySsl: options.verifySsl, timeoutMs });
       if (status < 500) {
         return { ok: true, detail: `${url} answers (${status})`, certificate: false };
       }
@@ -110,13 +116,18 @@ export async function checkReachable(url, options) {
       }
       last = `does not answer (${code})`;
     }
-    if (attempt < options.attempts) {
-      await sleep(options.delayMs);
+    if (attempt >= options.attempts || Date.now() - started + options.delayMs >= waitMs) {
+      break;
     }
+    if (attempt === 1) {
+      options.onWait?.();
+    }
+    await sleep(options.delayMs);
   }
+  const seconds = Math.round((Date.now() - started) / 1000);
   return {
     ok: false,
-    detail: `${url} ${last} after ${options.attempts} attempts; start the stand or fix the URL in .env, a platform that is still starting needs a minute.`,
+    detail: `${url} ${last} after ${attempts} attempts in ${seconds} s; start the stand or fix the URL in .env.`,
     certificate: false,
   };
 }
@@ -141,7 +152,7 @@ function tokenOutcome(answer, username) {
       : {
           ok: false,
           detail:
-            "the token request answered without an access_token; check that BACKEND_BASE_URL is the platform, not the storefront.",
+            "the token request answered without an access_token; check that BACKEND_BASE_URL is the platform, not the frontend.",
         };
   }
   if (SIGN_IN_REFUSED.has(answer.status)) {
@@ -280,16 +291,26 @@ async function confirmed(prompter, question) {
   }
 }
 
+function progressOf(context) {
+  return context.progress ?? (() => {});
+}
+
+function originOf(url) {
+  return URL.parse(url)?.origin ?? url;
+}
+
 async function reachRow(check, key, context, verdict) {
   const url = context.vars[key];
   if (blank(url)) {
     return row(check, "fail", `${key} is empty; set it in ${envFileName(context.suiteDir)}.`);
   }
+  progressOf(context)(`checking the ${check} (${url})…`);
   const reach = () =>
     checkReachable(url, {
       verifySsl: verdict.verifySsl,
       attempts: context.attempts ?? DEFAULT_ATTEMPTS,
       delayMs: context.delayMs ?? DEFAULT_DELAY_MS,
+      onWait: () => progressOf(context)(`waiting for ${originOf(url)} to answer…`),
       ...(context.request === undefined ? {} : { request: context.request }),
     });
   let result = await reach();
@@ -312,6 +333,7 @@ async function reachRow(check, key, context, verdict) {
 }
 
 function execRow(check, context, command, args, cwd, onFail, env) {
+  progressOf(context)(`checking the ${check} (${[command, ...args].join(" ")})…`);
   const result = (context.exec ?? defaultExec)(command, args, cwd, env);
   return result.status === 0 ? row(check, "ok", `${[command, ...args].join(" ")} passes`) : onFail(result.output);
 }
@@ -383,6 +405,7 @@ export async function runReadiness(context) {
       `ADMIN_PASSWORD is empty; set it in ${envFileName(context.suiteDir)}`,
     );
   } else {
+    progressOf(context)(`checking the administrator (${context.vars["ADMIN_USERNAME"]} signs in)…`);
     const token = await checkAdminToken(
       context.vars["BACKEND_BASE_URL"] ?? "",
       { username: context.vars["ADMIN_USERNAME"] ?? "", password: context.vars["ADMIN_PASSWORD"] ?? "" },
@@ -445,6 +468,7 @@ export async function runReadiness(context) {
   } else if (rows.frontend.status !== "ok") {
     rows.browser = row("browser server", "skipped", "the frontend does not answer");
   } else {
+    progressOf(context)(`checking the browser server (opens ${context.vars["FRONTEND_BASE_URL"]})…`);
     const probe = context.probe ?? probeBrowserServer;
     let result;
     try {

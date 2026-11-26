@@ -9,7 +9,12 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { browserInstallCommand, probeBrowserServer, serverPackage } from "../../../bin/lib/mcp-probe.mjs";
+import {
+  browserInstallCommand,
+  installServerBrowser,
+  probeBrowserServer,
+  serverPackage,
+} from "../../../bin/lib/mcp-probe.mjs";
 import { checkAdminToken, checkReachable, formatTable, request, runReadiness } from "../../../bin/lib/readiness.mjs";
 import { maskSecrets } from "../../../bin/lib/redact.mjs";
 
@@ -98,6 +103,61 @@ test.describe("checkReachable", () => {
     } finally {
       await server.close();
     }
+  });
+
+  test("waits about two minutes in all by default, each attempt up to 20 s, and stops once that time is spent", async () => {
+    const timeouts: number[] = [];
+    let clock = 0;
+    const realNow = Date.now;
+    Date.now = () => clock;
+    try {
+      const result = await checkReachable("http://cold.test", {
+        verifySsl: true,
+        attempts: 100,
+        delayMs: 0,
+        request: (_url: string, options: { timeoutMs: number }) => {
+          timeouts.push(options.timeoutMs);
+          clock += options.timeoutMs;
+          return Promise.reject(Object.assign(new Error("no answer"), { code: "ETIMEDOUT" }));
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      expect(timeouts).toEqual([20_000, 20_000, 20_000, 20_000, 20_000, 20_000]);
+      expect(result.detail).toBe(
+        "http://cold.test does not answer (ETIMEDOUT) after 6 attempts in 120 s; start the stand or fix the URL in .env.",
+      );
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  test("calls onWait once, after the first attempt fails, and not when the stand answers at once", async () => {
+    let waits = 0;
+    let calls = 0;
+    const late = await checkReachable("http://late.test", {
+      verifySsl: true,
+      ...FAST,
+      onWait: () => {
+        waits += 1;
+      },
+      request: () => {
+        calls += 1;
+        return calls < 3 ? refused() : Promise.resolve({ status: 200, body: "" });
+      },
+    });
+    const prompt = await checkReachable("http://prompt.test", {
+      verifySsl: true,
+      ...FAST,
+      onWait: () => {
+        waits += 10;
+      },
+      request: () => Promise.resolve({ status: 200, body: "" }),
+    });
+
+    expect(late.ok).toBe(true);
+    expect(prompt.ok).toBe(true);
+    expect(waits).toBe(1);
   });
 
   test("fails with the status the platform answered last", async () => {
@@ -399,6 +459,73 @@ test.describe("runReadiness", () => {
     ]);
   });
 
+  test("says which check starts before each row that runs, and the table stays the same", async () => {
+    const lines: string[] = [];
+    const context = {
+      projectDir: dir,
+      suiteDir: "suite",
+      vars: vars(),
+      skipInstall: false,
+      skipVerify: false,
+      request: (url: string) =>
+        Promise.resolve(
+          url.endsWith("/connect/token")
+            ? { status: 200, body: JSON.stringify({ access_token: "t" }) }
+            : { status: 200, body: "" },
+        ),
+      probe: () => Promise.resolve({ ok: true, detail: "opened the frontend" }),
+    };
+
+    const quiet = await runReadiness({ ...context, exec: fakeExec().exec });
+    const told = await runReadiness({
+      ...context,
+      exec: fakeExec().exec,
+      progress: (line: string) => lines.push(line),
+    });
+
+    expect(lines).toEqual([
+      "checking the backend (http://backend.test)…",
+      "checking the frontend (http://frontend.test)…",
+      "checking the administrator (admin signs in)…",
+      "checking the project facts (node .claude/checks/project-facts.mts)…",
+      "checking the types (npm run codegen)…",
+      "checking the first test (npm test)…",
+      "checking the browser server (opens http://frontend.test)…",
+    ]);
+    expect(formatTable(told)).toBe(formatTable(quiet));
+  });
+
+  test("says once that it waits for a stand that does not answer yet, and not when it answers at once", async () => {
+    const lines: string[] = [];
+    let frontendCalls = 0;
+    const rows = await runReadiness({
+      projectDir: dir,
+      suiteDir: ".",
+      vars: vars({ FRONTEND_BASE_URL: "http://frontend.test/" }),
+      skipInstall: true,
+      skipVerify: false,
+      exec: fakeExec().exec,
+      request: (url: string) => {
+        if (url.startsWith("http://frontend.test")) {
+          frontendCalls += 1;
+          return frontendCalls < 4 ? refused() : Promise.resolve({ status: 200, body: "" });
+        }
+        return url.endsWith("/connect/token")
+          ? Promise.resolve({ status: 200, body: JSON.stringify({ access_token: "t" }) })
+          : Promise.resolve({ status: 200, body: "" });
+      },
+      probe: () => Promise.resolve({ ok: true, detail: "" }),
+      attempts: 5,
+      delayMs: 1,
+      progress: (line: string) => lines.push(line),
+    });
+
+    expect(statusOf(rows, "frontend")).toMatch(/^ok/);
+    expect(lines.filter((line) => line.startsWith("waiting for "))).toEqual([
+      "waiting for http://frontend.test to answer…",
+    ]);
+  });
+
   test("skips the first test when the administrator cannot sign in or the types fail", async () => {
     const failingTypes = fakeExec({ "npm run codegen": { status: 1, output: "Error: schema missing" } });
     const rows = await runReadiness({
@@ -496,7 +623,7 @@ test.describe("runReadiness", () => {
     const detail = statusOf(rows, "project facts");
     expect(detail).toContain('roles["customer"] is the template\'s example account');
     expect(detail).toMatch(
-      /; run npx vc-qa-agents init again and answer the customer questions, or pass --customer and --other-customer.$/,
+      /; run npx vc-qa-agents init again and answer the customer questions \(leave the other customer empty if the stand has none\), or pass --customer and --other-customer.$/,
     );
     expect(detail).not.toContain("fix .qa/project.json");
   });
@@ -916,6 +1043,31 @@ test.describe("probeBrowserServer", () => {
     expect(browserInstallCommand(dir)).toBe("npx -y @playwright/mcp@9.9.9 install-browser chrome-for-testing");
     expect(browserInstallCommand(join(dir, "missing"))).toBe(
       "npx -y @playwright/mcp install-browser chrome-for-testing",
+    );
+  });
+
+  test("installs the server's browser with its output captured, saying one line either way, masked", () => {
+    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER);
+    const commands: string[] = [];
+    const warning = "WARNING: running without first installing your project's dependencies";
+
+    const installed = installServerBrowser(dir, dir, {
+      exec: (command: string) => {
+        commands.push(command);
+        return { status: 0, output: warning };
+      },
+    });
+    const failed = installServerBrowser(dir, dir, {
+      secrets: [PASSWORD],
+      exec: () => ({ status: 1, output: `${warning}\nError: download failed for ${PASSWORD}\n    at x (y.js:1:1)\n` }),
+    });
+    const silent = installServerBrowser(dir, dir, { exec: () => ({ status: 3, output: "" }) });
+
+    expect(commands).toEqual(["npx -y @playwright/mcp@9.9.9 install-browser chrome-for-testing"]);
+    expect(installed).toBe("Installed the browser server's browser (@playwright/mcp@9.9.9).");
+    expect(failed).toBe("The browser server's own browser was not installed (Error: download failed for ***).");
+    expect(silent).toBe(
+      'The browser server\'s own browser was not installed ("npx -y @playwright/mcp@9.9.9 install-browser chrome-for-testing" failed with exit code 3).',
     );
   });
 

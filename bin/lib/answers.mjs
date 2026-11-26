@@ -1,4 +1,5 @@
 import { envValueProblem } from "./suite-files.mjs";
+import { keyPatternProblem, trackerKind, trackerKindProblem } from "./tracker-key.mjs";
 
 export const PASSWORD_NAMES = ["ADMIN_PASSWORD", "CUSTOMER_PASSWORD", "OTHER_CUSTOMER_PASSWORD"];
 
@@ -14,6 +15,8 @@ const TEMPLATE_DOC_SOURCES = [
 const DOC_SOURCE_NAME = "Project documentation";
 const DOCS_QUESTION =
   "Where is your project's own documentation? (a URL, mcp:<server name>, or what to ask a person for; empty to skip)";
+const CUSTOMER_QUESTION = "Customer login (email; required: the tests sign in to the frontend as this customer)";
+const OTHER_CUSTOMER_QUESTION = "Other customer login (email; empty if the stand has none)";
 const URL_PREFIX = /^https?(?::|\/\/)/i;
 const MCP_PREFIX = /^mcp:/i;
 
@@ -40,15 +43,6 @@ function urlProblem(value) {
 
 function blankProblem(value) {
   return value.trim() === "" ? "must not be blank" : undefined;
-}
-
-function patternProblem(value) {
-  try {
-    new RegExp(value);
-    return undefined;
-  } catch {
-    return "must be a valid regular expression";
-  }
 }
 
 function docsProblem(value) {
@@ -81,7 +75,7 @@ function docSourceFor(value) {
 
 const SETTINGS = [
   { name: "BACKEND_BASE_URL", flag: "--backend-url", label: "Backend (platform) URL", check: urlProblem },
-  { name: "FRONTEND_BASE_URL", flag: "--frontend-url", label: "Frontend (storefront) URL", check: urlProblem },
+  { name: "FRONTEND_BASE_URL", flag: "--frontend-url", label: "Frontend URL", check: urlProblem },
   { name: "STORE_ID", flag: "--store-id", label: "Store id", check: blankProblem },
   {
     name: "ADMIN_USERNAME",
@@ -94,7 +88,7 @@ const SETTINGS = [
 const TEST_ID = {
   name: "FRONTEND_TEST_ID_ATTRIBUTE",
   flag: "--test-id-attribute",
-  label: "Test-id attribute of the storefront",
+  label: "Test-id attribute of the frontend",
   check: blankProblem,
   fallback: "data-test-id",
 };
@@ -194,10 +188,11 @@ export function checkGivenValues(input) {
   for (const field of [...SETTINGS, TEST_ID]) {
     givenValue({ ...field, check: settingCheck(field), shellName: field.name }, input);
   }
-  for (const flag of ["--customer", "--other-customer", "--tracker"]) {
+  for (const flag of ["--customer", "--other-customer"]) {
     givenValue({ flag, check: blankProblem }, input);
   }
-  givenValue({ flag: "--key-pattern", check: patternProblem }, input);
+  const kind = givenValue({ flag: "--tracker", check: trackerKindProblem }, input);
+  givenValue({ flag: "--key-pattern", check: (value) => keyPatternProblem(kind, value) }, input);
   givenValue({ flag: "--docs", check: docsProblem }, input);
   if (input.switches.has("--save-passwords")) {
     for (const name of PASSWORD_NAMES) {
@@ -235,11 +230,32 @@ function roleOf(facts, role) {
   return roles !== null && typeof roles === "object" ? roles[role] : undefined;
 }
 
-async function resolveRole(role, flag, label, input) {
-  if (!isPlaceholder(roleOf(input.facts, role))) {
-    return undefined;
+async function resolveCustomer(input, answers) {
+  if (!isPlaceholder(roleOf(input.facts, "customer"))) {
+    return;
   }
-  return resolveField({ name: `${role} login`, flag, label, check: blankProblem }, input);
+  const login = await resolveField(
+    { name: "customer login", flag: "--customer", label: CUSTOMER_QUESTION, check: blankProblem, required: true },
+    input,
+  );
+  if (login !== undefined) {
+    answers.roles.customer = login;
+  }
+}
+
+async function resolveOtherCustomer(input, answers) {
+  if (!isPlaceholder(roleOf(input.facts, "other customer"))) {
+    return;
+  }
+  const login = await resolveField(
+    { name: "other customer login", flag: "--other-customer", label: OTHER_CUSTOMER_QUESTION, check: blankProblem },
+    input,
+  );
+  if (login !== undefined) {
+    answers.roles.otherCustomer = login;
+  } else if (input.prompter !== undefined) {
+    answers.roles.otherCustomer = null;
+  }
 }
 
 function isTemplateTracker(facts) {
@@ -260,26 +276,27 @@ async function resolveTracker(input, answers) {
   if (!flagged && input.prompter === undefined) {
     return undefined;
   }
-  const kind = await resolveField(
+  const answered = await resolveField(
     {
       name: "tracker kind",
       flag: "--tracker",
       label: "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
-      check: blankProblem,
+      check: trackerKindProblem,
       required: true,
     },
     input,
   );
-  if (kind === undefined) {
+  if (answered === undefined) {
     answers.notes.push("Ignored --key-pattern: the tracker kind is not given; pass --tracker too.");
     return undefined;
   }
+  const kind = trackerKind(answered);
   const keyPattern = await resolveField(
     {
       name: "ticket-key pattern",
       flag: "--key-pattern",
       label: keyPatternLabel(kind),
-      check: patternProblem,
+      check: (value) => keyPatternProblem(kind, value),
       fallback: KEY_PATTERN_FOR[kind],
     },
     input,
@@ -327,16 +344,12 @@ export async function resolveAnswers(input) {
     await resolveSetting(field, input, answers);
   }
   await resolvePassword("ADMIN_PASSWORD", "Administrator password", input, answers);
-  const customer = await resolveRole("customer", "--customer", "Customer login (email)", input);
-  if (customer !== undefined) {
-    answers.roles.customer = customer;
-  }
+  await resolveCustomer(input, answers);
   await resolvePassword("CUSTOMER_PASSWORD", "Customer password", input, answers);
-  const otherCustomer = await resolveRole("other customer", "--other-customer", "Other customer login (email)", input);
-  if (otherCustomer !== undefined) {
-    answers.roles.otherCustomer = otherCustomer;
+  await resolveOtherCustomer(input, answers);
+  if (answers.roles.otherCustomer !== null) {
+    await resolvePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
   }
-  await resolvePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
   const tracker = await resolveTracker(input, answers);
   if (tracker !== undefined) {
     answers.tracker = tracker;

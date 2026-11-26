@@ -7,7 +7,8 @@ import { maskSecrets } from "./redact.mjs";
 const LAUNCHER = ".claude/checks/browser-mcp.mts";
 const PROTOCOL_VERSION = "2025-06-18";
 const CLIENT = { name: "vc-qa-agents-readiness", version: "1.0.0" };
-const MISSING_BROWSER = /Executable doesn't exist|browser_install/;
+const MISSING_BROWSER = /Executable doesn't exist|is not installed|browser_install/;
+const SERVER_BROWSER = "chrome-for-testing";
 const DETAIL_LIMIT = 200;
 const NOISE_LINE = /^(at\s|Node\.js v|\^|\}$|code:)/;
 const TELLING_LINE = /error|cannot|failed|not found/i;
@@ -19,7 +20,7 @@ function firstLine(text, secrets) {
   const line = text
     .split(/\r?\n/)
     .map((part) => part.trim())
-    .find((part) => part !== "");
+    .find((part) => part !== "" && !part.startsWith("#"));
   return line === undefined ? "" : maskSecrets(line, secrets).slice(0, DETAIL_LIMIT);
 }
 
@@ -48,8 +49,12 @@ export function serverPackage(projectDir) {
   }
 }
 
+export function browserInstallCommand(projectDir) {
+  return `npx -y ${serverPackage(projectDir)} install-browser ${SERVER_BROWSER}`;
+}
+
 function installHint(projectDir) {
-  return `the browser server has no browser and could not install it; run npx -y ${serverPackage(projectDir)} install-browser chromium.`;
+  return `the browser server has no browser and could not install it; run ${browserInstallCommand(projectDir)}.`;
 }
 
 function killTree(child) {

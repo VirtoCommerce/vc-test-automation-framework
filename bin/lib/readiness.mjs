@@ -38,6 +38,9 @@ const BABEL_MISSING =
 const PROJECT_FACTS = ".claude/checks/project-facts.mts";
 const FACTS_FILE = ".qa/project.json";
 const FACTS_NOTE = /^project-facts:/;
+const EXAMPLE_ACCOUNT = /is the template's example account/;
+const EXAMPLE_ACCOUNT_FIX =
+  "run npx vc-qa-agents init again and answer the customer questions, or pass --customer and --other-customer";
 const CERTIFICATE_QUESTION = "The certificate is not trusted (self-signed?). Set VERIFY_SSL=false in .env?";
 const NO_PLATFORM = "the platform does not answer";
 const CANCELLED = "cancelled";
@@ -327,7 +330,10 @@ function projectFactsRow(context) {
       return row("project facts", "skipped", "dependencies not installed");
     }
     const said = summary(problems.length === 0 ? output : (problems[0] ?? ""), secretValues(context));
-    return row("project facts", "fail", `${said}; fix .qa/project.json until node ${PROJECT_FACTS} passes.`);
+    const fix = EXAMPLE_ACCOUNT.test(output)
+      ? `${EXAMPLE_ACCOUNT_FIX}.`
+      : `fix .qa/project.json until node ${PROJECT_FACTS} passes.`;
+    return row("project facts", "fail", `${said}; ${fix}`);
   });
 }
 

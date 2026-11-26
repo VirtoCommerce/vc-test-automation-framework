@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
@@ -784,5 +784,86 @@ test.describe("vc-qa-agents install and uninstall", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("is not the list of files vc-qa-agents installed");
     expect(readIn(dir, "outside.txt")).toBe("kept\n");
+  });
+});
+
+const SHIM_SCRIPT_WINDOWS = [
+  "@echo off",
+  'echo %~n0 %* >> "%SHIM_LOG%"',
+  'echo %* | findstr /c:"install-browser" >nul && if "%SHIM_FAIL%"=="1" exit /b 1',
+  "exit /b 0",
+  "",
+].join("\r\n");
+
+const SHIM_SCRIPT_POSIX = [
+  "#!/bin/sh",
+  'echo "$(basename "$0") $*" >> "$SHIM_LOG"',
+  'case "$*" in *install-browser*) [ "$SHIM_FAIL" = 1 ] && exit 1;; esac',
+  "exit 0",
+  "",
+].join("\n");
+
+function writeShims(shimDir: string): void {
+  mkdirSync(shimDir, { recursive: true });
+  for (const name of ["npm", "npx"]) {
+    if (process.platform === "win32") {
+      writeFileSync(join(shimDir, `${name}.cmd`), SHIM_SCRIPT_WINDOWS);
+    } else {
+      writeFileSync(join(shimDir, name), SHIM_SCRIPT_POSIX, { mode: 0o755 });
+    }
+  }
+}
+
+function shimmedRun(dir: string, shimDir: string, log: string, fail: boolean) {
+  const env = shellWith({ SHIM_LOG: log, SHIM_FAIL: fail ? "1" : "0" });
+  const pathName = Object.keys(env).find((name) => name.toUpperCase() === "PATH") ?? "PATH";
+  env[pathName] = `${shimDir}${delimiter}${env[pathName] ?? ""}`;
+  return spawnSync(process.execPath, [BIN, "init", "--skip-verify", "--yes", ...FLAGS], {
+    cwd: dir,
+    encoding: "utf8",
+    env,
+    timeout: 60_000,
+  });
+}
+
+test.describe("vc-qa-agents init, installing", () => {
+  let dir = "";
+  let shimDir = "";
+
+  test.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vc-init-install-"));
+    shimDir = mkdtempSync(join(tmpdir(), "vc-init-shims-"));
+    writeShims(shimDir);
+  });
+
+  test.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(shimDir, { recursive: true, force: true });
+  });
+
+  test("installs the suite's browser and then the browser server's own, read from the launcher", () => {
+    const log = join(shimDir, "calls.log");
+
+    const result = shimmedRun(dir, shimDir, log, false);
+
+    expect(result.status, result.stderr).toBe(0);
+    const calls = readFileSync(log, "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => /install/.test(line));
+    expect(calls[0]).toMatch(/^npm install --save-dev --save-exact /);
+    expect(calls[1]).toBe("npx playwright install chromium");
+    expect(calls[2]).toMatch(/^npx -y @playwright\/mcp@\d+\.\d+\.\d+ install-browser chrome-for-testing$/);
+    expect(result.stdout).toContain("install-browser chrome-for-testing");
+  });
+
+  test("goes on to the readiness table when the browser server's browser cannot be installed", () => {
+    const log = join(shimDir, "calls.log");
+
+    const result = shimmedRun(dir, shimDir, log, true);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("The browser server's own browser was not installed");
+    expect(result.stdout).toMatch(/^\S+\s+browser server\s/m);
   });
 });

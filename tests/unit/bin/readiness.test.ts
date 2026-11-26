@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { probeBrowserServer, serverPackage } from "../../../bin/lib/mcp-probe.mjs";
+import { browserInstallCommand, probeBrowserServer, serverPackage } from "../../../bin/lib/mcp-probe.mjs";
 import { checkAdminToken, checkReachable, formatTable, request, runReadiness } from "../../../bin/lib/readiness.mjs";
 import { maskSecrets } from "../../../bin/lib/redact.mjs";
 
@@ -475,6 +475,32 @@ test.describe("runReadiness", () => {
     expect(statusOf(failed, "project facts")).not.toContain(" at ");
   });
 
+  test("tells a template example account to be replaced by answering init again, keeping the check's own reason", async () => {
+    const example = fakeExec({
+      "node .claude/checks/project-facts.mts": {
+        status: 1,
+        output:
+          "project.json: roles[\"customer\"] is the template's example account: replace it with an account of this repository's stand",
+      },
+    });
+
+    const rows = await runReadiness({
+      projectDir: dir,
+      suiteDir: ".",
+      vars: vars(),
+      skipInstall: true,
+      skipVerify: true,
+      exec: example.exec,
+    });
+
+    const detail = statusOf(rows, "project facts");
+    expect(detail).toContain('roles["customer"] is the template\'s example account');
+    expect(detail).toMatch(
+      /; run npx vc-qa-agents init again and answer the customer questions, or pass --customer and --other-customer.$/,
+    );
+    expect(detail).not.toContain("fix .qa/project.json");
+  });
+
   test("offers VERIFY_SSL=false on an untrusted certificate, writes it to .env and checks again", async () => {
     mkdirSync(join(dir, "suite"));
     writeFileSync(join(dir, "suite", ".env"), "BACKEND_BASE_URL=https://backend.test\nVERIFY_SSL=true\n");
@@ -748,8 +774,10 @@ let navigations = 0;
 function send(message) {
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
 }
+const NOT_INSTALLED = '### Error\nBrowser "chrome-for-testing" is not installed; expected executable at C:\\cache\\chrome.exe';
 function missing(id) {
-  send({ id, result: { isError: true, content: [{ type: "text", text: "Executable doesn't exist at chromium" }] } });
+  const text = MODE.startsWith("chrome-") ? NOT_INSTALLED : "Executable doesn't exist at chromium";
+  send({ id, result: { isError: true, content: [{ type: "text", text }] } });
 }
 createInterface({ input: process.stdin }).on("line", (line) => {
   const message = JSON.parse(line);
@@ -759,7 +787,9 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     send({ id: message.id, result: { protocolVersion: message.params.protocolVersion, capabilities: {}, serverInfo: { name: "fake" } } });
   } else if (message.method === "tools/call" && message.params.name === "browser_navigate") {
     navigations += 1;
-    if ((MODE === "missing-once" && navigations === 1) || MODE === "missing-always") {
+    if (MODE === "heading-error") {
+      send({ id: message.id, result: { isError: true, content: [{ type: "text", text: "### Error\nnet::ERR_NAME_NOT_RESOLVED at https://frontend.test" }] } });
+    } else if ((MODE.endsWith("-once") && navigations === 1) || MODE.endsWith("-always")) {
       missing(message.id);
     } else {
       send({ id: message.id, result: { content: [{ type: "text", text: "navigated to " + message.params.arguments.url }] } });
@@ -796,12 +826,10 @@ test.describe("probeBrowserServer", () => {
     return Number(readFileSync(join(dir, name), "utf8"));
   }
 
-  for (const missing of [false, true]) {
-    test(`opens the frontend through the launcher and stops its whole tree${missing ? ", installing a missing browser once" : ""}`, async () => {
-      writeFileSync(
-        join(dir, ".claude", "checks", "browser-mcp.mts"),
-        FAKE_SERVER.replace("__MODE__", missing ? "missing-once" : "ok"),
-      );
+  for (const mode of ["ok", "missing-once", "chrome-once"]) {
+    const missing = mode !== "ok";
+    test(`opens the frontend through the launcher and stops its whole tree${missing ? `, installing a missing browser once (${mode})` : ""}`, async () => {
+      writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER.replace("__MODE__", mode));
 
       const result = await probeBrowserServer({
         projectDir: dir,
@@ -833,8 +861,62 @@ test.describe("probeBrowserServer", () => {
     expect(result).toEqual({
       ok: false,
       detail:
-        "the browser server has no browser and could not install it; run npx -y @playwright/mcp@9.9.9 install-browser chromium.",
+        "the browser server has no browser and could not install it; run npx -y @playwright/mcp@9.9.9 install-browser chrome-for-testing.",
     });
+  });
+
+  test("names the chrome-for-testing install when the server says its browser is not installed", async () => {
+    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER.replace("__MODE__", "chrome-always"));
+
+    const result = await probeBrowserServer({
+      projectDir: dir,
+      frontendUrl: "http://frontend.test",
+      timeoutMs: 20_000,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      detail:
+        "the browser server has no browser and could not install it; run npx -y @playwright/mcp@9.9.9 install-browser chrome-for-testing.",
+    });
+  });
+
+  test("never shows a markdown heading as the detail of a failed navigation", async () => {
+    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER.replace("__MODE__", "heading-error"));
+
+    const result = await probeBrowserServer({
+      projectDir: dir,
+      frontendUrl: "http://frontend.test",
+      timeoutMs: 20_000,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      detail:
+        "the browser server could not open http://frontend.test (net::ERR_NAME_NOT_RESOLVED at https://frontend.test); check FRONTEND_BASE_URL in .env.",
+    });
+  });
+
+  test("masks a password in the detail line that follows a markdown heading", async () => {
+    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER.replace("__MODE__", "heading-error"));
+
+    const result = await probeBrowserServer({
+      projectDir: dir,
+      frontendUrl: "http://frontend.test",
+      timeoutMs: 20_000,
+      secrets: ["net::ERR_NAME_NOT_RESOLVED"],
+    });
+
+    expect(result.detail).toContain("(*** at https://frontend.test)");
+  });
+
+  test("names the command that installs the browser of the pinned server", () => {
+    writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER);
+
+    expect(browserInstallCommand(dir)).toBe("npx -y @playwright/mcp@9.9.9 install-browser chrome-for-testing");
+    expect(browserInstallCommand(join(dir, "missing"))).toBe(
+      "npx -y @playwright/mcp install-browser chrome-for-testing",
+    );
   });
 
   test("reads the pinned package of the launcher, and names the bare package when it cannot", () => {

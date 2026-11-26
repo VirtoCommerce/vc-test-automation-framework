@@ -174,9 +174,12 @@ role. The launcher writes nothing else to stdout, which is the channel of the pr
 variables, and names the ones that are not. The `browser server` row of `init` and `doctor` starts the launcher,
 asks the server to open the frontend, and stops it.
 
-The server brings its own Playwright, so its Chromium can be a different revision from the suite's. When the server
-has no browser, the `browser server` row installs the server's own through the server (`browser_install`), and names
-the command to run if that fails.
+The server brings its own Playwright, and needs the `chrome-for-testing` build, which is not the Chromium that
+`npx playwright install chromium` installs for the suite. `init` installs it right after the dependencies, unless you
+pass `--skip-install`, with `npx -y @playwright/mcp@0.0.84 install-browser chrome-for-testing` (the version of
+`BROWSER_SERVER_PACKAGE` in `.claude/checks/browser-mcp.mts`). A failed install does not stop `init`. When the server
+still has no browser, the `browser server` row installs it through the server (`browser_install`), and names that
+command to run if that fails.
 
 `node .claude/checks/browser-secrets.mts` stays as a manual tool: it writes `.qa/browser-secrets.local.env` for the
 current variables, for a suite that starts the server without the launcher. An existing suite does not need it.

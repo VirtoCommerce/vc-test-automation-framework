@@ -10,6 +10,7 @@ import { checkGivenValues, resolveAnswers } from "./lib/answers.mjs";
 import { parseArguments } from "./lib/arguments.mjs";
 import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
 import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
+import { browserInstallCommand } from "./lib/mcp-probe.mjs";
 import { createPrompter, isInteractive } from "./lib/prompts.mjs";
 import { formatTable, runReadiness } from "./lib/readiness.mjs";
 import { discardOnFailure, removeIfCreated, writeAnswers } from "./lib/suite-files.mjs";
@@ -520,6 +521,15 @@ function installDependencies(target, own) {
   run("npx playwright install chromium", target);
 }
 
+function installServerBrowser(root, suite) {
+  try {
+    run(browserInstallCommand(root), suite);
+  } catch (error) {
+    process.stdout.write(`The browser server's own browser was not installed (${error.message}).
+`);
+  }
+}
+
 function runVariables(target, suiteDir) {
   const envPath = join(target, suiteDir, ".env");
   const vars = existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
@@ -659,6 +669,7 @@ async function init(target, { switches, values, suiteDir }) {
   printLines(answers.notes);
   if (!skipInstall) {
     installDependencies(suite, own);
+    installServerBrowser(target, suite);
   }
   const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers));
   return ["", formatTable(rows), "", ...unsavedLines(answers), ...verdictLines(target, rows)];

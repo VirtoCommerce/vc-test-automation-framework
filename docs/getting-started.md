@@ -16,7 +16,7 @@ npx vc-qa-agents init
 
 `init` adds its scripts to `package.json` without replacing yours, installs the suite's dev dependencies (Playwright,
 zod, TypeScript, Biome, Allure, the GraphQL and REST type generators, `@babel/parser`) at the versions the framework
-uses, installs Chromium, installs the [QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the
+uses, installs Chromium and the browser of the agents' browser server (`npx -y @playwright/mcp@0.0.84 install-browser chrome-for-testing`, a failure of which is left to the `browser server` row), installs the [QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the
 suite, asks the questions below, writes `.env`, generates the types and runs the first test. It never overwrites a
 file that exists, nor an agent, command or skill of the repository's own (see
 [Update and remove](guides/qa-agents.md#update-and-remove)). An unknown command or option fails with the usage.

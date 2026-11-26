@@ -468,6 +468,33 @@ test.describe("runReadiness", () => {
     expect(statusOf(rows, "backend")).toMatch(/^ok/);
     expect(statusOf(rows, "administrator")).toMatch(/^ok/);
   });
+
+  test("takes a cancelled certificate question as a no: the backend row fails with its own detail", async () => {
+    mkdirSync(join(dir, "suite"));
+    writeFileSync(join(dir, "suite", ".env"), "BACKEND_BASE_URL=https://backend.test\nVERIFY_SSL=true\n");
+    const rows = await runReadiness({
+      projectDir: dir,
+      suiteDir: "suite",
+      vars: vars({ BACKEND_BASE_URL: "https://backend.test" }),
+      skipInstall: true,
+      skipVerify: false,
+      exec: fakeExec().exec,
+      prompter: {
+        ask: () => Promise.resolve(""),
+        askSecret: () => Promise.resolve(""),
+        confirm: () => Promise.reject(new Error("cancelled")),
+        close() {},
+      },
+      request: (url: string) =>
+        url.startsWith("https://backend.test")
+          ? Promise.reject(Object.assign(new Error("self-signed"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }))
+          : Promise.resolve({ status: 200, body: "" }),
+      probe: () => Promise.resolve({ ok: true, detail: "" }),
+    });
+
+    expect(statusOf(rows, "backend")).toMatch(/^fail: the certificate of https:\/\/backend\.test is not trusted/);
+    expect(readFileSync(join(dir, "suite", ".env"), "utf8")).toContain("VERIFY_SSL=true\n");
+  });
 });
 
 test.describe("password masking", () => {

@@ -6,13 +6,13 @@ import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
-import { resolveAnswers } from "./lib/answers.mjs";
+import { checkGivenValues, resolveAnswers } from "./lib/answers.mjs";
 import { parseArguments } from "./lib/arguments.mjs";
 import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
 import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
 import { createPrompter, isInteractive } from "./lib/prompts.mjs";
 import { formatTable, runReadiness } from "./lib/readiness.mjs";
-import { writeAnswers } from "./lib/suite-files.mjs";
+import { discardOnFailure, removeIfCreated, writeAnswers } from "./lib/suite-files.mjs";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
@@ -274,7 +274,7 @@ function missingIgnores(target) {
   return GITIGNORE_LINES.filter((line) => !ignored.includes(line));
 }
 
-function install(target, { written = [], forceOurs = false } = {}) {
+function install(target, { written = [], forceOurs = false, wizard = false } = {}) {
   const lines = syncAgentFiles(target, forceOurs);
 
   const settings = join(target, ".claude", "settings.json");
@@ -287,7 +287,9 @@ function install(target, { written = [], forceOurs = false } = {}) {
     );
   }
 
-  if (written.includes(FACTS_FILE)) {
+  if (written.includes(FACTS_FILE) && wizard) {
+    lines.push("Wrote .qa/project.json for the suite.");
+  } else if (written.includes(FACTS_FILE)) {
     lines.push(
       "Wrote .qa/project.json for the suite. Replace its example accounts and tracker with this repository's facts:",
     );
@@ -316,7 +318,7 @@ function install(target, { written = [], forceOurs = false } = {}) {
     lines.push(`Add to .gitignore: ${ignores.join(" ")}`);
   }
   const packageDirs = [...new Set([ROOT_DIR, factsSuiteDir(target)])];
-  if (!packageDirs.some((dir) => existsSync(join(target, dir, "node_modules", "@babel", "parser")))) {
+  if (!wizard && !packageDirs.some((dir) => existsSync(join(target, dir, "node_modules", "@babel", "parser")))) {
     lines.push("The checks need @babel/parser: npm install --save-dev --save-exact @babel/parser");
   }
   return lines;
@@ -566,9 +568,9 @@ function unsavedLines(answers) {
   ];
 }
 
-async function askAnswers({ values, switches, envText, firstRun, facts }) {
+async function askAnswers({ values, switches, envText, firstRun, facts, onInterrupt }) {
   const fromFile = parseEnv(envText);
-  const prompter = isInteractive(switches) ? createPrompter() : undefined;
+  const prompter = isInteractive(switches) ? createPrompter(process.stdin, process.stdout, onInterrupt) : undefined;
   try {
     return await resolveAnswers({
       values,
@@ -585,6 +587,7 @@ async function askAnswers({ values, switches, envText, firstRun, facts }) {
 }
 
 async function init(target, { switches, values, suiteDir }) {
+  checkGivenValues({ values, switches, shell: process.env });
   const skipInstall = switches.has("--skip-install");
   const lines = [];
   const suite = join(target, suiteDir);
@@ -606,19 +609,27 @@ async function init(target, { switches, values, suiteDir }) {
         "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
     );
   }
-  lines.push(...install(target, { written, forceOurs: switches.has(FORCE_OURS) }));
+  lines.push(...install(target, { written, forceOurs: switches.has(FORCE_OURS), wizard: true }));
   printLines(lines);
 
   const envFile = inSuite(suiteDir, ".env");
+  const envPath = join(target, envFile);
   const firstRun = written.includes(envFile);
-  const answers = await askAnswers({
-    values,
-    switches,
-    envText: readFileSync(join(target, envFile), "utf8"),
-    firstRun,
-    facts: JSON.parse(readFileSync(join(target, FACTS_FILE), "utf8")),
+  const answers = await discardOnFailure(envPath, firstRun, async () => {
+    const resolved = await askAnswers({
+      values,
+      switches,
+      envText: readFileSync(envPath, "utf8"),
+      firstRun,
+      facts: JSON.parse(readFileSync(join(target, FACTS_FILE), "utf8")),
+      onInterrupt() {
+        removeIfCreated(envPath, firstRun);
+        process.exit(130);
+      },
+    });
+    writeAnswers(target, suiteDir, resolved, { replace: firstRun });
+    return resolved;
   });
-  writeAnswers(target, suiteDir, answers, { replace: firstRun });
   if (!skipInstall) {
     installDependencies(suite, own);
   }
@@ -631,6 +642,9 @@ async function doctor(target, switches) {
     throw new Error("Run npx vc-qa-agents first: .claude/checks is missing.");
   }
   const rows = await readiness(target, suiteDirOf([factsSuiteDir(target)]), switches, false);
+  if (rows.some((row) => row.status === "fail")) {
+    process.exitCode = 1;
+  }
   return [formatTable(rows), "", ...verdictLines(target, rows)];
 }
 

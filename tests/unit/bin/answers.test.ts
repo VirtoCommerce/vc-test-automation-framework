@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { PASSWORD_NAMES, resolveAnswers as resolveUntyped } from "../../../bin/lib/answers.mjs";
+import { checkGivenValues, PASSWORD_NAMES, resolveAnswers as resolveUntyped } from "../../../bin/lib/answers.mjs";
 import { applyFacts } from "../../../bin/lib/suite-files.mjs";
 
 type Answers = {
@@ -312,5 +312,34 @@ test.describe("resolveAnswers", () => {
     const saving = resolveAnswers(input({ shell, switches: new Set(["--save-passwords"]) }));
     await expect(saving).rejects.toThrow(/^ADMIN_PASSWORD /);
     await expect(saving).rejects.not.toThrow(/a'b/);
+  });
+});
+
+test.describe("checkGivenValues", () => {
+  const switches = new Set<string>();
+
+  test("refuses an invalid flag or shell value before anything is asked or written", () => {
+    expect(() => checkGivenValues({ values: { "--backend-url": "localhost:8090" }, switches, shell: {} })).toThrow(
+      /--backend-url/,
+    );
+    expect(() => checkGivenValues({ values: {}, switches, shell: { STORE_ID: "   " } })).toThrow(/STORE_ID/);
+    expect(() => checkGivenValues({ values: { "--key-pattern": "(" }, switches, shell: {} })).toThrow(/--key-pattern/);
+    expect(() =>
+      checkGivenValues({
+        values: {},
+        switches: new Set(["--save-passwords"]),
+        shell: { ADMIN_PASSWORD: "a'b\"c`d\ne" },
+      }),
+    ).toThrow(/^ADMIN_PASSWORD /);
+  });
+
+  test("accepts valid values and a shell password that is not to be saved", () => {
+    expect(() =>
+      checkGivenValues({
+        values: { "--backend-url": "https://back.example.test", "--key-pattern": "^A-d+$", "--customer": "a@b.test" },
+        switches,
+        shell: { ADMIN_PASSWORD: "a'b\"c`d\ne" },
+      }),
+    ).not.toThrow();
   });
 });

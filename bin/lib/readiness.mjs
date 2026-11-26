@@ -36,6 +36,7 @@ const PROJECT_FACTS = ".claude/checks/project-facts.mts";
 const FACTS_NOTE = /^project-facts:/;
 const CERTIFICATE_QUESTION = "The certificate is not trusted (self-signed?). Set VERIFY_SSL=false in .env?";
 const NO_PLATFORM = "the platform does not answer";
+const CANCELLED = "cancelled";
 
 export function request(url, options) {
   return new Promise((resolve, reject) => {
@@ -241,6 +242,17 @@ function trustBackend(context, verdict) {
   verdict.verifySsl = false;
 }
 
+async function confirmed(prompter, question) {
+  try {
+    return await prompter.confirm(question);
+  } catch (error) {
+    if (error instanceof Error && error.message === CANCELLED) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 async function reachRow(check, key, context, verdict) {
   const url = context.vars[key];
   if (blank(url)) {
@@ -260,7 +272,7 @@ async function reachRow(check, key, context, verdict) {
     check === "backend" &&
     context.vars["VERIFY_SSL"] !== "false" &&
     context.prompter !== undefined &&
-    (await context.prompter.confirm(CERTIFICATE_QUESTION))
+    (await confirmed(context.prompter, CERTIFICATE_QUESTION))
   ) {
     try {
       trustBackend(context, verdict);

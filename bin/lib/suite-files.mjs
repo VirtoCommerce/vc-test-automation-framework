@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 
@@ -108,6 +108,21 @@ export function applyFacts(facts, answers, adminLogin) {
     result["tracker"] = { ...tracker, kind: answers.tracker.kind, keyPattern: answers.tracker.keyPattern };
   }
   return result;
+}
+
+export function removeIfCreated(path, created) {
+  if (created) {
+    rmSync(path, { force: true });
+  }
+}
+
+export async function discardOnFailure(path, created, work) {
+  try {
+    return await work();
+  } catch (error) {
+    removeIfCreated(path, created);
+    throw error;
+  }
 }
 
 export function writeAnswers(projectDir, suiteDir, answers, { replace = false } = {}) {

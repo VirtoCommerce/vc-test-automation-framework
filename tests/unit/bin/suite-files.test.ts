@@ -1,11 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 
 import { expect, test } from "@playwright/test";
 
-import { applyFacts, fillEnvText, setEnvValue, writeAnswers } from "../../../bin/lib/suite-files.mjs";
+import { applyFacts, discardOnFailure, fillEnvText, setEnvValue, writeAnswers } from "../../../bin/lib/suite-files.mjs";
 
 const TEMPLATE = join(import.meta.dirname, "..", "..", "..", "templates", "suite");
 const TEMPLATE_FACTS = JSON.parse(readFileSync(join(TEMPLATE, ".qa", "project.json"), "utf8"));
@@ -167,5 +167,36 @@ test.describe("writeAnswers", () => {
     });
 
     expect(readFileSync(join(project, ".env"), "utf8")).toBe("ADMIN_PASSWORD=x\n");
+  });
+});
+
+test.describe("discardOnFailure", () => {
+  let project: string;
+
+  test.beforeEach(() => {
+    project = mkdtempSync(join(tmpdir(), "vc-discard-"));
+    writeFileSync(join(project, ".env"), "KEY=\n");
+  });
+
+  test.afterEach(() => {
+    rmSync(project, { recursive: true, force: true });
+  });
+
+  test("removes the .env this run created when the questions are cancelled, so the next run is a first run", async () => {
+    await expect(
+      discardOnFailure(join(project, ".env"), true, () => Promise.reject(new Error("cancelled"))),
+    ).rejects.toThrow("cancelled");
+
+    expect(existsSync(join(project, ".env"))).toBe(false);
+  });
+
+  test("keeps a .env that existed before the run, and one whose answers were written", async () => {
+    await expect(
+      discardOnFailure(join(project, ".env"), false, () => Promise.reject(new Error("cancelled"))),
+    ).rejects.toThrow("cancelled");
+    const value = await discardOnFailure(join(project, ".env"), true, () => Promise.resolve(42));
+
+    expect(value).toBe(42);
+    expect(existsSync(join(project, ".env"))).toBe(true);
   });
 });

@@ -341,17 +341,35 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     expect(files.map((file) => readFileSync(join(dir, file), "utf8"))).toEqual(before);
   });
 
-  test("refuses an invalid --backend-url before writing an answer", () => {
-    const result = initRun(dir, ["--skip-install", "--skip-verify", "--yes", "--backend-url", "localhost:8090"]);
+  test("refuses an invalid --backend-url before writing anything, so the corrected run is a first run", () => {
+    const refused = initRun(dir, ["--skip-install", "--skip-verify", "--yes", "--backend-url", "localhost:8090"]);
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("--backend-url");
-    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(
-      readFileSync(join(PACKAGE_ROOT, "templates", "suite", "env.example"), "utf8"),
-    );
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain("--backend-url");
+    expect(existsSync(join(dir, ".env"))).toBe(false);
+
+    const corrected = initRun(dir, ["--skip-install", "--skip-verify", "--yes", "--backend-url", "https://b.test"]);
+
+    expect(corrected.status, corrected.stderr).toBe(0);
+    expect(readFileSync(join(dir, ".env"), "utf8")).toContain("BACKEND_BASE_URL=https://b.test\n");
   });
 
-  test("never waits for input without a terminal", () => {
+  test("leaves to the readiness table what plain install would tell the user to do by hand", () => {
+    const initOutput = initRun(dir, ["--skip-install", "--skip-verify", "--yes"]).stdout;
+    const other = mkdtempSync(join(tmpdir(), "vc-install-"));
+    try {
+      const installOutput = execFileSync(process.execPath, [BIN], { cwd: other, encoding: "utf8" });
+
+      for (const line of ["project-facts.mts refuses it until you have", "The checks need @babel/parser"]) {
+        expect(initOutput, line).not.toContain(line);
+        expect(installOutput, line).toContain(line);
+      }
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
+  });
+
+  test("is not interactive without a terminal, so it never waits for input", () => {
     test.setTimeout(30_000);
 
     const result = initRun(dir, ["--skip-install", "--skip-verify"]);

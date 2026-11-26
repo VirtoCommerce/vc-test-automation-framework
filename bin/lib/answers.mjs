@@ -58,8 +58,7 @@ function filled(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
-async function resolveField(field, input) {
-  const { name, flag, shellName, label, check, fallback } = field;
+function givenValue({ flag, shellName, check }, input) {
   const fromFlag = flag === undefined ? undefined : given(input.values[flag]);
   if (fromFlag !== undefined) {
     const problem = check(fromFlag.trim());
@@ -75,6 +74,15 @@ async function resolveField(field, input) {
       throw new Error(`${shellName} ${problem}: ${fromShell}`);
     }
     return fromShell.trim();
+  }
+  return undefined;
+}
+
+async function resolveField(field, input) {
+  const { name, label, check, fallback } = field;
+  const fromGiven = givenValue(field, input);
+  if (fromGiven !== undefined) {
+    return fromGiven;
   }
   if (input.prompter === undefined) {
     return fallback;
@@ -129,13 +137,34 @@ async function resolvePassword(name, label, input, answers) {
   throw new Error(`${name} ${problem}; asked ${ATTEMPTS} times`);
 }
 
+function settingCheck(field) {
+  return (value) => field.check(value) ?? envValueProblem(value);
+}
+
+export function checkGivenValues(input) {
+  for (const field of [...SETTINGS, TEST_ID]) {
+    givenValue({ ...field, check: settingCheck(field), shellName: field.name }, input);
+  }
+  for (const flag of ["--customer", "--other-customer", "--tracker"]) {
+    givenValue({ flag, check: blankProblem }, input);
+  }
+  givenValue({ flag: "--key-pattern", check: patternProblem }, input);
+  if (input.switches.has("--save-passwords")) {
+    for (const name of PASSWORD_NAMES) {
+      const fromShell = given(input.shell[name]);
+      const problem = fromShell === undefined ? undefined : envValueProblem(fromShell);
+      if (problem !== undefined) {
+        throw new Error(`${name} ${problem}`);
+      }
+    }
+  }
+}
+
 async function resolveSetting(field, input, answers) {
   if (filled(input.existingEnv[field.name])) {
     return;
   }
-  function check(value) {
-    return field.check(value) ?? envValueProblem(value);
-  }
+  const check = settingCheck(field);
   const fallback = given(input.defaults?.[field.name]) ?? field.fallback;
   const value = await resolveField({ ...field, check, fallback, shellName: field.name }, input);
   if (value !== undefined) {

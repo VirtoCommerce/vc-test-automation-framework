@@ -44,11 +44,14 @@ In a terminal, `init` asks once for each of these and writes the answers to `.en
 3. The login of a customer and of another customer, with their passwords. The logins go to `roles` in
    `.qa/project.json`; the passwords go to `.env`. The customer is required, because the tests sign in to the frontend
    as that customer: a blank answer is asked again. The other customer, who tests that one customer cannot reach
-   another's data, may be left empty when the stand has none; `init` then removes that role from `roles`, `roleFor`
-   and `passwordFor` and does not ask for its password.
+   another's data, may be left empty when the stand has none, or removed with `--no-other-customer`; `init` then
+   removes that role from `roles`, `roleFor` and `passwordFor` and does not ask for its password, on this run or a
+   later one. Both questions are for the roles that `roleFor.customer` and `roleFor.otherCustomer` name.
 4. The tracker, which has no default and must be answered, and the pattern of its ticket keys. `init` checks both as
    `.qa/project.json` does and asks again with the reason: one tracker only (enter the main one, not a list), and a
-   pattern that matches a key of that tracker, such as `ABC-123` for `jira` or a numeric id for `azure-boards`. A
+   pattern that matches a key of that tracker, such as `ABC-123` for `jira` or a numeric id for `azure-boards`. An
+   answer that starts with `jira` (`Jira Cloud`) is written as `jira`, and `Azure Boards` or `Azure DevOps` as
+   `azure-boards`. The pattern of `azure-boards` defaults to `^\d+$`; for any other tracker it must be answered. A
    `--tracker` or `--key-pattern` flag that fails the same check stops `init` before it writes anything.
 5. Where your project's own documentation is: a URL, `mcp:<server name>`, or what to ask a person for. The agents
    read it before the public Virto Commerce documentation, which stays in `docSources` after it. An empty answer skips
@@ -69,7 +72,8 @@ The new `.env` holds no stand values: each key is empty, with an example and the
 starts. Before each check it prints one line, such as `checking the types (npm run codegen)...`, because codegen, the
 first test and the browser server can take minutes; the table follows once every row is done. A backend or frontend
 that does not answer at once is tried again for about two minutes, each attempt waiting up to 20 seconds, so that a
-cloud stand can start; `init` prints `waiting for <origin> to answer...` once while it waits. A failing row names the
+cloud stand can start; `init` prints `waiting for <origin> to answer...` once while it waits. A host name that does
+not resolve at all fails at once, since it is a typo in `.env` rather than a stand that is starting. A failing row names the
 single fix. `init` exits with 0 once it has written its files, whatever the table says,
 because a platform that is still starting needs a minute; it exits with 1 only when it could not do its own work. When
 the platform does not answer, the types and the first test are skipped. If the backend uses a self-signed certificate,
@@ -88,8 +92,8 @@ so it is not ready.
 When there is no terminal (CI, or an agent runs `init`) or you pass `--yes`, `init` asks nothing; without a terminal and
 without `--yes` it prints one line saying so. It takes the values
 from flags and from the shell, and a value still missing keeps the template's default or stays empty, which the table
-shows as a failing or skipped row. Without `--other-customer` the other customer stays the template's example account,
-so the `project facts` row fails until you run `init` in a terminal and leave it empty, or remove that role by hand. Set the passwords in the environment first, from the secret store of your CI or
+shows as a failing or skipped row. Without `--other-customer` or `--no-other-customer` the other customer stays the
+template's example account, so the `project facts` row fails until you give one of them. Set the passwords in the environment first, from the secret store of your CI or
 without typing the value on the command line, so that it stays out of the shell history:
 
 ```shell
@@ -118,6 +122,7 @@ npx vc-qa-agents init --yes \
 | `--store-id`                      | `STORE_ID`                                                                  |
 | `--admin-login`                   | `ADMIN_USERNAME`                                                            |
 | `--customer`, `--other-customer`  | The logins of the customer and of the other customer in `.qa/project.json`  |
+| `--no-other-customer`             | Removes the other customer's role, for a stand that has none                |
 | `--tracker`, `--key-pattern`      | The tracker kind and the pattern of its ticket keys                         |
 | `--docs`                          | Your documentation: a URL, `mcp:<name>` or text, first in `docSources`      |
 | `--test-id-attribute`             | `FRONTEND_TEST_ID_ATTRIBUTE`                                                |

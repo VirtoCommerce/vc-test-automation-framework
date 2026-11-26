@@ -173,6 +173,33 @@ test.describe("checkReachable", () => {
     }
   });
 
+  test("fails at once on an unknown host, and keeps trying a host the resolver could not reach yet", async () => {
+    const failing = (code: string) => {
+      let calls = 0;
+      return {
+        count: () => calls,
+        request: () => {
+          calls += 1;
+          return Promise.reject(Object.assign(new Error(code), { code }));
+        },
+      };
+    };
+    const unknown = failing("ENOTFOUND");
+    const transient = failing("EAI_AGAIN");
+
+    const typo = await checkReachable("http://typo.test", { verifySsl: true, ...FAST, request: unknown.request });
+    const later = await checkReachable("http://later.test", { verifySsl: true, ...FAST, request: transient.request });
+
+    expect(unknown.count()).toBe(1);
+    expect(typo).toEqual({
+      ok: false,
+      detail: "the host of http://typo.test is not known (ENOTFOUND); fix the URL in .env.",
+      certificate: false,
+    });
+    expect(transient.count()).toBe(FAST.attempts);
+    expect(later.detail).toContain("EAI_AGAIN");
+  });
+
   test("fails on a refused connection naming ECONNREFUSED, not as a certificate problem", async () => {
     const server = await httpServer((_incoming, response) => reply(response, 200));
     const { url } = server;
@@ -1049,9 +1076,11 @@ test.describe("probeBrowserServer", () => {
   test("installs the server's browser with its output captured, saying one line either way, masked", () => {
     writeFileSync(join(dir, ".claude", "checks", "browser-mcp.mts"), FAKE_SERVER);
     const commands: string[] = [];
+    const progress: string[] = [];
     const warning = "WARNING: running without first installing your project's dependencies";
 
     const installed = installServerBrowser(dir, dir, {
+      progress: (line: string) => progress.push(line),
       exec: (command: string) => {
         commands.push(command);
         return { status: 0, output: warning };
@@ -1064,6 +1093,7 @@ test.describe("probeBrowserServer", () => {
     const silent = installServerBrowser(dir, dir, { exec: () => ({ status: 3, output: "" }) });
 
     expect(commands).toEqual(["npx -y @playwright/mcp@9.9.9 install-browser chrome-for-testing"]);
+    expect(progress).toEqual(["installing the browser server's browser (@playwright/mcp@9.9.9)..."]);
     expect(installed).toBe("Installed the browser server's browser (@playwright/mcp@9.9.9).");
     expect(failed).toBe("The browser server's own browser was not installed (Error: download failed for ***).");
     expect(silent).toBe(

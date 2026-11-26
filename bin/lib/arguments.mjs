@@ -13,7 +13,7 @@ export const VALUE_FLAGS = [
 
 export const SWITCHES = {
   install: ["--force-ours"],
-  init: ["--skip-install", "--force-ours", "--yes", "--save-passwords", "--skip-verify"],
+  init: ["--skip-install", "--force-ours", "--yes", "--save-passwords", "--skip-verify", "--no-other-customer"],
   uninstall: [],
   doctor: ["--skip-verify"],
 };

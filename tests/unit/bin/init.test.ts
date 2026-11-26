@@ -861,6 +861,9 @@ test.describe("vc-qa-agents init, installing", () => {
     expect(result.stdout).toMatch(/^Installed the browser server's browser \(@playwright\/mcp@\d+\.\d+\.\d+\)\.$/m);
     expect(result.stdout).not.toContain("WARNING");
     expect(result.stdout).not.toContain("install-browser");
+    expect(result.stdout).toMatch(
+      /^installing the browser server's browser \(@playwright\/mcp@\d+\.\d+\.\d+\)\.\.\.$/m,
+    );
   });
 
   test("goes on to the readiness table when the browser server's browser cannot be installed", () => {

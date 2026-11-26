@@ -18,6 +18,7 @@ const CERTIFICATE_CODES = new Set([
   "CERT_UNTRUSTED",
 ]);
 const HOST_MISMATCH = "ERR_TLS_CERT_ALTNAME_INVALID";
+const UNKNOWN_HOST = "ENOTFOUND";
 const TRUST_ANY_CERTIFICATE = { NODE_TLS_REJECT_UNAUTHORIZED: "0" };
 const REACH_TIMEOUT_MS = 20_000;
 const TOKEN_TIMEOUT_MS = 30_000;
@@ -112,6 +113,13 @@ export async function checkReachable(url, options) {
           ok: false,
           detail: `the certificate of ${url} is not trusted (${code}); set VERIFY_SSL=false in .env if the stand uses a self-signed certificate.`,
           certificate: true,
+        };
+      }
+      if (code === UNKNOWN_HOST) {
+        return {
+          ok: false,
+          detail: `the host of ${url} is not known (${code}); fix the URL in .env.`,
+          certificate: false,
         };
       }
       last = `does not answer (${code})`;
@@ -253,7 +261,7 @@ function passwordForNames(projectDir) {
   }
 }
 
-function secretValues(context) {
+export function secretValues(context) {
   const named = new Set(passwordForNames(context.projectDir));
   return Object.entries(context.vars)
     .filter(([key]) => /PASSWORD|SECRET/.test(key) || named.has(key))

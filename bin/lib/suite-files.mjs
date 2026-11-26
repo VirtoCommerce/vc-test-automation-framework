@@ -5,7 +5,7 @@ import { parseEnv } from "node:util";
 const ASSIGNMENT = /^(\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=)(.*)$/;
 const EMPTY_WITH_COMMENT = /^\s*(?:(["'`])\1)?\s*(#.*)?$/;
 const TEMPLATE_ADMINISTRATOR = "admin";
-const OTHER_CUSTOMER_ROLE = "other customer";
+const ROLE_FOR_PURPOSE = { customer: "customer", otherCustomer: "other customer" };
 
 function lineEnding(text) {
   return text.includes("\r\n") ? "\r\n" : "\n";
@@ -88,9 +88,15 @@ function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+export function roleNameFor(facts, purpose) {
+  const roleFor = isRecord(facts["roleFor"]) ? facts["roleFor"] : {};
+  const name = roleFor[purpose];
+  return typeof name === "string" && name !== "" ? name : ROLE_FOR_PURPOSE[purpose];
+}
+
 function withoutOtherCustomer(facts, roles) {
   const roleFor = isRecord(facts["roleFor"]) ? facts["roleFor"] : {};
-  const role = typeof roleFor["otherCustomer"] === "string" ? roleFor["otherCustomer"] : OTHER_CUSTOMER_ROLE;
+  const role = roleNameFor(facts, "otherCustomer");
   delete roleFor["otherCustomer"];
   if (Object.values(roleFor).includes(role)) {
     return;
@@ -111,12 +117,12 @@ export function applyFacts(facts, answers, adminLogin) {
     roles["administrator"] = adminLogin;
   }
   if (answers.roles.customer !== undefined) {
-    roles["customer"] = answers.roles.customer;
+    roles[roleNameFor(result, "customer")] = answers.roles.customer;
   }
   if (answers.roles.otherCustomer === null) {
     withoutOtherCustomer(result, roles);
   } else if (answers.roles.otherCustomer !== undefined) {
-    roles["other customer"] = answers.roles.otherCustomer;
+    roles[roleNameFor(result, "otherCustomer")] = answers.roles.otherCustomer;
   }
   if (Object.keys(roles).length > 0) {
     result["roles"] = roles;

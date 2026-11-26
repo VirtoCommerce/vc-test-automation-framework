@@ -38,6 +38,13 @@ test.describe("parseArguments", () => {
     expect([...parsed.switches].sort()).toEqual([...SWITCHES.init].sort());
   });
 
+  test("reads --no-other-customer as a switch of init only", () => {
+    expect([...parse("init", "--no-other-customer").switches]).toEqual(["--no-other-customer"]);
+    expect(() => parse("init", "--no-other-customer=1")).toThrow(USAGE);
+    expect(() => parse("doctor", "--no-other-customer")).toThrow(USAGE);
+    expect(() => parse("--no-other-customer")).toThrow(USAGE);
+  });
+
   test("refuses a value flag without a value", () => {
     expect(() => parse("init", "--backend-url")).toThrow(USAGE);
     expect(() => parse("init", "--backend-url", "--yes")).toThrow(USAGE);

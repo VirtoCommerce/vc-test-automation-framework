@@ -4,8 +4,8 @@ const SAMPLE_NUMBERS = ["1", "12", "123", "1234", "12345", "123456", "1234567"];
 const WORK_ITEM_PREFIXES = ["", "AB#", "#"];
 const LOST_ESCAPE = /(?<![\\A-Za-z0-9])[dws][+*{]/;
 const KIND_SEPARATOR = /[,;/+&|]|\s(?:and|or)\s/i;
-const AZURE_BOARDS = /^azure[\s_-]*boards$/i;
-const KNOWN_KINDS = ["jira", "azure-boards"];
+const AZURE_BOARDS = /^azure[\s_-]*(boards|devops)\b/i;
+const JIRA = /^jira\b/i;
 const SEVERAL_TRACKERS = "one tracker only for now (enter the main one)";
 const KEY_EXAMPLE = {
   jira: "must match a jira key such as ABC-123: the project key, a dash and the number, as in ^ABC-\\d+$",
@@ -30,8 +30,7 @@ export function trackerKind(value) {
   if (AZURE_BOARDS.test(text)) {
     return "azure-boards";
   }
-  const lower = text.toLowerCase();
-  return KNOWN_KINDS.includes(lower) ? lower : text;
+  return JIRA.test(text) ? "jira" : text;
 }
 
 export function trackerKindProblem(value) {
@@ -39,14 +38,7 @@ export function trackerKindProblem(value) {
   if (text === "") {
     return "must not be blank";
   }
-  if (KIND_SEPARATOR.test(text)) {
-    return SEVERAL_TRACKERS;
-  }
-  const words = text.split(/\s+/);
-  if (!AZURE_BOARDS.test(text) && words.length > 1 && words.some((word) => KNOWN_KINDS.includes(trackerKind(word)))) {
-    return SEVERAL_TRACKERS;
-  }
-  return undefined;
+  return KIND_SEPARATOR.test(text) ? SEVERAL_TRACKERS : undefined;
 }
 
 export function keyPatternProblem(kind, keyPattern) {

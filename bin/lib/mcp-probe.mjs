@@ -15,6 +15,7 @@ const TELLING_LINE = /error|cannot|failed|not found/i;
 const PINNED_PACKAGE = /BROWSER_SERVER_PACKAGE\s*=\s*["'`]([^"'`]+)["'`]/;
 const FALLBACK_PACKAGE = "@playwright/mcp";
 const NO_RESULT = "the browser server sent no result";
+const EXEC_MAX_BUFFER = 64 * 1_048_576;
 
 function firstLine(text, secrets) {
   const line = text
@@ -54,7 +55,13 @@ export function browserInstallCommand(projectDir) {
 }
 
 function runCaptured(command, cwd) {
-  const result = spawnSync(command, { cwd, shell: true, encoding: "utf8", windowsHide: true });
+  const result = spawnSync(command, {
+    cwd,
+    shell: true,
+    encoding: "utf8",
+    windowsHide: true,
+    maxBuffer: EXEC_MAX_BUFFER,
+  });
   const output = [result.stdout, result.stderr].filter((part) => typeof part === "string" && part !== "").join("\n");
   if (result.error !== undefined) {
     return { status: 1, output: `${output}\n${result.error.code ?? result.error.message}` };
@@ -64,6 +71,7 @@ function runCaptured(command, cwd) {
 
 export function installServerBrowser(projectDir, cwd, options = {}) {
   const command = browserInstallCommand(projectDir);
+  options.progress?.(`installing the browser server's browser (${serverPackage(projectDir)})...`);
   const result = (options.exec ?? runCaptured)(command, cwd);
   if (result.status === 0) {
     return `Installed the browser server's browser (${serverPackage(projectDir)}).`;

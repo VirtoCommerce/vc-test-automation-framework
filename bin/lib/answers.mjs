@@ -1,9 +1,10 @@
-import { envValueProblem } from "./suite-files.mjs";
+import { applyFacts, envValueProblem, roleNameFor } from "./suite-files.mjs";
 import { keyPatternProblem, trackerKind, trackerKindProblem } from "./tracker-key.mjs";
 
 export const PASSWORD_NAMES = ["ADMIN_PASSWORD", "CUSTOMER_PASSWORD", "OTHER_CUSTOMER_PASSWORD"];
 
 const ATTEMPTS = 3;
+const NO_OTHER_CUSTOMER = "--no-other-customer";
 const PLACEHOLDER_DOMAIN = "@your-company.test";
 const TEMPLATE_TRACKER = { kind: "jira", keyPattern: "^PROJ-\\d+$" };
 const KEY_PATTERN_FOR = { "azure-boards": "^\\d+$" };
@@ -191,6 +192,9 @@ export function checkGivenValues(input) {
   for (const flag of ["--customer", "--other-customer"]) {
     givenValue({ flag, check: blankProblem }, input);
   }
+  if (input.switches.has(NO_OTHER_CUSTOMER) && given(input.values["--other-customer"]) !== undefined) {
+    throw new Error(`${NO_OTHER_CUSTOMER} and --other-customer cannot be given together`);
+  }
   const kind = givenValue({ flag: "--tracker", check: trackerKindProblem }, input);
   givenValue({ flag: "--key-pattern", check: (value) => keyPatternProblem(kind, value) }, input);
   givenValue({ flag: "--docs", check: docsProblem }, input);
@@ -230,8 +234,22 @@ function roleOf(facts, role) {
   return roles !== null && typeof roles === "object" ? roles[role] : undefined;
 }
 
+function namesPassword(facts, name) {
+  const passwordFor = facts["passwordFor"];
+  if (passwordFor === null || typeof passwordFor !== "object") {
+    return true;
+  }
+  return Object.entries(passwordFor).some(([role, variable]) => variable === name && roleOf(facts, role) !== undefined);
+}
+
+async function resolveRolePassword(name, label, input, answers) {
+  if (namesPassword(applyFacts(input.facts, answers), name)) {
+    await resolvePassword(name, label, input, answers);
+  }
+}
+
 async function resolveCustomer(input, answers) {
-  if (!isPlaceholder(roleOf(input.facts, "customer"))) {
+  if (!isPlaceholder(roleOf(input.facts, roleNameFor(input.facts, "customer")))) {
     return;
   }
   const login = await resolveField(
@@ -244,7 +262,14 @@ async function resolveCustomer(input, answers) {
 }
 
 async function resolveOtherCustomer(input, answers) {
-  if (!isPlaceholder(roleOf(input.facts, "other customer"))) {
+  const role = roleNameFor(input.facts, "otherCustomer");
+  if (input.switches.has(NO_OTHER_CUSTOMER)) {
+    if (roleOf(input.facts, role) !== undefined) {
+      answers.roles.otherCustomer = null;
+    }
+    return;
+  }
+  if (!isPlaceholder(roleOf(input.facts, role))) {
     return;
   }
   const login = await resolveField(
@@ -298,6 +323,7 @@ async function resolveTracker(input, answers) {
       label: keyPatternLabel(kind),
       check: (value) => keyPatternProblem(kind, value),
       fallback: KEY_PATTERN_FOR[kind],
+      required: KEY_PATTERN_FOR[kind] === undefined,
     },
     input,
   );
@@ -345,11 +371,9 @@ export async function resolveAnswers(input) {
   }
   await resolvePassword("ADMIN_PASSWORD", "Administrator password", input, answers);
   await resolveCustomer(input, answers);
-  await resolvePassword("CUSTOMER_PASSWORD", "Customer password", input, answers);
+  await resolveRolePassword("CUSTOMER_PASSWORD", "Customer password", input, answers);
   await resolveOtherCustomer(input, answers);
-  if (answers.roles.otherCustomer !== null) {
-    await resolvePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
-  }
+  await resolveRolePassword("OTHER_CUSTOMER_PASSWORD", "Other customer password", input, answers);
   const tracker = await resolveTracker(input, answers);
   if (tracker !== undefined) {
     answers.tracker = tracker;

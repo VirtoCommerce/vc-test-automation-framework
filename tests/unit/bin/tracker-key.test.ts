@@ -54,18 +54,37 @@ test.describe("keyPatternProblem", () => {
 
 test.describe("trackerKindProblem", () => {
   test("refuses several trackers and a blank kind, and accepts one tracker of any name", () => {
-    for (const kind of ["jira, azure-boards", "jira/azure-boards", "jira and azure-boards", "jira azure-boards"]) {
+    for (const kind of ["jira, azure-boards", "jira/azure-boards", "jira and azure-boards", "jira; youtrack"]) {
       expect(trackerKindProblem(kind)).toBe("one tracker only for now (enter the main one)");
     }
     expect(trackerKindProblem("  ")).toBe("must not be blank");
-    for (const kind of ["jira", "azure-boards", "Azure Boards", "YouTrack", "GitHub Issues"]) {
+    const single = [
+      "jira",
+      "Jira Cloud",
+      "Jira Server",
+      "Jira Data Center",
+      "Azure Boards",
+      "YouTrack",
+      "GitHub Issues",
+    ];
+    for (const kind of single) {
       expect(trackerKindProblem(kind)).toBeUndefined();
     }
   });
 
   test("writes a known tracker in the facts' spelling and keeps any other name as typed", () => {
-    expect(trackerKind(" Jira ")).toBe("jira");
-    expect(trackerKind("Azure Boards")).toBe("azure-boards");
+    for (const kind of [" Jira ", "Jira Cloud", "Jira Server", "jira data center"]) {
+      expect(trackerKind(kind)).toBe("jira");
+    }
+    for (const kind of ["Azure Boards", "azure-boards", "azure_boards", "Azure DevOps", "azure devops boards"]) {
+      expect(trackerKind(kind)).toBe("azure-boards");
+    }
     expect(trackerKind("YouTrack")).toBe("YouTrack");
+    expect(trackerKind("Jirassic")).toBe("Jirassic");
+  });
+
+  test("checks the key pattern of a jira or azure-boards variant as that tracker's", () => {
+    expect(keyPatternProblem("Jira Cloud", "^SHOP$")).toMatch(/^must match a jira key/);
+    expect(keyPatternProblem("Azure DevOps", "SHOP")).toMatch(/^must match an azure-boards work item id/);
   });
 });

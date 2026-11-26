@@ -12,7 +12,7 @@ import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
 import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
 import { installServerBrowser } from "./lib/mcp-probe.mjs";
 import { createPrompter, isInteractive } from "./lib/prompts.mjs";
-import { formatTable, runReadiness } from "./lib/readiness.mjs";
+import { formatTable, runReadiness, secretValues } from "./lib/readiness.mjs";
 import { discardOnFailure, removeIfCreated, writeAnswers } from "./lib/suite-files.mjs";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,7 +28,8 @@ const USAGE = [
   "  npx vc-qa-agents [--force-ours]           install the QA agents into .claude/",
   "  npx vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] [--yes] [--save-passwords]",
   "      [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] [--admin-login <login>]",
-  "      [--customer <email>] [--other-customer <email>] [--tracker <name>] [--key-pattern <pattern>]",
+  "      [--customer <email>] [--other-customer <email> | --no-other-customer] [--tracker <name>]",
+  "      [--key-pattern <pattern>]",
   "      [--docs <url | mcp:server | text>] [--test-id-attribute <attribute>]",
   "                                            write a test suite (into the directory, if given), with the agents,",
   "                                            ask for what it needs and check that it is ready",
@@ -42,7 +43,6 @@ const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
 const FACTS_CHECK = ".claude/checks/project-facts.mts";
 const CANCELLED = "cancelled";
-const SECRET_NAME = /PASSWORD|SECRET/;
 const NO_TERMINAL = "No terminal: nothing was asked; pass the values as flags or edit .env.";
 const ROOT_DIR = ".";
 const QA_DIR = ".qa/";
@@ -533,15 +533,9 @@ function runVariables(target, suiteDir) {
   return vars;
 }
 
-function passwordValues(vars) {
-  return Object.entries(vars)
-    .filter(([name, value]) => SECRET_NAME.test(name) && typeof value === "string" && value !== "")
-    .map(([, value]) => value);
-}
-
 function installBrowserOfServer(target, suiteDir) {
-  const secrets = passwordValues(runVariables(target, suiteDir));
-  printLines([installServerBrowser(target, join(target, suiteDir), { secrets })]);
+  const secrets = secretValues({ projectDir: target, vars: runVariables(target, suiteDir) });
+  printLines([installServerBrowser(target, join(target, suiteDir), { secrets, progress: printProgress })]);
 }
 
 function printProgress(line) {

@@ -5,6 +5,8 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rm
 import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
+
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
 const AGENTS_ROOT = ".claude";
@@ -478,12 +480,17 @@ function pointFactsAtSuite(target, suiteDir) {
   writeFileSync(path, `${JSON.stringify(facts, null, 2)}\n`);
 }
 
-function mergePackageJson(target) {
+function readOwnManifest() {
+  return JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
+}
+
+function mergePackageJson(target, own) {
   const path = join(target, "package.json");
   const manifest = existsSync(path)
     ? JSON.parse(readFileSync(path, "utf8"))
     : { name: basename(target), private: true };
   manifest.type = "module";
+  manifest.overrides = withOverrides(manifest, suiteOverrides(own)).overrides;
   manifest.scripts = { ...SUITE_SCRIPTS, ...manifest.scripts };
   if (manifest.scripts.test?.startsWith('echo "Error: no test specified"')) {
     manifest.scripts.test = SUITE_SCRIPTS.test;
@@ -499,10 +506,8 @@ function run(command, target) {
   }
 }
 
-function installDependencies(target) {
-  const own = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
-  const versions = { ...own.peerDependencies, ...own.devDependencies };
-  const specs = SUITE_DEPENDENCIES.map((name) => `${name}@${JSON.stringify(versions[name] ?? "latest")}`);
+function installDependencies(target, own) {
+  const specs = dependencySpecs(own, SUITE_DEPENDENCIES);
   run(`npm install --save-dev --save-exact ${specs.join(" ")}`, target);
   run("npx playwright install chromium", target);
 }
@@ -519,10 +524,11 @@ function init(target, { skipInstall, suiteDir, forceOurs }) {
     pointFactsAtSuite(target, suiteDir);
     lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
   }
-  mergePackageJson(suite);
+  const own = readOwnManifest();
+  mergePackageJson(suite, own);
   lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
   if (!skipInstall) {
-    installDependencies(suite);
+    installDependencies(suite, own);
   }
   if (written.includes(MCP_FILE)) {
     lines.push(

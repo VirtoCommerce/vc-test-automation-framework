@@ -103,9 +103,28 @@ test.describe("browser MCP launcher", () => {
     expect(readFileSync(join(dir, BROWSER_SECRETS_PATH), "utf8")).toBe("ADMIN_PASSWORD='admin-secret'\n");
   });
 
-  test("--prepare-only writes no secrets file when no password is set", () => {
+  test("takes no suiteDir outside the repository, and warns instead of stopping on a .env it cannot read", () => {
+    const facts = { ...JSON.parse(readFileSync(TEMPLATE_FACTS, "utf8")), suiteDir: "../elsewhere" };
+    writeProject(dir, "ADMIN_PASSWORD=from-root\n", JSON.stringify(facts));
+
+    const outside = tolerantRunVariables(dir, {});
+
+    expect(outside.vars["ADMIN_PASSWORD"]).toBe("from-root");
+    expect(outside.warnings.join("\n")).toContain("suiteDir");
+
+    rmSync(join(dir, ".env"));
+    mkdirSync(join(dir, ".env"));
+
+    const unreadable = prepareLaunch(dir, { CUSTOMER_PASSWORD: "c1" });
+
+    expect(unreadable.secrets).toEqual({ CUSTOMER_PASSWORD: "c1" });
+    expect(unreadable.warnings.join("\n")).toContain(".env cannot be read");
+  });
+
+  test("--prepare-only removes the secrets file of an earlier start when no password is set", () => {
     cpSync(CHECKS, join(dir, ".claude", "checks"), { recursive: true });
     writeProject(dir, "");
+    writeFileSync(join(dir, BROWSER_SECRETS_PATH), "ADMIN_PASSWORD='old-secret'\n");
     const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !PASSWORD_NAMES.includes(name)));
 
     const result = spawnSync(process.execPath, [join(dir, ".claude", "checks", "browser-mcp.mts"), "--prepare-only"], {
@@ -127,5 +146,14 @@ test.describe("browser MCP launcher", () => {
     expect(status).toContain("OTHER_CUSTOMER_PASSWORD");
     expect(status).not.toContain("ADMIN_PASSWORD");
     expect(status).not.toContain(BROWSER_SECRETS_PATH);
+  });
+
+  test("sign-in is not ready for a password the launcher cannot pass, and says why without the value", () => {
+    writeProject(dir, "ADMIN_PASSWORD=a'b\nCUSTOMER_PASSWORD=c\nOTHER_CUSTOMER_PASSWORD=o\n");
+
+    const status = signInStatus(dir, {});
+
+    expect(status).toContain("ADMIN_PASSWORD holds a quote or a line break");
+    expect(status).not.toContain("a'b");
   });
 });

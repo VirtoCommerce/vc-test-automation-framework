@@ -3,7 +3,13 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseEnv } from "node:util";
 
-import { PROJECT_FACTS_PATH, ROOT_SUITE_DIR, readProjectFactsIn, suiteEnvPath } from "./project-facts.mts";
+import {
+  PROJECT_FACTS_PATH,
+  parseSuiteDir,
+  ROOT_SUITE_DIR,
+  readProjectFactsIn,
+  suiteEnvPath,
+} from "./project-facts.mts";
 
 export const BROWSER_SECRETS_PATH = ".qa/browser-secrets.local.env";
 const CLI_FILE_NAME = "browser-secrets.mts";
@@ -14,9 +20,15 @@ export type Vars = Readonly<Record<string, string | undefined>>;
 
 type Run = (command: string, args: string[]) => unknown;
 
-function suiteVariables(projectDir: string, suiteDir: string, shell: Vars): Record<string, string | undefined> {
+function envFileVariables(projectDir: string, suiteDir: string): Record<string, string | undefined> {
   const envPath = join(projectDir, suiteEnvPath(suiteDir));
-  const fromFile = existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
+  return existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
+}
+
+function underShell(
+  fromFile: Readonly<Record<string, string | undefined>>,
+  shell: Vars,
+): Record<string, string | undefined> {
   const merged: Record<string, string | undefined> = { ...fromFile };
   for (const [name, value] of Object.entries(shell)) {
     if (value !== undefined && value !== "") {
@@ -33,7 +45,30 @@ function suiteVariables(projectDir: string, suiteDir: string, shell: Vars): Reco
  * @throws Error when the project facts cannot be read.
  */
 export function runVariables(projectDir: string, shell: Vars = process.env): Record<string, string | undefined> {
-  return suiteVariables(projectDir, readProjectFactsIn(projectDir).suiteDir, shell);
+  return underShell(envFileVariables(projectDir, readProjectFactsIn(projectDir).suiteDir), shell);
+}
+
+function tolerantSuiteVariables(
+  projectDir: string,
+  suiteDir: string,
+  shell: Vars,
+  warnings: string[],
+): Record<string, string | undefined> {
+  try {
+    return underShell(envFileVariables(projectDir, suiteDir), shell);
+  } catch {
+    warnings.push(`${suiteEnvPath(suiteDir)} cannot be read, so only the shell's variables are used`);
+    return underShell({}, shell);
+  }
+}
+
+function tolerantSuiteDir(value: unknown, warnings: string[]): string {
+  try {
+    return parseSuiteDir(value);
+  } catch {
+    warnings.push(`${PROJECT_FACTS_PATH} has a suiteDir that is not a plain directory, so the root .env is used`);
+    return ROOT_SUITE_DIR;
+  }
 }
 
 /**
@@ -45,19 +80,17 @@ export function tolerantRunVariables(
   projectDir: string,
   shell: Vars = process.env,
 ): { vars: Record<string, string | undefined>; names: string[]; warnings: string[] } {
+  const warnings: string[] = [];
   let json: unknown;
   try {
     json = JSON.parse(readFileSync(join(projectDir, PROJECT_FACTS_PATH), "utf8"));
   } catch (error) {
     const reason = error instanceof SyntaxError ? "is not valid JSON" : "cannot be read";
-    return {
-      vars: suiteVariables(projectDir, ROOT_SUITE_DIR, shell),
-      names: [],
-      warnings: [`${PROJECT_FACTS_PATH} ${reason}, so no password is passed to the browser server`],
-    };
+    warnings.push(`${PROJECT_FACTS_PATH} ${reason}, so no password is passed to the browser server`);
+    return { vars: tolerantSuiteVariables(projectDir, ROOT_SUITE_DIR, shell, warnings), names: [], warnings };
   }
   const facts = typeof json === "object" && json !== null ? (json as Record<string, unknown>) : {};
-  const suiteDir = typeof facts["suiteDir"] === "string" ? facts["suiteDir"] : ROOT_SUITE_DIR;
+  const suiteDir = tolerantSuiteDir(facts["suiteDir"], warnings);
   const passwordFor =
     typeof facts["passwordFor"] === "object" && facts["passwordFor"] !== null ? facts["passwordFor"] : {};
   const names = passwordNames(
@@ -65,7 +98,7 @@ export function tolerantRunVariables(
       Object.entries(passwordFor).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
     ),
   );
-  return { vars: suiteVariables(projectDir, suiteDir, shell), names, warnings: [] };
+  return { vars: tolerantSuiteVariables(projectDir, suiteDir, shell, warnings), names, warnings };
 }
 
 /** The distinct variable names `passwordFor` lists, sorted. */
@@ -166,11 +199,8 @@ export function signInStatus(projectDir: string, shell: Vars = process.env): str
     return "not available (the project facts have no passwordFor)";
   }
   const vars = runVariables(projectDir, shell);
-  const unset = names.filter((name) => vars[name] === undefined || vars[name] === "");
-  if (unset.length > 0) {
-    return `not available (${unset.join(", ")} not set in the suite's .env or the shell)`;
-  }
-  return "ready";
+  const problems = names.flatMap((name) => secretProblem(name, vars) ?? []);
+  return problems.length > 0 ? `not available (${problems.join("; ")})` : "ready";
 }
 
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {

@@ -1,7 +1,7 @@
 import type { Vars } from "./browser-secrets.mts";
 
 import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -67,11 +67,27 @@ function writeSecrets(projectDir: string, secrets: Readonly<Record<string, strin
     warnings.push(`${BROWSER_SECRETS_PATH} could not be written, so the server starts without the passwords`);
     return false;
   }
-  const restricted = restrictToOwner(filePath);
+  let restricted: string;
+  try {
+    restricted = restrictToOwner(filePath);
+  } catch {
+    warnings.push(
+      `${BROWSER_SECRETS_PATH} could not be restricted to its owner, so the server starts without the passwords`,
+    );
+    return false;
+  }
   if (restricted.startsWith(WARNING)) {
     warnings.push(restricted.slice(WARNING.length).trim());
   }
   return true;
+}
+
+function removeStaleSecrets(projectDir: string, warnings: string[]): void {
+  try {
+    rmSync(join(projectDir, BROWSER_SECRETS_PATH), { force: true });
+  } catch {
+    warnings.push(`${BROWSER_SECRETS_PATH} from an earlier start could not be removed: delete it yourself`);
+  }
 }
 
 function startServer(projectDir: string, withSecrets: boolean): void {
@@ -96,6 +112,9 @@ if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   const projectDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const { secrets, warnings } = prepareLaunch(projectDir);
   const withSecrets = Object.keys(secrets).length > 0 && writeSecrets(projectDir, secrets, warnings);
+  if (!withSecrets) {
+    removeStaleSecrets(projectDir, warnings);
+  }
   for (const warning of warnings) {
     process.stderr.write(`browser-mcp: ${warning}\n`);
   }

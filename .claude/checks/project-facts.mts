@@ -414,7 +414,13 @@ function parseHealerPaths(value: unknown): string[] {
   });
 }
 
-function parseSuiteDir(value: unknown): string {
+/**
+ * The `suiteDir` of the project facts, normalised: `"."` when it is absent, otherwise a plain directory inside the
+ * repository without trailing slashes.
+ *
+ * @throws Error when it is anything else.
+ */
+export function parseSuiteDir(value: unknown): string {
   if (value === undefined || value === ROOT_SUITE_DIR) {
     return ROOT_SUITE_DIR;
   }

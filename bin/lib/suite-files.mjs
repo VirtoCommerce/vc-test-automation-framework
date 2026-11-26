@@ -3,19 +3,43 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 
 const ASSIGNMENT = /^(\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=)(.*)$/;
-const PLAIN_VALUE = /^[^\s#"'`\\]([^#"'`\r\n]*[^\s#"'`])?$/;
+const EMPTY_WITH_COMMENT = /^\s*(?:(["'`])\1)?\s*(#.*)?$/;
 const TEMPLATE_ADMINISTRATOR = "admin";
 
 function lineEnding(text) {
   return text.includes("\r\n") ? "\r\n" : "\n";
 }
 
-function formatValue(value) {
-  if (value === "" || PLAIN_VALUE.test(value)) {
-    return value;
+function storedForm(value) {
+  if (/[\r\n]/.test(value)) {
+    return undefined;
   }
-  const quote = ['"', "'", "`"].find((candidate) => !value.includes(candidate)) ?? '"';
-  return `${quote}${value}${quote}`;
+  return [value, `'${value}'`, `"${value}"`, `\`${value}\``].find(
+    (candidate) => parseEnv(`KEY=${candidate}`)["KEY"] === value,
+  );
+}
+
+export function envValueProblem(value) {
+  return storedForm(value) === undefined
+    ? "cannot be written to .env (quotes of every kind or a line break)"
+    : undefined;
+}
+
+function formatValue(key, value) {
+  const stored = storedForm(value);
+  if (stored === undefined) {
+    throw new Error(`${key} ${envValueProblem(value)}`);
+  }
+  return stored;
+}
+
+function isEmptyValue(line, key) {
+  return parseEnv(line)[key] === "";
+}
+
+function filledValue(key, current, value) {
+  const comment = EMPTY_WITH_COMMENT.exec(current)?.[2];
+  return comment === undefined ? formatValue(key, value) : `${formatValue(key, value)} ${comment}`;
 }
 
 function rewrite(text, values, replace) {
@@ -32,8 +56,10 @@ function rewrite(text, values, replace) {
       continue;
     }
     seen.add(key);
-    if (replace || current.trim() === "") {
-      parts[index] = `${prefix}${formatValue(values[key])}`;
+    if (replace) {
+      parts[index] = `${prefix}${formatValue(key, values[key])}`;
+    } else if (isEmptyValue(parts[index], key)) {
+      parts[index] = `${prefix}${filledValue(key, current, values[key])}`;
     }
   }
   let result = parts.join("");
@@ -44,7 +70,7 @@ function rewrite(text, values, replace) {
     if (result !== "" && !result.endsWith("\n")) {
       result += eol;
     }
-    result += `${key}=${formatValue(value)}${eol}`;
+    result += `${key}=${formatValue(key, value)}${eol}`;
   }
   return result;
 }

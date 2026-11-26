@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { PASSWORD_NAMES, resolveAnswers as resolveUntyped } from "../../../bin/lib/answers.mjs";
+import { applyFacts } from "../../../bin/lib/suite-files.mjs";
 
 type Answers = {
   env: Record<string, string>;
@@ -153,7 +154,7 @@ test.describe("resolveAnswers", () => {
     expect(answers.passwords).toEqual({ ADMIN_PASSWORD: "typed-secret" });
     expect(answers.persistPasswords).toEqual(["ADMIN_PASSWORD"]);
     expect(answers.roles).toEqual({ customer: "buyer@shop.test", otherCustomer: "second@shop.test" });
-    expect(answers.tracker).toEqual({ kind: "jira", keyPattern: "^PROJ-\\d+$" });
+    expect(answers.tracker).toBeUndefined();
     expect(answers.env).toEqual({
       BACKEND_BASE_URL: "https://back.example.test",
       FRONTEND_BASE_URL: "https://front.example.test",
@@ -241,5 +242,52 @@ test.describe("resolveAnswers", () => {
     const changed = await resolveAnswers(input({ values, facts: CHANGED_FACTS }));
     expect(changed.roles).toEqual({});
     expect(changed.tracker).toBeUndefined();
+  });
+  test("an answered tracker is written, and the next run asks nothing about it", async () => {
+    const first = fakePrompter(["", "^ABC-\\d+$"]);
+    const answers = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, facts: { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker }, prompter: first }),
+    );
+    expect(answers.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$" });
+
+    const second = fakePrompter([]);
+    const facts = applyFacts({ ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker }, answers, "admin");
+    const again = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: second }));
+
+    expect(second.asked).toEqual([]);
+    expect(again.tracker).toBeUndefined();
+  });
+
+  test("the template's PROJ pattern is never offered: a blank jira pattern leaves the tracker to do", async () => {
+    const prompter = fakePrompter(["", ""]);
+
+    const answers = await resolveAnswers(
+      input({ existingEnv: FILLED_ENV, facts: { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker }, prompter }),
+    );
+
+    expect(answers.tracker).toBeUndefined();
+    expect(prompter.asked[1]).not.toContain("PROJ");
+  });
+
+  test("a typed password that .env cannot hold is asked again", async () => {
+    const prompter = fakePrompter(["a'b\"c`d #e", "good"]);
+
+    const answers = await resolveAnswers(
+      input({ existingEnv: { ...FILLED_ENV, ADMIN_PASSWORD: "" }, facts: CHANGED_FACTS, prompter }),
+    );
+
+    expect(answers.passwords).toEqual({ ADMIN_PASSWORD: "good" });
+    expect(prompter.secretAsked).toHaveLength(2);
+  });
+
+  test("a shell password .env cannot hold throws only when it is to be saved, naming the variable alone", async () => {
+    const shell = { ADMIN_PASSWORD: "a'b\"c`d #e" };
+
+    const kept = await resolveAnswers(input({ shell }));
+    expect(kept.passwords).toEqual(shell);
+
+    const saving = resolveAnswers(input({ shell, switches: new Set(["--save-passwords"]) }));
+    await expect(saving).rejects.toThrow(/^ADMIN_PASSWORD /);
+    await expect(saving).rejects.not.toThrow(/a'b/);
   });
 });

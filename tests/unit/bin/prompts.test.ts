@@ -86,4 +86,20 @@ test.describe("createPrompter", () => {
     await expect(answer).rejects.toThrow(/^cancelled$/);
     prompter.close();
   });
+  test("exits through onInterrupt on Ctrl+C between questions", async () => {
+    const io = streams();
+    let interrupted = 0;
+    const prompter = createPrompter(io.input, io.output, () => {
+      interrupted += 1;
+    });
+
+    const answer = prompter.ask("Store id");
+    io.write("Store\n");
+    expect(await answer).toBe("Store");
+    io.write("\u0003");
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(interrupted).toBe(1);
+    prompter.close();
+  });
 });

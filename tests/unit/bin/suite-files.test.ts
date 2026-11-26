@@ -28,9 +28,21 @@ test.describe("fillEnvText", () => {
   });
 
   test("quotes a value that Node's .env parser would otherwise cut or trim", () => {
-    for (const value of ["pa#ss", " edge ", `it's "both"`, "back\\slash", "plain-Value_1"]) {
+    const values = ["pa#ss", " edge ", `it's "both"`, "back\\slash", "new\\nline", `a'b\\n"c`, "plain-Value_1"];
+    for (const value of values) {
       expect(parseEnv(fillEnvText("A=\n", { A: value }))["A"]).toBe(value);
     }
+  });
+
+  test("fills a key that the reader takes as empty: empty quotes or only a comment", () => {
+    expect(fillEnvText("A=\"\"\nB= # note\nC=''\n", { A: "1", B: "2" })).toBe("A=1\nB=2 # note\nC=''\n");
+  });
+
+  test("refuses a value no quoting can hold, naming the key and not the value", () => {
+    const value = "x'y\"z`w #c";
+
+    expect(() => fillEnvText("A=\n", { A: value })).toThrow(/^A cannot be written to \.env/);
+    expect(() => fillEnvText("A=\n", { A: value })).not.toThrow(/x'y/);
   });
 
   test("adds a line ending before an appended key when the file has none at its end", () => {

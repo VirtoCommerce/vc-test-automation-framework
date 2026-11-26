@@ -30,12 +30,22 @@ class MutableOutput extends Writable {
   }
 }
 
-export function createPrompter(input = process.stdin, output = process.stdout) {
+function exitInterrupted() {
+  process.exit(130);
+}
+
+export function createPrompter(input = process.stdin, output = process.stdout, onInterrupt = exitInterrupted) {
   const sink = new MutableOutput(output);
   const lines = createInterface({ input, output: sink, terminal: true, historySize: 0 });
   let pending;
   lines.on("SIGINT", () => {
-    pending?.abort();
+    if (pending !== undefined) {
+      pending.abort();
+      return;
+    }
+    lines.close();
+    output.write("\n");
+    onInterrupt();
   });
 
   async function question(text, secret) {

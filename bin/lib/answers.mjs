@@ -1,3 +1,5 @@
+import { envValueProblem } from "./suite-files.mjs";
+
 export const PASSWORD_NAMES = ["ADMIN_PASSWORD", "CUSTOMER_PASSWORD", "OTHER_CUSTOMER_PASSWORD"];
 
 const ATTEMPTS = 3;
@@ -100,6 +102,10 @@ async function resolvePassword(name, label, input, answers) {
   if (fromShell !== undefined) {
     answers.passwords[name] = fromShell;
     if (input.switches.has("--save-passwords")) {
+      const problem = envValueProblem(fromShell);
+      if (problem !== undefined) {
+        throw new Error(`${name} ${problem}`);
+      }
       answers.persistPasswords.push(name);
     }
     return;
@@ -107,18 +113,30 @@ async function resolvePassword(name, label, input, answers) {
   if (input.prompter === undefined) {
     return;
   }
-  const typed = await input.prompter.askSecret(label);
-  if (typed !== "") {
-    answers.passwords[name] = typed;
-    answers.persistPasswords.push(name);
+  let problem;
+  for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
+    const typed = await input.prompter.askSecret(problem === undefined ? label : `${label} (${problem})`);
+    if (typed === "") {
+      return;
+    }
+    problem = envValueProblem(typed);
+    if (problem === undefined) {
+      answers.passwords[name] = typed;
+      answers.persistPasswords.push(name);
+      return;
+    }
   }
+  throw new Error(`${name} ${problem}; asked ${ATTEMPTS} times`);
 }
 
 async function resolveSetting(field, input, answers) {
   if (filled(input.existingEnv[field.name])) {
     return;
   }
-  const value = await resolveField({ ...field, shellName: field.name }, input);
+  function check(value) {
+    return field.check(value) ?? envValueProblem(value);
+  }
+  const value = await resolveField({ ...field, check, shellName: field.name }, input);
   if (value !== undefined) {
     answers.env[field.name] = value;
   }
@@ -172,13 +190,13 @@ async function resolveTracker(input) {
     {
       name: "ticket-key pattern",
       flag: "--key-pattern",
-      label: "Ticket-key pattern (a regular expression)",
+      label: "Ticket-key pattern, a regular expression such as ^ABC-\\d+$",
       check: patternProblem,
-      fallback: KEY_PATTERN_FOR[kind] ?? TEMPLATE_TRACKER.keyPattern,
+      fallback: KEY_PATTERN_FOR[kind],
     },
     input,
   );
-  return { kind, keyPattern };
+  return keyPattern === undefined ? undefined : { kind, keyPattern };
 }
 
 export async function resolveAnswers(input) {

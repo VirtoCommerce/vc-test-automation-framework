@@ -15,8 +15,9 @@ thing left is to start `claude`.
 
 ## Goals
 
-1. After `init` in a terminal, the user needs nothing but `claude`: URLs, store, logins and passwords, tracker and
-   test-id attribute are asked once; `.env` and `.qa/project.json` are written; types are generated; a first test runs.
+1. After `init` in a terminal, the user needs nothing but `claude`: the URLs, the store and the administrator's login
+   and password are asked once, customer accounts optionally; the test-id attribute is detected; `.env` and
+   `.qa/project.json` are written; types are generated; a first test runs.
 2. The browser MCP server starts every time, with no manual secrets step and no stale secrets file.
 3. `init` ends with a readiness table (one line per check, the single fix for each failure), and the same table can be
    printed later by `vc-qa-agents doctor`.
@@ -56,19 +57,27 @@ object.
 
 - **Interactive** (stdin and stdout are a TTY, no `--yes`): asks the questions below.
 - **Otherwise** (CI, an agent, `--yes`): takes values from flags and from the shell environment, never prompts; a value
-  still missing keeps the template's default or stays empty and shows as `to do` in the readiness table.
+  still missing stays empty and shows as a failing or skipped row in the readiness table.
 
 Re-running is safe: a key that is already non-empty in `.env`, or a role/tracker already changed from the template in
 `.qa/project.json`, is not asked and not changed. Empty `KEY=` lines in `.env` are filled in place.
 
 ### Questions, in order
 
+Five required questions, with no default (the template `.env` is empty):
+
 1. Backend URL (`BACKEND_BASE_URL`), Frontend URL (`FRONTEND_BASE_URL`), `STORE_ID`.
-2. Administrator: login (`ADMIN_USERNAME`, default `admin`) and password (`ADMIN_PASSWORD`).
-3. Customer and other customer: login (goes to `roles` in `.qa/project.json`) and password (`CUSTOMER_PASSWORD`,
-   `OTHER_CUSTOMER_PASSWORD`).
-4. Tracker kind and ticket-key pattern (one of the kinds `project-facts.mts` accepts; default from the template).
-5. Test-id attribute (default `data-test-id`).
+2. Administrator: login (`ADMIN_USERNAME`) and password (`ADMIN_PASSWORD`).
+
+Then one optional step, for a stand where test data cannot be seeded: a customer login (empty ends the step), its
+password, another customer's login (a customer of another organization, may be empty) and its password. Logins go to
+`roles`, `roleFor` and `passwordFor` in `.qa/project.json`, passwords (`CUSTOMER_PASSWORD`, `OTHER_CUSTOMER_PASSWORD`)
+to `.env`. While the facts have no customer, a run in a terminal asks this step again.
+
+The tracker and its key pattern, the project's documentation and the test-id attribute are never asked: they come from
+flags (`--tracker`, `--key-pattern`, `--docs`, `--test-id-attribute`), and the test-id attribute otherwise from the
+browser probe (below). In `project-facts.mts` the customer and the tracker are optional; `roleFor.otherCustomer`
+without `roleFor.customer` is refused. Without a tracker the agents read a ticket from pasted text.
 
 Passwords are typed with hidden input. They are never accepted as flags; in non-interactive mode they come from the
 shell variables `ADMIN_PASSWORD`, `CUSTOMER_PASSWORD`, `OTHER_CUSTOMER_PASSWORD` (the names `passwordFor` already uses).
@@ -76,14 +85,19 @@ shell variables `ADMIN_PASSWORD`, `CUSTOMER_PASSWORD`, `OTHER_CUSTOMER_PASSWORD`
 ### Flags
 
 New: `--backend-url`, `--frontend-url`, `--store-id`, `--admin-login`, `--customer`, `--other-customer`, `--tracker`,
-`--key-pattern`, `--test-id-attribute`, `--yes`, `--save-passwords`, `--skip-verify` (no network: skip codegen, the first test and the
-reachability rows). Kept: `--skip-install`, `--force-ours`. Unknown flags still fail with the usage line.
+`--key-pattern`, `--docs`, `--test-id-attribute`, `--frontend-sign-in oauth|cookie`, `--yes`, `--save-passwords`,
+`--skip-verify` (no network: skip codegen, the first test and the reachability rows). Kept: `--skip-install`,
+`--force-ours`. Unknown flags still fail with the usage line. Every given flag is checked before `init` writes
+anything. `--frontend-sign-in cookie` writes a `cookieSignIn` stub into a `fixtures/index.ts` this run created.
 
 ### Test-id attribute
 
-Written to `.env` as `FRONTEND_TEST_ID_ATTRIBUTE` (optional in `env.ts`, default `data-test-id`) and read by the template's
-`playwright.config.ts` through `defaultUse(env, { testIdAttribute })`. A suite that keeps `defaultUse(env)` behaves as
-before. The skills `vc-create-ui-layer` and `vc-explore-frontend` now state `data-test-id` as a fact; they must instead
+Kept in `.env` as `FRONTEND_TEST_ID_ATTRIBUTE` (optional in `env.ts`; empty means `data-test-id`) and read by the
+template's `playwright.config.ts` through `defaultUse(env, { testIdAttribute })`. A suite that keeps `defaultUse(env)`
+behaves as before. When it is empty and no `--test-id-attribute` is given, the `browser server` row (init and doctor)
+calls `browser_evaluate` after `browser_navigate`, counts the elements carrying `data-testid`, `data-test-id`,
+`data-test`, `data-qa` and `data-cy`, and writes the most used one; a tie or none leaves it empty. A value that is set
+is never changed: the row notes the attribute the frontend uses instead. A failed evaluate never fails the row. The skills `vc-create-ui-layer` and `vc-explore-frontend` now state `data-test-id` as a fact; they must instead
 point to the suite's configured value.
 
 ### MCP launcher
@@ -107,14 +121,17 @@ point to the suite's configured value.
 Printed at the end of `init` and by `vc-qa-agents doctor`; one line each, `ok` / `fail` / `skipped`, and one fix for a
 failure:
 
-| Check             | Meaning                                                                 |
-| ----------------- | ----------------------------------------------------------------------- |
-| backend, frontend | the URL answers (short timeout, a few retries: a cold platform is slow) |
-| administrator     | a token request with the `.env` credentials succeeds                    |
-| project facts     | `project-facts.mts` passes                                              |
-| types             | REST and GraphQL types are generated                                    |
-| first test        | the template's read-only test passes                                    |
-| browser server    | the launcher starts, answers an MCP `initialize`, and is stopped        |
+| Check             | Meaning                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| backend, frontend | the URL answers (about 120 s of retries, 20 s each: a cold stand is slow)              |
+| administrator     | a token request with the `.env` credentials succeeds                                   |
+| project facts     | `project-facts.mts` passes                                                             |
+| types             | REST and GraphQL types are generated                                                   |
+| first test        | the template's read-only test passes                                                   |
+| browser server    | the launcher starts, opens the frontend, detects the test-id attribute, and is stopped |
+
+Before each row `init` prints one progress line (`checking the types (npm run codegen)...`, ASCII dots), and once
+`waiting for <origin> to answer...` while it retries.
 
 The last line is `Ready: run claude in <dir>` or the failing rows. `init` exits 0 when it wrote its files, whatever the
 table says (a stand can be cold); it exits 1 only when it could not do its own work. Codegen and the first test are
@@ -166,7 +183,7 @@ equals the preset's; the same run with `--yes` and flags in a shell without a TT
 - **Chromium for the MCP server.** `@playwright/mcp@0.0.84` brings its own Playwright, whose Chromium revision can differ
   from the suite's. The `browser server` row therefore also opens the frontend page through the server
   (`browser_navigate`), not only `initialize`; when the browser is missing it names the fix, and `init` installs the
-  server's own browser (`browser_install` / the server's install command, the builder picks).
+  server's own browser with `npx -y <pinned package> install-browser chrome-for-testing` after the dependencies.
 - **Invalid facts do not stop the launcher.** If `.qa/project.json` is unreadable or still the template, the launcher falls
   back to the suite's `.env` (`.` when `suiteDir` cannot be read), writes no secrets file, and warns on stderr. So
   `runVariables` is split into a tolerant reader (the launcher) and the strict one (`stand.mts`).
@@ -180,6 +197,27 @@ equals the preset's; the same run with `--yes` and flags in a shell without a TT
   on a certificate error, interactive `init` asks once whether to set `VERIFY_SSL=false`; non-interactive says so in the
   row. No flag for it.
 - **Biome.** The exact pin goes on the package's `devDependencies`; the `peerDependencies` range stays.
+
+## Changed after live runs (2026-11-26)
+
+- **Five required questions plus an optional customer step.** Most stands seed their own customers; asking for them
+  every time blocked a first run on a stand that has none.
+- **Tracker, docs and test-id are flags only.** None of them is needed to start the suite, and each question was a
+  place to stop or guess.
+- **Customer and tracker optional in the facts check; `otherCustomer` needs `customer`.** The facts must pass on a
+  stand with no customers and no tracker, and another customer only means something next to a first one.
+- **Template `.env.example` empty, examples in comments.** A prefilled example value was taken for an answer and
+  shown as a default.
+- **Test-id attribute detected by the browser probe.** A live frontend used `data-testid`; the fixed `data-test-id`
+  default would have broken every `getByTestId` locator silently.
+- **`init` installs the browser server's own browser (`install-browser chrome-for-testing`).** The pinned
+  `@playwright/mcp` needs that build, which `npx playwright install chromium` does not install.
+- **`--frontend-sign-in oauth|cookie`.** A frontend that keeps its session in cookies needs a different sign-in
+  strategy than the Virto Commerce frontend's OAuth token.
+- **`.claude/settings.local.json` ignored.** A person's own permission rules must never be committed with the suite.
+- **Progress lines.** Codegen, the first test and the browser server take minutes; a silent terminal looked hung.
+- **About 120 s wait for a cold stand.** A cloud stand that is starting answers only after a minute or two; a few short
+  retries failed it.
 
 ## Left to the builder
 

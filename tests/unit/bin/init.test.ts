@@ -54,6 +54,27 @@ test.describe("vc-qa-agents init", () => {
     expect(readJson(join(dir, ".qa", "project.json"))).toMatchObject({ suiteDir: "." });
   });
 
+  test("makes the first test read-only and keeps the user-creating one as an example", () => {
+    initIn(dir);
+
+    const signIn = readFileSync(join(dir, "tests/restapi/security/sign-in.spec.ts"), "utf8");
+    expect(existsSync(join(dir, "tests/restapi/security/create-user.example.ts"))).toBe(true);
+    expect(signIn).toContain("currentuser");
+    expect(signIn).not.toContain("arrange");
+  });
+
+  test("makes the test id attribute a setting of the suite, and tells the agents where it is", () => {
+    initIn(dir);
+
+    expect(readFileSync(join(dir, ".env.example"), "utf8")).toContain("FRONTEND_TEST_ID_ATTRIBUTE=data-test-id");
+    expect(readFileSync(join(dir, "playwright.config.ts"), "utf8")).toContain(
+      "testIdAttribute: env.FRONTEND_TEST_ID_ATTRIBUTE",
+    );
+    for (const skill of ["vc-create-ui-layer", "vc-explore-frontend"]) {
+      expect(shipped(`.claude/skills/${skill}/SKILL.md`), skill).toContain("FRONTEND_TEST_ID_ATTRIBUTE");
+    }
+  });
+
   test("adds the scripts to package.json and keeps the ones that exist", () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "suite", scripts: { test: "custom" } }));
 

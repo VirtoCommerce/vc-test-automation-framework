@@ -148,8 +148,9 @@ page.locator(".coupons-section");
 locator.filter({ hasText: exactText(name) });
 ```
 
-- `getByTestId` first: the suite's `testIdAttribute` is `data-test-id` (the framework's `defaultUse`). Then roles,
-  data attributes for item identity, and component classes only where there is no test id yet.
+- `getByTestId` first: the suite sets the attribute in `playwright.config.ts` from `FRONTEND_TEST_ID_ATTRIBUTE`
+  (default `data-test-id`). Then roles, data attributes for item identity, and component classes only where there
+  is no test id yet.
 - `exactText` narrows by text when names share prefixes.
 - A UI-kit class (`.vc-*`) goes into a wrapper in `frontend/ui-kit/` or `backend/vc-shell/`, never into a component
   or page.

@@ -39,7 +39,8 @@ From the page snapshot and the shipped page extractor (`browser_evaluate` with `
 `.claude/checks/explore-extractors.mts`, the only script the hook allows), list the elements a test
 would use: for each, the best selector in the framework's order from `vc-create-ui-layer` "Locator Conventions":
 
-1. the test id attribute (`getByTestId`);
+1. the test id attribute (`getByTestId`); the suite sets it in `playwright.config.ts` from `FRONTEND_TEST_ID_ATTRIBUTE`
+   (default `data-test-id`);
 2. a data attribute that names the item (a SKU, an id);
 3. a component class, only where no test id exists;
 4. anything else (text, position, generated class names) is marked `fragile`.

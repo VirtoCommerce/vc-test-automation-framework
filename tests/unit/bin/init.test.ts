@@ -269,7 +269,7 @@ const FLAGS = [
   "--tracker",
   "jira",
   "--key-pattern",
-  "^VCST-\\d+$",
+  "^ABC-\\d+$",
 ];
 
 function initRun(dir: string, args: string[], variables: Record<string, string> = {}) {
@@ -338,7 +338,7 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     const facts = readJson(join(dir, ".qa", "project.json"));
     expect(facts).toMatchObject({
       roles: { administrator: "admin", customer: "buyer@shop.test", "other customer": "second@shop.test" },
-      tracker: { kind: "jira", keyPattern: "^VCST-\\d+$" },
+      tracker: { kind: "jira", keyPattern: "^ABC-\\d+$" },
     });
   });
 

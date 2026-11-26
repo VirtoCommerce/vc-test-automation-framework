@@ -16,7 +16,7 @@ const FACT_FLAGS = [
   "--tracker",
   "jira",
   "--key-pattern",
-  "^VCST-\\d+$",
+  "^ABC-\\d+$",
 ];
 
 function agents(dir: string, ...args: string[]) {

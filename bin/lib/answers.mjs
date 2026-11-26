@@ -6,7 +6,7 @@ const ATTEMPTS = 3;
 const PLACEHOLDER_DOMAIN = "@your-company.test";
 const TEMPLATE_TRACKER = { kind: "jira", keyPattern: "^PROJ-\\d+$" };
 const KEY_PATTERN_FOR = { "azure-boards": "^\\d+$" };
-const KEY_EXAMPLE = { pattern: "^VCST-\\d+$", key: "VCST-123" };
+const KEY_EXAMPLE = { pattern: "^ABC-\\d+$", key: "ABC-123" };
 const KEY_EXAMPLE_FOR = { "azure-boards": { pattern: "^\\d+$", key: "1234" } };
 
 function keyPatternLabel(kind) {

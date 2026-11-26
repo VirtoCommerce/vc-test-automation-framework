@@ -347,7 +347,7 @@ test.describe("resolveAnswers", () => {
 
   test("the tracker question has no default, says what it wants, and shows an example key for the kind", async () => {
     const facts = { ...CHANGED_FACTS, tracker: TEMPLATE_FACTS.tracker };
-    const jira = fakePrompter(["jira", "^VCST-\\d+$"]);
+    const jira = fakePrompter(["jira", "^ABC-\\d+$"]);
     const boards = fakePrompter(["azure-boards", ""]);
 
     const answered = await resolveAnswers(input({ existingEnv: FILLED_ENV, facts, prompter: jira }));
@@ -355,10 +355,10 @@ test.describe("resolveAnswers", () => {
 
     expect(jira.asked).toEqual([
       "Where are your tickets tracked? (jira, azure-boards or another tracker's name)",
-      "Ticket key pattern, such as ^VCST-\\d+$ for keys like VCST-123",
+      "Ticket key pattern, such as ^ABC-\\d+$ for keys like ABC-123",
     ]);
     expect(boards.asked[1]).toBe("Ticket key pattern, such as ^\\d+$ for keys like 1234");
-    expect(answered.tracker).toEqual({ kind: "jira", keyPattern: "^VCST-\\d+$" });
+    expect(answered.tracker).toEqual({ kind: "jira", keyPattern: "^ABC-\\d+$" });
     expect(defaulted.tracker).toEqual({ kind: "azure-boards", keyPattern: "^\\d+$" });
   });
 

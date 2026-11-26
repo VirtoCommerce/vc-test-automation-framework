@@ -66,6 +66,15 @@ test.describe("vc-qa-agents init", () => {
     });
   });
 
+  test("gives the suite the package's glob and minimatch overrides, keeping the ones it has", () => {
+    const own = readJson(join(PACKAGE_ROOT, "package.json"))["overrides"] as Record<string, string>;
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "suite", overrides: { glob: "9.0.0" } }));
+
+    initIn(dir);
+
+    expect(readJson(join(dir, "package.json"))["overrides"]).toEqual({ glob: "9.0.0", minimatch: own["minimatch"] });
+  });
+
   test("replaces the placeholder test script of npm init", () => {
     writeFileSync(
       join(dir, "package.json"),

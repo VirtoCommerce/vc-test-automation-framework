@@ -1,11 +1,11 @@
 const OVERRIDE_NAMES = ["glob", "minimatch"];
 
 export function exactVersion(range) {
-  return range.replace(/^[\^~]/, "");
+  return /^[\^~]\d+\.\d+\.\d+$/.test(range) ? range.slice(1) : range;
 }
 
 export function dependencySpecs(own, names) {
-  const versions = { ...own.devDependencies, ...own.peerDependencies };
+  const versions = { ...own.peerDependencies, ...own.devDependencies };
   return names.map((name) => `${name}@${JSON.stringify(exactVersion(versions[name] ?? "latest"))}`);
 }
 
@@ -15,5 +15,8 @@ export function suiteOverrides(own) {
 }
 
 export function withOverrides(manifest, overrides) {
+  if (Object.keys(overrides).length === 0) {
+    return manifest;
+  }
   return { ...manifest, overrides: { ...overrides, ...manifest.overrides } };
 }

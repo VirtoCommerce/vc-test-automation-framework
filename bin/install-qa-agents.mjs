@@ -486,11 +486,11 @@ function readOwnManifest() {
 
 function mergePackageJson(target, own) {
   const path = join(target, "package.json");
-  const manifest = existsSync(path)
+  const existing = existsSync(path)
     ? JSON.parse(readFileSync(path, "utf8"))
     : { name: basename(target), private: true };
+  const manifest = withOverrides(existing, suiteOverrides(own));
   manifest.type = "module";
-  manifest.overrides = withOverrides(manifest, suiteOverrides(own)).overrides;
   manifest.scripts = { ...SUITE_SCRIPTS, ...manifest.scripts };
   if (manifest.scripts.test?.startsWith('echo "Error: no test specified"')) {
     manifest.scripts.test = SUITE_SCRIPTS.test;

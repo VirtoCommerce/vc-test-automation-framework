@@ -52,7 +52,7 @@ test.describe("vc-qa-agents doctor", () => {
     expect(result.stdout).toMatch(/^skipped\s+browser server\s/m);
     expect(result.stdout).toMatch(/^ok\s+project facts\s/m);
     expect(result.stdout).toMatch(/^Not verified: backend /m);
-    expect(result.stdout.indexOf("checking the project facts (node .claude/checks/project-facts.mts)…\n")).toBe(0);
+    expect(result.stdout.indexOf("checking the project facts (node .claude/checks/project-facts.mts)...\n")).toBe(0);
     expect(result.stdout).not.toContain("Ready:");
     expect(result.stdout).not.toContain("Installed the QA agents");
   });

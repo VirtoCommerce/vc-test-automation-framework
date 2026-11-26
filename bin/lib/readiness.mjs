@@ -304,13 +304,13 @@ async function reachRow(check, key, context, verdict) {
   if (blank(url)) {
     return row(check, "fail", `${key} is empty; set it in ${envFileName(context.suiteDir)}.`);
   }
-  progressOf(context)(`checking the ${check} (${url})…`);
+  progressOf(context)(`checking the ${check} (${url})...`);
   const reach = () =>
     checkReachable(url, {
       verifySsl: verdict.verifySsl,
       attempts: context.attempts ?? DEFAULT_ATTEMPTS,
       delayMs: context.delayMs ?? DEFAULT_DELAY_MS,
-      onWait: () => progressOf(context)(`waiting for ${originOf(url)} to answer…`),
+      onWait: () => progressOf(context)(`waiting for ${originOf(url)} to answer...`),
       ...(context.request === undefined ? {} : { request: context.request }),
     });
   let result = await reach();
@@ -333,7 +333,7 @@ async function reachRow(check, key, context, verdict) {
 }
 
 function execRow(check, context, command, args, cwd, onFail, env) {
-  progressOf(context)(`checking the ${check} (${[command, ...args].join(" ")})…`);
+  progressOf(context)(`checking the ${check} (${[command, ...args].join(" ")})...`);
   const result = (context.exec ?? defaultExec)(command, args, cwd, env);
   return result.status === 0 ? row(check, "ok", `${[command, ...args].join(" ")} passes`) : onFail(result.output);
 }
@@ -405,7 +405,7 @@ export async function runReadiness(context) {
       `ADMIN_PASSWORD is empty; set it in ${envFileName(context.suiteDir)}`,
     );
   } else {
-    progressOf(context)(`checking the administrator (${context.vars["ADMIN_USERNAME"]} signs in)…`);
+    progressOf(context)(`checking the administrator (${context.vars["ADMIN_USERNAME"]} signs in)...`);
     const token = await checkAdminToken(
       context.vars["BACKEND_BASE_URL"] ?? "",
       { username: context.vars["ADMIN_USERNAME"] ?? "", password: context.vars["ADMIN_PASSWORD"] ?? "" },
@@ -468,7 +468,7 @@ export async function runReadiness(context) {
   } else if (rows.frontend.status !== "ok") {
     rows.browser = row("browser server", "skipped", "the frontend does not answer");
   } else {
-    progressOf(context)(`checking the browser server (opens ${context.vars["FRONTEND_BASE_URL"]})…`);
+    progressOf(context)(`checking the browser server (opens ${context.vars["FRONTEND_BASE_URL"]})...`);
     const probe = context.probe ?? probeBrowserServer;
     let result;
     try {

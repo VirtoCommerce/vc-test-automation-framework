@@ -66,10 +66,10 @@ The new `.env` holds no stand values: each key is empty, with an example and the
 
 `init` then installs the dependencies and prints a table with one row for each check: `backend` and `frontend` answer,
 `administrator` can sign in, `project facts` pass, `types` are generated, `first test` passes and `browser server`
-starts. Before each check it prints one line, such as `checking the types (npm run codegen)…`, because codegen, the
+starts. Before each check it prints one line, such as `checking the types (npm run codegen)...`, because codegen, the
 first test and the browser server can take minutes; the table follows once every row is done. A backend or frontend
 that does not answer at once is tried again for about two minutes, each attempt waiting up to 20 seconds, so that a
-cloud stand can start; `init` prints `waiting for <origin> to answer…` once while it waits. A failing row names the
+cloud stand can start; `init` prints `waiting for <origin> to answer...` once while it waits. A failing row names the
 single fix. `init` exits with 0 once it has written its files, whatever the table says,
 because a platform that is still starting needs a minute; it exits with 1 only when it could not do its own work. When
 the platform does not answer, the types and the first test are skipped. If the backend uses a self-signed certificate,

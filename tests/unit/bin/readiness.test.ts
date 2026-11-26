@@ -484,13 +484,13 @@ test.describe("runReadiness", () => {
     });
 
     expect(lines).toEqual([
-      "checking the backend (http://backend.test)…",
-      "checking the frontend (http://frontend.test)…",
-      "checking the administrator (admin signs in)…",
-      "checking the project facts (node .claude/checks/project-facts.mts)…",
-      "checking the types (npm run codegen)…",
-      "checking the first test (npm test)…",
-      "checking the browser server (opens http://frontend.test)…",
+      "checking the backend (http://backend.test)...",
+      "checking the frontend (http://frontend.test)...",
+      "checking the administrator (admin signs in)...",
+      "checking the project facts (node .claude/checks/project-facts.mts)...",
+      "checking the types (npm run codegen)...",
+      "checking the first test (npm test)...",
+      "checking the browser server (opens http://frontend.test)...",
     ]);
     expect(formatTable(told)).toBe(formatTable(quiet));
   });
@@ -522,7 +522,7 @@ test.describe("runReadiness", () => {
 
     expect(statusOf(rows, "frontend")).toMatch(/^ok/);
     expect(lines.filter((line) => line.startsWith("waiting for "))).toEqual([
-      "waiting for http://frontend.test to answer…",
+      "waiting for http://frontend.test to answer...",
     ]);
   });
 

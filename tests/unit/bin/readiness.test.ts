@@ -650,7 +650,7 @@ test.describe("runReadiness", () => {
     const detail = statusOf(rows, "project facts");
     expect(detail).toContain('roles["customer"] is the template\'s example account');
     expect(detail).toMatch(
-      /; run npx vc-qa-agents init again and answer the customer questions \(leave the other customer empty if the stand has none\), or pass --customer and --other-customer.$/,
+      /; run npx vc-qa-agents init again and answer the customer questions \(leave the other customer empty if the stand has none\), or pass --customer and either --other-customer or --no-other-customer.$/,
     );
     expect(detail).not.toContain("fix .qa/project.json");
   });

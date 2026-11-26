@@ -21,7 +21,10 @@ const COMMANDS = ["init", "uninstall", "doctor"];
 
 export function parseArguments(args, usage) {
   const [first, ...rest] = args;
-  const command = COMMANDS.includes(first) ? first : "install";
+  const command = first === undefined || SWITCHES.install.includes(first) ? "install" : first;
+  if (command === first && !COMMANDS.includes(command)) {
+    throw new Error(`Unknown command "${first}".\n${usage}`);
+  }
   const tokens = command === "install" ? args : rest;
   const positional = [];
   const switches = new Set();
@@ -40,17 +43,17 @@ export function parseArguments(args, usage) {
         index += 1;
       }
       if (value === undefined || value === "" || (equals === -1 && value.startsWith("--"))) {
-        throw new Error(usage);
+        throw new Error(`Option "${name}" of ${command} needs a value.\n${usage}`);
       }
       values[name] = value;
     } else if (equals === -1 && SWITCHES[command].includes(token)) {
       switches.add(token);
     } else {
-      throw new Error(usage);
+      throw new Error(`Unknown option "${token}" of ${command}.\n${usage}`);
     }
   }
   if (positional.length > (command === "init" ? 1 : 0)) {
-    throw new Error(usage);
+    throw new Error(`Unexpected argument "${positional.at(-1)}" of ${command}.\n${usage}`);
   }
   return { command, positional, switches, values };
 }

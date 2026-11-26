@@ -12,6 +12,10 @@ on top: API clients, page objects, test data and tests.
 - Node.js 22.18 or newer
 - `@playwright/test` 1.65.1 or newer and `zod` 4.0.7 or newer, installed in your repository
 - `@types/node` in your repository, since the framework's types use Node types such as `Buffer`
+- Optional: `graphql` and `@graphql-codegen/*` for typed GraphQL documents, `allure-playwright` for Allure reports,
+  `@biomejs/biome` for the shared code style and `@babel/parser` for the QA agents' checks; `vc-qa-agents init`
+  installs them all
+
 ## Installation
 
 The package is published to the public npm registry, so installing it needs no token:

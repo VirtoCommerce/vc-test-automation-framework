@@ -11,6 +11,7 @@ import { PageBuilderShell } from "@pages/backend/page-builder/page-builder-shell
 import { PageDesigner } from "@pages/backend/page-designer/page-designer.ts";
 import { Frontend } from "@pages/frontend/frontend.ts";
 import { test as base } from "@playwright/test";
+import { anonymousVisitorState } from "@virtocommerce/test-automation-framework/auth";
 import { defaultFixtures } from "@virtocommerce/test-automation-framework/fixtures";
 import { GraphqlClient } from "@virtocommerce/test-automation-framework/graphql";
 
@@ -139,7 +140,7 @@ export const test = base
         signOut: async (credentials) => {
           await tokens.signOut(credentials);
           await frontendSessions.signOut(credentials);
-          platformSessions.forget(credentials);
+          await platformSessions.signOut(credentials);
         },
         store,
       });
@@ -169,12 +170,12 @@ export const test = base
       if (app === "frontend") {
         await context.setStorageState(
           shopper.credentials === undefined
-            ? frontendSessions.anonymous(env.FRONTEND_BASE_URL, shopper.userId)
+            ? anonymousVisitorState(env.FRONTEND_BASE_URL, shopper.userId)
             : await frontendSessions.signedIn(env.FRONTEND_BASE_URL, shopper.credentials),
         );
       }
       if (app === "backend") {
-        await context.setStorageState(await platformSessions.signedIn(user ?? ADMINISTRATOR));
+        await context.setStorageState(await platformSessions.signedIn(env.BACKEND_BASE_URL, user ?? ADMINISTRATOR));
       }
       await use(context);
     },

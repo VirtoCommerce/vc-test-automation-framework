@@ -22,24 +22,6 @@ updates:
         dependency-type: development
         update-types: [minor, patch]
 
-  - package-ecosystem: npm
-    directory: /tools/typedoc
-    target-branch: dev
-    schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: chore
-      include: scope
-    labels:
-      - dependencies
-    ignore:
-      - dependency-name: typescript
-        update-types: ["version-update:semver-major"]
-    groups:
-      typedoc:
-        patterns: ["*"]
-
   - package-ecosystem: github-actions
     directory: /
     target-branch: dev

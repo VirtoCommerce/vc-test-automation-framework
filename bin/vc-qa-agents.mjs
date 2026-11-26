@@ -22,12 +22,18 @@ const AGENT_PATH = new RegExp(`^\\.claude/(${AGENT_DIRS.join("|")})/[^/]+(/[^/]+
 const RENAMED_DIRS = ["agents", "commands", "skills"];
 const NAME_PREFIX = "vc-";
 const FORCE_OURS = "--force-ours";
-const USAGE =
-  "usage: vc-qa-agents [--force-ours] | vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] " +
-  "[--yes] [--save-passwords] [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] " +
-  "[--admin-login <login>] [--customer <email>] [--other-customer <email>] [--tracker <name>] " +
-  "[--key-pattern <pattern>] [--test-id-attribute <attribute>] | vc-qa-agents doctor [--skip-verify] | " +
-  "vc-qa-agents uninstall";
+const USAGE = [
+  "Usage:",
+  "  npx vc-qa-agents [--force-ours]           install the QA agents into .claude/",
+  "  npx vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] [--yes] [--save-passwords]",
+  "      [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] [--admin-login <login>]",
+  "      [--customer <email>] [--other-customer <email>] [--tracker <name>] [--key-pattern <pattern>]",
+  "      [--test-id-attribute <attribute>]",
+  "                                            write a test suite (into the directory, if given), with the agents,",
+  "                                            ask for what it needs and check that it is ready",
+  "  npx vc-qa-agents doctor [--skip-verify]   check again that the suite is ready",
+  "  npx vc-qa-agents uninstall                remove the files of the QA agents that are unchanged since install",
+].join("\n");
 const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
 const GUARD_FILES = [HOOK_SCRIPT, ".claude/checks/readonly-shell.mts"];
 const MCP_FILE = ".mcp.json";
@@ -269,10 +275,17 @@ function hasHook(settingsPath) {
   return readFileSync(settingsPath, "utf8").includes(HOOK_SCRIPT.split("/").pop());
 }
 
-function missingIgnores(target) {
+function addIgnores(target) {
   const path = join(target, ".gitignore");
-  const ignored = existsSync(path) ? readFileSync(path, "utf8").split(/\r?\n/) : [];
-  return GITIGNORE_LINES.filter((line) => !ignored.includes(line));
+  const text = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const ignored = text.split(/\r?\n/).map((line) => line.trim());
+  const missing = GITIGNORE_LINES.filter((line) => !ignored.includes(line));
+  if (missing.length > 0) {
+    const eol = text.includes("\r\n") ? "\r\n" : "\n";
+    const separator = text === "" || text.endsWith("\n") ? "" : eol;
+    writeFileSync(path, `${text}${separator}${missing.join(eol)}${eol}`);
+  }
+  return missing;
 }
 
 function install(target, { written = [], forceOurs = false, wizard = false } = {}) {
@@ -314,9 +327,9 @@ function install(target, { written = [], forceOurs = false, wizard = false } = {
     );
   }
 
-  const ignores = missingIgnores(target);
+  const ignores = addIgnores(target);
   if (ignores.length > 0) {
-    lines.push(`Add to .gitignore: ${ignores.join(" ")}`);
+    lines.push(`Added to .gitignore: ${ignores.join(" ")}`);
   }
   const packageDirs = [...new Set([ROOT_DIR, factsSuiteDir(target)])];
   if (!wizard && !packageDirs.some((dir) => existsSync(join(target, dir, "node_modules", "@babel", "parser")))) {

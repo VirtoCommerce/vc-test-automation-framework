@@ -99,10 +99,11 @@ as publishing the pages just seeded.
 | `failed`   | The manifest is invalid, a record or request of a collection fails, or a finisher fails           |
 | `finished` | The run ends, also after a failure; it counts the collections seeded, skipped and failed          |
 
-A `failed` event comes just before the error is thrown. For a collection, it has the counts reached so far and the
-record or request that failed. The manifest is invalid when an entry breaks the rules above, or when the installed
-version of a module cannot be compared with its range; the error names the collection. The test suite decides how the
-events look, such as coloured counts on the console and plain text in a log it attaches to the report.
+The `skipped` events come before `started`. A `failed` event comes just before the error is thrown. For a collection,
+it has the counts reached so far and the record or request that failed. The manifest is invalid when an entry breaks
+the rules above, or when the installed version of a module cannot be compared with its range; the error names the
+collection. The test suite decides how the events look, such as coloured counts on the console and plain text in a
+log it attaches to the report.
 
 An error thrown by `onEvent` stops the run, and names the event. When the listener fails while it reports a failure,
 the run throws an `AggregateError` with the failure of the run first, so a bug in the listener does not hide why the

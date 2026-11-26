@@ -90,12 +90,13 @@ sets its own `reporter`, or adds its reporters to the default ones.
 
 The framework writes nothing to the report itself. What it does reaches the report through Playwright:
 
-| Framework output                                      | In the report                   |
-| ----------------------------------------------------- | ------------------------------- |
-| Steps and fixture titles, such as reading the modules | Steps                           |
-| Attachments, such as the seed log                     | Attachments                     |
-| A test skipped for its required modules               | A skipped test, with the reason |
-| Errors, with secrets masked                           | The failure message             |
+| Framework output                                        | In the report                   |
+| ------------------------------------------------------- | ------------------------------- |
+| Fixture titles, such as signing in as the administrator | Steps                           |
+| A test skipped for its required modules                 | A skipped test, with the reason |
+| Errors, with secrets masked                             | The failure message             |
+
+Steps and attachments, such as a seed log, come from the test suite.
 
 The report groups tests by project, file and `describe` block, so a test directory organized by area gives a
 structured report without labels. For other metadata, use Playwright tags and annotations, which every reporter

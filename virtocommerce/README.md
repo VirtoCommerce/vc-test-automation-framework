@@ -23,6 +23,8 @@ test suite does, by its package name, and runs from the repository root with the
 | `VERIFY_SSL`            | no       | `false` accepts self-signed certificates; `true` by default                      |
 | `REQUEST_TIMEOUT_MS`    | no       | The timeout of one API request; 30000 by default                                 |
 | `API_WORKERS`           | no       | The workers of the API projects; 4 by default                                    |
+| `E2E_WORKERS`           | no       | The workers of the browser projects; 3 by default                                |
+| `SKIP_PLATFORM_DEFECTS` | no       | `true` leaves out the tests tagged `@platform-defect`; `false` by default        |
 | `RUN_DESTRUCTIVE_TESTS` | no       | `true` lets the isolated tests run; `false` by default                           |
 | `GOOGLE_MAPS_API_KEY`   | no       | Written into the settings of the seeded store; maps stay off without it          |
 | `SEED_ONLY`             | no       | Comma-separated dataset collections to seed instead of all of them               |
@@ -51,14 +53,14 @@ npm run report:vc                  # the Allure report of the last run; report:v
 
 ## Projects
 
-| Project        | Directory             | Runs                                                                             |
-| -------------- | --------------------- | -------------------------------------------------------------------------------- |
-| `seed`         | `setup/`              | Seeds the dataset; every other project depends on it                             |
-| `restapi`      | `tests/restapi/`      | REST API tests                                                                   |
-| `graphql`      | `tests/graphql/`      | xAPI GraphQL tests                                                               |
-| `e2e-frontend` | `tests/e2e/frontend/` | Frontend tests in Chromium                                                       |
-| `e2e-backend`  | `tests/e2e/backend/`  | Admin UI tests (page builder), one worker                                        |
-| `isolated`     | `tests/isolated/`     | Tests that change global settings, one worker, only with `RUN_DESTRUCTIVE_TESTS` |
+| Project        | Directory             | Runs                                                                                                |
+| -------------- | --------------------- | --------------------------------------------------------------------------------------------------- |
+| `seed`         | `setup/`              | Seeds the dataset; every other project depends on it                                                |
+| `restapi`      | `tests/restapi/`      | REST API tests                                                                                      |
+| `graphql`      | `tests/graphql/`      | xAPI GraphQL tests                                                                                  |
+| `e2e-frontend` | `tests/e2e/frontend/` | Frontend tests in Chromium                                                                          |
+| `e2e-backend`  | `tests/e2e/backend/`  | Admin UI tests (page builder), one worker; skipped while the site builder replaces the page builder |
+| `isolated`     | `tests/isolated/`     | Tests that change global settings, one worker, only with `RUN_DESTRUCTIVE_TESTS`                    |
 
 The dataset checks in `tests/unit/` run with their own config, `playwright.unit.config.ts`. They check that every
 record id is unique, that every reference resolves to a record seeded earlier, and that the manifest keys are present
@@ -66,18 +68,18 @@ and unique, so broken data fails in seconds instead of halfway through a seed.
 
 ## Layout
 
-| Path              | Holds                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------- |
-| `fixtures/`       | `test` and `expect` (`@fixtures`): the framework's fixtures plus the suite's          |
-| `arrange/`        | `arrange` (`@arrange`): creates test data and removes it after the test               |
-| `builders/`       | `newX()` payloads with unique values                                                  |
-| `support/`        | Small shared reads and helpers, such as `requireFields`, `uniqueId` and `pollUntil`   |
-| `dataset/`        | The seed: `data/` records, `manifest.ts`, `finishers.ts`, the dataset users           |
-| `pages/`          | Page objects of the frontend and the admin UI; see [pages/README.md](pages/README.md) |
-| `graphql/`        | `.graphql` operations and the generated typed documents                               |
-| `rest/generated/` | The generated REST types                                                              |
-| `modules.ts`      | The platform modules the suite depends on, with the edge version it is proven on      |
-| `scripts/`        | The REST type generator and the role-permission check                                 |
+| Path              | Holds                                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fixtures/`       | `test` and `expect` (`@fixtures`): the framework's fixtures plus the suite's                                                                                 |
+| `arrange/`        | `arrange` (`@arrange`): creates test data and removes it after the test                                                                                      |
+| `builders/`       | `newX()` payloads with unique values                                                                                                                         |
+| `support/`        | Small shared reads and helpers, such as `requireFields`, `uniqueId` and `pollUntil`                                                                          |
+| `dataset/`        | The seed: `data/` records, `manifest.ts`, `finishers.ts`, the dataset users                                                                                  |
+| `pages/`          | Page objects of the frontend and the admin UI; see [pages/README.md](pages/README.md)                                                                        |
+| `graphql/`        | `.graphql` operations and the generated typed documents                                                                                                      |
+| `rest/generated/` | The generated REST types                                                                                                                                     |
+| `modules.ts`      | The platform modules the suite depends on, with the edge version it is proven on, and `PAGE_BUILDER_REPLACED`, the reason the page builder tests are skipped |
+| `scripts/`        | The REST type generator and the role-permission check                                                                                                        |
 
 How to write a test, and the rules every test follows, are in [CLAUDE.md](../CLAUDE.md) and the `vc-framework-rules`
 skill (`.claude/skills/vc-framework-rules/SKILL.md`).
@@ -94,5 +96,6 @@ commands, roles, quality limits) are in `.qa/project.json`. Their working files 
 The `Auto Tests Docker` workflow (`.github/workflows/auto-tests.yml`) runs the suite through `playwright-tests.yml` of
 `VirtoCommerce/.github`. The platform, the frontends and the modules run the same shared workflow against this
 repository's `dev` branch, so the project names (`restapi`, `graphql`, `e2e-frontend`, `e2e-backend`, `isolated`)
-are a contract with all of them: never rename one. Their runs leave out the tests tagged `@platform-defect`, defects a ticket already tracks; ours runs them unless the `skipPlatformDefects` input is on. Start it from the Actions tab. Pull requests run the dataset
-checks in the `CI` workflow.
+are a contract with all of them: never rename one. Their runs leave out the tests tagged `@platform-defect`, defects a
+ticket already tracks; ours runs them unless the `skipPlatformDefects` input is on. Start it from the Actions tab. Pull
+requests run the dataset checks in the `CI` workflow.

@@ -75,6 +75,13 @@ export const MANIFEST = {
     path: "/api/stores",
     send: "each",
   },
+  storeAuthenticationSchemes: {
+    module: MODULES.otp,
+    key: "name",
+    method: "PUT",
+    path: `/api/store-authentication-schemes/${DATASET_STORE_ID}`,
+    send: "all",
+  },
   categories: {
     module: MODULES.catalog,
     key: "code",

@@ -1,6 +1,15 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +19,7 @@ import { expect, test } from "@playwright/test";
 import { BROWSER_SECRETS_PATH, passwordNames } from "../../../.claude/checks/browser-secrets.mts";
 import { browserServerKind } from "../../../bin/lib/browser-server.mjs";
 
-const BIN = fileURLToPath(new URL("../../../bin/install-qa-agents.mjs", import.meta.url));
+const BIN = fileURLToPath(new URL("../../../bin/vc-qa-agents.mjs", import.meta.url));
 const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
 
 const ASKED_VARIABLES = [
@@ -423,6 +432,79 @@ test.describe("vc-qa-agents init, asked and answered", () => {
     expect(result.stdout).toContain("No terminal: nothing was asked; pass the values as flags or edit .env.");
     expect(initRun(dir, ["--skip-install", "--skip-verify", "--yes"]).stdout).not.toContain("No terminal");
   });
+});
+
+test.describe("vc-qa-agents install", () => {
+  let dir = "";
+
+  test.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vc-install-"));
+  });
+
+  test.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("appends the missing entries to .gitignore and keeps the existing ones", () => {
+    writeFileSync(join(dir, ".gitignore"), "node_modules/\n.qa/runs/");
+
+    const output = execFileSync(process.execPath, [BIN], { cwd: dir, encoding: "utf8" });
+
+    const lines = readFileSync(join(dir, ".gitignore"), "utf8").split("\n");
+    expect(lines.slice(0, 3)).toEqual(["node_modules/", ".qa/runs/", ".qa/contracts/"]);
+    expect(lines.filter((line) => line === ".qa/runs/")).toHaveLength(1);
+    expect(lines).toContain(".playwright-mcp/");
+    expect(output).toContain("Added to .gitignore: .qa/contracts/");
+  });
+
+  test("keeps the line endings of a CRLF .gitignore", () => {
+    writeFileSync(join(dir, ".gitignore"), "node_modules/\r\n");
+
+    execFileSync(process.execPath, [BIN], { cwd: dir });
+
+    const text = readFileSync(join(dir, ".gitignore"), "utf8");
+    expect(text.startsWith("node_modules/\r\n.qa/contracts/\r\n")).toBe(true);
+    expect(text.replaceAll("\r\n", "")).not.toContain("\n");
+  });
+
+  test("leaves .gitignore alone on a second run", () => {
+    execFileSync(process.execPath, [BIN], { cwd: dir });
+    const first = readFileSync(join(dir, ".gitignore"), "utf8");
+
+    const output = execFileSync(process.execPath, [BIN], { cwd: dir, encoding: "utf8" });
+
+    expect(readFileSync(join(dir, ".gitignore"), "utf8")).toBe(first);
+    expect(output).not.toContain(".gitignore");
+  });
+});
+
+test.describe("vc-qa-agents arguments", () => {
+  let dir = "";
+
+  test.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vc-args-"));
+  });
+
+  test.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const cases = [
+    { args: ["install"], error: 'Unknown command "install"' },
+    { args: ["--help"], error: 'Unknown command "--help"' },
+    { args: ["init", "--skip-instal"], error: 'Unknown option "--skip-instal" of init' },
+  ];
+
+  for (const { args, error } of cases) {
+    test(`fails on ${args.join(" ")} and writes nothing`, () => {
+      const result = spawnSync(process.execPath, [BIN, ...args], { cwd: dir, encoding: "utf8" });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(error);
+      expect(result.stderr).toContain("Usage:");
+      expect(readdirSync(dir)).toEqual([]);
+    });
+  }
 });
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../../../", import.meta.url));

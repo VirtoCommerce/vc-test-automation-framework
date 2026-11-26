@@ -14,23 +14,26 @@ npm install --save-dev --save-exact @virtocommerce/test-automation-framework
 npx vc-qa-agents init
 ```
 
-`init` adds the scripts to `package.json`, installs the peer dependencies and Chromium, installs the
-[QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the suite, asks the questions below, writes
-`.env`, generates the types and runs the first test. It never overwrites a file that exists, nor an agent, command or
-skill of the repository's own (see [Update and remove](guides/qa-agents.md#update-and-remove)).
+`init` adds its scripts to `package.json` without replacing yours, installs the suite's dev dependencies (Playwright,
+zod, TypeScript, Biome, Allure, the GraphQL and REST type generators, `@babel/parser`) at the versions the framework
+uses, installs Chromium, installs the [QA agents](guides/qa-agents.md) with a `.qa/project.json` that matches the
+suite, asks the questions below, writes `.env`, generates the types and runs the first test. It never overwrites a
+file that exists, nor an agent, command or skill of the repository's own (see
+[Update and remove](guides/qa-agents.md#update-and-remove)). An unknown command or option fails with the usage.
 
-| Path                      | Holds                                                                               |
-| ------------------------- | ----------------------------------------------------------------------------------- |
-| `playwright.config.ts`    | The projects `restapi`, `graphql` and `e2e-frontend`, with the Allure reporter      |
-| `env.ts`, `.env`          | The environment schema, with `FRONTEND_BASE_URL` and `STORE_ID` on the framework's  |
-| `fixtures/index.ts`       | `test` and `expect`: the default fixtures plus `user`, `api`, `arrange`, `shopper`  |
-| `arrange/`                | The `arrange` factory, which removes test data after the test, and a first domain   |
-| `builders/`, `support/`   | Payload builders, `requireFields`, `uniqueId`, the store and the shopper            |
-| `codegen.ts`, `scripts/`  | GraphQL and REST type generation from the running platform                          |
-| `tests/restapi/security/` | The first test, which only reads, and `create-user.example.ts`, which writes        |
-| `CLAUDE.md`, `biome.json` | The suite's layout and code style for the agents, and the shared Biome preset       |
-| `pages/`                  | A README for the page objects, which the first browser test fills                   |
-| `.mcp.json`               | The Playwright MCP server of the agents, see [Browser](guides/qa-agents.md#browser) |
+| Path                                                              | Holds                                                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `playwright.config.ts`                                            | The projects `restapi`, `graphql` and `e2e-frontend`, with the Allure reporter          |
+| `env.ts`, `.env`, `.env.example`                                  | The environment schema, with `FRONTEND_BASE_URL` and `STORE_ID` on the framework's      |
+| `fixtures/index.ts`                                               | `test` and `expect`: the default fixtures plus `user`, `api`, `arrange`, `shopper`      |
+| `arrange/`                                                        | The `arrange` factory, which removes test data after the test, and a first domain       |
+| `builders/`, `support/`                                           | Payload builders, `requireFields`, `uniqueId`, the store and the shopper                |
+| `codegen.ts`, `scripts/`                                          | GraphQL and REST type generation from the running platform                              |
+| `tests/restapi/security/`                                         | The first test, which only reads, and `create-user.example.ts`, which writes            |
+| `pages/`                                                          | A README for the page objects, which the first browser test fills                       |
+| `CLAUDE.md`, `biome.json`                                         | The suite's layout and code style for the agents, and the shared Biome preset           |
+| `.mcp.json`                                                       | The Playwright MCP server of the agents, see [Browser](guides/qa-agents.md#browser)     |
+| `tsconfig.json`, `allurerc.mjs`, `.gitignore`, `.qa/project.json` | TypeScript with the suite's aliases, the Allure settings, ignores and the agents' facts |
 
 ### What `init` asks
 
@@ -161,7 +164,8 @@ The rest of this guide sets a suite up by hand, piece by piece.
 
 ## Install the framework
 
-Follow the installation steps in the [package README](../README.md#installation), then install the peer dependencies:
+Follow the installation steps in the [package README](../README.md#installation), then install the required peer
+dependencies and the Node types:
 
 ```shell
 npm install --save-dev @playwright/test zod @types/node

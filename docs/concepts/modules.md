@@ -26,7 +26,8 @@ Modules that the platform knows but has not installed are left out.
 - `unmetReason` returns why a requirement is not met, such as `VirtoCommerce.Quote 3.1010.0 is older than 3.1020.0`,
   or `undefined` when it is met. `unmetReasons` checks several requirements at once.
 - `versionOf` returns the installed version of a module, and `count` the number of installed modules.
-- `JSON.stringify` saves the set, and the constructor creates it again from the result. A setup project reads the
+- `toJSON` returns the version of each module by module identifier, so `JSON.stringify` saves the set, and the
+  constructor creates it again from the result. A setup project reads the
   modules once and passes them to the test workers this way.
 
 <!-- example: ../examples/modules.ts -->

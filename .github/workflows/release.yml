@@ -73,6 +73,8 @@ jobs:
             echo "Publishing $after under $TAG."
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - if: steps.version.outputs.publish == 'true'
         run: npx changeset publish --tag "$TAG" --no-git-tag

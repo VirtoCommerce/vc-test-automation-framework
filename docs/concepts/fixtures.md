@@ -53,31 +53,38 @@ TypeScript cannot infer the fixture types from the definitions, so the test suit
 `DefaultWorkerFixtures` to `extend`. The test suite chooses its base test: Playwright's `test`, or a test that it
 combined with others through `mergeTests`.
 
+A frontend that signs users in another way than the Virto Commerce frontend passes its sign-in strategy as the second
+argument, `defaultFixtures(env, { frontendSignIn })`, and `frontendSessions` uses it. See
+[Authentication](auth.md#sign-in-strategies).
+
 ## Worker fixtures
 
 A worker creates these once and shares them between its tests:
 
-| Fixture            | Is                                                                                       |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| `env`              | The environment variables of the test suite                                              |
-| `workerHttp`       | A client of the platform without authentication, for the work of the worker              |
-| `tokens`           | The `TokenManager` of the worker. It signs users out when the worker ends                |
-| `workerAdmin`      | A client signed in as the administrator, for data that the tests of a file share         |
-| `frontendSessions` | The `FrontendBrowserSessions` of the worker. Its tokens are revoked when the worker ends |
-| `platformSessions` | The `PlatformBrowserSessions` of the worker                                              |
+| Fixture            | Is                                                                               |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `env`              | The environment variables of the test suite                                      |
+| `workerHttp`       | A client of the platform without authentication, for the work of the worker      |
+| `tokens`           | The `TokenManager` of the worker. It signs users out when the worker ends        |
+| `workerAdmin`      | A client signed in as the administrator, for data that the tests of a file share |
+| `frontendSessions` | The `BrowserSessions` of the frontends, with the `frontendSignIn` strategy       |
+| `platformSessions` | The `BrowserSessions` of the platform's admin UI, with `platformAdminSignIn`     |
+
+Both sessions are signed out when the worker ends.
 
 The other fixtures read the platform's address and the administrator from `env`. A test suite that overrides `env`
 points them all elsewhere.
 
 ## Test fixtures
 
-| Fixture      | Is                                                                     |
-| ------------ | ---------------------------------------------------------------------- |
-| `apiContext` | The request context of the test, disposed of after it                  |
-| `http`       | A client of the platform without authentication                        |
-| `signIn`     | Returns a client signed in as a user. The token is kept for the worker |
-| `graphql`    | A GraphQL client of the platform without authentication                |
-| `modules`    | The modules that the tests need, an option set with `test.use`         |
+| Fixture        | Is                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `apiContext`   | The request context of the test, disposed of after it                                   |
+| `http`         | A client of the platform without authentication                                         |
+| `signIn`       | Returns a client signed in as a user. The token is kept for the worker                  |
+| `graphql`      | A GraphQL client of the platform without authentication                                 |
+| `modules`      | The modules that the tests need, an option set with `test.use`                          |
+| `checkModules` | Runs for every test and skips it when its `modules` do not qualify; tests do not use it |
 
 Users sign in once for each worker. Each test has its own request context, so cookies of one test never reach another.
 
@@ -101,7 +108,7 @@ state of `frontendSessions` or `platformSessions`, as the example does. See
 [Authentication](auth.md#browser-sessions) for how the sessions sign in and when they sign out.
 
 A user that a test deletes must be signed out first: call `tokens.signOut`, `frontendSessions.signOut` and
-`platformSessions.forget`. Otherwise the worker fails to revoke a token of the deleted user when it ends.
+`platformSessions.signOut`. Otherwise the worker fails to revoke a token of the deleted user when it ends.
 
 ## Traces
 

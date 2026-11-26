@@ -80,7 +80,6 @@
     "test:unit": "playwright test --project=unit",
     "docs:check": "node scripts/check-docs.ts",
     "docs:sync": "biome format --write docs/examples && node scripts/check-docs.ts --write",
-    "docs:api": "node tools/typedoc/node_modules/typedoc/bin/typedoc",
     "changeset": "changeset",
     "release:version": "changeset version && biome format --write package.json",
     "release:publish": "changeset publish",
@@ -141,7 +140,7 @@
     "@playwright/test": "^1.65.1",
     "@types/node": "^22.20.5",
     "allure": "3.33.0",
-    "allure-playwright": "3.14.0",
+    "allure-playwright": "3.15.0",
     "graphql": "16.15.0",
     "simple-git-hooks": "2.14.0",
     "swagger-typescript-api": "13.14.0",
@@ -154,6 +153,6 @@
     "minimatch": "11.0.5"
   },
   "bin": {
-    "vc-qa-agents": "bin/install-qa-agents.mjs"
+    "vc-qa-agents": "bin/vc-qa-agents.mjs"
   }
 }

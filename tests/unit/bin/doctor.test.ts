@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
-const BIN = fileURLToPath(new URL("../../../bin/install-qa-agents.mjs", import.meta.url));
+const BIN = fileURLToPath(new URL("../../../bin/vc-qa-agents.mjs", import.meta.url));
 const NODE_MODULES = fileURLToPath(new URL("../../../node_modules", import.meta.url));
 const FACT_FLAGS = [
   "--customer",

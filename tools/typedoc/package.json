@@ -1,9 +1,0 @@
-{
-  "name": "typedoc-tool",
-  "private": true,
-  "description": "TypeDoc with its own TypeScript, because TypeScript 7 has no compiler API for TypeDoc",
-  "devDependencies": {
-    "typedoc": "0.28.20",
-    "typescript": "6.0.3"
-  }
-}

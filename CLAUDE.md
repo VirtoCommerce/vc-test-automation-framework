@@ -38,37 +38,37 @@ schema in `src/core/env.ts`. A shell variable wins over `.env`, e.g. `VERIFY_SSL
 **Framework areas** (`src/<area>/`, each its own entry point `@virtocommerce/test-automation-framework/<area>`). An
 area imports only the areas before it; `.biome/layers.json` enforces it, and the framework never imports suite code.
 
-| Area       | Holds                                                                                                                                                            | May import                                   |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `core`     | `Secret`, masking, env schemas, Playwright config helpers (`defaultRunOptions`, `defaultUse`, `defaultReporters`, `apiProject`, `e2eProject`, `DESTRUCTIVE_TAG`) | nothing                                      |
-| `http`     | `HttpClient`, `HttpResponse`, `HttpError`                                                                                                                        | `core`                                       |
-| `auth`     | credentials, tokens, the token client and manager, browser sessions                                                                                              | `core`, `http`                               |
-| `graphql`  | `GraphqlClient`, `GraphqlError`, `graphqlCodegenConfig`                                                                                                          | `core`, `http`                               |
-| `modules`  | installed modules, `ModuleRequirement`                                                                                                                           | `core`, `http`                               |
-| `dataset`  | loading a dataset from JSON and seeding it, driven by a manifest                                                                                                 | `core`, `http`, `modules`                    |
-| `fixtures` | `defaultFixtures`                                                                                                                                                | `core`, `http`, `auth`, `graphql`, `modules` |
+| Area       | Holds                                                                                                                                                                                   | May import                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `core`     | `Secret`, masking, env schemas, Playwright config helpers (`defaultRunOptions`, `defaultUse`, `defaultReporters`, `apiProject`, `e2eProject`, `DESTRUCTIVE_TAG`, `PLATFORM_DEFECT_TAG`) | nothing                                      |
+| `http`     | `HttpClient`, `HttpResponse`, `HttpError`                                                                                                                                               | `core`                                       |
+| `auth`     | credentials, tokens, the token client and manager, browser sessions                                                                                                                     | `core`, `http`                               |
+| `graphql`  | `GraphqlClient`, `GraphqlError`, `graphqlCodegenConfig`                                                                                                                                 | `core`, `http`                               |
+| `modules`  | installed modules, `ModuleRequirement`                                                                                                                                                  | `core`, `http`                               |
+| `dataset`  | loading a dataset from JSON and seeding it, driven by a manifest                                                                                                                        | `core`, `http`, `modules`                    |
+| `fixtures` | `defaultFixtures`                                                                                                                                                                       | `core`, `http`, `auth`, `graphql`, `modules` |
 
 Inside `src/` another area is imported as `@/<area>` and a file of the same area by a relative path. Framework unit
 tests import `@/<area>`, never `src/`. The suite and `docs/examples/` import the framework by its package name only.
 
 **Suite directories** (`virtocommerce/`, aliases from `virtocommerce/tsconfig.json`):
 
-| Directory                                                       | Alias         | Holds                                                                                                 |
-| --------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
-| `tests/restapi/<module>/`, `tests/graphql/<area>/`              |               | REST specs (project `restapi`), xAPI specs (project `graphql`)                                        |
-| `tests/e2e/frontend/<area>/`, `tests/e2e/backend/page-builder/` |               | frontend specs (`e2e-frontend`), admin UI specs (`e2e-backend`, 1 worker)                             |
-| `tests/isolated/{restapi,graphql}/`                             |               | specs that change global state (`isolated`, 1 worker, `DESTRUCTIVE_TAG`)                              |
-| `tests/unit/`                                                   |               | suite unit tests, `*.test.ts`                                                                         |
-| `setup/seed.setup.ts`                                           |               | project `seed`, which every other project depends on                                                  |
-| `fixtures/`                                                     | `@fixtures`   | `test`, `expect` (with `toHaveConsistentTotals`)                                                      |
-| `arrange/`                                                      | `@arrange`    | the `arrange` factory and its domains, `Shopper`, `customerOf`                                        |
-| `builders/`                                                     | `@builders/*` | `newX()` payload builders with unique values                                                          |
-| `support/`                                                      | `@support/*`  | `requireFields`, `uniqueId`, `pollUntil`, `INDEX_LAG_TIMEOUT_MS`, settings, `findStoreUnderTest`, ... |
-| `dataset/`                                                      | `@dataset/*`  | `data/` JSON, `manifest.ts`, `users.ts` (dataset credentials), `stock.ts`                             |
-| `pages/`                                                        | `@pages/*`    | page objects: `frontend/`, `backend/`, `shared/`; read `pages/README.md`                              |
-| `graphql/`                                                      | `@graphql/*`  | `operations/<area>/*.graphql`, `fragments/`, `generated/` (never edited), `line-items.ts`             |
-| `rest/generated/`                                               | `@rest/*`     | generated REST types `platform.ts` (never edited)                                                     |
-| `modules.ts`                                                    | `@modules`    | `MODULES`: module id and the edge `minVersion` the suite is proven on                                 |
+| Directory                                                       | Alias         | Holds                                                                                                                                     |
+| --------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/restapi/<module>/`, `tests/graphql/<area>/`              |               | REST specs (project `restapi`), xAPI specs (project `graphql`)                                                                            |
+| `tests/e2e/frontend/<area>/`, `tests/e2e/backend/page-builder/` |               | frontend specs (`e2e-frontend`), admin UI specs (`e2e-backend`, 1 worker)                                                                 |
+| `tests/isolated/{restapi,graphql}/`                             |               | specs that change global state (`isolated`, 1 worker, `DESTRUCTIVE_TAG`)                                                                  |
+| `tests/unit/`                                                   |               | suite unit tests, `*.test.ts`                                                                                                             |
+| `setup/seed.setup.ts`                                           |               | project `seed`, which every other project depends on                                                                                      |
+| `fixtures/`                                                     | `@fixtures`   | `test`, `expect` (with `toHaveConsistentTotals`)                                                                                          |
+| `arrange/`                                                      | `@arrange`    | the `arrange` factory and its domains, `Shopper`, `customerOf`                                                                            |
+| `builders/`                                                     | `@builders/*` | `newX()` payload builders with unique values                                                                                              |
+| `support/`                                                      | `@support/*`  | `requireFields`, `uniqueId`, `pollUntil`, `INDEX_LAG_TIMEOUT_MS`, settings, `findStoreUnderTest`, ...                                     |
+| `dataset/`                                                      | `@dataset/*`  | `data/` JSON, `manifest.ts`, `users.ts` (dataset credentials), `stock.ts`                                                                 |
+| `pages/`                                                        | `@pages/*`    | page objects: `frontend/`, `backend/`, `shared/`; read `pages/README.md`                                                                  |
+| `graphql/`                                                      | `@graphql/*`  | `operations/<area>/*.graphql`, `fragments/`, `generated/` (never edited), `line-items.ts`                                                 |
+| `rest/generated/`                                               | `@rest/*`     | generated REST types `platform.ts` (never edited)                                                                                         |
+| `modules.ts`                                                    | `@modules`    | `MODULES`: module id and the edge `minVersion` the suite is proven on; `PAGE_BUILDER_REPLACED`, the skip reason of the page builder tests |
 
 Specs and fixtures use the aliases; files inside `arrange/`, `builders/`, `support/` and `pages/` import each other by
 relative paths. Page objects import only Playwright and other page objects. `pages/` holds one class per file, named

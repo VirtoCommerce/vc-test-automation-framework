@@ -23,9 +23,9 @@ npx vc-qa-agents
 `vc-qa-agents` copies the agents, commands, skills, check scripts and hook into `.claude/`, next to the repository's
 own agents, commands and skills, and records each file it installed, with a hash of its content, in
 `.claude/.vc-qa-agents.json`. It creates `.claude/settings.json` with the read-only shell hook and `.qa/project.json`
-from an example, but never changes either one once it exists, and it lists the `.gitignore` entries that are missing.
-Commit `.claude/` with `.claude/.vc-qa-agents.json`, and `.qa/project.json`; the other files under `.qa/` are the
-agents' working files.
+from an example, but never changes either one once it exists, and it appends the missing entries for the agents'
+working files to `.gitignore`. Commit `.claude/` with `.claude/.vc-qa-agents.json`, and `.qa/project.json`; the
+other files under `.qa/` are the agents' working files.
 
 Every agent, command and skill of the package is named with the prefix `vc-`, such as the agent `vc-qa-planner`, the
 command `/vc-qa` and the skill `vc-framework-rules`, so that none has the name of one the repository already has in

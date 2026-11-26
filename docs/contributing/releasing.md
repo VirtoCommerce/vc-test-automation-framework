@@ -38,13 +38,15 @@ the modules also run against this repository's `dev` branch. For each database a
 with the modules of `virtocommerce/backend-packages.json` and a frontend, writes `virtocommerce/.env` from the
 `VC_TESTING_MODULE_ENV_FILE_NEW` secret, seeds and indexes the dataset, runs each chosen project with
 `--config=virtocommerce`, and uploads the Allure report. The suites it accepts are the project names: `restapi`,
-`graphql`, `e2e-frontend`, `e2e-backend` (`e2e` is both) and `isolated`, which also needs
-`RUN_DESTRUCTIVE_TESTS=true` in the secret. Since that workflow is shared, a project's name is a contract with every
+`graphql`, `e2e-frontend`, `e2e-backend` (`e2e` is both; `all`, the default, is `graphql`, `restapi` and `e2e`) and
+`isolated`, which also needs `RUN_DESTRUCTIVE_TESTS=true` in the secret. Since that workflow is shared, a project's name is a contract with every
 caller: renaming one breaks their CI. The callers leave out the tests tagged `@platform-defect`, so a defect that a
 ticket tracks does not fail their checks; `auto-tests.yml` runs them, unless its `skipPlatformDefects` input is on.
 
-The `CI` workflow runs on every pull request to `dev`: the type check, Biome, the unit tests of the framework, the
-dataset checks of the test suite, the documentation check, the API reference and the build. It needs no platform.
+The `CI` workflow runs on every pull request to `dev` and `main`, on Node 22.18 and the current Node: the type check,
+Biome, the unit tests of the framework, the dataset checks of the test suite, the documentation check and the build,
+which fails when an `@/` alias is left in `dist`. Its `changeset` job fails a pull request to `dev` without a
+changeset. It needs no platform.
 
 ## Versions
 

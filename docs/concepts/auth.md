@@ -1,7 +1,8 @@
 # Authentication
 
-The `auth` area signs users in to the platform with a password and keeps their access tokens. It works for platform
-users, such as the administrator, and for frontend users of any store.
+The `auth` area signs users in to the platform with a password and keeps their access tokens, and starts browsers
+signed in to the frontends and the admin UI. It works for platform users, such as the administrator, and for frontend
+users of any store.
 
 ## Credentials
 
@@ -19,7 +20,8 @@ Because the password is a `Secret`, credentials are safe to log.
 | `revoke`               | Revokes the refresh token of a token; the access token stays valid until it expires        |
 | `requestPasswordGrant` | Sends a sign-in request and returns the response whatever its status, for sign-in tests    |
 
-The client sends each request once and does not retry a failure.
+The client sends each request once and does not retry a failure. The endpoints are `/connect/token` and
+`/revoke/token`, and the `tokenPath` and `revokePath` options change them.
 
 The platform returns a 500 status when the same user signs in twice at the same time. Playwright workers are separate
 processes, so `signIn` takes a lock for the user and store in the temporary directory of the system: sign-ins of the
@@ -44,23 +46,73 @@ Tests usually get tokens through `TokenManager`, which keeps one token for each 
 
 ## Browser sessions
 
-Browser tests start signed in, so they do not go through the sign-in pages. The sessions build a Playwright storage
-state, which the test applies to its browser context with `setStorageState`:
+Browser tests start signed in, so they do not go through the sign-in pages. `BrowserSessions.signedIn(baseUrl,
+credentials)` returns a Playwright storage state, which the test applies to its browser context with
+`setStorageState`. How a user signs in is the sessions' strategy; the sessions themselves are the same for every
+application:
 
-- `FrontendBrowserSessions.signedIn` requests a token through the frontend's own origin and puts it into the
-  frontend's local storage. The entry is `{ expires_at, token_type, access_token, refresh_token }`, the format of the
-  Virto Commerce frontend. Its key is `auth`, and `storageKeys` changes it for a frontend that keeps its sign-in
-  elsewhere.
-- `FrontendBrowserSessions.anonymous` puts a visitor's identifier into local storage, under the key `user-id`, so the
-  test knows whose cart it works with. It sends no requests.
-- `PlatformBrowserSessions.signedIn` signs in to the admin UI of the platform and returns its sign-in cookie.
-
-Both keep one sign-in for each user, and concurrent calls share it. A failed sign-in is not kept.
-
-`FrontendBrowserSessions.signOut` and `dispose` revoke the frontend tokens. The platform cannot revoke the admin UI
-cookie, so `PlatformBrowserSessions.forget` only drops it, and the next call signs in again.
+- They keep one session for each user, store and origin, each with a request context of its own, so cookies of one
+  user never reach another.
+- Concurrent calls for the same user share one sign-in. A failed sign-in is not kept.
+- A session that expires within a minute, or a different password for a kept user, signs in again. The old session is
+  not signed out, so a failure to end it never fails the new sign-in.
+- `signOut` ends a user's sessions on every origin, such as before the user is deleted, and `dispose` ends every
+  session. A session past its expiry is not signed out, because the server no longer accepts it.
 
 A storage state holds tokens and cookies in plain text. Never log it or attach it to a report.
+
+## Sign-in strategies
+
+A `SignInStrategy` signs one user in on a fresh request context and returns the session: its storage state and,
+optionally, when it expires and how to end it on the server. The framework has three:
+
+- `oauthLocalStorage(options)` signs in to the Virto Commerce frontend: the OAuth password grant on the frontend's
+  origin, with the token in local storage as `{ expires_at, token_type, access_token, refresh_token }` under `auth`.
+  `storageKey`, `tokenPath` and `revokePath` change the key and the endpoints. The session expires with the token,
+  and signing out revokes it.
+- `cookieSignIn(signIn, options)` signs in to an application with a cookie session: `signIn` sends the sign-in
+  requests, and the session keeps the cookies that their responses set. The requests share one request context, so
+  the cookies of one are sent with the next. The session expires with the first cookie that has an expiry, and the
+  `signOut` option ends it on the server.
+- `platformAdminSignIn` signs in to the admin UI of the platform with `POST /api/platform/security/login`. The
+  platform cannot end the cookie session, so it is not signed out.
+
+`anonymousVisitorState(frontendBaseUrl, anonymousUserId)` is the storage state of an anonymous visitor of the Virto
+Commerce frontend: the visitor's identifier in local storage, under `user-id`, so the test knows whose cart it works
+with. It sends no requests.
+
+`defaultFixtures` uses `oauthLocalStorage()` for the frontends and `platformAdminSignIn` for the admin UI. A test
+suite whose frontend signs users in another way passes its strategy as `frontendSignIn`. This frontend signs in with
+two requests to its own server and keeps the session in cookies:
+
+<!-- example: ../examples/sign-in-strategies.ts -->
+```ts
+import type { DefaultFixtures, DefaultWorkerFixtures } from "@virtocommerce/test-automation-framework/fixtures";
+
+import { test as base } from "@playwright/test";
+import { cookieSignIn } from "@virtocommerce/test-automation-framework/auth";
+import { envSchema, originUrl, parseEnv } from "@virtocommerce/test-automation-framework/core";
+import { defaultFixtures } from "@virtocommerce/test-automation-framework/fixtures";
+
+const suiteEnvSchema = envSchema.extend({ FRONTEND_BASE_URL: originUrl });
+type SuiteEnv = ReturnType<typeof suiteEnvSchema.parse>;
+const env = parseEnv(suiteEnvSchema);
+
+const frontendSignIn = cookieSignIn(
+  async (http, { username, password, storeId }) => {
+    (await http.post("/api/auth/login", { json: { username, password } })).expectOk();
+    (await http.post("/api/auth/login-platform", { json: { username, password, storeId } })).expectOk();
+  },
+  { signOut: async (http) => (await http.post("/api/auth/logout")).expectOk() },
+);
+
+export const test = base.extend<DefaultFixtures, DefaultWorkerFixtures<SuiteEnv>>(
+  defaultFixtures(env, { frontendSignIn }),
+);
+```
+
+An application that fits none of them gets a strategy of its own: a function that receives the origin, a client of
+it and the request context, signs the user in, and returns `{ state, expiresAt, signOut }`.
 
 ## Several stores
 

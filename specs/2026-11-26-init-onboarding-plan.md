@@ -4,7 +4,7 @@
 
 **Goal:** `npx vc-qa-agents init` in a terminal asks for the stand's facts once, writes `.env` and `.qa/project.json`, installs, runs codegen and a first read-only test, starts the browser MCP server through a launcher that cannot crash on a missing secrets file, and ends with a readiness table.
 
-**Architecture:** `bin/install-qa-agents.mjs` stays the entry point and orchestrator; new logic goes into plain-`.mjs` modules in `bin/lib/` (Node does not strip types under `node_modules`, so `bin` never imports a `.mts` check). The checks that already live in `.claude/checks/*.mts` are run as `node` subprocesses from the target directory after `init` has synced them. The browser server is started by a new package-owned check, `.claude/checks/browser-mcp.mts`, which builds the secrets file from the run's variables at every start.
+**Architecture:** `bin/vc-qa-agents.mjs` stays the entry point and orchestrator; new logic goes into plain-`.mjs` modules in `bin/lib/` (Node does not strip types under `node_modules`, so `bin` never imports a `.mts` check). The checks that already live in `.claude/checks/*.mts` are run as `node` subprocesses from the target directory after `init` has synced them. The browser server is started by a new package-owned check, `.claude/checks/browser-mcp.mts`, which builds the secrets file from the run's variables at every start.
 
 **Tech Stack:** Node >=22.18 (`.mjs`/`.mts`, no new runtime dependency), Playwright Test as the unit runner (`npm run test:unit`, project `unit`, files `tests/unit/**/*.test.ts`), Biome, `@playwright/mcp@0.0.84`.
 
@@ -37,7 +37,7 @@
 **Files:**
 
 - Create: `bin/lib/dependencies.mjs`
-- Modify: `bin/install-qa-agents.mjs` (`installDependencies`, `mergePackageJson`), `package.json` (`devDependencies["@biomejs/biome"]` becomes `2.6.8`, the peer range `^2.6.8` stays)
+- Modify: `bin/vc-qa-agents.mjs` (`installDependencies`, `mergePackageJson`), `package.json` (`devDependencies["@biomejs/biome"]` becomes `2.6.8`, the peer range `^2.6.8` stays)
 - Test: `tests/unit/bin/dependencies.test.ts`
 
 **Interfaces:**
@@ -55,7 +55,7 @@
 **Files:**
 
 - Create: `templates/suite/scripts/check-platform.ts`
-- Modify: `bin/install-qa-agents.mjs` (`SUITE_SCRIPTS.codegen`)
+- Modify: `bin/vc-qa-agents.mjs` (`SUITE_SCRIPTS.codegen`)
 - Test: `tests/unit/bin/check-platform.test.ts`
 
 **Interfaces:**
@@ -91,7 +91,7 @@
 **Files:**
 
 - Create: `.claude/checks/browser-mcp.mts`
-- Modify: `.claude/checks/browser-secrets.mts` (add `tolerantRunVariables`, change `signInStatus`), `templates/suite/.mcp.json`, `bin/install-qa-agents.mjs` (delete `wrapForWindows` and its call in `copySuiteTemplate`; replace the `hasBrowserServer` branch of `install()` with `browserServerKind`)
+- Modify: `.claude/checks/browser-secrets.mts` (add `tolerantRunVariables`, change `signInStatus`), `templates/suite/.mcp.json`, `bin/vc-qa-agents.mjs` (delete `wrapForWindows` and its call in `copySuiteTemplate`; replace the `hasBrowserServer` branch of `install()` with `browserServerKind`)
 - Test: `tests/unit/bin/browser-mcp.test.ts`; update `tests/unit/bin/init.test.ts` (the test at "writes the browser server that the agents sign in with")
 
 **Interfaces:**
@@ -112,7 +112,7 @@
 **Files:**
 
 - Create: `bin/lib/arguments.mjs`
-- Modify: `bin/install-qa-agents.mjs` (`USAGE`, `FLAGS`, `parseArguments`, `suiteDirOf`, `main`)
+- Modify: `bin/vc-qa-agents.mjs` (`USAGE`, `FLAGS`, `parseArguments`, `suiteDirOf`, `main`)
 - Test: `tests/unit/bin/arguments.test.ts`
 
 **Interfaces:**
@@ -168,7 +168,7 @@
 
 **Files:**
 
-- Modify: `bin/install-qa-agents.mjs` (`init`, `main`, the final output; `install` keeps its own lines), `tests/unit/bin/init.test.ts`
+- Modify: `bin/vc-qa-agents.mjs` (`init`, `main`, the final output; `install` keeps its own lines), `tests/unit/bin/init.test.ts`
 - Test: `tests/unit/bin/init.test.ts` (extend), `tests/unit/bin/doctor.test.ts`
 
 **Interfaces:**

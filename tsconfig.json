@@ -3,6 +3,8 @@
     "target": "es2024",
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "rewriteRelativeImportExtensions": true,
+    "verbatimModuleSyntax": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -10,21 +12,17 @@
     "noImplicitReturns": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "erasableSyntaxOnly": true,
+    "allowJs": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node"],
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
-      "@core/*": ["./core/*"],
-      "@api/*": ["./api/*"],
-      "@dataset/*": ["./dataset/*"],
-      "@pages/*": ["./pages/*"],
-      "@fixtures": ["./fixtures/index.ts"]
+      "@/*": ["./src/*/index.ts"]
     }
   },
-  "include": ["**/*", ".claude/checks/**/*", ".claude/hooks/**/*"],
-  "exclude": ["node_modules", "evals", "tests/unit/qa"]
+  "include": ["src", "tests", "scripts", "playwright.config.ts", ".claude/checks", ".claude/hooks"],
+  "exclude": ["tests/unit/qa"]
 }

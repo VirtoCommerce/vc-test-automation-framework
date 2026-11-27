@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@virtocommerce/test-automation-framework/*": ["../../src/*/index.ts"],
+      "@/*": ["../../src/*/index.ts"]
+    }
+  },
+  "include": ["."]
+}

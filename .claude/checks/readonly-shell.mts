@@ -4,12 +4,25 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { passwordNames, runVariables } from "./browser-secrets.mts";
 import { EXTRACTORS } from "./explore-extractors.mts";
-import { PROJECT_FACTS_PATH, readProjectFacts, SHORT_NAME_SEGMENT } from "./project-facts.mts";
+import {
+  PROJECT_FACTS_PATH,
+  playwrightConfigArgs,
+  readProjectFactsIn,
+  SHORT_NAME_SEGMENT,
+  suitePackageDir,
+  toolLauncher,
+} from "./project-facts.mts";
 import { standOrigins } from "./stand.mts";
 
-export const READ_ONLY_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge"] as const;
+/**
+ * How the suite's tools start from the repository root (`toolLauncher`) and the suite's Playwright config arguments
+ * (`playwrightConfigArgs`), or undefined when the facts cannot be read.
+ */
+export type SuiteConfig = { launcher: readonly string[]; config: readonly string[] } | undefined;
 
-export const HEALER_AGENT = "qa-healer";
+export const READ_ONLY_AGENTS = ["vc-qa-reviewer", "vc-qa-explorer", "vc-qa-coverage", "vc-qa-judge"] as const;
+
+export const HEALER_AGENT = "vc-qa-healer";
 
 export const ALLOWED_QA_MODULES = [
   "project-facts",
@@ -22,17 +35,26 @@ export const ALLOWED_QA_MODULES = [
   "test-duration",
 ] as const;
 
-export const JUDGE_AGENT = "qa-judge";
+export const JUDGE_AGENT = "vc-qa-judge";
 
 export const JUDGE_QA_MODULES = ["judge-verdict", "prove-fails"] as const;
 
 export const JUDGE_WRITE_DIR = ".qa/judge";
 
-export const EXPLORER_AGENT = "qa-explorer";
+export const EXPLORER_AGENT = "vc-qa-explorer";
 
-export const COVERAGE_AGENT = "qa-coverage";
+export const EXPLORER_QA_MODULES = ["introspect", "probe"] as const;
+
+export const COVERAGE_AGENT = "vc-qa-coverage";
 
 export const EXPLORER_WRITE_DIR = ".qa/reports";
+
+export const PROBE_DIR = ".qa/probes";
+
+const PROBE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*[.](graphql|get)$/;
+
+/** The probe files the explorer may write and `probe.mts` may send: `.qa/probes/<slug>.graphql` or `.get`. */
+export const PROBE_FILE = new RegExp(`^${PROBE_DIR.replace(/[.]/g, "[.]")}/${PROBE_NAME.source.slice(1)}`);
 
 export const HEALER_RUN_DIR = ".qa/runs";
 
@@ -71,6 +93,7 @@ const TOKEN = /^[A-Za-z0-9_./:=@,+^~-]+$/;
 const GIT_SUBCOMMANDS = ["diff", "log", "show", "status"];
 const GIT_FORBIDDEN_PREFIXES = ["--output", "--ext-diff", "--textconv", "--no-index", "--open-files", "--exec", "-O"];
 const PLAYWRIGHT_FLAGS = [
+  /^--no-deps$/,
   /^--list$/,
   /^--reporter=(json|list|null)$/,
   /^--project=[\w.-]+$/,
@@ -87,16 +110,21 @@ const TEST_DURATION_ARGUMENTS = [2, 3];
 const PROVE_FAILS_PROJECT = /^--project=[\w.-]+$/;
 const REPORTER_FLAG = /^--reporter=/;
 const OUTPUT_VARIABLE = "PLAYWRIGHT_JSON_OUTPUT_FILE=";
-const REVIEWER_AGENT = "qa-reviewer";
+const REVIEWER_AGENT = "vc-qa-reviewer";
 const REVIEWER_OUTPUT =
   /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/(?![Hh][Ee][Aa][Ll]-)[\w-]+\/review-list\.[\w-]+\.json$/;
 const HEALER_REVIEW_OUTPUT =
   /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/heal-[a-z0-9]+(-[a-z0-9]+)*\/review-list\.[\w-]+\.json$/;
 const NPX = "npx";
+const NPM = "npm";
 const NPX_NO_INSTALL = "--no";
 const END_OF_OPTIONS = "--";
 const QA_MODULE_PATH = modulePattern(ALLOWED_QA_MODULES);
 const JUDGE_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...JUDGE_QA_MODULES]);
+const EXPLORER_QA_MODULE_PATH = modulePattern([...ALLOWED_QA_MODULES, ...EXPLORER_QA_MODULES]);
+const INTROSPECT_PATH = `${CHECKS_DIR}/introspect.mts`;
+const PROBE_PATH = `${CHECKS_DIR}/probe.mts`;
+const INTROSPECT_KINDS = ["graphql", "rest"];
 const MAX_SHOWN_COMMAND = 80;
 
 /**
@@ -106,7 +134,7 @@ const MAX_SHOWN_COMMAND = 80;
 export const CREDENTIAL_SHAPE =
   /\beyJ[\w-]+\.[\w-]+\.[\w-]+|access_token|refresh_token|id_token|"password"|\bBearer\s/i;
 
-const QA_FOLDER_TOKEN = /(^|\/)\.qa(\/|$)/i;
+const QA_DIR_TOKEN = /(^|\/)\.qa(\/|$)/i;
 const REPORT_FILE = /^explore-[a-z0-9]+(-[a-z0-9]+)*\.md$/;
 const COVERAGE_FILE = /^coverage-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?\.md$/;
 const JUDGE_FILE = /\.json$/;
@@ -116,6 +144,7 @@ const HEAL_SLUG = /^heal-[a-z0-9]+(-[a-z0-9]+)*$/;
 const HEAL_REPORT = /^(heal-[a-z0-9]+(-[a-z0-9]+)*|flaky)\.md$/;
 const HEAL_JSON_OUTPUT = /^PLAYWRIGHT_JSON_OUTPUT_FILE=\.qa\/runs\/heal-[a-z0-9]+(-[a-z0-9]+)*\/[\w.-]+\.json$/;
 const HEALER_PLAYWRIGHT_FLAGS = [
+  /^--no-deps$/,
   /^--project=[\w.-]+$/,
   /^--repeat-each=\d{1,3}$/,
   /^--retries=0$/,
@@ -126,16 +155,15 @@ const GREP_VALUE = /^[\w.+^~,:@/=][\w.+^~,:@/=-]*$/;
 const GUARD_BASE = /^--base=[0-9a-f]{7,64}$/;
 const GUARD_PATH = `${CHECKS_DIR}/expectation-guard.mts`;
 const DRIVE_PATH = /^[A-Za-z]:/;
+const CONFIG_FLAG = "--config";
+const CONFIG_PREFIX = `${CONFIG_FLAG}=`;
+const CONFIG_SHORT_FLAG = "-c";
+const NO_EMIT = "--noEmit";
+const ENV_FILE_NAME = /^\.env(\.|$)/;
+const WINDOWS_TRAILING = /[. ]+$/;
 const GIT_DIR = ".git";
-const NO_HOOKS_FOLDER = "";
-const GIT_HOOKS_FOLDER_ARGS = [
-  "-c",
-  "core.fsmonitor=false",
-  "rev-parse",
-  "--path-format=absolute",
-  "--git-path",
-  "hooks",
-];
+const NO_HOOKS_DIR = "";
+const GIT_HOOKS_DIR_ARGS = ["-c", "core.fsmonitor=false", "rev-parse", "--path-format=absolute", "--git-path", "hooks"];
 
 function modulePattern(modules: readonly string[]): RegExp {
   return new RegExp(`^${CHECKS_DIR_PATTERN}/(${modules.join("|")})[.]mts$`);
@@ -164,20 +192,59 @@ function npxArgs(tokens: readonly string[]): readonly string[] | undefined {
   return tokens[2] === END_OF_OPTIONS ? tokens.slice(3) : tokens.slice(2);
 }
 
-function isPlaywrightList(tokens: readonly string[]): boolean {
-  const [tool, subcommand, ...rest] = npxArgs(tokens) ?? [];
+/**
+ * The words after the suite's tool launcher: `npx --no`, optionally then `--`, for the root's `node_modules` (also
+ * when the facts cannot be read), exactly `npm exec --prefix <suiteDir> --no --` for a suite that is its own npm
+ * project.
+ */
+function toolArgs(tokens: readonly string[], suite: SuiteConfig): readonly string[] | undefined {
+  const launcher = suite?.launcher;
+  if (launcher === undefined || launcher[0] === NPX) {
+    return npxArgs(tokens);
+  }
+  const launched = tokens.length > launcher.length && launcher.every((word, index) => tokens[index] === word);
+  return launched ? tokens.slice(launcher.length) : undefined;
+}
+
+function isConfigFlag(token: string): boolean {
+  return token === CONFIG_SHORT_FLAG || token.startsWith(CONFIG_FLAG);
+}
+
+/**
+ * True when `args` carry exactly the suite's config arguments (`playwrightConfigArgs`): `--config=<suiteDir>` once,
+ * or no config flag for a suite at the repository root. An unknown config (the facts could not be read) never passes.
+ */
+function hasSuiteConfig(args: readonly string[], suite: SuiteConfig): boolean {
+  const config = suite?.config;
+  if (config === undefined) {
+    return false;
+  }
+  const given = args.filter(isConfigFlag);
+  return given.length === config.length && given.every((token, index) => token === config[index]);
+}
+
+function namesEnvFile(path: string): boolean {
+  return path
+    .split(PATH_SEPARATORS)
+    .some((segment) => ENV_FILE_NAME.test(segment.toLowerCase().replace(WINDOWS_TRAILING, "")));
+}
+
+function isPlaywrightList(tokens: readonly string[], config: SuiteConfig): boolean {
+  const [tool, subcommand, ...rest] = toolArgs(tokens, config) ?? [];
   if (tool !== "playwright" || subcommand !== "test" || !rest.includes("--list")) {
     return false;
   }
-  if (rest.some((token) => QA_FOLDER_TOKEN.test(token))) {
+  if (rest.some((token) => QA_DIR_TOKEN.test(token) || namesEnvFile(token)) || !hasSuiteConfig(rest, config)) {
     return false;
   }
   if (rest.filter((token) => REPORTER_FLAG.test(token)).length !== 1) {
     return false;
   }
-  return rest.every((token) =>
-    token.startsWith("-") ? PLAYWRIGHT_FLAGS.some((flag) => flag.test(token)) : PLAYWRIGHT_PATH.test(token),
-  );
+  return rest
+    .filter((token) => !isConfigFlag(token))
+    .every((token) =>
+      token.startsWith("-") ? PLAYWRIGHT_FLAGS.some((flag) => flag.test(token)) : PLAYWRIGHT_PATH.test(token),
+    );
 }
 
 function isProveFailsCall(tokens: readonly string[]): boolean {
@@ -189,6 +256,7 @@ function isProveFailsCall(tokens: readonly string[]): boolean {
     !spec.startsWith("-") &&
     !spec.startsWith("/") &&
     !spec.split("/").includes("..") &&
+    !namesEnvFile(spec) &&
     /^\d+$/.test(line) &&
     words.length > 0 &&
     flags.length <= 1 &&
@@ -202,10 +270,23 @@ function isQualityCall(tokens: readonly string[]): boolean {
   return count && args.every(isRepoPath);
 }
 
+function qaModulePatternOf(agent: string | undefined): RegExp {
+  const bare = bareName(agent);
+  if (bare === JUDGE_AGENT) {
+    return JUDGE_QA_MODULE_PATH;
+  }
+  return bare === EXPLORER_AGENT ? EXPLORER_QA_MODULE_PATH : QA_MODULE_PATH;
+}
+
 function isQaModule(tokens: readonly string[], agent: string | undefined): boolean {
-  const pattern = bareName(agent) === JUDGE_AGENT ? JUDGE_QA_MODULE_PATH : QA_MODULE_PATH;
-  if (tokens[0] !== "node" || !pattern.test(tokens[1] ?? "")) {
+  if (tokens[0] !== "node" || !qaModulePatternOf(agent).test(tokens[1] ?? "")) {
     return false;
+  }
+  if (tokens[1] === INTROSPECT_PATH) {
+    return tokens.length === 3 && INTROSPECT_KINDS.includes(tokens[2] ?? "");
+  }
+  if (tokens[1] === PROBE_PATH) {
+    return tokens.length === 3 && PROBE_FILE.test(tokens[2] ?? "");
   }
   if (tokens[1] === TEST_SHAPE_PATH || tokens[1] === TEST_DURATION_PATH) {
     return isQualityCall(tokens);
@@ -230,17 +311,22 @@ function withoutOutputAssignment(tokens: readonly string[], agent: string | unde
 }
 
 /**
- * True only for a single plain command on the allowlist: `npx --no playwright test --list --reporter=json|list|null …`
- * (`--repeat-each=<1-2 digits>` allowed there, so a reviewer can list a series),
- * `git diff|log|show|status …`, `node .claude/checks/<module>.mts …` (`test-shape` and `test-duration` only with repository
- * paths and a project name, as 1+ and 2-3 arguments); `qa-judge` also has `judge-verdict` and `prove-fails`.
- * `npx` must carry `--no`, optionally then `--` (npm 12 needs it before a tool whose next word is a flag), so npm never
- * fetches a package. Only `qa-reviewer` may lead the listing with
+ * True only for a single plain command on the allowlist: `<launcher> playwright test --config=<suiteDir> --list
+ * --reporter=json|list|null …` (`--repeat-each=<1-2 digits>` allowed there, so a reviewer can list a series; the
+ * config flag exactly as `config` holds it, none for a suite at the repository root, and no path to a `.env` file),
+ * `git diff|log|show|status …`, `node .claude/checks/<module>.mts …` (`test-shape` and `test-duration` only with
+ * repository paths and a project name, as 1+ and 2-3 arguments); `vc-qa-judge` also has `judge-verdict` and
+ * `prove-fails`, and `vc-qa-explorer` has `introspect` (`graphql` or `rest`) and `probe` (one `.qa/probes/<slug>.graphql|get`
+ * file). The launcher is the suite's (`toolLauncher`): `npx --no`, optionally then `--` (npm 12 needs it before a
+ * tool whose next word is a flag), or `npm exec --prefix <suiteDir> --no --` for a suite that is its own npm project,
+ * so npm never fetches a package. Only `vc-qa-reviewer` may lead the listing with
  * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/<contract-name>/review-list.<project>.json`, `<contract-name>` not starting
- * with `heal-`, and `qa-healer` only with the folder `heal-<slug>`. No chaining, substitution, redirection, quoting,
+ * with `heal-`, and `vc-qa-healer` only with the directory `heal-<slug>`. No chaining, substitution, redirection, quoting,
  * globbing or variable expansion.
+ *
+ * @param config the suite's launcher and Playwright config arguments; undefined blocks every Playwright command.
  */
-export function isReadOnlyCommand(command: string, agent?: string): boolean {
+export function isReadOnlyCommand(command: string, agent: string | undefined, config: SuiteConfig): boolean {
   const text = command.trim();
   if (text === "") {
     return false;
@@ -254,13 +340,13 @@ export function isReadOnlyCommand(command: string, agent?: string): boolean {
     return false;
   }
   if (bare !== tokens) {
-    return isPlaywrightList(bare);
+    return isPlaywrightList(bare, config);
   }
   if (tokens[0] === "git") {
     return isGitRead(tokens);
   }
-  if (tokens[0] === NPX) {
-    return isPlaywrightList(tokens);
+  if (tokens[0] === NPX || tokens[0] === NPM) {
+    return isPlaywrightList(tokens, config);
   }
   return isQaModule(tokens, agent);
 }
@@ -271,19 +357,21 @@ function isRepoPath(token: string): boolean {
     !token.startsWith("-") &&
     !token.startsWith("/") &&
     !DRIVE_PATH.test(token) &&
-    !token.split("/").includes("..")
+    !token.split("/").includes("..") &&
+    !namesEnvFile(token)
   );
 }
 
-function isHealerPlaywright(tokens: readonly string[]): boolean {
-  const [tool, subcommand, ...rest] = npxArgs(tokens) ?? [];
-  if (tool !== "playwright" || subcommand !== "test") {
+function isHealerPlaywright(tokens: readonly string[], config: SuiteConfig): boolean {
+  const [tool, subcommand, ...rest] = toolArgs(tokens, config) ?? [];
+  if (tool !== "playwright" || subcommand !== "test" || !hasSuiteConfig(rest, config)) {
     return false;
   }
   let reporters = 0;
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index] ?? "";
-    if (token === "-g") {
+    if (isConfigFlag(token)) {
+    } else if (token === "-g") {
       index += 1;
       if (!GREP_VALUE.test(rest[index] ?? "")) {
         return false;
@@ -305,15 +393,26 @@ function isHealerPlaywright(tokens: readonly string[]): boolean {
   return true;
 }
 
+function isTypecheck(args: readonly string[], config: SuiteConfig): boolean {
+  if (args.length === 1) {
+    return args[0] === NO_EMIT;
+  }
+  const suiteDir = config?.config[0]?.slice(CONFIG_PREFIX.length);
+  return suiteDir !== undefined && args.length === 3 && args[0] === "-p" && args[1] === suiteDir && args[2] === NO_EMIT;
+}
+
 /**
- * True only for a single plain command the healer may run besides the read-only ones: `npx --no playwright test` on
- * repository paths with `--project`, `--repeat-each`, `--retries=0`, `--reporter=list|json|null`, `--grep` or `-g`
- * and `--list`, optionally led by `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/<name>.json`; `node
- * .claude/checks/expectation-guard.mts --snapshot|--base=<sha>`; `npx --no tsc --noEmit`; `npx --no biome check <paths>` with no
- * flag. Nothing that fetches a package, writes to git, updates snapshots, picks a config or an output folder, and not
- * the main session's `--repo-fingerprint`.
+ * True only for a single plain command the healer may run besides the read-only ones, each tool started with the
+ * suite's launcher as {@link isReadOnlyCommand} takes it: `playwright test --config=<suiteDir>` (the config flag
+ * exactly as `config` holds it) on repository paths with `--project`,
+ * `--repeat-each`, `--retries=0`, `--reporter=list|json|null`, `--grep` or `-g` and `--list`, optionally led by
+ * `PLAYWRIGHT_JSON_OUTPUT_FILE=.qa/runs/heal-<slug>/<name>.json`; `node .claude/checks/expectation-guard.mts
+ * --snapshot|--base=<sha>`; `tsc --noEmit` and, for a suite in a directory, `tsc -p <suiteDir> --noEmit`; `biome
+ * check <paths>` with no flag. No path names a `.env` file. Nothing that fetches a package,
+ * writes to git, updates snapshots, picks another config or an output directory, and not the main session's
+ * `--repo-fingerprint`.
  */
-export function isHealerCommand(command: string): boolean {
+export function isHealerCommand(command: string, config: SuiteConfig): boolean {
   const text = command.trim();
   const tokens = text.split(" ");
   if (text === "" || !tokens.every((token) => TOKEN.test(token))) {
@@ -321,7 +420,7 @@ export function isHealerCommand(command: string): boolean {
   }
   const [first = "", second, third, ...rest] = tokens;
   if (first.startsWith(OUTPUT_VARIABLE)) {
-    return HEAL_JSON_OUTPUT.test(first) && isHealerPlaywright(tokens.slice(1));
+    return HEAL_JSON_OUTPUT.test(first) && isHealerPlaywright(tokens.slice(1), config);
   }
   if (first === "node") {
     return (
@@ -331,12 +430,12 @@ export function isHealerCommand(command: string): boolean {
       (third === "--snapshot" || GUARD_BASE.test(third))
     );
   }
-  const [tool, subcommand, ...args] = npxArgs(tokens) ?? [];
+  const [tool, subcommand, ...args] = toolArgs(tokens, config) ?? [];
   if (tool === "playwright") {
-    return isHealerPlaywright(tokens);
+    return isHealerPlaywright(tokens, config);
   }
   if (tool === "tsc") {
-    return subcommand === "--noEmit" && args.length === 0;
+    return isTypecheck([subcommand ?? "", ...args], config);
   }
   if (tool === "biome") {
     return subcommand === "check" && args.length > 0 && args.every(isRepoPath);
@@ -404,62 +503,113 @@ function isJudgeFile(segments: readonly string[]): boolean {
   return segments.length >= 2 && JUDGE_FILE.test(segments.at(-1) ?? "") && !segments.some((name) => name.includes(":"));
 }
 
-function writeRuleOf(
-  agent: string,
-): { dir: string; allows: (segments: readonly string[]) => boolean; shown: string } | undefined {
+type WriteRule = { dir: string; allows: (segments: readonly string[]) => boolean; shown: string };
+
+function isProbeFile(segments: readonly string[]): boolean {
+  return segments.length === 1 && PROBE_NAME.test(segments[0] ?? "");
+}
+
+function writeRulesOf(agent: string): WriteRule[] {
   const bare = bareName(agent);
   if (bare === JUDGE_AGENT) {
-    return {
-      dir: JUDGE_WRITE_DIR,
-      allows: isJudgeFile,
-      shown: `only .json files under ${JUDGE_WRITE_DIR}/<contract-name>/`,
-    };
+    return [
+      {
+        dir: JUDGE_WRITE_DIR,
+        allows: isJudgeFile,
+        shown: `.json files under ${JUDGE_WRITE_DIR}/<contract-name>/`,
+      },
+    ];
   }
   if (bare === EXPLORER_AGENT) {
-    return { dir: EXPLORER_WRITE_DIR, allows: isReportFile, shown: `only ${EXPLORER_WRITE_DIR}/explore-<slug>.md` };
+    return [
+      { dir: EXPLORER_WRITE_DIR, allows: isReportFile, shown: `${EXPLORER_WRITE_DIR}/explore-<slug>.md` },
+      { dir: PROBE_DIR, allows: isProbeFile, shown: `${PROBE_DIR}/<slug>.graphql|get` },
+    ];
   }
   if (bare === COVERAGE_AGENT) {
-    return {
-      dir: EXPLORER_WRITE_DIR,
-      allows: isCoverageFile,
-      shown: `only ${EXPLORER_WRITE_DIR}/coverage-<yyyy-mm-dd>[-<slug>].md`,
-    };
+    return [
+      {
+        dir: EXPLORER_WRITE_DIR,
+        allows: isCoverageFile,
+        shown: `${EXPLORER_WRITE_DIR}/coverage-<yyyy-mm-dd>[-<slug>].md`,
+      },
+    ];
   }
-  return undefined;
+  return [];
 }
 
 function writeBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
-  const rule = writeRuleOf(agent);
-  if (rule === undefined) {
+  const rules = writeRulesOf(agent);
+  if (rules.length === 0) {
     return `${agent} is read-only and may not write files; blocked`;
   }
   const file = isRecord(toolInput) ? toolInput["file_path"] : undefined;
-  const segments = typeof file === "string" && file !== "" ? pathInside(projectDir, rule.dir, file) : undefined;
-  if (segments !== undefined && rule.allows(segments)) {
+  const allowed =
+    typeof file === "string" &&
+    file !== "" &&
+    rules.some((rule) => {
+      const segments = pathInside(projectDir, rule.dir, file);
+      return segments !== undefined && rule.allows(segments);
+    });
+  if (allowed) {
     const content = isRecord(toolInput) ? toolInput["content"] : undefined;
     return bareName(agent) === EXPLORER_AGENT && typeof content === "string" && CREDENTIAL_SHAPE.test(content)
       ? `${agent} may not write a token, password or Bearer header into a report; blocked`
       : undefined;
   }
   const shown = JSON.stringify(typeof file === "string" ? file.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may write ${rule.shown}; blocked: ${shown}`;
+  return `${agent} may write only ${rules.map((rule) => rule.shown).join(" and ")}; blocked: ${shown}`;
 }
 
 function cleanHealerSegments(segments: readonly string[] | undefined): readonly string[] | undefined {
   const bad = segments?.some((name) => {
     const lower = name.toLowerCase();
-    const windowsName = lower.replace(/[. ]+$/, "");
-    return name.includes(":") || lower.startsWith(".git") || windowsName === ".claude" || /~\d/.test(name);
+    const windowsName = lower.replace(WINDOWS_TRAILING, "");
+    return (
+      name.includes(":") ||
+      lower.startsWith(".git") ||
+      windowsName === ".claude" ||
+      ENV_FILE_NAME.test(windowsName) ||
+      /~\d/.test(name)
+    );
   });
   return bad === false ? segments : undefined;
 }
 
 function healerPathsOf(projectDir: string): readonly string[] | undefined {
   try {
-    return readProjectFacts(join(projectDir, PROJECT_FACTS_PATH)).healerPaths;
+    return readProjectFactsIn(projectDir).healerPaths;
   } catch {
     return undefined;
   }
+}
+
+function suiteConfigOf(projectDir: string): SuiteConfig {
+  try {
+    const { suiteDir } = readProjectFactsIn(projectDir);
+    return {
+      launcher: toolLauncher(suitePackageDir(projectDir, suiteDir)),
+      config: playwrightConfigArgs(suiteDir),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function launcherShown(config: SuiteConfig): string {
+  return (config?.launcher ?? [NPX, NPX_NO_INSTALL]).join(" ");
+}
+
+function playwrightShown(config: SuiteConfig): string {
+  return config === undefined
+    ? `npx --no playwright test (not now: ${PROJECT_FACTS_PATH} could not be read)`
+    : [launcherShown(config), "playwright test", ...config.config].join(" ");
+}
+
+function typecheckShown(config: SuiteConfig): string {
+  const tsc = `${launcherShown(config)} tsc`;
+  const suiteDir = config?.config[0]?.slice(CONFIG_PREFIX.length);
+  return suiteDir === undefined ? `${tsc} ${NO_EMIT}` : `${tsc} ${NO_EMIT}, ${tsc} -p ${suiteDir} ${NO_EMIT}`;
 }
 
 function healerMayWrite(file: string, projectDir: string, healerPaths: readonly string[]): boolean {
@@ -475,24 +625,24 @@ function healerMayWrite(file: string, projectDir: string, healerPaths: readonly 
 }
 
 /**
- * The folder git runs hooks from (`core.hooksPath`, else `.git/hooks`), resolved by git itself. Outside a repository
- * there is none (`NO_HOOKS_FOLDER`); a repository whose configuration git cannot read gives undefined, which blocks.
+ * The directory git runs hooks from (`core.hooksPath`, else `.git/hooks`), resolved by git itself. Outside a repository
+ * there is none (`NO_HOOKS_DIR`); a repository whose configuration git cannot read gives undefined, which blocks.
  */
-function hooksFolderOf(projectDir: string): string | undefined {
+function hooksDirOf(projectDir: string): string | undefined {
   try {
-    return execFileSync("git", GIT_HOOKS_FOLDER_ARGS, {
+    return execFileSync("git", GIT_HOOKS_DIR_ARGS, {
       cwd: projectDir,
       encoding: "utf8",
       env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   } catch {
-    return exists(join(projectDir, GIT_DIR)) ? undefined : NO_HOOKS_FOLDER;
+    return exists(join(projectDir, GIT_DIR)) ? undefined : NO_HOOKS_DIR;
   }
 }
 
-function isInsideHooksFolder(file: string, projectDir: string, hooksFolder: string): boolean {
-  return hooksFolder !== NO_HOOKS_FOLDER && pathInside(projectDir, hooksFolder, file) !== undefined;
+function isInsideHooksDir(file: string, projectDir: string, hooksDir: string): boolean {
+  return hooksDir !== NO_HOOKS_DIR && pathInside(projectDir, hooksDir, file) !== undefined;
 }
 
 function healerWriteBlockReason(agent: string, toolInput: unknown, projectDir: string): string | undefined {
@@ -502,12 +652,12 @@ function healerWriteBlockReason(agent: string, toolInput: unknown, projectDir: s
   if (healerPaths === undefined) {
     return `${agent} may not write: ${PROJECT_FACTS_PATH} could not be read; blocked: ${shown}`;
   }
-  const hooksFolder = hooksFolderOf(projectDir);
-  if (hooksFolder === undefined) {
-    return `${agent} may not write: the git hooks folder could not be resolved; blocked: ${shown}`;
+  const hooksDir = hooksDirOf(projectDir);
+  if (hooksDir === undefined) {
+    return `${agent} may not write: the git hooks directory could not be resolved; blocked: ${shown}`;
   }
-  if (typeof file === "string" && file !== "" && isInsideHooksFolder(file, projectDir, hooksFolder)) {
-    return `${agent} may not write into the folder git runs hooks from; blocked: ${shown}`;
+  if (typeof file === "string" && file !== "" && isInsideHooksDir(file, projectDir, hooksDir)) {
+    return `${agent} may not write into the directory git runs hooks from; blocked: ${shown}`;
   }
   if (typeof file === "string" && file !== "" && healerMayWrite(file, projectDir, healerPaths)) {
     return undefined;
@@ -532,11 +682,12 @@ function healerBlockReason(agent: string, tool: unknown, toolInput: unknown, pro
     return undefined;
   }
   const command = isRecord(toolInput) ? toolInput["command"] : undefined;
-  if (typeof command === "string" && (isReadOnlyCommand(command, agent) || isHealerCommand(command))) {
+  const config = suiteConfigOf(projectDir);
+  if (typeof command === "string" && (isReadOnlyCommand(command, agent, config) || isHealerCommand(command, config))) {
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} may run only git diff|log|show|status, node ${CHECKS_DIR}/<module>.mts, npx --no playwright test <specs> with --project, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, npx --no tsc --noEmit and npx --no biome check <paths>; blocked: ${shown}`;
+  return `${agent} may run only git diff|log|show|status, node ${CHECKS_DIR}/<module>.mts, ${playwrightShown(config)} <specs> with --project, --no-deps, --repeat-each, --retries=0, --reporter, -g and --list, node ${GUARD_PATH} --snapshot|--base=<sha>, ${typecheckShown(config)} and ${launcherShown(config)} biome check <paths>, never on a .env file; blocked: ${shown}`;
 }
 
 function isWebUrl(value: unknown): boolean {
@@ -564,7 +715,7 @@ function standOriginList(projectDir: string): string[] | string {
 
 function signInSecretNames(projectDir: string): string[] {
   try {
-    return passwordNames(readProjectFacts(join(projectDir, PROJECT_FACTS_PATH)).passwordFor);
+    return passwordNames(readProjectFactsIn(projectDir).passwordFor);
   } catch {
     return [];
   }
@@ -618,9 +769,11 @@ function browserBlockReason(agent: string, tool: string, toolInput: unknown, pro
 /**
  * Decides a PreToolUse hook call for the Bash, Write and Playwright browser tools: a one-line reason to block it, or
  * undefined to let it pass. Only the read-only agents are limited; the main session and every other agent pass
- * untouched. A read-only agent's Bash call must be on the allowlist. Its Write call is allowed for `qa-judge` only as a
- * `.json` file under `.qa/judge/<contract-name>/` and for `qa-explorer` only as `.qa/reports/explore-<slug>.md` and `qa-coverage` only as
- * `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
+ * untouched. A read-only agent's Bash call must be on the allowlist, its Playwright commands with the suite's
+ * launcher and config arguments from the project facts (`suiteDir`). Its Write call is allowed for `vc-qa-judge` only as a `.json` file under
+ * `.qa/judge/<contract-name>/`, for `vc-qa-explorer` only as `.qa/reports/explore-<slug>.md` or a probe file
+ * `.qa/probes/<slug>.graphql|get` and for `vc-qa-coverage` only
+ * as `.qa/reports/coverage-<yyyy-mm-dd>[-<slug>].md`, all under the
  * real path of the project directory (a link that leaves it does not count). The other writing tools are blocked, and
  * so is every `mcp__` tool but the fixed list of `mcp__playwright__browser_*` tools: `browser_evaluate` runs only the
  * shipped page extractor, `browser_type` submits only a password name from `passwordFor` (a sign-in),
@@ -657,9 +810,10 @@ export function hookBlockReason(input: unknown, projectDir: string = process.cwd
     return undefined;
   }
   const command = isRecord(toolInput) ? toolInput["command"] : undefined;
-  if (typeof command === "string" && isReadOnlyCommand(command, agent)) {
+  const config = suiteConfigOf(projectDir);
+  if (typeof command === "string" && isReadOnlyCommand(command, agent, config)) {
     return undefined;
   }
   const shown = JSON.stringify(typeof command === "string" ? command.slice(0, MAX_SHOWN_COMMAND) : null);
-  return `${agent} is read-only and may run only git diff|log|show|status, npx --no playwright test --list --reporter=json|list|null and node ${CHECKS_DIR}/<module>.mts; blocked: ${shown}`;
+  return `${agent} is read-only and may run only git diff|log|show|status, ${playwrightShown(config)} --list [--no-deps] --reporter=json|list|null and node ${CHECKS_DIR}/<module>.mts, never on a .env file; blocked: ${shown}`;
 }

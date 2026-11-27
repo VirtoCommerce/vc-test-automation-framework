@@ -13,8 +13,11 @@ export type JudgeVerdict = {
 };
 
 const CLI_FILE_NAME = "judge-verdict.mts";
-const DEFAULT_CRITERIA_DIR = ".claude/skills/judge-criteria";
+const DEFAULT_CRITERIA_DIR = ".claude/skills/vc-judge-criteria";
 const CRITERION_LINE = /^- `([a-z][a-z0-9-]*)`/;
+const PROOF_ROLE: JudgeRole = "expert";
+const PROOF_CRITERION = "fails-when-behaviour-breaks";
+const PROOF_KINDS = ["mechanical", "reasoned"] as const;
 
 function problem(text: string): string {
   return `judge verdict: ${text}`;
@@ -46,6 +49,41 @@ export function criteriaOf(role: JudgeRole, directory: string = DEFAULT_CRITERIA
     throw new Error(problem(`the criteria file ${file} lists no criteria`));
   }
   return names;
+}
+
+/**
+ * The expert's verdict records how its cases were proved: `proofs` holds the whole numbers `mechanical` (cases proved
+ * with `prove-fails`) and `reasoned` (cases judged from the assertion), at least one case in all. Without a single
+ * mechanical proof the criterion `fails-when-behaviour-breaks` may pass only with a non-empty `proofs.explanation` of why none
+ * could be.
+ */
+function proofProblems(json: Record<string, unknown>, criteria: readonly unknown[]): string[] {
+  const proofs = json["proofs"];
+  if (!isRecord(proofs)) {
+    return [
+      problem(
+        `proofs is missing: write "proofs": { "mechanical": <cases proved with prove-fails>, "reasoned": <cases judged from the assertion>, "explanation": "<why none could be proved, when mechanical is 0>" }`,
+      ),
+    ];
+  }
+  const counts = PROOF_KINDS.map((kind) => proofs[kind]);
+  const bad = PROOF_KINDS.filter((_, index) => !Number.isInteger(counts[index]) || Number(counts[index]) < 0);
+  if (bad.length > 0) {
+    return bad.map((kind) => problem(`proofs.${kind} is not a whole number of cases`));
+  }
+  const [mechanical = 0, reasoned = 0] = counts.map(Number);
+  if (mechanical + reasoned === 0) {
+    return [problem("proofs counts no case")];
+  }
+  const explanation = typeof proofs["explanation"] === "string" ? proofs["explanation"].trim() : "";
+  const answer = criteria.find((entry) => isRecord(entry) && entry["name"] === PROOF_CRITERION);
+  return mechanical === 0 && explanation === "" && isRecord(answer) && answer["pass"] === true
+    ? [
+        problem(
+          `criterion "${PROOF_CRITERION}" passes with no case proved mechanically and no proofs.explanation saying why`,
+        ),
+      ]
+    : [];
 }
 
 type Criterion = { name: string; pass: boolean | undefined; evidence: unknown };
@@ -84,8 +122,8 @@ function criteriaProblems(entries: readonly unknown[], expected: readonly string
 
 /**
  * Checks a judge's verdict file against its role's criteria file: the role matches, the subject is named, every
- * criterion of the role answered once with true or false and non-empty evidence, no other criterion, and the
- * verdict is `pass` exactly when every criterion passes. Returns one line per problem; an empty list is a good file.
+ * criterion of the role answered once with true or false and non-empty evidence, no other criterion, the verdict is
+ * `pass` exactly when every criterion passes, and, for the expert, the `proofs` record of `proofProblems`. Returns one line per problem; an empty list is a good file.
  *
  * @throws Error when the role's criteria file cannot be read or lists no criteria.
  */
@@ -111,6 +149,9 @@ export function checkJudgeVerdict(json: unknown, role: JudgeRole, directory: str
     return problems;
   }
   problems.push(...criteriaProblems(criteria, criteriaOf(role, directory), role));
+  if (role === PROOF_ROLE) {
+    problems.push(...proofProblems(json, criteria));
+  }
   const answers = criteria.flatMap((entry) => (isRecord(entry) && typeof entry["pass"] === "boolean" ? [entry] : []));
   const failed = answers.find((entry) => entry["pass"] === false);
   if (verdict === "pass" && failed !== undefined) {

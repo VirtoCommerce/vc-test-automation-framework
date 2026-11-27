@@ -1,5 +1,11 @@
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import type { BabelParser } from "./facts-consistency.mts";
+
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { crossCheck, placeholderProblems, readSuiteWorld } from "./facts-consistency.mts";
 
 export type Route = "command" | "cli" | "api" | "mcp" | "paste";
 
@@ -8,13 +14,14 @@ export const ROLE_PURPOSES = ["admin", "customer", "otherCustomer"] as const;
 export type RolePurpose = (typeof ROLE_PURPOSES)[number];
 
 export type ProjectFacts = {
-  tracker: { kind: string; keyPattern: string; acceptanceCriteriaField?: string; routes: Route[] };
+  suiteDir: string;
+  tracker?: { kind: string; keyPattern: string; acceptanceCriteriaField?: string; routes: Route[] };
   docSources: { name: string; route: Route; where: string }[];
-  commands: { typecheck: string; lint: string; test: Record<string, string> };
+  commands: { typecheck: string; lint?: string; seed?: string; test: Record<string, string> };
   critical: string[];
   knowledgeDir: string;
   roles: Record<string, string>;
-  roleFor: { admin: string; customer: string; otherCustomer?: string };
+  roleFor: { admin?: string; customer?: string; otherCustomer?: string };
   rolePermissions?: Record<string, string[]>;
   passwordFor?: Record<string, string>;
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
@@ -40,9 +47,15 @@ const MIN_FLAKY_RUN_SERIES = 2;
 const MIN_STABLE_SERIES = 2;
 const MIN_SLOWDOWN_RATIO = 1;
 export const PROJECT_FACTS_PATH = ".qa/project.json";
+export const ROOT_SUITE_DIR = ".";
+export const ENV_FILE = ".env";
+export const PACKAGE_FILE = "package.json";
+export const NODE_MODULES = "node_modules";
+export const PLAYWRIGHT_CLI = [NODE_MODULES, "@playwright", "test", "cli.js"];
 const DEFAULT_AUTONOMY_KEY = "*";
 const CLI_FILE_NAME = "project-facts.mts";
 const HEALER_PATH = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*\/?$/;
+const TRAILING_SLASHES = /\/+$/;
 const FORBIDDEN_HEALER_SEGMENTS = ["qa", "node_modules", ".claude"];
 const PROJECT_KEY_WORD = /(?<!\\)[A-Z][A-Z0-9_]+/g;
 const PROJECT_KEY_SUFFIXES = ["", "1", "12"];
@@ -144,7 +157,7 @@ function sampleKeys(kind: string, keyPattern: string): { keys: string[]; shown: 
   }
 }
 
-function parseTracker(value: unknown): ProjectFacts["tracker"] {
+function parseTracker(value: unknown): NonNullable<ProjectFacts["tracker"]> {
   const tracker = asRecord(value, "tracker");
   const keyPattern = asString(present(tracker, "keyPattern", "tracker.keyPattern"), "tracker.keyPattern");
   let pattern: RegExp;
@@ -192,9 +205,12 @@ function parseDocSources(value: unknown): ProjectFacts["docSources"] {
 
 function parseCommands(value: unknown): ProjectFacts["commands"] {
   const commands = asRecord(value, "commands");
+  const lint = commands["lint"];
+  const seed = commands["seed"];
   return {
     typecheck: asString(present(commands, "typecheck", "commands.typecheck"), "commands.typecheck"),
-    lint: asString(present(commands, "lint", "commands.lint"), "commands.lint"),
+    ...(lint === undefined ? {} : { lint: asString(lint, "commands.lint") }),
+    ...(seed === undefined ? {} : { seed: asString(seed, "commands.seed") }),
     test: asStringMap(present(commands, "test", "commands.test"), "commands.test"),
   };
 }
@@ -211,6 +227,10 @@ function isRolePurpose(key: string): key is RolePurpose {
   return ROLE_PURPOSES.some((purpose) => purpose === key);
 }
 
+/**
+ * The role purposes, each a key of `roles` and each optional: a stand may have no customer. `otherCustomer`, a customer
+ * of another organization than the customer, needs `customer` and must be another role and another account.
+ */
 function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFacts["roleFor"] {
   const roleFor = asRecord(value, "roleFor");
   const stray = Object.keys(roleFor).find((key) => !isRolePurpose(key));
@@ -219,16 +239,24 @@ function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFac
   }
   const role = (purpose: RolePurpose): string =>
     asRoleName(present(roleFor, purpose, `roleFor.${purpose}`), `roleFor.${purpose}`, roles);
-  const parsed = { admin: role("admin"), customer: role("customer") };
+  const admin = roleFor["admin"] === undefined ? {} : { admin: role("admin") };
+  if (roleFor["customer"] === undefined) {
+    if (roleFor["otherCustomer"] !== undefined) {
+      fail("roleFor.otherCustomer", "needs roleFor.customer");
+    }
+    return admin;
+  }
+  const customer = role("customer");
+  const parsed = { ...admin, customer };
   if (roleFor["otherCustomer"] === undefined) {
     return parsed;
   }
   const otherCustomer = role("otherCustomer");
-  if (parsed.customer === otherCustomer) {
-    fail("roleFor.otherCustomer", `is the same role as roleFor.customer ("${parsed.customer}")`);
+  if (customer === otherCustomer) {
+    fail("roleFor.otherCustomer", `is the same role as roleFor.customer ("${customer}")`);
   }
-  if (sameAccount(roles[parsed.customer], roles[otherCustomer])) {
-    fail("roleFor.otherCustomer", `is the same account as roleFor.customer (roles["${parsed.customer}"])`);
+  if (sameAccount(roles[customer], roles[otherCustomer])) {
+    fail("roleFor.otherCustomer", `is the same account as roleFor.customer (roles["${customer}"])`);
   }
   return { ...parsed, otherCustomer };
 }
@@ -398,6 +426,87 @@ function parseHealerPaths(value: unknown): string[] {
 }
 
 /**
+ * The `suiteDir` of the project facts, normalised: `"."` when it is absent, otherwise a plain directory inside the
+ * repository without trailing slashes.
+ *
+ * @throws Error when it is anything else.
+ */
+export function parseSuiteDir(value: unknown): string {
+  if (value === undefined || value === ROOT_SUITE_DIR) {
+    return ROOT_SUITE_DIR;
+  }
+  const text = asString(value, "suiteDir");
+  if (!HEALER_PATH.test(text) || text.split("/").filter(Boolean).some(isForbiddenHealerSegment)) {
+    fail("suiteDir", 'must be "." or a plain directory inside the repository, not git, qa, tooling or a short name');
+  }
+  return text.replace(TRAILING_SLASHES, "");
+}
+
+/** The arguments that point Playwright at the suite: none for a suite at the repository root, else `--config`. */
+export function playwrightConfigArgs(suiteDir: string): string[] {
+  return suiteDir === ROOT_SUITE_DIR ? [] : [`--config=${suiteDir}`];
+}
+
+/**
+ * Whether the suite is its own npm project: a suite directory other than the root with its own `package.json`. Its
+ * dependencies, Playwright among them, are then in `<suiteDir>/node_modules`, and the root may have none.
+ */
+export function isOwnNpmProject(projectDir: string, suiteDir: string): boolean {
+  return suiteDir !== ROOT_SUITE_DIR && existsSync(join(projectDir, suiteDir, PACKAGE_FILE));
+}
+
+/** The directory, relative to the repository root, whose `node_modules` holds the suite's dependencies. */
+export function suitePackageDir(projectDir: string, suiteDir: string): string {
+  return isOwnNpmProject(projectDir, suiteDir) ? suiteDir : ROOT_SUITE_DIR;
+}
+
+/**
+ * The words that start a tool the suite installs, from the repository root and never fetching a package: `npx --no`
+ * for the root's `node_modules`, `npm exec --prefix <packageDir> --no --` for a suite that is its own npm project. The
+ * command still runs in the root, so `--config` and spec paths stay repository-relative.
+ */
+export function toolLauncher(packageDir: string): string[] {
+  return packageDir === ROOT_SUITE_DIR ? ["npx", "--no"] : ["npm", "exec", "--prefix", packageDir, "--no", "--"];
+}
+
+/** The command that starts Playwright Test on the suite from the repository root: the launcher, then the config. */
+export function playwrightCommand(projectDir: string, suiteDir: string): string[] {
+  const launcher = toolLauncher(suitePackageDir(projectDir, suiteDir));
+  return [...launcher, "playwright", "test", ...playwrightConfigArgs(suiteDir)];
+}
+
+/**
+ * Imports a package the suite installs, such as `@babel/parser`: as the checks resolve it (the root's
+ * `node_modules`), else, for a suite that is its own npm project, from `<suiteDir>/node_modules`.
+ *
+ * @throws the error of the first import when neither has the package or the facts cannot be read.
+ */
+export async function importSuiteDependency<T>(specifier: string, projectDir: string = process.cwd()): Promise<T> {
+  try {
+    return (await import(specifier)) as T;
+  } catch (error) {
+    let resolved: string;
+    try {
+      const { suiteDir } = readProjectFactsIn(projectDir);
+      resolved = isOwnNpmProject(projectDir, suiteDir)
+        ? createRequire(join(projectDir, suiteDir, PACKAGE_FILE)).resolve(specifier)
+        : "";
+    } catch {
+      resolved = "";
+    }
+    if (resolved === "") {
+      throw error;
+    }
+    return (await import(pathToFileURL(resolved).href)) as T;
+  }
+}
+
+/** The suite's `.env` file, relative to the repository root: `<suiteDir>/.env`, or `.env` for a suite at the root. */
+export function suiteEnvPath(suiteDir: string): string {
+  return suiteDir === ROOT_SUITE_DIR ? ENV_FILE : `${suiteDir}/${ENV_FILE}`;
+}
+
+/**
  * Validates the parsed contents of a project facts file.
  *
  * @throws Error `"project.json: <path> <problem>"` naming the first missing or invalid field.
@@ -409,7 +518,8 @@ export function parseProjectFacts(json: unknown): ProjectFacts {
   const permissions = root["rolePermissions"];
   const passwordFor = root["passwordFor"];
   return {
-    tracker: parseTracker(present(root, "tracker", "tracker")),
+    suiteDir: parseSuiteDir(root["suiteDir"]),
+    ...(root["tracker"] === undefined ? {} : { tracker: parseTracker(root["tracker"]) }),
     docSources: parseDocSources(present(root, "docSources", "docSources")),
     commands: parseCommands(present(root, "commands", "commands")),
     critical: asStringList(present(root, "critical", "critical"), "critical"),
@@ -448,9 +558,28 @@ export function readProjectFacts(path = PROJECT_FACTS_PATH): ProjectFacts {
   return parseProjectFacts(json);
 }
 
+/** {@link readProjectFacts} of the repository at `projectDir`. */
+export function readProjectFactsIn(projectDir: string): ProjectFacts {
+  return readProjectFacts(join(projectDir, PROJECT_FACTS_PATH));
+}
+
 if (basename(process.argv[1] ?? "") === CLI_FILE_NAME) {
   try {
-    process.stdout.write(`${JSON.stringify(readProjectFacts(), null, 2)}\n`);
+    const facts = readProjectFacts();
+    const world = await readSuiteWorld(process.cwd(), facts.suiteDir, {
+      packageDir: suitePackageDir(process.cwd(), facts.suiteDir),
+      loadParser: (): Promise<BabelParser> => importSuiteDependency("@babel/parser"),
+    });
+    const { problems, notes } = crossCheck(facts, world);
+    for (const note of notes) {
+      process.stderr.write(`project-facts: ${note}\n`);
+    }
+    const refused = [...placeholderProblems(facts), ...problems];
+    if (refused.length > 0) {
+      throw new Error(refused.map((problem) => `project.json: ${problem}`).join("\n"));
+    }
+    const playwright = playwrightCommand(process.cwd(), facts.suiteDir).join(" ");
+    process.stdout.write(`${JSON.stringify({ ...facts, playwright }, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

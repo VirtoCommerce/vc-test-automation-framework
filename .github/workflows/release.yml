@@ -1,0 +1,197 @@
+# Publishes to npmjs.org with npm Trusted Publishing: npm swaps the GitHub OIDC token for a
+# short-lived publish credential and attaches provenance, so no npm token is stored anywhere.
+# The trusted publisher on npmjs.com is tied to this repository and this file name, so renaming
+# the file breaks publishing, and every publish (alpha, next, latest) has to live in this file.
+#
+# Channels:
+#   - workflow_dispatch on a feature branch → <next version>-alpha.<datetime> under alpha
+#   - push to dev                           → <next version>-next.<datetime> under next
+#   - push to main                          → <next version> under latest
+#
+# <next version> is what the pending changesets add up to. Alpha and next are changesets snapshot
+# releases and commit nothing. The release on main works like vc-build QuickRelease: the vc-ci bot
+# (REPO_TOKEN, repository admin, so it passes the rulesets) commits the version bump and CHANGELOG
+# to main, tags it, and merges main into dev, so dev drops the released changesets and builds its
+# next versions on the released one. Its own push to main runs this workflow again, which finds
+# nothing pending and the version published, and stops.
+
+name: Release
+
+on:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
+      (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ github.ref == 'refs/heads/dev' && 'next' || 'alpha' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # No registry-url: it writes an .npmrc with a token placeholder, and trusted
+          # publishing needs no token. npmjs.org is the default registry.
+          node-version: 22
+          cache: npm
+
+      - name: Install an npm that supports trusted publishing
+        run: npm install -g npm@^11.5.1
+
+      - run: npm ci
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
+      - run: npm run typecheck
+      - run: npm run check:ci
+      - run: npm run test:unit
+
+      - id: version
+        name: Set the snapshot version
+        run: |
+          before=$(node -p "require('./package.json').version")
+          npx changeset version --snapshot "$TAG"
+          after=$(node -p "require('./package.json').version")
+          if [ "$before" = "$after" ]; then
+            echo "::notice::No pending changesets, nothing to publish under $TAG."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing $after under $TAG."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: steps.version.outputs.publish == 'true'
+        run: npx changeset publish --tag "$TAG" --no-git-tag
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      PACKAGE: "@virtocommerce/test-automation-framework"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.REPO_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install an npm that supports trusted publishing
+        run: npm install -g npm@^11.5.1
+
+      - run: npm ci
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
+      - run: npm run typecheck
+      - run: npm run check:ci
+      - run: npm run test:unit
+
+      - id: plan
+        name: Decide what to release
+        run: |
+          pending=$(find .changeset -maxdepth 1 -name '*.md' ! -name README.md | wc -l)
+          version=$(node -p "require('./package.json').version")
+          if [ "$pending" -gt 0 ]; then
+            echo "$pending pending changesets: bumping $version."
+            echo "bump=true" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$(npm view "$PACKAGE@$version" version 2>/dev/null)" ]; then
+            echo "No pending changesets; $version is not published yet."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No pending changesets and $version is already published; nothing to release."
+          fi
+
+      - if: steps.plan.outputs.bump == 'true'
+        name: Bump the version and update CHANGELOG.md
+        run: |
+          npm run release:version
+          npm install --package-lock-only --ignore-scripts
+          version=$(node -p "require('./package.json').version")
+          git config user.name "vc-ci"
+          git config user.email "ci@virtocommerce.com"
+          git add -A
+          git commit -m "chore: release v$version"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: steps.plan.outputs.release == 'true'
+        id: publish
+        name: Publish under latest
+        run: |
+          npx changeset publish
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.release == 'true'
+        name: Push the release commit and tag to main
+        run: git push origin HEAD:main "v$VERSION"
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+
+      - if: steps.plan.outputs.release == 'true'
+        name: Create the GitHub release
+        run: |
+          notes=$(awk -v heading="## $VERSION" '$0 == heading { found = 1; next } /^## / && found { exit } found' CHANGELOG.md)
+          gh release create "v$VERSION" --title "v$VERSION" --notes "${notes:-Release v$VERSION}"
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: steps.plan.outputs.release == 'true'
+        name: Check that the published tarball is the one built here
+        run: |
+          npm pack
+          for attempt in $(seq 1 30); do
+            published=$(npm view "$PACKAGE@$VERSION" dist.integrity 2>/dev/null || true)
+            [ -n "$published" ] && break
+            sleep 10
+          done
+          packed="sha512-$(openssl dgst -sha512 -binary ./*.tgz | base64 -w0)"
+          echo "published: $published"
+          echo "packed:    $packed"
+          test "$published" = "$packed"
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+
+      - if: steps.plan.outputs.release == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "*.tgz"
+
+      - if: steps.plan.outputs.bump == 'true'
+        name: Merge main into dev
+        run: |
+          release=$(git rev-parse HEAD)
+          git fetch origin dev
+          git checkout -B dev origin/dev
+          if ! git merge --no-edit -m "chore: merge release v$VERSION into dev" "$release"; then
+            git merge --abort
+            echo "::error::main does not merge into dev cleanly. Merge main into dev by hand."
+            exit 1
+          fi
+          git push origin dev
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}

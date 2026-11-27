@@ -1,24 +1,34 @@
 {
+  "suiteDir": "virtocommerce",
   "tracker": {
     "kind": "jira",
     "keyPattern": "^VCST-\\d+$",
     "routes": ["command", "cli", "api", "mcp", "paste"]
   },
   "docSources": [
-    { "name": "Virto Commerce documentation", "route": "api", "where": "https://docs.virtocommerce.org" },
-    { "name": "Module READMEs", "route": "paste", "where": "README.md files of the module repositories" }
+    {
+      "name": "Virto Commerce documentation",
+      "route": "api",
+      "where": "https://docs.virtocommerce.org"
+    },
+    {
+      "name": "Module READMEs",
+      "route": "paste",
+      "where": "README.md files of the module repositories"
+    }
   ],
   "commands": {
     "typecheck": "npm run typecheck",
     "lint": "npm run check",
+    "seed": "npm run seed:vc",
     "test": {
-      "unit": "npm run test:unit",
-      "restapi": "npm run test:restapi",
-      "graphql": "npm run test:graphql",
-      "e2e-frontend": "npm run test:e2e:frontend",
-      "e2e-backend": "npm run test:e2e:backend",
-      "isolated": "npm run test:isolated",
-      "all": "npm run test"
+      "unit": "npm run test:unit && npm run test:vc:unit",
+      "restapi": "npm run test:vc -- --project=restapi --no-deps",
+      "graphql": "npm run test:vc -- --project=graphql --no-deps",
+      "e2e-frontend": "npm run test:vc -- --project=e2e-frontend --no-deps",
+      "e2e-backend": "npm run test:vc -- --project=e2e-backend --no-deps",
+      "isolated": "npm run test:vc:isolated -- --no-deps",
+      "all": "npm run test:vc"
     }
   },
   "critical": ["cart", "order", "security"],
@@ -31,7 +41,11 @@
     "purchasing agent": "acme_store_purchasing_agent_1@acme.com",
     "other store employee": "other_store_employee_1@other-store.com"
   },
-  "roleFor": { "admin": "store administrator", "customer": "store employee", "otherCustomer": "other store employee" },
+  "roleFor": {
+    "admin": "store administrator",
+    "customer": "store employee",
+    "otherCustomer": "other store employee"
+  },
   "rolePermissions": {
     "store employee": ["storefront:organization:view", "storefront:user:view"],
     "other store employee": ["storefront:organization:view", "storefront:user:view"],
@@ -56,7 +70,13 @@
     "purchasing agent": "USERS_PASSWORD",
     "other store employee": "USERS_PASSWORD"
   },
-  "coverageWeights": { "risk": 1, "callFrequency": 1, "runFrequency": 1, "stability": 1, "cost": 1 },
+  "coverageWeights": {
+    "risk": 1,
+    "callFrequency": 1,
+    "runFrequency": 1,
+    "stability": 1,
+    "cost": 1
+  },
   "flakyRunSeries": 5,
   "quality": {
     "maxSteps": 8,
@@ -65,10 +85,23 @@
     "maxNesting": 3,
     "maxConditionals": 0,
     "stableSeries": 3,
-    "durationBudgetMs": { "restapi": 15000, "graphql": 15000, "e2e-frontend": 90000, "e2e-backend": 120000 },
+    "durationBudgetMs": {
+      "restapi": 15000,
+      "graphql": 15000,
+      "e2e-frontend": 90000,
+      "e2e-backend": 120000
+    },
     "slowdownRatio": 1.5,
     "slowdownMinMs": 1000
   },
-  "autonomy": { "*": "propose" },
-  "healerPaths": ["pages/", "dataset/"]
+  "autonomy": {
+    "*": "propose"
+  },
+  "healerPaths": [
+    "virtocommerce/pages/",
+    "virtocommerce/arrange/",
+    "virtocommerce/builders/",
+    "virtocommerce/support/",
+    "virtocommerce/dataset/"
+  ]
 }

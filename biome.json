@@ -1,20 +1,12 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["./biome/rules.json", "./biome/imports.json", "./biome/layers.json", "./biome/exceptions.json"],
+  "extends": ["./.biome/preset.json", "./.biome/layers.json"],
   "vcs": {
     "enabled": true,
     "clientKind": "git",
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**"]
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 120,
-    "trailingNewline": true,
-    "lineEnding": "lf"
+    "includes": ["**", "!.changeset/*.md", "!.claude/**/*.md", "!virtocommerce/**/generated"]
   }
 }

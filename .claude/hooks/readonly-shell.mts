@@ -7,7 +7,7 @@ type HookBlockReason = typeof hookBlockReason;
 
 const CLI_FILE_NAME = "readonly-shell.mts";
 const MODULE = "../checks/readonly-shell.mts";
-const GUARDED_AGENTS = ["qa-reviewer", "qa-explorer", "qa-coverage", "qa-judge", "qa-healer"];
+const GUARDED_AGENTS = ["vc-qa-reviewer", "vc-qa-explorer", "vc-qa-coverage", "vc-qa-judge", "vc-qa-healer"];
 const STDIN = 0;
 const BLOCK_EXIT_CODE = 2;
 

@@ -1,0 +1,66 @@
+---
+"@virtocommerce/test-automation-framework": minor
+---
+
+Make the QA agents' project facts safer to start from. `node .claude/checks/project-facts.mts` now refuses a file that
+is still the template's (an account in the example domain, the `PROJ` tracker key) and checks it against the repository:
+the `npm run` scripts of the commands, the Playwright projects behind `commands.test` and `quality.durationBudgetMs`,
+and the `healerPaths` directories. `roleFor.admin` and `commands.lint` are optional, and the agents say what to do
+without them. `npx vc-qa-agents init` also writes `.mcp.json` with the pinned Playwright MCP server, the passwords the
+template's `.qa/project.json` names, and a `pages/` directory; `browser-secrets.mts` restricts its file with `icacls`
+on Windows, or warns. `rank-gaps.mts` marks gaps ordered only by name as `tied`, and the coverage metrics count
+`test.skip` and `test.fixme` tests as skipped. The agent prompts allow `not reached: <why>` as the content of an empty
+report section, work in a repository with untracked files, and mark every example from the framework's own suite as
+not a rule.
+
+An API area that no page uses can now be explored: `introspect.mts` saves the stand's schema without a credential and
+`probe.mts` observes anonymous cases with one read-only query or GET, both for `vc-qa-explorer` only. The contract has an
+Existing coverage section, Critical flow and Parameters columns, dated references to local reports and snapshots, and
+amendments that name their cases and changes; `check --implemented` requires every case id in the title of a test in
+a spec file the contract's Verification runs. `reconcile-run.mts --contract` compares the series' real command
+(`--project`, `--workers`/`-j`, `--grep`/`-g` in either form) with the contract's Verification, takes one `deviation:`
+reason per difference and refuses a report older than the specs it covers. `prove-fails.mts` mutates `toBe(true|false)`,
+`.not`, name and member-chain arguments and `arrayContaining`/`objectContaining`, and refuses an assertion in an
+`arrange:` step; the judge's verdict records its mechanical and reasoned proofs; `test-shape.mts` counts the helpers a
+test calls. The framework rules cover a client suite without `arrange` (a `finally` that never fails the test) and a
+shared dataset account (`--workers=1`), and the reviewer takes style only from the repository.
+
+`node .claude/checks/prune.mts` cleans the agents' git-ignored working files under `.qa/`. `/vc-qa`, `/vc-qa-plan` and
+`/vc-qa-coverage` run it first with `--fetch --yes`: it removes a contract whose cases are all in test titles of the spec
+files its Verification runs, on the default branch of `origin`, read from git without a checkout, with its run record, judge verdict and observed report,
+unless its spec files have uncommitted or unpushed changes or an unmerged local branch carries its name. Older
+contracts, reports, healer runs and probes are listed and removed only on the person's yes (`--yes --include-stale`);
+the knowledge directory and `.local.env` files are never touched. The contract check no longer reads a closing backtick
+or period into a dated source path, and asks no date for a directory.
+
+A suite kept as its own npm project in a subdirectory (its own `package.json` and `node_modules`, none at the root)
+now works with the agents at the repository root. `project-facts.mts` detects it from `suiteDir` and the files
+present and prints `playwright`, the command the agents start Playwright Test with: `npm exec --prefix <suiteDir> --no
+-- playwright test --config=<suiteDir>` there, `npx --no playwright test` with or without `--config` as before
+elsewhere. The skills, the read-only shell hook, `contract --implemented`, `prove-fails`, `test-shape`, `introspect`
+and `probe` use that launcher or the suite's `node_modules`, the facts check reads the suite's `package.json` and
+understands `npm --prefix <dir> run <script>`, and `npx vc-qa-agents init <dir>` writes such a suite with the agents
+and facts at the root.
+
+`npx vc-qa-agents` no longer overwrites a file of the repository in `.claude/` that has the name of one of its own. It
+records the files it installs, with a hash of each, in
+`.claude/.vc-qa-agents.json` (commit it with `.claude/`), and on an update replaces only the files it installed that are
+unchanged since; a file it did not install is kept and named under any option, a file it installed that was edited is
+kept and named until `--force-ours`, and a file the new version no longer ships is removed when unchanged. The first
+update of an install without the manifest records as the package's only the files equal to the new version's and names
+the others. `npx vc-qa-agents uninstall` removes exactly the unchanged files of the manifest and the manifest, and keeps
+`.claude/settings.json` and `.qa/`. An unknown command or option now prints the usage line and exits with 1 instead of
+installing.
+
+**Breaking for anyone on the alpha:** the agents, commands and skills are renamed with the prefix `vc-`, so that they
+never clash with the ones a repository already has in `.claude/`. Claude Code identifies agents and skills by the
+`name` in their frontmatter and commands by file name, so both change: the agents are `vc-qa-planner`,
+`vc-qa-explorer`, `vc-qa-coverage`, `vc-qa-automation-expert`, `vc-qa-judge`, `vc-qa-healer` and `vc-qa-reviewer`;
+the commands `/vc-qa`, `/vc-qa-plan`, `/vc-qa-implement`, `/vc-qa-review`, `/vc-qa-heal`, `/vc-qa-explore` and
+`/vc-qa-coverage`; every skill takes the prefix too, such as `vc-framework-rules`, `vc-project-facts` and
+`vc-judge-criteria`. The check scripts, the hook, `.qa/` and the `vc-qa-agents` command keep their names. Run
+`npx vc-qa-agents` after the upgrade: with `.claude/.vc-qa-agents.json` it installs the new names and removes the
+unchanged files of the earlier ones, and keeps and names an edited one with the file that replaces it; without the
+manifest it keeps the files of the earlier names and names them, to be deleted by hand, and it warns whenever the
+read-only hook or its check is not the package's version, as an earlier copy does not restrict the renamed agents. Replace
+`/qa` and the other earlier names wherever the repository mentions them.

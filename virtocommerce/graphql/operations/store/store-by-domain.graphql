@@ -1,0 +1,5 @@
+query StoreByDomain($domain: String!) {
+  store(domain: $domain) {
+    storeId
+  }
+}

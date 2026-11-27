@@ -1,0 +1,59 @@
+{
+  "suiteDir": ".",
+  "docSources": [
+    {
+      "name": "Virto Commerce documentation",
+      "route": "api",
+      "where": "https://docs.virtocommerce.org"
+    }
+  ],
+  "commands": {
+    "typecheck": "npm run typecheck",
+    "lint": "npm run check",
+    "test": {
+      "unit": "npm run typecheck",
+      "restapi": "npx playwright test --project=restapi --no-deps",
+      "graphql": "npx playwright test --project=graphql --no-deps",
+      "e2e-frontend": "npx playwright test --project=e2e-frontend --no-deps",
+      "all": "npx playwright test"
+    }
+  },
+  "critical": ["cart", "order"],
+  "knowledgeDir": ".qa/kb",
+  "roles": {
+    "administrator": "admin"
+  },
+  "roleFor": {
+    "admin": "administrator"
+  },
+  "passwordFor": {
+    "administrator": "ADMIN_PASSWORD"
+  },
+  "coverageWeights": {
+    "risk": 1,
+    "callFrequency": 1,
+    "runFrequency": 1,
+    "stability": 1,
+    "cost": 1
+  },
+  "flakyRunSeries": 5,
+  "quality": {
+    "maxSteps": 8,
+    "maxLines": 60,
+    "maxExpects": 12,
+    "maxNesting": 3,
+    "maxConditionals": 0,
+    "stableSeries": 3,
+    "durationBudgetMs": {
+      "restapi": 15000,
+      "graphql": 15000,
+      "e2e-frontend": 90000
+    },
+    "slowdownRatio": 1.5,
+    "slowdownMinMs": 1000
+  },
+  "autonomy": {
+    "*": "propose"
+  },
+  "healerPaths": ["pages/", "arrange/", "builders/", "support/"]
+}

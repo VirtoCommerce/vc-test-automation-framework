@@ -1,15 +1,13 @@
 node_modules/
-dist/
 
 .env
 .env.*
-!.env.example
 
 test-results/
 playwright-report/
+virtocommerce/reports/
 blob-report/
-allure-results/
-allure-report/
+dist/
 
 .vscode/*
 !.vscode/settings.json
@@ -21,6 +19,7 @@ allure-report/
 .qa/runs/
 .qa/reports/
 .qa/kb/
+.qa/probes/
 .qa/judge/
 tests/unit/qa/
 evals/

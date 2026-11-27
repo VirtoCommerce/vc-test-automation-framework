@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       frontendZipUrl:
-        description: 'Frontend zip url'
+        description: "Frontend zip url"
         required: true
         type: string
-        default: 'latest'
+        default: "latest"
       testSuites:
-        description: 'Test suites to run. isolated also needs RUN_DESTRUCTIVE_TESTS=true in the env secret.'
+        description: "Test suites to run. isolated also needs RUN_DESTRUCTIVE_TESTS=true in the env secret."
         required: true
         type: choice
-        default: 'all'
+        default: "all"
         options:
           - all
           - graphql
@@ -22,28 +22,34 @@ on:
           - e2e-backend
           - isolated
       grep:
-        description: 'Optional Playwright --grep pattern. Leave empty to run everything.'
+        description: "Optional Playwright --grep pattern. Leave empty to run everything."
         required: false
         type: string
-        default: ''
+        default: ""
+      skipPlatformDefects:
+        description: "Leave out the tests tagged @platform-defect, as the CI of the platform and the modules does"
+        required: false
+        type: boolean
+        default: false
       workers:
-        description: 'Optional Playwright --workers value (e.g. 4 or 50%). Leave empty for the config default.'
+        description: "Optional Playwright --workers value (e.g. 4 or 50%). Leave empty for the config default."
         required: false
         type: string
-        default: ''
+        default: ""
 
 jobs:
   auto-tests:
-    uses: VirtoCommerce/.github/.github/workflows/playwright-tests.yml@v3.1000.12
+    uses: VirtoCommerce/.github/.github/workflows/playwright-tests.yml@vcst-6748-suite-dir
     with:
-      installModules: 'false'
-      installCustomModule: 'false'
-      vctestingRepoBranch: '${{ github.ref_name }}'
-      frontendZipUrl: '${{ inputs.frontendZipUrl }}'
-      customPackagesJsonUrl: 'https://github.com/${{ github.repository }}/raw/${{ github.ref_name }}/backend-packages.json'
+      installModules: "false"
+      installCustomModule: "false"
+      vctestingRepoBranch: "${{ github.ref_name }}"
+      frontendZipUrl: "${{ inputs.frontendZipUrl }}"
+      customPackagesJsonUrl: "https://github.com/${{ github.repository }}/raw/${{ github.ref_name }}/virtocommerce/backend-packages.json"
       testSuites: ${{ inputs.testSuites == 'all' && 'graphql,restapi,e2e' || inputs.testSuites }}
       grep: ${{ inputs.grep }}
       workers: ${{ inputs.workers }}
+      skipPlatformDefects: ${{ inputs.skipPlatformDefects }}
     secrets:
       envPAT: ${{ secrets.REPO_TOKEN }}
       testSecretEnvFile: ${{ secrets.VC_TESTING_MODULE_ENV_FILE_NEW }}

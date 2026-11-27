@@ -12,9 +12,9 @@ export type StandOrigins = Record<(typeof ORIGINS)[number][0], string>;
 
 /**
  * The origins of the stand the tests run against, from `FRONTEND_BASE_URL` and `BACKEND_BASE_URL` in the run's
- * variables (`runVariables`: the shell over `.env`). Only the origin of each is returned (scheme, host and port), never
- * a path, a query or user info, so the read-only agents learn where the stand is without reading `.env`. This is the
- * one exception to "never print `.env`": the origins and nothing else.
+ * variables (`runVariables`: the shell over the suite's `.env`). Only the origin of each is returned (scheme, host and
+ * port), never a path, a query or user info, so the read-only agents learn where the stand is without reading `.env`.
+ * This is the one exception to "never print `.env`": the origins and nothing else.
  *
  * @throws Error naming the variable that is unset or not an http or https address.
  */

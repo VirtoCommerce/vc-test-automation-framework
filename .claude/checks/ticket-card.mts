@@ -3,7 +3,7 @@ import type { ProjectFacts, Route } from "./project-facts.mts";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { readProjectFacts } from "./project-facts.mts";
+import { DEFAULT_CLIENT_ROUTES, readProjectFacts } from "./project-facts.mts";
 
 export type TicketCard = {
   key: string;
@@ -68,7 +68,7 @@ function checkSafeKey(key: string): void {
 
 function parseKey(value: unknown, facts: ProjectFacts): string {
   const key = asString(value, "key");
-  if (!new RegExp(facts.tracker.keyPattern).test(key)) {
+  if (facts.tracker !== undefined && !new RegExp(facts.tracker.keyPattern).test(key)) {
     fail("key", "does not match tracker.keyPattern");
   }
   checkSafeKey(key);
@@ -109,8 +109,13 @@ function parseRoute(value: unknown, facts: ProjectFacts): Route {
     case "api":
     case "mcp":
     case "paste":
-      if (!facts.tracker.routes.includes(value)) {
-        return fail("route", "is not allowed by tracker.routes");
+      if (!(facts.tracker?.routes ?? DEFAULT_CLIENT_ROUTES).includes(value)) {
+        return fail(
+          "route",
+          facts.tracker === undefined
+            ? "is not paste, the only route without a tracker"
+            : "is not allowed by tracker.routes",
+        );
       }
       return value;
     default:
@@ -149,7 +154,7 @@ export function parseTicketCard(json: unknown, facts: ProjectFacts): TicketCard 
 }
 
 /**
- * Writes a validated card to `<dir>/tickets/<key>.json`, creating the folder. Overwrites an earlier card of
+ * Writes a validated card to `<dir>/tickets/<key>.json`, creating the directory. Overwrites an earlier card of
  * the same ticket.
  *
  * @returns the path written.
@@ -157,9 +162,9 @@ export function parseTicketCard(json: unknown, facts: ProjectFacts): TicketCard 
  */
 export function writeTicketCard(card: TicketCard, dir: string): string {
   checkSafeKey(card.key);
-  const folder = join(dir, "tickets");
-  mkdirSync(folder, { recursive: true });
-  const path = join(folder, `${card.key}.json`);
+  const directory = join(dir, "tickets");
+  mkdirSync(directory, { recursive: true });
+  const path = join(directory, `${card.key}.json`);
   writeFileSync(path, `${JSON.stringify(card, null, 2)}\n`, "utf8");
   return path;
 }

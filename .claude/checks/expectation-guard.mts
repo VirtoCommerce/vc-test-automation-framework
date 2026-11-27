@@ -360,11 +360,11 @@ export function refuseLazyFetchOnOldGit(git: Git, version: () => string = instal
 /**
  * Runs `work` with a git that reads the repository and runs no command the repository or the user configured, reads
  * no replace ref (`--no-replace-objects`) and fetches no missing object of a partial clone (`GIT_NO_LAZY_FETCH`): no
- * fsmonitor, hook scripts from an empty folder, every hook defined in the configuration (`hook.<name>.command`) and
+ * fsmonitor, hook scripts from an empty directory, every hook defined in the configuration (`hook.<name>.command`) and
  * the hook events the guard's own commands raise disabled, no global or system attributes file, and every filter
  * driver git knows switched off, so a planted `.git/config` or `.git/info/attributes` cannot run a command or rewrite
  * what is hashed. A partial clone on git older than 2.44, which ignores `GIT_NO_LAZY_FETCH`, is refused before any
- * work (`refuseLazyFetchOnOldGit`). The temporary folder also holds the throw-away index and is removed afterwards.
+ * work (`refuseLazyFetchOnOldGit`). The temporary directory also holds the throw-away index and is removed afterwards.
  */
 function withSafeGit<T>(work: (git: Git, scratch: string) => T): T {
   const scratch = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
@@ -489,17 +489,17 @@ function fingerprintEntries(label: string, path: string): string[] {
   return [`${label}/\0dir`, ...names.flatMap((name) => fingerprintEntries(`${label}/${name}`, join(path, name)))];
 }
 
-function configuredHooksFolder(): string {
+function configuredHooksDir(): string {
   try {
     return execGit(["-c", "core.fsmonitor=false", "rev-parse", "--path-format=absolute", "--git-path", "hooks"]).trim();
   } catch {
-    throw new Error("expectation-guard: the hooks folder cannot be resolved");
+    throw new Error("expectation-guard: the hooks directory cannot be resolved");
   }
 }
 
 /**
  * The real path of the deepest part of `path` that exists, with the rest appended, so a file that does not exist yet
- * is still compared through the real folders above it.
+ * is still compared through the real directories above it.
  */
 function canonical(path: string): string {
   const rest: string[] = [];
@@ -534,14 +534,14 @@ function exitStatus(error: unknown): unknown {
   return typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
 }
 
-function originFolder(top: string, origin: string): string {
+function originDir(top: string, origin: string): string {
   return origin.startsWith(FILE_ORIGIN) ? dirname(resolve(top, origin.slice(FILE_ORIGIN.length))) : top;
 }
 
 /**
  * The files every `include.path` and `includeIf.<condition>.path` names, resolved the way git does: relative to the
- * folder of the configuration file that holds it, `~/` from the home folder. A value git would expand some other way
- * (`~user/…`, any other `~…`, `%(prefix)…`) is not emulated: it refuses the heal. A target is listed whether or not it
+ * directory of the configuration file that holds it, `~/` from the home directory. A value git would expand some other
+ * way (`~user/…`, any other `~…`, `%(prefix)…`) is not emulated: it refuses the heal. A target is listed whether or not it
  * exists or holds anything, since the healer could create or fill it. Git runs in `top` (`-C`), so a relative origin
  * it prints is relative to `top` wherever the guard itself was started.
  */
@@ -568,7 +568,7 @@ function includeTargets(git: Git, top: string): string[] {
     }
     const home = process.env["HOME"] ?? homedir();
     targets.push(
-      HOME_PREFIX.test(value) ? join(home, value.slice(2)) : resolve(originFolder(top, fields[index] ?? ""), value),
+      HOME_PREFIX.test(value) ? join(home, value.slice(2)) : resolve(originDir(top, fields[index] ?? ""), value),
     );
   }
   return targets;
@@ -578,7 +578,7 @@ function includeTargets(git: Git, top: string): string[] {
  * Returns the configuration files git reads (`git config --list --show-origin`, includes followed) and the targets of
  * every include path (`includeTargets`) that lie under one of the healer paths of the facts file in the working tree,
  * compared by real path (`isUnder`). Git runs in `top` (`-C`), so the relative origins it prints resolve against `top`
- * even when the guard runs from a subfolder. The healer may write there, so such a file could change the
+ * even when the guard runs from a subdirectory. The healer may write there, so such a file could change the
  * configuration without changing the fingerprint.
  */
 function configFilesUnderHealerPaths(git: Git, top: string): string[] {
@@ -604,7 +604,7 @@ function configFilesUnderHealerPaths(git: Git, top: string): string[] {
 }
 
 /**
- * Hashes `.git/config`, `config.worktree`, every file under `.git/info/` and `.git/hooks/`, every file in the folder
+ * Hashes `.git/config`, `config.worktree`, every file under `.git/info/` and `.git/hooks/`, every file in the directory
  * git runs hooks from (`core.hooksPath`, wherever it points), and `.qa/project.json` into one sha256, missing files
  * included, so adding a hook or a config line changes it. Refuses, as an error, when git reads a configuration file
  * under a healer path (`configFilesUnderHealerPaths`), since the healer could change that file unseen. Reads only.
@@ -630,7 +630,7 @@ function repoFingerprint(git: Git): string {
     ...fingerprintEntries("config", join(commonDir, "config")),
     ...fingerprintEntries("config.worktree", join(gitDir, "config.worktree")),
     ...FINGERPRINT_DIRS.flatMap((dir) => fingerprintEntries(dir, join(commonDir, dir))),
-    ...fingerprintEntries("hooksPath", configuredHooksFolder()),
+    ...fingerprintEntries("hooksPath", configuredHooksDir()),
     ...fingerprintEntries(PROJECT_FACTS_PATH, join(top, PROJECT_FACTS_PATH)),
   ];
   return createHash("sha256").update(entries.join("\n")).digest("hex");

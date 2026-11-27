@@ -14,9 +14,17 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
 
-import { parse } from "@babel/parser";
+import {
+  importSuiteDependency,
+  NODE_MODULES,
+  PLAYWRIGHT_CLI,
+  playwrightConfigArgs,
+  ROOT_SUITE_DIR,
+  readProjectFactsIn,
+  suitePackageDir,
+} from "./project-facts.mts";
 
 export type ProveFailsResult = { failed: boolean; output: string; mutated: string };
 
@@ -30,7 +38,6 @@ type Edit = { start: number; end: number; text: string };
 
 const CLI_FILE_NAME = "prove-fails.mts";
 const TEMP_PREFIX = "prove-fails-";
-const PLAYWRIGHT_CLI = ["node_modules", "@playwright", "test", "cli.js"];
 const RUN_TIMEOUT_MS = 300_000;
 const MAX_BUFFER = 64 * 1024 * 1024;
 const MAX_OUTPUT = 3000;
@@ -55,10 +62,31 @@ const MATCHERS = [
   "toHaveURL",
   "toHaveTitle",
 ];
+const NUMERIC_MATCHERS = ["toHaveLength", "toHaveCount"];
+
+const { parse } = await importSuiteDependency<typeof import("@babel/parser")>("@babel/parser");
+const TEXT_MATCHERS = [
+  "toMatch",
+  "toContain",
+  "toHaveText",
+  "toContainText",
+  "toHaveValue",
+  "toHaveURL",
+  "toHaveTitle",
+];
+const CONTAINER_MATCHERS = ["toEqual", "toStrictEqual", "toMatchObject"];
+const UNORDERED = "arrayContaining";
+const CONTAINING = [UNORDERED, "objectContaining"];
+const OPPOSITES: Readonly<Record<string, string>> = {
+  toBeTruthy: "toBeFalsy",
+  toBeFalsy: "toBeTruthy",
+  toBeNull: "toBeUndefined",
+  toBeUndefined: "toBeDefined",
+  toBeDefined: "toBeUndefined",
+};
 const MATCHER_CHAIN = ["resolves", "rejects"];
 const NEGATION = "not";
 const LINE_BREAK = new RegExp(`\\r\\n|[\\n\\r${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]`);
-const GENERATED_FIXTURES = /^tests\/unit\/qa\/fixtures\/generated\//;
 const QA_DIR = ".qa";
 const EXPECT_VARIANTS = ["soft", "poll"];
 const TEST_FUNCTIONS = ["ArrowFunctionExpression", "FunctionExpression"];
@@ -74,7 +102,6 @@ const SKIPPED_KEYS = new Set([
   "comments",
   "tokens",
 ]);
-const FIXTURES_FLAG = "PROVE_FAILS_FIXTURES";
 const INHERITED_PLAYWRIGHT = /^(PW_|TEST_WORKER_INDEX$|TEST_PARALLEL_INDEX$|FORCE_COLOR$)/;
 
 function problem(text: string): Error {
@@ -115,7 +142,7 @@ function quietly(action: () => void): void {
   }
 }
 
-function exitCodeOf(error: { code?: number | string } | null): number {
+function exitCodeOf(error: { code?: number | string | null | undefined } | null): number {
   if (error === null) {
     return 0;
   }
@@ -223,21 +250,26 @@ function argumentsOf(call: AstNode): unknown[] {
   return Array.isArray(call["arguments"]) ? call["arguments"] : [];
 }
 
-function matcherOf(node: AstNode): { negated: boolean } | undefined {
+type MatcherCall = { name: string; property: AstNode; not: AstNode | undefined };
+
+/** The matcher of an `expect(...)` chain: its name, its property node and the member `expect(...).not` when negated. */
+function matcherOf(node: AstNode): MatcherCall | undefined {
   if (node.type !== "CallExpression") {
     return undefined;
   }
   const callee = node["callee"];
-  if (!isMember(callee) || !MATCHERS.includes(nameOf(callee["property"]) ?? "")) {
+  const property = isMember(callee) ? callee["property"] : undefined;
+  const name = nameOf(property);
+  if (!isMember(callee) || !isNode(property) || name === undefined) {
     return undefined;
   }
-  let negated = false;
+  let not: AstNode | undefined;
   let current: unknown = callee["object"];
   while (isMember(current) && [NEGATION, ...MATCHER_CHAIN].includes(nameOf(current["property"]) ?? "")) {
-    negated = negated || nameOf(current["property"]) === NEGATION;
+    not = nameOf(current["property"]) === NEGATION && not === undefined ? current : not;
     current = current["object"];
   }
-  return isExpectCall(current) ? { negated } : undefined;
+  return isExpectCall(current) ? { name, property, not } : undefined;
 }
 
 function jsonString(text: string): string {
@@ -254,6 +286,9 @@ function plainTemplateText(argument: AstNode): string | undefined {
 
 function mutationOf(argument: AstNode): string | undefined {
   const value = argument["value"];
+  if (argument.type === "BooleanLiteral" && typeof value === "boolean") {
+    return value ? "false" : "true";
+  }
   if (argument.type === "NumericLiteral" && typeof value === "number") {
     return Number.isFinite(value) && value + 1 !== value ? String(value + 1) : undefined;
   }
@@ -281,6 +316,30 @@ function isTestCall(callee: unknown): boolean {
     nameOf(callee) === "test" ||
     (isMember(callee) && nameOf(callee["object"]) === "test" && nameOf(callee["property"]) === "only")
   );
+}
+
+function stepTitle(call: AstNode): string {
+  const [title] = argumentsOf(call);
+  if (isNode(title) && title.type === "StringLiteral" && typeof title["value"] === "string") {
+    return title["value"];
+  }
+  return isNode(title) && title.type === "TemplateLiteral" ? (plainTemplateText(title) ?? "") : "";
+}
+
+/** Whether the edit lies inside a `test.step("arrange: …")`, the innermost `test.step` around it. */
+function insideArrangeStep(program: AstNode, edit: Edit): boolean {
+  const steps = collect(
+    program,
+    (node) =>
+      node.type === "CallExpression" &&
+      isMember(node["callee"]) &&
+      nameOf(node["callee"]["object"]) === "test" &&
+      nameOf(node["callee"]["property"]) === "step" &&
+      node.start <= edit.start &&
+      edit.end <= node.end,
+  );
+  const innermost = steps.sort((left, right) => left.end - left.start - (right.end - right.start))[0];
+  return innermost !== undefined && stepTitle(innermost).trim().startsWith("arrange:");
 }
 
 function checkInsideTest(program: AstNode, testLine: number, line: number, edit: Edit): void {
@@ -319,50 +378,172 @@ function assertionOn(program: AstNode, line: number): AstNode | undefined {
   return onLine[0];
 }
 
-function editOf(call: AstNode, line: number): Edit | undefined {
-  const args = argumentsOf(call);
-  const [argument] = args;
-  if (args.length !== 1 || !isNode(argument) || lineOf(argument) !== line || matcherOf(call) === undefined) {
-    return undefined;
+function isLiteral(node: unknown): boolean {
+  return isNode(node) && mutationOf(node) !== undefined;
+}
+
+/** A name or a chain of members (`a.b.c`, `a["k"]`), with no call: reading it has no side effect. */
+function isReference(node: unknown): boolean {
+  const inner = unwrapped(node);
+  if (nameOf(inner) !== undefined) {
+    return true;
   }
-  const text = mutationOf(argument);
-  return text === undefined ? undefined : { start: argument.start, end: argument.end, text };
+  if (!isNode(inner) || !MEMBERS.includes(inner.type) || !isReference(inner["object"])) {
+    return false;
+  }
+  const key = inner["property"];
+  return inner["computed"] !== true || isLiteral(key) || isReference(key);
+}
+
+function isContaining(node: unknown): node is AstNode {
+  const callee = isNode(node) && CALLS.includes(node.type) ? node["callee"] : undefined;
+  return (
+    isMember(callee) && nameOf(callee["object"]) === "expect" && CONTAINING.includes(nameOf(callee["property"]) ?? "")
+  );
 }
 
 /**
- * Makes the mutation `proveFails` runs, and nothing else: it changes exactly one literal, the expected value of an
- * `expect(...).<matcher>(<literal>)` on `line`, where the matcher is one of the single-expected-value matchers
- * (`toBe`, `toEqual`, `toHaveText`, ...), is called with exactly one argument, and is not under `.not`. The line must
- * hold that assertion and no other: every `expect` chain that starts on the line or has an argument there counts,
- * whatever its matcher, so an assertion that cannot be proved is never credited by its neighbour. A bound
- * (`toBeGreaterThan`, `toBeLessThan`, ...) is not changed, because one more rarely breaks it. A number becomes its
- * value plus one, a string or plain template becomes itself with `__mutated__` appended. The source is parsed, so a
- * literal in a comment, a regular expression or a template with substitutions is never a candidate, and no text of
- * the caller enters the result. A name, a key, a file name or a second argument (`toHaveAttribute("href", ...)`,
- * `toHaveScreenshot("a.png")`, `toBeCloseTo(1, 2)`) is never changed. With `testLine` the changed literal must also
- * lie, by position, inside the function of the one `test(...)` or `test.only(...)` that starts there.
+ * The first literal (depth first) of an object, array or `expect.arrayContaining`/`objectContaining` expected value,
+ * and whether it lies inside an `arrayContaining`, whose elements match in any order.
+ */
+function firstLiteral(node: unknown, unordered = false): { literal: AstNode; unordered: boolean } | undefined {
+  if (!isNode(node)) {
+    return undefined;
+  }
+  if (mutationOf(node) !== undefined) {
+    return { literal: node, unordered };
+  }
+  let inner: unknown[] = [];
+  let innerUnordered = unordered;
+  if (node.type === "ObjectExpression" && Array.isArray(node["properties"])) {
+    inner = node["properties"].map((property) => (isNode(property) ? property["value"] : undefined));
+  } else if (node.type === "ArrayExpression" && Array.isArray(node["elements"])) {
+    inner = node["elements"];
+  } else if (isContaining(node)) {
+    inner = argumentsOf(node);
+    innerUnordered = unordered || nameOf(isNode(node["callee"]) ? node["callee"]["property"] : undefined) === UNORDERED;
+  }
+  return inner.map((child) => firstLiteral(child, innerUnordered)).find((found) => found !== undefined);
+}
+
+/**
+ * The mutation of a literal inside an `arrayContaining`: a text no element of the actual array can equal. A number or
+ * boolean changed as usual could equal another element (`[1, 2]` to `[2, 2]`), and the assertion would still pass.
+ */
+function unorderedMutation(literal: AstNode): string | undefined {
+  const value = literal["value"];
+  return (literal.type === "NumericLiteral" || literal.type === "BooleanLiteral") && value !== undefined
+    ? jsonString(`${String(value)}${MUTATION_SUFFIX}`)
+    : mutationOf(literal);
+}
+
+function replacement(node: AstNode, text: string): Edit {
+  return { start: node.start, end: node.end, text };
+}
+
+/** The text a reference argument is replaced by: a value of another type than it, chosen by what the matcher takes. */
+function referenceMutation(name: string, source: string): string {
+  if (NUMERIC_MATCHERS.includes(name)) {
+    return `(${source}) + 1`;
+  }
+  return TEXT_MATCHERS.includes(name) ? ["`${", source, "}", MUTATION_SUFFIX, "`"].join("") : `[${source}]`;
+}
+
+function argumentEdit(matcher: MatcherCall, argument: AstNode, source: string): Edit | undefined {
+  const text = mutationOf(argument);
+  if (MATCHERS.includes(matcher.name) && text !== undefined) {
+    return replacement(argument, text);
+  }
+  if (MATCHERS.includes(matcher.name) && isReference(argument)) {
+    return replacement(argument, referenceMutation(matcher.name, source.slice(argument.start, argument.end)));
+  }
+  if (CONTAINER_MATCHERS.includes(matcher.name) && !isReference(argument)) {
+    const found = firstLiteral(argument);
+    if (found === undefined) {
+      return undefined;
+    }
+    const changed = found.unordered ? unorderedMutation(found.literal) : mutationOf(found.literal);
+    return changed === undefined ? undefined : replacement(found.literal, changed);
+  }
+  return undefined;
+}
+
+/**
+ * The one edit that makes an assertion fail: removes the `.not` of a negated one; renames a matcher without an
+ * argument to its opposite (`toBeTruthy` to `toBeFalsy`); changes the literal, the reference or the first literal of an
+ * object, array or `arrayContaining`/`objectContaining` that is the one expected value of a matcher.
+ */
+function editOf(call: AstNode, line: number, source: string): Edit | undefined {
+  const matcher = matcherOf(call);
+  if (matcher === undefined) {
+    return undefined;
+  }
+  if (matcher.not !== undefined) {
+    const object = matcher.not["object"];
+    const property = matcher.not["property"];
+    return isNode(object) && isNode(property) ? { start: object.end, end: property.end, text: "" } : undefined;
+  }
+  const args = argumentsOf(call);
+  const opposite = OPPOSITES[matcher.name];
+  if (args.length === 0) {
+    return opposite === undefined
+      ? undefined
+      : { start: matcher.property.start, end: matcher.property.end, text: opposite };
+  }
+  const [argument] = args;
+  return args.length === 1 && isNode(argument) && lineOf(argument) === line
+    ? argumentEdit(matcher, argument, source)
+    : undefined;
+}
+
+/**
+ * Makes the mutation `proveFails` runs, and nothing else: it changes exactly one thing in the one assertion on `line`,
+ * so the test must fail if the assertion works:
  *
- * @returns the mutated source and the mutated line.
- * @throws Error when the source cannot be parsed, the line holds no such assertion, more than one assertion, only a
- * `.not` one, or the literal is outside the test, or more than one test starts on `testLine`.
+ * - `expect(...).not.<matcher>(...)`: the `.not` is removed (this proves the line is evaluated, not that the value it
+ *   excludes is the broken behaviour);
+ * - a matcher without an argument (`toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeUndefined`, `toBeDefined`) becomes its
+ *   opposite;
+ * - a matcher with one expected value (`toBe`, `toEqual`, `toHaveText`, ...): a number becomes its value plus one, a
+ *   string or plain template itself with `__mutated__` appended, a boolean its opposite, a name or member chain
+ *   (`expected`, `data.cart.id`) a value of another type (plus one, the text with `__mutated__`, or in an array);
+ * - `toEqual`, `toStrictEqual` and `toMatchObject` with an object, an array, or `expect.arrayContaining` or
+ *   `objectContaining`: the first literal inside it is changed as above, except inside an `arrayContaining`, where it
+ *   becomes the text of its value with `__mutated__` appended, so it cannot equal another element.
+ *
+ * The line must hold that assertion and no other: every `expect` chain that starts on the line or has an argument there
+ * counts, whatever its matcher, so an assertion that cannot be proved is never credited by its neighbour. A bound
+ * (`toBeGreaterThan`, `toBeLessThan`, ...) is not changed unless negated, because one more rarely breaks it. An
+ * assertion inside a `test.step("arrange: …")` is refused: it guards the test's data, not the behaviour. The source is
+ * parsed, so a literal in a comment, a regular expression or a template with substitutions is never a candidate, and no
+ * text of the caller enters the result. A name, a key, a file name or a second argument (`toHaveAttribute("href", ...)`,
+ * `toHaveScreenshot("a.png")`, `toBeCloseTo(1, 2)`) is never changed. With `testLine` the change must also lie, by
+ * position, inside the function of the one `test(...)` or `test.only(...)` that starts there.
+ *
+ * @returns the mutated source and the line that was changed, as mutated.
+ * @throws Error when the source cannot be parsed, the line holds no assertion it can change, more than one assertion,
+ * the assertion is in an `arrange:` step or outside the test, or more than one test starts on `testLine`.
  */
 export function mutateAssertion(source: string, line: number, testLine?: number): { source: string; mutated: string } {
   const program = parseSource(source);
   const call = assertionOn(program, line);
-  const edit = call === undefined ? undefined : editOf(call, line);
-  if (call !== undefined && edit !== undefined && matcherOf(call)?.negated) {
-    throw problem(`line ${line} has only a negated assertion: a .not assertion cannot be proved this way`);
-  }
+  const edit = call === undefined ? undefined : editOf(call, line, source);
   if (edit === undefined) {
     throw problem(
-      `line ${line} has no assertion it can change: it needs one expect(...).<matcher>(<one string or number literal>) with a matcher from ${MATCHERS.join(", ")}`,
+      `line ${line} has no assertion it can change: it needs one expect(...) chain with .not, with a matcher of ${Object.keys(OPPOSITES).join(", ")} and no argument, or with a matcher from ${[...new Set([...MATCHERS, ...CONTAINER_MATCHERS])].join(", ")} and one argument: a literal, a name or member chain, or an object, array, arrayContaining or objectContaining that holds a literal`,
     );
   }
   if (testLine !== undefined) {
     checkInsideTest(program, testLine, line, edit);
   }
+  if (insideArrangeStep(program, edit)) {
+    throw problem(
+      `line ${line} is an assertion inside an "arrange:" step: it guards the test's data, not the behaviour the case checks, so a proof on it proves nothing; prove the assertion of an "assert:" or "act and assert:" step`,
+    );
+  }
   const mutated = `${source.slice(0, edit.start)}${edit.text}${source.slice(edit.end)}`;
-  return { source: mutated, mutated: mutated.split(LINE_BREAK)[line - 1] ?? "" };
+  const editLine = source.slice(0, edit.start).split(LINE_BREAK).length;
+  return { source: mutated, mutated: mutated.split(LINE_BREAK)[editLine - 1] ?? "" };
 }
 
 async function checkedSpec(spec: string, root: string): Promise<string> {
@@ -374,6 +555,9 @@ async function checkedSpec(spec: string, root: string): Promise<string> {
   if (specPath.split("/")[0]?.toLowerCase() === QA_DIR) {
     throw problem(`${spec} is under .qa/ and cannot be proved`);
   }
+  if (ENV_FILE.test(basename(specPath).toLowerCase())) {
+    throw problem(`${spec} is a .env file and cannot be proved`);
+  }
   if (!existsSync(path) || !statSync(path).isFile()) {
     throw problem(`${spec} is not a file`);
   }
@@ -381,10 +565,22 @@ async function checkedSpec(spec: string, root: string): Promise<string> {
   if (ignored.code !== 0 && ignored.code !== 1) {
     throw problem(`git check-ignore failed: ${firstLine(ignored.stderr)}`);
   }
-  if (ignored.code === 0 && !(process.env[FIXTURES_FLAG] === "1" && GENERATED_FIXTURES.test(specPath))) {
+  if (ignored.code === 0) {
     throw problem(`${spec} is ignored by git and cannot be proved`);
   }
   return specPath;
+}
+
+/** The spec's path as Playwright reports it: relative to the suite directory, the directory of its config. */
+function suitePathOf(specPath: string, suiteDir: string): string {
+  if (suiteDir === ROOT_SUITE_DIR) {
+    return specPath;
+  }
+  const path = posix.relative(suiteDir, specPath);
+  if (path === "" || path.startsWith("..") || posix.isAbsolute(path)) {
+    throw problem(`${specPath} is not inside the suite directory ${suiteDir}`);
+  }
+  return path;
 }
 
 function checkedLine(line: number): void {
@@ -413,18 +609,27 @@ async function overlayWorkingTree(root: string, worktree: string, spec: string):
   copyInto(root, worktree, spec);
 }
 
-function copyEnvFiles(root: string, worktree: string): void {
-  for (const name of readdirSync(root)) {
-    if (ENV_FILE.test(name) && name !== ENV_EXAMPLE && statSync(join(root, name)).isFile()) {
-      copyFileSync(join(root, name), join(worktree, name));
+function copyEnvFiles(root: string, worktree: string, suiteDir: string): void {
+  const from = join(root, suiteDir);
+  const to = join(worktree, suiteDir);
+  for (const name of readdirSync(from)) {
+    if (ENV_FILE.test(name) && name !== ENV_EXAMPLE && statSync(join(from, name)).isFile()) {
+      copyFileSync(join(from, name), join(to, name));
     }
   }
 }
 
-function linkDependencies(root: string, worktree: string): void {
-  const modules = join(root, "node_modules");
-  if (existsSync(modules)) {
-    symlinkSync(modules, join(worktree, "node_modules"), "junction");
+/** The directories whose `node_modules` a worktree links: the root, and the suite's own npm project when it is one. */
+function dependencyDirs(packageDir: string): string[] {
+  return packageDir === ROOT_SUITE_DIR ? [ROOT_SUITE_DIR] : [ROOT_SUITE_DIR, packageDir];
+}
+
+function linkDependencies(root: string, worktree: string, packageDir: string): void {
+  for (const dir of dependencyDirs(packageDir)) {
+    const modules = join(root, dir, NODE_MODULES);
+    if (existsSync(modules)) {
+      symlinkSync(modules, join(worktree, dir, NODE_MODULES), "junction");
+    }
   }
 }
 
@@ -436,23 +641,25 @@ function isLinkAt(path: string): boolean {
   }
 }
 
-function unlinkDependencies(worktree: string): boolean {
-  const link = join(worktree, "node_modules");
-  if (isLinkAt(link)) {
+function unlinkDependencies(worktree: string, packageDir: string): boolean {
+  const links = dependencyDirs(packageDir).map((dir) => join(worktree, dir, NODE_MODULES));
+  for (const link of links.filter(isLinkAt)) {
     quietly(() => {
       unlinkSync(link);
     });
   }
-  return !isLinkAt(link);
+  return !links.some(isLinkAt);
 }
 
 /**
- * Removes a throw-away worktree: the link to `node_modules` first (the target stays), then the worktree itself.
- * Every step is separate and none throws, so a cleanup problem never hides the result or error of the run. When the
+ * Removes a throw-away worktree: the links to `node_modules` first (the targets stay), then the worktree itself.
+ * Every step is separate and none throws, so a cleanup problem never hides the result or error of the run. When a
  * link cannot be removed nothing else is deleted.
+ *
+ * @param packageDir the suite's npm project directory (`suitePackageDir`), whose `node_modules` is linked too.
  */
-export async function removeWorktree(root: string, worktree: string): Promise<void> {
-  if (!unlinkDependencies(worktree)) {
+export async function removeWorktree(root: string, worktree: string, packageDir = ROOT_SUITE_DIR): Promise<void> {
+  if (!unlinkDependencies(worktree, packageDir)) {
     return;
   }
   const removed = await run("git", ["worktree", "remove", "--force", worktree], root);
@@ -520,8 +727,7 @@ function errorMessages(report: unknown): string[] {
 
 /**
  * The environment of a nested Playwright run: the caller's, without what a Playwright worker sets for its own
- * children (`PW_*`, worker indexes, a `NODE_OPTIONS` that names Playwright), plus the report file and
- * the flag that lifts the generated-fixtures ignore.
+ * children (`PW_*`, worker indexes, a `NODE_OPTIONS` that names Playwright), plus the report file.
  */
 export function childEnv(base: NodeJS.ProcessEnv, reportFile: string): NodeJS.ProcessEnv {
   const kept = Object.fromEntries(
@@ -529,18 +735,22 @@ export function childEnv(base: NodeJS.ProcessEnv, reportFile: string): NodeJS.Pr
       ([key, value]) => !INHERITED_PLAYWRIGHT.test(key) && !(key === "NODE_OPTIONS" && /playwright/i.test(value ?? "")),
     ),
   );
-  return { ...kept, [FIXTURES_FLAG]: "1", PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile };
+  return { ...kept, PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile };
 }
 
+/**
+ * Runs Playwright Test in the worktree with `command`, the CLI and its first arguments (`<cli.js> test --config=…`).
+ */
 async function playwright(
   worktree: string,
+  command: readonly string[],
   args: readonly string[],
   reportFile: string,
 ): Promise<{ report: unknown; stderr: string }> {
   rmSync(reportFile, { force: true });
   const result = await run(
     process.execPath,
-    [join(worktree, ...PLAYWRIGHT_CLI), "test", ...args, "--reporter=json"],
+    [...command, ...args, "--reporter=json"],
     worktree,
     childEnv(process.env, reportFile),
   );
@@ -574,8 +784,14 @@ function describeNone(spec: string, title: string, project: string | undefined):
   return problem(`no test titled "${title}" in ${spec}${where}`);
 }
 
-function resolveTest(report: unknown, spec: string, title: string, project: string | undefined): TestRef {
-  const refs = listedTests(report, spec).filter((ref) => project === undefined || ref.project === project);
+function resolveTest(
+  report: unknown,
+  spec: string,
+  suiteSpec: string,
+  title: string,
+  project: string | undefined,
+): TestRef {
+  const refs = listedTests(report, suiteSpec).filter((ref) => project === undefined || ref.project === project);
   const exact = refs.filter((ref) => ref.title === title);
   const matches = exact.length > 0 ? exact : refs.filter((ref) => ref.title.includes(title));
   const [first] = matches;
@@ -631,17 +847,19 @@ function outcomeOf(report: unknown, target: TestRef): Outcome {
 
 async function runOnce(
   worktree: string,
+  command: readonly string[],
   spec: string,
   target: TestRef,
   reportFile: string,
 ): Promise<{ failed: boolean; output: string }> {
   const args = [
+    "--no-deps",
     "--retries=0",
     `--project=${target.project}`,
     `--grep=${escapeRegExp(target.title)}$`,
     `${spec}:${target.line}`,
   ];
-  const { report } = await playwright(worktree, args, reportFile);
+  const { report } = await playwright(worktree, command, args, reportFile);
   const outcome = outcomeOf(report, target);
   refuseExpectedFailure(target.title, outcome.expectedStatus);
   if (outcome.status === "expected") {
@@ -658,15 +876,17 @@ async function runOnce(
  * Proves that one test fails when a value it checks is changed. The script makes the change itself
  * ({@link mutateAssertion}): nothing the caller writes reaches the copy. It works on a throw-away git worktree in the
  * system temporary directory, outside the repository (the working tree is never touched): the worktree gets the
- * repository's `HEAD`, the working tree's uncommitted changes and the spec as it is on disk, a link to `node_modules`
- * and the `.env*` files. The test is run once as it is, with no retries, and must pass; then the literal on `line`
- * is changed and the same test run again.
+ * repository's `HEAD`, the working tree's uncommitted changes and the spec as it is on disk, links to `node_modules`
+ * (the root's, and the suite's own when it is its own npm project) and the `.env*` files of the suite directory
+ * (`suiteDir` of the project facts). Playwright, from the suite's own `node_modules` when it has one, runs with the
+ * suite's config (`playwrightConfigArgs`). The test is run once as it is, with no retries, and must pass; then the literal on
+ * `line` is changed and the same test run again.
  *
  * `failed` is true only when the test passed before the change and failed after it. A flaky or skipped result, and a
  * test that is expected to fail, are errors, not proofs. The worktree is removed on every path, and the removal never
  * hides the result or the error.
  *
- * @param spec repository-relative path of the spec file.
+ * @param spec repository-relative path of the spec file, inside the suite directory.
  * @param title the test's own title, or a part of it that matches exactly one test in the file.
  * @param line the line of the assertion (`expect(...).toXxx(...)`) inside that test whose literal is changed.
  * @param project the Playwright project to run; resolved from the spec when omitted and the test is in one project.
@@ -681,33 +901,38 @@ export async function proveFails(
 ): Promise<ProveFailsResult> {
   checkedLine(line);
   const root = resolve((await git(["rev-parse", "--show-toplevel"], process.cwd())).trim());
+  const { suiteDir } = readProjectFactsIn(root);
+  const packageDir = suitePackageDir(root, suiteDir);
   const specPath = await checkedSpec(spec, root);
+  const suiteSpec = suitePathOf(specPath, suiteDir);
   const source = readFileSync(join(root, specPath), "utf8");
   mutateAssertion(source, line);
   const worktree = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+  const command = [join(worktree, packageDir, ...PLAYWRIGHT_CLI), "test", ...playwrightConfigArgs(suiteDir)];
   try {
     await git(["worktree", "add", "--detach", worktree, "HEAD"], root);
     await overlayWorkingTree(root, worktree, specPath);
-    copyEnvFiles(root, worktree);
-    linkDependencies(root, worktree);
+    copyEnvFiles(root, worktree, suiteDir);
+    linkDependencies(root, worktree, packageDir);
     const reportFile = join(worktree, ".prove-fails-report.json");
     const listed = await playwright(
       worktree,
-      ["--list", ...(project === undefined ? [] : [`--project=${project}`]), specPath],
+      command,
+      ["--list", "--no-deps", ...(project === undefined ? [] : [`--project=${project}`]), specPath],
       reportFile,
     );
-    const target = resolveTest(listed.report, specPath, title, project);
+    const target = resolveTest(listed.report, specPath, suiteSpec, title, project);
     refuseExpectedFailure(target.title, target.expectedStatus);
     const change = mutateAssertion(source, line, target.line);
-    const before = await runOnce(worktree, specPath, target, reportFile);
+    const before = await runOnce(worktree, command, specPath, target, reportFile);
     if (before.failed) {
       throw problem(`the test "${target.title}" fails before the change: ${firstLine(before.output)}`);
     }
     writeFileSync(join(worktree, specPath), change.source);
-    const after = await runOnce(worktree, specPath, target, reportFile);
+    const after = await runOnce(worktree, command, specPath, target, reportFile);
     return { ...after, mutated: change.mutated };
   } finally {
-    await removeWorktree(root, worktree);
+    await removeWorktree(root, worktree, packageDir);
   }
 }
 

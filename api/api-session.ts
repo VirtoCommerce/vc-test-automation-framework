@@ -61,6 +61,8 @@ export class ApiSession {
   readonly http: HttpClient;
   readonly #connection: ApiConnection;
   readonly #resolve: UserResolver;
+  /** `undefined` while the session talks to the connection's own host. */
+  readonly #baseUrl: string | undefined;
   #storeContext: Promise<StoreContext> | undefined;
 
   private constructor(
@@ -68,12 +70,18 @@ export class ApiSession {
     resolve: UserResolver,
     httpClient: HttpClient,
     credentials: Credentials | undefined,
+    baseUrl: string | undefined = undefined,
   ) {
     this.#connection = connection;
     this.#resolve = resolve;
+    this.#baseUrl = baseUrl;
     this.http = httpClient;
     this.credentials = credentials;
-    this.auth = new TokenClient(new HttpClient(connection.context), connection.store.storeId);
+    const tokenHttpClient = new HttpClient(connection.context);
+    this.auth = new TokenClient(
+      baseUrl === undefined ? tokenHttpClient : tokenHttpClient.withBaseUrl(baseUrl),
+      connection.store.storeId,
+    );
     this.rest = new RestApi(httpClient, connection.store.storeId);
     this.graphql = new GraphqlClient(httpClient);
   }
@@ -128,7 +136,28 @@ export class ApiSession {
         `withHeaders is for anonymous sessions; call anonymous() first instead of using ${this.credentials.username}'s`,
       );
     }
-    return new ApiSession(this.#connection, this.#resolve, this.http.withHeaders(headers), undefined);
+    return new ApiSession(this.#connection, this.#resolve, this.http.withHeaders(headers), undefined, this.#baseUrl);
+  }
+
+  /**
+   * Returns an anonymous session whose requests go to another host of the environment, such as the frontend's
+   * `/connect/token` and `/graphql`, which the platform answers as that host. Only for anonymous sessions: a
+   * token the connection signed in on the platform's host is not one the other host accepts.
+   *
+   * @example
+   * const frontend = api.anonymous().at(env.frontendBaseUrl);
+   * const token = await frontend.auth.exchangeSiteBuilderPreviewCode(code);
+   * const { me } = await frontend.withHeaders(authHeader(token)).graphql.execute(GetMeDocument);
+   *
+   * @throws Error when called on a signed-in session.
+   */
+  at(baseUrl: string): ApiSession {
+    if (this.credentials !== undefined) {
+      throw new Error(
+        `at is for anonymous sessions; call anonymous() first instead of using ${this.credentials.username}'s`,
+      );
+    }
+    return new ApiSession(this.#connection, this.#resolve, this.http.withBaseUrl(baseUrl), undefined, baseUrl);
   }
 
   /**

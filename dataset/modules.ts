@@ -33,6 +33,12 @@ export const MODULES = {
   pricing: { id: "VirtoCommerce.Pricing" },
   quote: { id: "VirtoCommerce.Quote" },
   shipping: { id: "VirtoCommerce.Shipping" },
+  /**
+   * Site Builder: the designer previews as a store's customer with a one-time code exchanged at the frontend's
+   * `/connect/token` (3.1002.0, VCST-6950). `3.1001.1` so the module's own 3.1002.0 PR and alpha builds count too.
+   * It cannot be installed together with `pageBuilder`.
+   */
+  siteBuilder: { id: "VirtoCommerce.SiteBuilder", minVersion: "3.1001.1" },
   store: { id: "VirtoCommerce.Store" },
   whiteLabeling: { id: "VirtoCommerce.WhiteLabeling" },
   /**

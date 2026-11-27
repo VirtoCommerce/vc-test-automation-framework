@@ -18,13 +18,29 @@ const edgeModules: ReadonlyMap<string, string> = new Map(
     .map(({ Id, Version }) => [Id, Version]),
 );
 
+/**
+ * Modules this repository's CI cannot deploy, with the reason; their tests run in the module's own CI, which installs
+ * the module under test. Every other entry of `MODULES` must be met by `backend-packages.json`.
+ */
+const NOT_DEPLOYED_HERE: Readonly<Partial<Record<keyof typeof MODULES, string>>> = {
+  siteBuilder: "incompatible with pageBuilder (VirtoCommerce.PageBuilderModule); runs in vc-module-site-builder's CI",
+};
+
 test.describe("MODULES", () => {
   test(`is met by the module versions CI deploys (${BACKEND_PACKAGES})`, () => {
     const unmet = Object.entries(MODULES).flatMap(([key, requirement]) => {
-      const reason = unmetReason(requirement, edgeModules);
+      const reason = key in NOT_DEPLOYED_HERE ? undefined : unmetReason(requirement, edgeModules);
       return reason === undefined ? [] : [`${key}: ${reason}`];
     });
 
     expect(unmet).toEqual([]);
+  });
+
+  test(`lists as not deployed only modules missing from ${BACKEND_PACKAGES}`, () => {
+    const deployed = Object.keys(NOT_DEPLOYED_HERE).filter((key) =>
+      edgeModules.has(MODULES[key as keyof typeof MODULES].id),
+    );
+
+    expect(deployed).toEqual([]);
   });
 });

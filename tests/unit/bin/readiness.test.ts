@@ -1156,7 +1156,8 @@ test.describe("probeBrowserServer", () => {
           : ["initialize", "notifications/initialized", "browser_navigate", "browser_evaluate"],
       );
       expect(alive(pidIn("server.pid"))).toBe(false);
-      expect(alive(pidIn("grandchild.pid"))).toBe(false);
+      // The grandchild is not the probe's child: once killed, the system reaps it on its own time.
+      await expect.poll(() => alive(pidIn("grandchild.pid")), { timeout: 5_000 }).toBe(false);
     });
   }
 

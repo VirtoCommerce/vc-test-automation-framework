@@ -19,6 +19,7 @@ const EXEC_MAX_BUFFER = 64 * 1_048_576;
 const TEST_ID_ATTRIBUTES = ["data-testid", "data-test-id", "data-test", "data-qa", "data-cy"];
 const COUNT_TEST_IDS = `() => Object.fromEntries(${JSON.stringify(TEST_ID_ATTRIBUTES)}.map((name) => [name, document.querySelectorAll("[" + name + "]").length]))`;
 const EVALUATE_TIMEOUT_MS = 20_000;
+const STOP_TIMEOUT_MS = 5_000;
 const RESULT_SECTION = /^### Result[ \t]*\r?\n([\s\S]*?)(?=^### |(?![\s\S]))/m;
 const CODE_FENCE = /^```\w*\s*|\s*```$/g;
 
@@ -108,6 +109,25 @@ function killTree(child) {
       child.kill("SIGKILL");
     }
   }
+}
+
+/**
+ * Stops the server's whole tree and waits until the server has exited. Without the wait the probe returns while the
+ * killed server is still an unreaped child, which the operating system still lists as a live process.
+ */
+async function stopTree(child) {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  killTree(child);
+  let timer;
+  const gaveUp = new Promise((resolve) => {
+    timer = setTimeout(resolve, STOP_TIMEOUT_MS);
+    timer.unref();
+  });
+  await Promise.race([exited, gaveUp]);
+  clearTimeout(timer);
 }
 
 function connect(child, secrets) {
@@ -315,6 +335,6 @@ export async function probeBrowserServer(options) {
     ]);
   } finally {
     clearTimeout(timer);
-    killTree(child);
+    await stopTree(child);
   }
 }

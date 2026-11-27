@@ -12,6 +12,15 @@ const NO_MATCH = "NonExistentOrg";
 const SEARCH_THRESHOLD = 10;
 const DASHBOARD_PATH = /\/account\/dashboard/;
 
+/**
+ * Why these tests are skipped: the header's organizations button (organizations-button, vc-frontend#2667, VCST-6237) is
+ * only on the frontend's dev branch, and module CI runs against the released frontend, so the organizations menu tests
+ * time out. Remove the skip once the frontend releases it.
+ */
+const ORGANIZATIONS_BUTTON_UNRELEASED = "VCST-6237: the frontend has not released its organizations button";
+
+test.skip(true, ORGANIZATIONS_BUTTON_UNRELEASED);
+
 test.describe("organizations menu (customer of their own)", () => {
   test.use({ user: STORE_ADMINISTRATOR, shopperAs: "customer" });
 

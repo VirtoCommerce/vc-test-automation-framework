@@ -44,8 +44,8 @@ project's values.
 
 ## Any other kind
 
-An unknown `tracker.kind`, or facts without `tracker`, has only `paste`. Ask the person to paste the ticket text and fill the card from it with
-`route` set to `paste`.
+An unknown `tracker.kind`, or facts without `tracker`, has only `paste`. Ask the person to paste the ticket text and
+fill the card from it with `route` set to `paste`.
 
 ## Rules for Every Route
 

@@ -584,7 +584,7 @@ function certificateConfirmer(switches) {
   };
 }
 
-function readiness(target, suiteDir, switches, skipInstall, withheld = [], testIdGiven = false) {
+function readiness(target, suiteDir, switches, skipInstall, withheld = []) {
   return runReadiness({
     projectDir: target,
     suiteDir,
@@ -593,7 +593,6 @@ function readiness(target, suiteDir, switches, skipInstall, withheld = [], testI
     skipVerify: switches.has("--skip-verify"),
     prompter: certificateConfirmer(switches),
     withheld,
-    testIdGiven,
     progress: printProgress,
   });
 }
@@ -701,8 +700,7 @@ async function init(target, { switches, values, suiteDir }) {
     installDependencies(suite, own);
     installBrowserOfServer(target, suiteDir);
   }
-  const testIdGiven = typeof values["--test-id-attribute"] === "string" && values["--test-id-attribute"] !== "";
-  const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers), testIdGiven);
+  const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers));
   return ["", formatTable(rows), "", ...unsavedLines(answers), ...verdictLines(target, rows)];
 }
 

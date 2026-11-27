@@ -18,6 +18,9 @@ import {
 import { checkAdminToken, checkReachable, formatTable, request, runReadiness } from "../../../bin/lib/readiness.mjs";
 import { maskSecrets } from "../../../bin/lib/redact.mjs";
 
+const FIRST_TEST_DIR = "tests/restapi/security";
+const FIRST_TEST = `${FIRST_TEST_DIR}/sign-in.spec.ts`;
+
 const FIXTURES = join(import.meta.dirname, "fixtures");
 const PASSWORD = "Sup3r-Secret!";
 const FAST = { attempts: 3, delayMs: 1 };
@@ -341,6 +344,10 @@ test.describe("runReadiness", () => {
 
   test.beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vc readiness "));
+    for (const suite of [dir, join(dir, "suite")]) {
+      mkdirSync(join(suite, FIRST_TEST_DIR), { recursive: true });
+      writeFileSync(join(suite, FIRST_TEST), "");
+    }
   });
 
   test.afterEach(() => {
@@ -482,8 +489,31 @@ test.describe("runReadiness", () => {
     expect(rows.every((row) => row.status === "ok")).toBe(true);
     expect(calls.slice(1)).toEqual([
       { command: "npm", args: ["run", "codegen"], cwd: join(dir, "suite") },
-      { command: "npm", args: ["test"], cwd: join(dir, "suite") },
+      { command: "npm", args: ["test", "--", FIRST_TEST], cwd: join(dir, "suite") },
     ]);
+  });
+
+  test("skips the first test when its spec was removed", async () => {
+    rmSync(join(dir, "suite", FIRST_TEST));
+    const { exec, calls } = fakeExec();
+    const rows = await runReadiness({
+      projectDir: dir,
+      suiteDir: "suite",
+      vars: vars(),
+      skipInstall: false,
+      skipVerify: false,
+      exec,
+      request: (url: string) =>
+        Promise.resolve(
+          url.endsWith("/connect/token")
+            ? { status: 200, body: JSON.stringify({ access_token: "t" }) }
+            : { status: 200, body: "" },
+        ),
+      probe: () => Promise.resolve({ ok: true, detail: "opened the frontend" }),
+    });
+
+    expect(statusOf(rows, "first test")).toBe(`skipped: ${FIRST_TEST} is not there`);
+    expect(calls.some((call) => call.args[0] === "test")).toBe(false);
   });
 
   test("says which check starts before each row that runs, and the table stays the same", async () => {
@@ -516,7 +546,7 @@ test.describe("runReadiness", () => {
       "checking the administrator (admin signs in)...",
       "checking the project facts (node .claude/checks/project-facts.mts)...",
       "checking the types (npm run codegen)...",
-      "checking the first test (npm test)...",
+      `checking the first test (npm test -- ${FIRST_TEST})...`,
       "checking the browser server (opens http://frontend.test)...",
     ]);
     expect(formatTable(told)).toBe(formatTable(quiet));
@@ -656,7 +686,7 @@ test.describe("runReadiness", () => {
   });
 
   test("offers VERIFY_SSL=false on an untrusted certificate, writes it to .env and checks again", async () => {
-    mkdirSync(join(dir, "suite"));
+    mkdirSync(join(dir, "suite"), { recursive: true });
     writeFileSync(join(dir, "suite", ".env"), "BACKEND_BASE_URL=https://backend.test\nVERIFY_SSL=true\n");
     const questions: string[] = [];
     const seen: boolean[] = [];
@@ -807,7 +837,7 @@ test.describe("runReadiness", () => {
   });
 
   test("takes a cancelled certificate question as a no: the backend row fails with its own detail", async () => {
-    mkdirSync(join(dir, "suite"));
+    mkdirSync(join(dir, "suite"), { recursive: true });
     writeFileSync(join(dir, "suite", ".env"), "BACKEND_BASE_URL=https://backend.test\nVERIFY_SSL=true\n");
     const rows = await runReadiness({
       projectDir: dir,
@@ -973,16 +1003,6 @@ test.describe("runReadiness test-id attribute", () => {
     expect(status).toBe(
       "ok: opened http://frontend.test through the browser server; test ids: the frontend uses data-testid; FRONTEND_TEST_ID_ATTRIBUTE is data-test-id",
     );
-    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(before);
-  });
-
-  test("writes nothing when --test-id-attribute was given", async () => {
-    const before = "FRONTEND_TEST_ID_ATTRIBUTE=\n";
-    writeFileSync(join(dir, ".env"), before);
-
-    const status = await browserRow("data-testid", {}, { testIdGiven: true });
-
-    expect(status).toMatch(/test ids: data-testid \(not written: --test-id-attribute was given\)$/);
     expect(readFileSync(join(dir, ".env"), "utf8")).toBe(before);
   });
 

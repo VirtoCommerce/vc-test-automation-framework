@@ -48,6 +48,7 @@ const NO_PLATFORM = "the platform does not answer";
 const CANCELLED = "cancelled";
 const TEST_ID_NAME = "FRONTEND_TEST_ID_ATTRIBUTE";
 const TEST_ID_DEFAULT = "data-test-id";
+const FIRST_TEST = "tests/restapi/security/sign-in.spec.ts";
 
 export function request(url, options) {
   return new Promise((resolve, reject) => {
@@ -294,9 +295,6 @@ function testIdNote(context, detected) {
   if (held !== "") {
     return `test ids: the frontend uses ${detected}; ${TEST_ID_NAME} is ${held}`;
   }
-  if (context.testIdGiven) {
-    return `test ids: ${detected} (not written: --test-id-attribute was given)`;
-  }
   const envPath = join(context.projectDir, context.suiteDir, ".env");
   try {
     const text = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
@@ -479,19 +477,22 @@ export async function runReadiness(context) {
   if (testReason === undefined && rows.types.status !== "ok") {
     testReason = "the types were not generated";
   }
+  if (testReason === undefined && !existsSync(join(suiteCwd, FIRST_TEST))) {
+    testReason = `${FIRST_TEST} is not there`;
+  }
   rows.firstTest =
     testReason === undefined
       ? execRow(
           "first test",
           context,
           "npm",
-          ["test"],
+          ["test", "--", FIRST_TEST],
           suiteCwd,
           (output) =>
             row(
               "first test",
               "fail",
-              `npm test failed: ${summary(output, secrets)}; run it in ${context.suiteDir} to see the report.`,
+              `npm test -- ${FIRST_TEST} failed: ${summary(output, secrets)}; run it in ${context.suiteDir} to see the report.`,
             ),
           childEnv,
         )

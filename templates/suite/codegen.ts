@@ -2,6 +2,10 @@ import { graphqlCodegenConfig } from "@virtocommerce/test-automation-framework/g
 
 import { env } from "./env.ts";
 
+if (!env.VERIFY_SSL) {
+  process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+}
+
 const config = graphqlCodegenConfig({
   schema: new URL("/graphql", env.BACKEND_BASE_URL).href,
   documents: ["graphql/fragments/*.graphql", "graphql/operations/**/*.graphql"],

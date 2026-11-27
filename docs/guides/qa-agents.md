@@ -7,13 +7,13 @@ one file, `.qa/project.json`.
 
 ## Install
 
-A new test suite gets the agents from `npx vc-qa-agents init` (see
-[Getting started](../getting-started.md#start-from-the-template)), with a `.qa/project.json` that matches it: `init`
-asks only for the stand's URLs, store and administrator, and optionally for customer accounts already on the stand,
-writes them, and ends with a readiness table, so that nothing is left but to start `claude`. Customers are added when they are seeded (or with
-`--customer`), and until then the agents look at the frontend anonymously; a tracker is added with `--tracker` or by
-editing the file, and until then a ticket is read from pasted text. `npx vc-qa-agents doctor` prints that table again
-and exits with 1 when a row fails. An existing suite installs the agents on their own.
+A new test suite gets the agents from `npx vc-qa-agents init` (see [Getting
+started](../getting-started.md#start-from-the-template)), with a `.qa/project.json` that matches it: `init` asks only
+for the stand's URLs, store and administrator, and optionally for customer accounts already on the stand, writes them,
+and ends with a readiness table, so that nothing is left but to start `claude`. Customers are added when they are seeded
+(or with `--customer`), and until then the agents look at the frontend anonymously; a tracker is added with `--tracker`
+or by editing the file, and until then a ticket is read from pasted text. `npx vc-qa-agents doctor` prints that table
+again and exits with 1 when a row fails. An existing suite installs the agents on their own.
 
 The agents run from your repository's `.claude/` directory, so the package copies them there:
 
@@ -168,13 +168,13 @@ lists them). The launcher writes them for the server, so there is no step for yo
 server, the launcher reads the variables of the run, writes `.qa/browser-secrets.local.env` (git-ignored) with the
 passwords that are set, restricts the file to the current user (mode `0600` on Linux and macOS, `icacls` on Windows),
 and starts the pinned `@playwright/mcp` with `--browser chromium --isolated`, adding `--secrets` only when the file
-holds a password, and `--ignore-https-errors` only when the run's variables have `VERIFY_SSL=false`. A password that changed in `.env` is therefore picked up when Claude Code restarts the server, and no
-stale file is left behind. A password that is not set is a warning on stderr, and the agents cannot sign in with that
-role. The launcher writes nothing else to stdout, which is the channel of the protocol, and it does not stop when
-`.qa/project.json` is unreadable or still the template's: it falls back to the suite's `.env` and warns.
-`node .claude/checks/stand.mts` prints `sign-in: ready` when every variable of `passwordFor` is set in the run's
-variables, and names the ones that are not. The `browser server` row of `init` and `doctor` starts the launcher,
-asks the server to open the frontend, and stops it.
+holds a password, and `--ignore-https-errors` only when the run's variables have `VERIFY_SSL=false`. A password that
+changed in `.env` is therefore picked up when Claude Code restarts the server, and no stale file is left behind. A
+password that is not set is a warning on stderr, and the agents cannot sign in with that role. The launcher writes
+nothing else to stdout, which is the channel of the protocol, and it does not stop when `.qa/project.json` is unreadable
+or still the template's: it falls back to the suite's `.env` and warns. `node .claude/checks/stand.mts` prints
+`sign-in: ready` when every variable of `passwordFor` is set in the run's variables, and names the ones that are not.
+The `browser server` row of `init` and `doctor` starts the launcher, asks the server to open the frontend, and stops it.
 
 The server brings its own Playwright, and needs the `chrome-for-testing` build, which is not the Chromium that
 `npx playwright install chromium` installs for the suite. `init` installs it right after the dependencies, unless you

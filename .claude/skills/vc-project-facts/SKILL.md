@@ -57,17 +57,19 @@ the reader cannot follow), the reader says so in one line on stderr and does not
 - Roles: `roles["<role name>"]` is the account to pass to `test.use({ user })`. Name roles in plans and reports, not
   accounts.
 - Role purposes: `roleFor.admin` is the role `arrange` and REST administration tests act as, `roleFor.customer` an
-  ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value
-  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. All three are optional. Without `customer` the
-  stand has no customer account (a platform-only or administration-only scope): look at the frontend anonymously only, plan no
-  case as a signed-in customer, and say in your output that signed-in customer coverage was not reached because the project declares no customer; a
-  case that needs a signed-in customer is a scope question for the person, never a role you pick. Without `admin` the facts name no administration role: `arrange` still acts as
-  the suite's own administrator, which needs no name, but a case that must act as an administrator under a name (a
-  REST administration test, an administrator's data role in a contract) is a scope question for the person, never a
-  role you pick. `otherCustomer` is optional (a project with one customer organization has none) and needs `customer`
-  (the reader refuses it alone); when it is absent a cross-organization access case is a scope question for the person, never a role you pick. When present, the reader
-  refuses `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the same account. The two must also belong to different
-  organizations, which the reader cannot check: take that from the seed, or ask.
+  ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value is
+  a key of `roles`; the account is `roles[roleFor.<purpose>]`. All three are optional. Without `customer` the stand has
+  no customer account (a platform-only or administration-only scope): look at the frontend anonymously only, plan no
+  case as a signed-in customer, and say in your output that signed-in customer coverage was not reached because the
+  project declares no customer; a case that needs a signed-in customer is a scope question for the person, never a role
+  you pick. Without `admin` the facts name no administration role: `arrange` still acts as the suite's own
+  administrator, which needs no name, but a case that must act as an administrator under a name (a REST administration
+  test, an administrator's data role in a contract) is a scope question for the person, never a role you pick.
+  `otherCustomer` is optional (a project with one customer organization has none) and needs `customer` (the reader
+  refuses it alone); when it is absent a cross-organization access case is a scope question for the person, never a role
+  you pick. When present, the reader refuses `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the
+  same account. The two must also belong to different organizations, which the reader cannot check: take that from the
+  seed, or ask.
 - Role permissions (optional): `rolePermissions["<role name>"]` lists the permissions that role holds, named as the
   platform under test names them. A case that needs a role with or without a permission takes it from here. When the
   field is absent or does not settle the question, ask the person; never infer it from knowledge of the platform.

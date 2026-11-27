@@ -4,6 +4,16 @@ import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
+
+import { checkGivenValues, resolveAnswers } from "./lib/answers.mjs";
+import { parseArguments } from "./lib/arguments.mjs";
+import { browserServerKind, LAUNCHER_SNIPPET } from "./lib/browser-server.mjs";
+import { dependencySpecs, suiteOverrides, withOverrides } from "./lib/dependencies.mjs";
+import { installServerBrowser } from "./lib/mcp-probe.mjs";
+import { createPrompter, isInteractive } from "./lib/prompts.mjs";
+import { formatTable, runReadiness, secretValues } from "./lib/readiness.mjs";
+import { discardOnFailure, removeIfCreated, withCookieSignIn, writeAnswers } from "./lib/suite-files.mjs";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_DIRS = ["agents", "commands", "skills", "checks", "hooks"];
@@ -16,16 +26,25 @@ const FORCE_OURS = "--force-ours";
 const USAGE = [
   "Usage:",
   "  npx vc-qa-agents [--force-ours]           install the QA agents into .claude/",
-  "  npx vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours]",
-  "                                            write a test suite (into the directory, if given), with the agents",
+  "  npx vc-qa-agents init [<suite directory>] [--skip-install] [--force-ours] [--yes] [--save-passwords]",
+  "      [--skip-verify] [--backend-url <url>] [--frontend-url <url>] [--store-id <id>] [--admin-login <login>]",
+  "      [--customer <email>] [--other-customer <email>] [--tracker <name>]",
+  "      [--key-pattern <pattern>]",
+  "      [--docs <url | mcp:server | text>] [--test-id-attribute <attribute>] [--frontend-sign-in oauth|cookie]",
+  "                                            write a test suite (into the directory, if given), with the agents,",
+  "                                            ask for what it needs and check that it is ready",
+  "  npx vc-qa-agents doctor [--skip-verify]   check again that the suite is ready",
   "  npx vc-qa-agents uninstall                remove the files of the QA agents that are unchanged since install",
 ].join("\n");
-const FLAGS = { install: [FORCE_OURS], init: ["--skip-install", FORCE_OURS], uninstall: [] };
 const HOOK_SCRIPT = ".claude/hooks/readonly-shell.mts";
 const GUARD_FILES = [HOOK_SCRIPT, ".claude/checks/readonly-shell.mts"];
 const MCP_FILE = ".mcp.json";
 const BROWSER_SERVER = "playwright";
 const FACTS_FILE = ".qa/project.json";
+const FIXTURES_FILE = "fixtures/index.ts";
+const FACTS_CHECK = ".claude/checks/project-facts.mts";
+const CANCELLED = "cancelled";
+const NO_TERMINAL = "No terminal: nothing was asked; pass the values as flags or edit .env.";
 const ROOT_DIR = ".";
 const QA_DIR = ".qa/";
 const SUITE_DIR = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)*$/;
@@ -40,6 +59,7 @@ const GITIGNORE_LINES = [
   ".qa/judge/",
   ".qa/*.local.env",
   ".qa/client-terms.local.txt",
+  ".claude/settings.local.json",
   ".playwright-mcp/",
 ];
 
@@ -259,18 +279,6 @@ function hasHook(settingsPath) {
   return readFileSync(settingsPath, "utf8").includes(HOOK_SCRIPT.split("/").pop());
 }
 
-function hasBrowserServer(target) {
-  const path = join(target, MCP_FILE);
-  if (!existsSync(path)) {
-    return false;
-  }
-  try {
-    return Object.hasOwn(JSON.parse(readFileSync(path, "utf8")).mcpServers ?? {}, BROWSER_SERVER);
-  } catch {
-    return false;
-  }
-}
-
 function addIgnores(target) {
   const path = join(target, ".gitignore");
   const text = existsSync(path) ? readFileSync(path, "utf8") : "";
@@ -284,7 +292,7 @@ function addIgnores(target) {
   return missing;
 }
 
-function install(target, { written = [], forceOurs = false } = {}) {
+function install(target, { written = [], forceOurs = false, wizard = false } = {}) {
   const lines = syncAgentFiles(target, forceOurs);
 
   const settings = join(target, ".claude", "settings.json");
@@ -297,10 +305,10 @@ function install(target, { written = [], forceOurs = false } = {}) {
     );
   }
 
-  if (written.includes(FACTS_FILE)) {
-    lines.push(
-      "Wrote .qa/project.json for the suite. Replace its example accounts and tracker with this repository's facts:",
-    );
+  if (written.includes(FACTS_FILE) && wizard) {
+    lines.push("Wrote .qa/project.json for the suite.");
+  } else if (written.includes(FACTS_FILE)) {
+    lines.push("Wrote .qa/project.json for the suite. Replace its example values with this repository's facts:");
     lines.push("every agent reads it, and node .claude/checks/project-facts.mts refuses it until you have.");
   } else if (copyIfMissing(join(PACKAGE_ROOT, ".qa", "project.example.json"), join(target, ".qa", "project.json"))) {
     lines.push("Created .qa/project.json from the example. Replace its example values with this repository's facts:");
@@ -308,10 +316,16 @@ function install(target, { written = [], forceOurs = false } = {}) {
   } else {
     lines.push("Kept your .qa/project.json.");
   }
-  if (!written.includes(MCP_FILE) && !hasBrowserServer(target)) {
+  const serverKind = written.includes(MCP_FILE) ? "launcher" : browserServerKind(target);
+  if (serverKind === "none") {
     lines.push(
-      `No ${BROWSER_SERVER} server in ${MCP_FILE}: the agents that open the frontend need a Playwright MCP server named ` +
-        `"${BROWSER_SERVER}" (see the QA agents guide, Browser).`,
+      `No ${BROWSER_SERVER} server in ${MCP_FILE}: the agents that open the frontend need it. Add to its mcpServers: ` +
+        `${LAUNCHER_SNIPPET} (see the QA agents guide, Browser).`,
+    );
+  } else if (serverKind === "direct") {
+    lines.push(
+      `The ${BROWSER_SERVER} server in ${MCP_FILE} starts @playwright/mcp itself, so nothing writes its secrets file: ` +
+        `replace it with ${LAUNCHER_SNIPPET}`,
     );
   }
 
@@ -320,7 +334,7 @@ function install(target, { written = [], forceOurs = false } = {}) {
     lines.push(`Added to .gitignore: ${ignores.join(" ")}`);
   }
   const packageDirs = [...new Set([ROOT_DIR, factsSuiteDir(target)])];
-  if (!packageDirs.some((dir) => existsSync(join(target, dir, "node_modules", "@babel", "parser")))) {
+  if (!wizard && !packageDirs.some((dir) => existsSync(join(target, dir, "node_modules", "@babel", "parser")))) {
     lines.push("The checks need @babel/parser: npm install --save-dev --save-exact @babel/parser");
   }
   return lines;
@@ -394,7 +408,8 @@ const SUITE_SCRIPTS = {
   typecheck: "tsc --noEmit",
   check: "biome check --write .",
   "check:ci": "biome ci .",
-  codegen: "graphql-codegen --config codegen.ts && node scripts/generate-rest-types.ts",
+  codegen:
+    "node scripts/check-platform.ts && graphql-codegen --config codegen.ts && node scripts/generate-rest-types.ts",
   pretest: "node -e \"require('node:fs').rmSync('reports/allure-results', { recursive: true, force: true })\"",
   test: "playwright test",
   report: "allure generate reports/allure-results --clean",
@@ -405,17 +420,6 @@ function templateFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory() ? templateFiles(join(dir, entry.name)) : [join(dir, entry.name)],
   );
-}
-
-function wrapForWindows(path) {
-  const config = JSON.parse(readFileSync(path, "utf8"));
-  for (const server of Object.values(config.mcpServers)) {
-    if (server.command === "npx") {
-      server.args = ["/c", "npx", ...server.args];
-      server.command = "cmd";
-    }
-  }
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
 }
 
 function inSuite(suiteDir, path) {
@@ -439,14 +443,37 @@ function copySuiteTemplate(target, suiteDir) {
   if (copyIfMissing(join(SUITE_TEMPLATE, "env.example"), join(target, env))) {
     written.push(env);
   }
-  if (written.includes(MCP_FILE) && process.platform === "win32") {
-    wrapForWindows(join(target, MCP_FILE));
-  }
   return { written, kept };
 }
 
-function suiteDirOf(options) {
-  const [dir, extra] = options.filter((option) => !option.startsWith("--"));
+function factsBefore(target) {
+  const own = join(target, FACTS_FILE);
+  try {
+    return JSON.parse(readFileSync(existsSync(own) ? own : join(SUITE_TEMPLATE, FACTS_FILE), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function applyFrontendSignIn(target, suiteDir, written, signIn) {
+  if (signIn !== "cookie") {
+    return [];
+  }
+  const fixtures = inSuite(suiteDir, FIXTURES_FILE);
+  if (!written.includes(fixtures)) {
+    return [
+      `Kept your ${fixtures}; --frontend-sign-in cookie was not applied (pass frontendSignIn to defaultFixtures there).`,
+    ];
+  }
+  const path = join(target, fixtures);
+  writeFileSync(path, withCookieSignIn(readFileSync(path, "utf8")));
+  return [
+    `Wrote ${fixtures} with a cookie sign-in of the frontend: write its sign-in requests there before a test signs in.`,
+  ];
+}
+
+function suiteDirOf(positional) {
+  const [dir, extra] = positional;
   if (extra !== undefined) {
     throw new Error(USAGE);
   }
@@ -489,11 +516,16 @@ function pointFactsAtSuite(target, suiteDir) {
   writeFileSync(path, `${JSON.stringify(facts, null, 2)}\n`);
 }
 
-function mergePackageJson(target) {
+function readOwnManifest() {
+  return JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
+}
+
+function mergePackageJson(target, own) {
   const path = join(target, "package.json");
-  const manifest = existsSync(path)
+  const existing = existsSync(path)
     ? JSON.parse(readFileSync(path, "utf8"))
     : { name: basename(target), private: true };
+  const manifest = withOverrides(existing, suiteOverrides(own));
   manifest.type = "module";
   manifest.scripts = { ...SUITE_SCRIPTS, ...manifest.scripts };
   if (manifest.scripts.test?.startsWith('echo "Error: no test specified"')) {
@@ -510,86 +542,200 @@ function run(command, target) {
   }
 }
 
-function installDependencies(target) {
-  const own = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
-  const versions = { ...own.peerDependencies, ...own.devDependencies };
-  const specs = SUITE_DEPENDENCIES.map((name) => `${name}@${JSON.stringify(versions[name] ?? "latest")}`);
+function installDependencies(target, own) {
+  const specs = dependencySpecs(own, SUITE_DEPENDENCIES);
   run(`npm install --save-dev --save-exact ${specs.join(" ")}`, target);
   run("npx playwright install chromium", target);
 }
 
-function init(target, { skipInstall, suiteDir, forceOurs }) {
-  const lines = [];
+function runVariables(target, suiteDir) {
+  const envPath = join(target, suiteDir, ".env");
+  const vars = existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value !== undefined && value !== "") {
+      vars[name] = value;
+    }
+  }
+  return vars;
+}
+
+function installBrowserOfServer(target, suiteDir) {
+  const secrets = secretValues({ projectDir: target, vars: runVariables(target, suiteDir) });
+  printLines([installServerBrowser(target, join(target, suiteDir), { secrets, progress: printProgress })]);
+}
+
+function printProgress(line) {
+  process.stdout.write(`${line}\n`);
+}
+
+function certificateConfirmer(switches) {
+  if (!isInteractive(switches)) {
+    return undefined;
+  }
+  return {
+    async confirm(text) {
+      const prompter = createPrompter();
+      try {
+        return await prompter.confirm(text);
+      } finally {
+        prompter.close();
+      }
+    },
+  };
+}
+
+function readiness(target, suiteDir, switches, skipInstall, withheld = []) {
+  return runReadiness({
+    projectDir: target,
+    suiteDir,
+    vars: runVariables(target, suiteDir),
+    skipInstall,
+    skipVerify: switches.has("--skip-verify"),
+    prompter: certificateConfirmer(switches),
+    withheld,
+    progress: printProgress,
+  });
+}
+
+function verdictLines(target, rows) {
+  const failing = rows.filter((row) => row.status === "fail");
+  if (failing.length > 0) {
+    return [
+      "Not ready:",
+      ...formatTable(failing)
+        .split("\n")
+        .map((line) => `  ${line}`),
+    ];
+  }
+  const skipped = rows.filter((row) => row.status === "skipped");
+  if (skipped.length > 0) {
+    return [
+      `Not verified: ${skipped.map((row) => `${row.check} (${row.detail})`).join(", ")}`,
+      "Run npx vc-qa-agents doctor once that is fixed.",
+    ];
+  }
+  return [`Ready: run claude in ${target} and approve the ${BROWSER_SERVER} server when it asks.`];
+}
+
+function unsavedPasswords(answers) {
+  return Object.keys(answers.passwords).filter((name) => !answers.persistPasswords.includes(name));
+}
+
+function unsavedLines(answers) {
+  const unsaved = unsavedPasswords(answers);
+  if (unsaved.length === 0) {
+    return [];
+  }
+  return [
+    `Passwords from the shell, not saved: ${unsaved.join(", ")}. A new terminal needs them set again; ` +
+      "vc-qa-agents init --save-passwords writes them to .env.",
+  ];
+}
+
+async function askAnswers({ values, switches, envText, firstRun, facts, onInterrupt }) {
+  const fromFile = parseEnv(envText);
+  const prompter = isInteractive(switches) ? createPrompter(process.stdin, process.stdout, onInterrupt) : undefined;
+  try {
+    return await resolveAnswers({
+      values,
+      switches,
+      shell: process.env,
+      existingEnv: firstRun ? {} : fromFile,
+      facts,
+      prompter,
+    });
+  } finally {
+    prompter?.close();
+  }
+}
+
+async function init(target, { switches, values, suiteDir }) {
+  checkGivenValues({ values, switches, shell: process.env, facts: factsBefore(target) });
+  const skipInstall = switches.has("--skip-install");
   const suite = join(target, suiteDir);
+  const own = readOwnManifest();
   const { written, kept } = copySuiteTemplate(target, suiteDir);
-  lines.push(`Wrote ${written.length} files of the test suite.`);
-  if (kept.length > 0) {
-    lines.push(`Kept the files that already exist: ${kept.join(", ")}`);
-  }
-  if (suiteDir !== ROOT_DIR && written.includes(FACTS_FILE)) {
-    pointFactsAtSuite(target, suiteDir);
-    lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
-  }
-  mergePackageJson(suite);
-  lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
+  const envFile = inSuite(suiteDir, ".env");
+  const envPath = join(target, envFile);
+  const firstRun = written.includes(envFile);
+  const answers = await discardOnFailure(envPath, firstRun, async () => {
+    const lines = [`Wrote ${written.length} files of the test suite.`];
+    if (kept.length > 0) {
+      lines.push(`Kept the files that already exist: ${kept.join(", ")}`);
+    }
+    if (suiteDir !== ROOT_DIR && written.includes(FACTS_FILE)) {
+      pointFactsAtSuite(target, suiteDir);
+      lines.push(`The suite is its own npm project in ${suiteDir}/; .qa/project.json names it as suiteDir.`);
+    }
+    mergePackageJson(suite, own);
+    lines.push(`Added the suite's scripts to ${inSuite(suiteDir, "package.json")}.`);
+    if (written.includes(MCP_FILE)) {
+      lines.push(
+        `Wrote ${MCP_FILE}: the Playwright MCP server "${BROWSER_SERVER}" that the agents open the frontend with, ` +
+          "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
+      );
+    }
+    lines.push(...install(target, { written, forceOurs: switches.has(FORCE_OURS), wizard: true }));
+    if (!switches.has("--yes") && !isInteractive(switches)) {
+      lines.push(NO_TERMINAL);
+    }
+    printLines(lines);
+    const resolved = await askAnswers({
+      values,
+      switches,
+      envText: readFileSync(envPath, "utf8"),
+      firstRun,
+      facts: JSON.parse(readFileSync(join(target, FACTS_FILE), "utf8")),
+      onInterrupt() {
+        removeIfCreated(envPath, firstRun);
+        process.exit(130);
+      },
+    });
+    writeAnswers(target, suiteDir, resolved, { replace: firstRun });
+    resolved.notes.push(...applyFrontendSignIn(target, suiteDir, written, values["--frontend-sign-in"]));
+    return resolved;
+  });
+  printLines(answers.notes);
   if (!skipInstall) {
-    installDependencies(suite);
+    installDependencies(suite, own);
+    installBrowserOfServer(target, suiteDir);
   }
-  if (written.includes(MCP_FILE)) {
-    lines.push(
-      `Wrote ${MCP_FILE}: the Playwright MCP server "${BROWSER_SERVER}" that the agents open the frontend with, ` +
-        "pinned to one version. Commit it; Claude Code asks once before it starts the server.",
-    );
-  }
-  lines.push(...install(target, { written, forceOurs }));
-  lines.push(
-    "",
-    "Next:",
-    ...(suiteDir === ROOT_DIR
-      ? []
-      : [`  Steps 1 to 4 run in ${suiteDir}/; the rest, and claude, in this directory, the repository root.`]),
-    `  1. Fill in ${inSuite(suiteDir, ".env")}: the platform, the frontend, the administrator, STORE_ID and the customer passwords.`,
-    "  2. npm run codegen     GraphQL and REST types from the platform",
-    "  3. npm test            the first test signs a new user in",
-    "  4. npm run report && npm run report:open",
-    "  5. Replace the example accounts and tracker in .qa/project.json; node .claude/checks/project-facts.mts must pass.",
-    "  6. node .claude/checks/browser-secrets.mts writes the passwords the browser server types (.qa/browser-secrets.local.env,",
-    "     git-ignored), then start claude, approve the playwright server and run /vc-qa <task>.",
-  );
-  return lines;
+  const rows = await readiness(target, suiteDir, switches, skipInstall, unsavedPasswords(answers));
+  return ["", formatTable(rows), "", ...unsavedLines(answers), ...verdictLines(target, rows)];
 }
 
-function parseArguments(args) {
-  const [first, ...rest] = args;
-  const command = first === undefined || FLAGS.install.includes(first) ? "install" : first;
-  if (command === first && !["init", "uninstall"].includes(command)) {
-    throw new Error(`Unknown command "${first}".\n${USAGE}`);
+async function doctor(target, switches) {
+  if (!existsSync(join(target, FACTS_CHECK))) {
+    throw new Error("Run npx vc-qa-agents first: .claude/checks is missing.");
   }
-  const options = command === "install" ? args : rest;
-  const unknown = options.find((option) =>
-    option.startsWith("--") ? !FLAGS[command].includes(option) : command !== "init",
-  );
-  if (unknown !== undefined) {
-    throw new Error(`Unknown option "${unknown}" of ${command}.\n${USAGE}`);
+  const rows = await readiness(target, suiteDirOf([factsSuiteDir(target)]), switches, false);
+  if (rows.some((row) => row.status === "fail")) {
+    process.exitCode = 1;
   }
-  return { command, options };
+  return [formatTable(rows), "", ...verdictLines(target, rows)];
 }
 
-function main(target, { command, options }) {
+function main(target, { command, positional, switches, values }) {
   readManifest(target);
-  const forceOurs = options.includes(FORCE_OURS);
   if (command === "init") {
-    return init(target, { skipInstall: options.includes("--skip-install"), suiteDir: suiteDirOf(options), forceOurs });
+    return init(target, { switches, values, suiteDir: suiteDirOf(positional) });
   }
-  return command === "uninstall" ? uninstall(target) : install(target, { forceOurs });
+  if (command === "doctor") {
+    return doctor(target, switches);
+  }
+  return command === "uninstall" ? uninstall(target) : install(target, { forceOurs: switches.has(FORCE_OURS) });
 }
 
-try {
-  const lines = main(process.cwd(), parseArguments(process.argv.slice(2)));
+function printLines(lines) {
   for (const line of lines) {
     process.stdout.write(`${line}\n`);
   }
+}
+
+try {
+  printLines(await main(process.cwd(), parseArguments(process.argv.slice(2), USAGE)));
 } catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`${message}\n`);
+  process.exitCode = message === CANCELLED ? 130 : 1;
 }

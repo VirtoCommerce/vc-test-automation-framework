@@ -7,9 +7,13 @@ one file, `.qa/project.json`.
 
 ## Install
 
-A new test suite gets the agents from `npx vc-qa-agents init` (see
-[Getting started](../getting-started.md#start-from-the-template)), with a `.qa/project.json` that matches it. An
-existing suite installs them on their own.
+A new test suite gets the agents from `npx vc-qa-agents init` (see [Getting
+started](../getting-started.md#start-from-the-template)), with a `.qa/project.json` that matches it: `init` asks only
+for the stand's URLs, store and administrator, and optionally for customer accounts already on the stand, writes them,
+and ends with a readiness table, so that nothing is left but to start `claude`. Customers are added when they are seeded
+(or with `--customer`), and until then the agents look at the frontend anonymously; a tracker is added with `--tracker`
+or by editing the file, and until then a ticket is read from pasted text. `npx vc-qa-agents doctor` prints that table
+again and exits with 1 when a row fails. An existing suite installs the agents on their own.
 
 The agents run from your repository's `.claude/` directory, so the package copies them there:
 
@@ -87,12 +91,12 @@ files present.
 | Field             | Holds                                                                                                       |
 | ----------------- | ----------------------------------------------------------------------------------------------------------- |
 | `suiteDir`        | The directory of the test suite with its own `playwright.config.ts` and `.env`; `.` for the root            |
-| `tracker`         | The tracker kind, the pattern of its keys and the routes the agents may read a ticket by                    |
+| `tracker`         | The tracker kind, its key pattern and the routes to read a ticket by (optional: else pasted text only)      |
 | `docSources`      | Where the agents look up how the product should behave                                                      |
 | `commands`        | The type check, one test command for each Playwright project plus `unit` and `all`, and the lint (optional) |
 | `critical`        | The flows that coverage ranks first                                                                         |
 | `roles`           | The data roles of the tests, each with its account                                                          |
-| `roleFor`         | Which role is a customer, and optionally which administers (`admin`) and which is another customer          |
+| `roleFor`         | Which role administers (`admin`), is a customer and is another customer; each optional                      |
 | `rolePermissions` | The permissions of each role, for security tests                                                            |
 | `passwordFor`     | The environment variable that holds each role's password                                                    |
 | `quality`         | Limits on the size of a test, the stable series and the time budget of each project                         |
@@ -149,23 +153,55 @@ and the hook do not derive yet.
 
 The agents that open the frontend (`vc-qa-explorer`, `vc-qa-coverage`, `vc-qa-healer`) use a Playwright MCP server
 named `playwright`, which Claude Code reads from `.mcp.json` in the repository root. `npx vc-qa-agents init` writes it,
-with the server pinned to one version and started as `--browser chromium --isolated --secrets
-.qa/browser-secrets.local.env`; on Windows the command is wrapped in `cmd /c`, as Claude Code needs it there. Commit
-the file. Claude Code asks once to approve the server. An existing suite adds the same server to its own `.mcp.json`:
-`npx vc-qa-agents` says when it is missing.
+and the server it starts is the launcher `.claude/checks/browser-mcp.mts`, not the server itself:
+
+```json
+{ "mcpServers": { "playwright": { "command": "node", "args": [".claude/checks/browser-mcp.mts"] } } }
+```
+
+Commit the file. Claude Code asks once to approve the server: that is one click, and `init` never edits
+`.claude/settings.json` to do it for you. `init` ends by telling you to approve the `playwright` server when it asks.
 
 The server types the passwords of the roles into the sign-in form, so the agent never holds one. The names of the
 variables are the values of `passwordFor`, and the variables are in the suite's `.env` (the template's `.env.example`
-lists them). Write them for the server with:
+lists them). The launcher writes them for the server, so there is no step for you: each time Claude Code starts the
+server, the launcher reads the variables of the run, writes `.qa/browser-secrets.local.env` (git-ignored) with the
+passwords that are set, restricts the file to the current user (mode `0600` on Linux and macOS, `icacls` on Windows),
+and starts the pinned `@playwright/mcp` with `--browser chromium --isolated`, adding `--secrets` only when the file
+holds a password, and `--ignore-https-errors` only when the run's variables have `VERIFY_SSL=false`. A password that
+changed in `.env` is therefore picked up when Claude Code restarts the server, and no stale file is left behind. A
+password that is not set is a warning on stderr, and the agents cannot sign in with that role. The launcher writes
+nothing else to stdout, which is the channel of the protocol, and it does not stop when `.qa/project.json` is unreadable
+or still the template's: it falls back to the suite's `.env` and warns. `node .claude/checks/stand.mts` prints
+`sign-in: ready` when every variable of `passwordFor` is set in the run's variables, and names the ones that are not.
+The `browser server` row of `init` and `doctor` starts the launcher, asks the server to open the frontend, and stops it.
 
-```shell
-node .claude/checks/browser-secrets.mts
+The server brings its own Playwright, and needs the `chrome-for-testing` build, which is not the Chromium that
+`npx playwright install chromium` installs for the suite. `init` installs it right after the dependencies, unless you
+pass `--skip-install`, with `npx -y @playwright/mcp@0.0.84 install-browser chrome-for-testing` (the version of
+`BROWSER_SERVER_PACKAGE` in `.claude/checks/browser-mcp.mts`). A failed install does not stop `init`. When the server
+still has no browser, the `browser server` row installs it through the server (`browser_install`), and names that
+command to run if that fails.
+
+`node .claude/checks/browser-secrets.mts` stays as a manual tool: it writes `.qa/browser-secrets.local.env` for the
+current variables, for a suite that starts the server without the launcher. An existing suite does not need it.
+
+### An existing suite
+
+`init` writes `.mcp.json` only when it does not exist, and `npx vc-qa-agents` never edits it. A suite whose `.mcp.json`
+already starts `@playwright/mcp` directly, for example with `--secrets .qa/browser-secrets.local.env`, gets the
+launcher by replacing the `playwright` entry with the snippet that `npx vc-qa-agents` prints:
+
+```json
+"playwright": { "command": "node", "args": [".claude/checks/browser-mcp.mts"] }
 ```
 
-It writes `.qa/browser-secrets.local.env` (git-ignored) and restricts it to the current user: by mode `0600` on Linux
-and macOS, by `icacls` on Windows, where the mode does nothing. When it cannot restrict the file it says so as a
-warning; restrict the file yourself then. The server reads the file when it starts, so restart it after the file
-changes. `node .claude/checks/stand.mts` prints `sign-in: ready` when the file matches the run's variables.
+Delete the `cmd /c` wrapper if the entry had one: `node` needs none on Windows. The launcher is a file of the
+package, so `npx vc-qa-agents` installs and updates it with the other checks. The secrets file is then written at each
+start and the manual step is gone.
+
+The test-id attribute of the suite's frontend is `FRONTEND_TEST_ID_ATTRIBUTE` in `.env` (`data-test-id` when unset).
+The skills `vc-create-ui-layer` and `vc-explore-frontend` point to that value instead of assuming one.
 
 An API area that no page uses needs no browser. `vc-qa-explorer` reads its schema with
 `node .claude/checks/introspect.mts graphql` (or `rest`), which asks the backend of the stand without a credential and

@@ -22,7 +22,7 @@ export default defineConfig<Pick<SuiteFixtures, "app">>({
       frontend: env.FRONTEND_BASE_URL,
     },
   }),
-  use: defaultUse(env),
+  use: defaultUse(env, { testIdAttribute: env.FRONTEND_TEST_ID_ATTRIBUTE }),
   projects: [
     apiProject(env, {
       name: "restapi",

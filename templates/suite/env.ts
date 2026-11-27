@@ -16,6 +16,8 @@ export const suiteEnvSchema = envSchema.extend({
   FRONTEND_BASE_URL: originUrl,
   /** The identifier of the store that the frontend serves, such as `B2B-store`. */
   STORE_ID: nonBlankString,
+  /** The attribute that `getByTestId` reads in the frontend. The default is `data-test-id`. */
+  FRONTEND_TEST_ID_ATTRIBUTE: nonBlankString.default("data-test-id"),
 });
 
 /** The parsed environment variables of the test suite. */

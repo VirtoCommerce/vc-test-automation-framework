@@ -14,6 +14,9 @@ comment on, transition, label or edit a ticket. Read `vc-framework-rules` first,
 - Run `node .claude/checks/project-facts.mts`. If it fails, stop and report its line.
 - Check the key against `tracker.keyPattern`. A key that does not match is not a ticket of this project: stop and ask.
 - Note `tracker.kind`, `tracker.acceptanceCriteriaField` and `tracker.routes`.
+- The facts may have no `tracker`: then no key is checked and the only route is `paste`. Say once that adding
+  `tracker` to `.qa/project.json` (or `npx vc-qa-agents init --tracker <kind> --key-pattern <pattern>`) lets the agents
+  recognise ticket keys.
 
 ## Step 2: Try the Routes in Order
 

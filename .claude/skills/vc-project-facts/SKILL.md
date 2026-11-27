@@ -57,15 +57,19 @@ the reader cannot follow), the reader says so in one line on stderr and does not
 - Roles: `roles["<role name>"]` is the account to pass to `test.use({ user })`. Name roles in plans and reports, not
   accounts.
 - Role purposes: `roleFor.admin` is the role `arrange` and REST administration tests act as, `roleFor.customer` an
-  ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value
-  is a key of `roles`; the account is `roles[roleFor.<purpose>]`. The reader requires `customer`; `admin`
-  and `otherCustomer` are optional. Without `admin` the facts name no administration role: `arrange` still acts as
-  the suite's own administrator, which needs no name, but a case that must act as an administrator under a name (a
-  REST administration test, an administrator's data role in a contract) is a scope question for the person, never a
-  role you pick. `otherCustomer` is optional (a project with one customer organization has none), and when it is
-  absent a cross-organization access case is a scope question for the person, never a role you pick. When present, the reader
-  refuses `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the same account. The two must also belong to different
-  organizations, which the reader cannot check: take that from the seed, or ask.
+  ordinary signed-in customer, `roleFor.otherCustomer` a customer of another organization (access tests). Each value is
+  a key of `roles`; the account is `roles[roleFor.<purpose>]`. All three are optional. Without `customer` the stand has
+  no customer account (a platform-only or administration-only scope): look at the frontend anonymously only, plan no
+  case as a signed-in customer, and say in your output that signed-in customer coverage was not reached because the
+  project declares no customer; a case that needs a signed-in customer is a scope question for the person, never a role
+  you pick. Without `admin` the facts name no administration role: `arrange` still acts as the suite's own
+  administrator, which needs no name, but a case that must act as an administrator under a name (a REST administration
+  test, an administrator's data role in a contract) is a scope question for the person, never a role you pick.
+  `otherCustomer` is optional (a project with one customer organization has none) and needs `customer` (the reader
+  refuses it alone); when it is absent a cross-organization access case is a scope question for the person, never a role
+  you pick. When present, the reader refuses `roleFor.customer` and `roleFor.otherCustomer` naming the same role or the
+  same account. The two must also belong to different organizations, which the reader cannot check: take that from the
+  seed, or ask.
 - Role permissions (optional): `rolePermissions["<role name>"]` lists the permissions that role holds, named as the
   platform under test names them. A case that needs a role with or without a permission takes it from here. When the
   field is absent or does not settle the question, ask the person; never infer it from knowledge of the platform.
@@ -106,7 +110,8 @@ the reader cannot follow), the reader says so in one line on stderr and does not
   service.
 - Tracker: `tracker.keyPattern` validates a ticket key (the reader refuses a lost escape such as `^d+$`, and one that
   matches no sample key of a `jira` or `azure-boards` kind); `tracker.routes` is the order in which to try to read a ticket,
-  ending with pasted text.
+  ending with pasted text. `tracker` is optional: without it a ticket is read only by `paste` (the person pastes its
+  text), and the agent says once that adding `tracker` (or `init --tracker … --key-pattern …`) lets it recognise keys.
 - Quality gates: `quality` holds the shape limits (`maxSteps`, `maxLines`, `maxExpects`, `maxNesting`, `maxConditionals`),
   `stableSeries` (the repetitions of a new or changed test, apart from `flakyRunSeries`), `durationBudgetMs` per project
   (keyed by the suite's Playwright projects), `slowdownRatio` and `slowdownMinMs`. Read them; never judge a test by limits of

@@ -1,10 +1,5 @@
 {
   "suiteDir": ".",
-  "tracker": {
-    "kind": "jira",
-    "keyPattern": "^PROJ-\\d+$",
-    "routes": ["paste"]
-  },
   "docSources": [
     {
       "name": "Virto Commerce documentation",
@@ -26,19 +21,13 @@
   "critical": ["cart", "order"],
   "knowledgeDir": ".qa/kb",
   "roles": {
-    "administrator": "admin",
-    "customer": "customer@your-company.test",
-    "other customer": "other.customer@your-company.test"
+    "administrator": "admin"
   },
   "roleFor": {
-    "admin": "administrator",
-    "customer": "customer",
-    "otherCustomer": "other customer"
+    "admin": "administrator"
   },
   "passwordFor": {
-    "administrator": "ADMIN_PASSWORD",
-    "customer": "CUSTOMER_PASSWORD",
-    "other customer": "OTHER_CUSTOMER_PASSWORD"
+    "administrator": "ADMIN_PASSWORD"
   },
   "coverageWeights": {
     "risk": 1,

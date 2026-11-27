@@ -3,7 +3,7 @@ import type { ProjectFacts, Route } from "./project-facts.mts";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { readProjectFacts } from "./project-facts.mts";
+import { DEFAULT_CLIENT_ROUTES, readProjectFacts } from "./project-facts.mts";
 
 export type TicketCard = {
   key: string;
@@ -68,7 +68,7 @@ function checkSafeKey(key: string): void {
 
 function parseKey(value: unknown, facts: ProjectFacts): string {
   const key = asString(value, "key");
-  if (!new RegExp(facts.tracker.keyPattern).test(key)) {
+  if (facts.tracker !== undefined && !new RegExp(facts.tracker.keyPattern).test(key)) {
     fail("key", "does not match tracker.keyPattern");
   }
   checkSafeKey(key);
@@ -109,8 +109,13 @@ function parseRoute(value: unknown, facts: ProjectFacts): Route {
     case "api":
     case "mcp":
     case "paste":
-      if (!facts.tracker.routes.includes(value)) {
-        return fail("route", "is not allowed by tracker.routes");
+      if (!(facts.tracker?.routes ?? DEFAULT_CLIENT_ROUTES).includes(value)) {
+        return fail(
+          "route",
+          facts.tracker === undefined
+            ? "is not paste, the only route without a tracker"
+            : "is not allowed by tracker.routes",
+        );
       }
       return value;
     default:

@@ -15,13 +15,13 @@ export type RolePurpose = (typeof ROLE_PURPOSES)[number];
 
 export type ProjectFacts = {
   suiteDir: string;
-  tracker: { kind: string; keyPattern: string; acceptanceCriteriaField?: string; routes: Route[] };
+  tracker?: { kind: string; keyPattern: string; acceptanceCriteriaField?: string; routes: Route[] };
   docSources: { name: string; route: Route; where: string }[];
   commands: { typecheck: string; lint?: string; seed?: string; test: Record<string, string> };
   critical: string[];
   knowledgeDir: string;
   roles: Record<string, string>;
-  roleFor: { admin?: string; customer: string; otherCustomer?: string };
+  roleFor: { admin?: string; customer?: string; otherCustomer?: string };
   rolePermissions?: Record<string, string[]>;
   passwordFor?: Record<string, string>;
   coverageWeights: { risk: number; callFrequency: number; runFrequency: number; stability: number; cost: number };
@@ -157,7 +157,7 @@ function sampleKeys(kind: string, keyPattern: string): { keys: string[]; shown: 
   }
 }
 
-function parseTracker(value: unknown): ProjectFacts["tracker"] {
+function parseTracker(value: unknown): NonNullable<ProjectFacts["tracker"]> {
   const tracker = asRecord(value, "tracker");
   const keyPattern = asString(present(tracker, "keyPattern", "tracker.keyPattern"), "tracker.keyPattern");
   let pattern: RegExp;
@@ -227,6 +227,10 @@ function isRolePurpose(key: string): key is RolePurpose {
   return ROLE_PURPOSES.some((purpose) => purpose === key);
 }
 
+/**
+ * The role purposes, each a key of `roles` and each optional: a stand may have no customer. `otherCustomer`, a customer
+ * of another organization than the customer, needs `customer` and must be another role and another account.
+ */
 function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFacts["roleFor"] {
   const roleFor = asRecord(value, "roleFor");
   const stray = Object.keys(roleFor).find((key) => !isRolePurpose(key));
@@ -236,16 +240,23 @@ function parseRoleFor(value: unknown, roles: Record<string, string>): ProjectFac
   const role = (purpose: RolePurpose): string =>
     asRoleName(present(roleFor, purpose, `roleFor.${purpose}`), `roleFor.${purpose}`, roles);
   const admin = roleFor["admin"] === undefined ? {} : { admin: role("admin") };
-  const parsed = { ...admin, customer: role("customer") };
+  if (roleFor["customer"] === undefined) {
+    if (roleFor["otherCustomer"] !== undefined) {
+      fail("roleFor.otherCustomer", "needs roleFor.customer");
+    }
+    return admin;
+  }
+  const customer = role("customer");
+  const parsed = { ...admin, customer };
   if (roleFor["otherCustomer"] === undefined) {
     return parsed;
   }
   const otherCustomer = role("otherCustomer");
-  if (parsed.customer === otherCustomer) {
-    fail("roleFor.otherCustomer", `is the same role as roleFor.customer ("${parsed.customer}")`);
+  if (customer === otherCustomer) {
+    fail("roleFor.otherCustomer", `is the same role as roleFor.customer ("${customer}")`);
   }
-  if (sameAccount(roles[parsed.customer], roles[otherCustomer])) {
-    fail("roleFor.otherCustomer", `is the same account as roleFor.customer (roles["${parsed.customer}"])`);
+  if (sameAccount(roles[customer], roles[otherCustomer])) {
+    fail("roleFor.otherCustomer", `is the same account as roleFor.customer (roles["${customer}"])`);
   }
   return { ...parsed, otherCustomer };
 }
@@ -414,7 +425,13 @@ function parseHealerPaths(value: unknown): string[] {
   });
 }
 
-function parseSuiteDir(value: unknown): string {
+/**
+ * The `suiteDir` of the project facts, normalised: `"."` when it is absent, otherwise a plain directory inside the
+ * repository without trailing slashes.
+ *
+ * @throws Error when it is anything else.
+ */
+export function parseSuiteDir(value: unknown): string {
   if (value === undefined || value === ROOT_SUITE_DIR) {
     return ROOT_SUITE_DIR;
   }
@@ -502,7 +519,7 @@ export function parseProjectFacts(json: unknown): ProjectFacts {
   const passwordFor = root["passwordFor"];
   return {
     suiteDir: parseSuiteDir(root["suiteDir"]),
-    tracker: parseTracker(present(root, "tracker", "tracker")),
+    ...(root["tracker"] === undefined ? {} : { tracker: parseTracker(root["tracker"]) }),
     docSources: parseDocSources(present(root, "docSources", "docSources")),
     commands: parseCommands(present(root, "commands", "commands")),
     critical: asStringList(present(root, "critical", "critical"), "critical"),

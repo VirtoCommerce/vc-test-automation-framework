@@ -29,7 +29,8 @@ Every version carries an npm provenance attestation that ties it to the GitHub A
 
 ## Start a test suite
 
-In an empty directory, `init` writes a test suite that runs, installs its dependencies and the QA agents:
+In an empty directory, `init` writes a test suite that runs, installs its dependencies and the QA agents, asks for the
+URLs and logins of your stand, and prints a table of what works:
 
 ```shell
 npm init -y
@@ -37,7 +38,7 @@ npm install --save-dev --save-exact @virtocommerce/test-automation-framework
 npx vc-qa-agents init
 ```
 
-Fill in `.env`, then `npm run codegen`, `npm test` and `npm run report`. See
+Then run `claude` in the directory. `npm test` and `npm run report` run the tests and build the Allure report. See
 [Getting started](docs/getting-started.md#start-from-the-template).
 
 ## Documentation

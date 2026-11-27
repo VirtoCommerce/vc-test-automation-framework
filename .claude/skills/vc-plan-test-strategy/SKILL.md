@@ -41,12 +41,14 @@ A criterion already covered is listed as covered, not planned again.
    - **Project**: a key of `commands.test`, and a project name is valid only if it is one: the examples at the end
      of this file are not names to use. A behaviour is tested once, at the lowest layer that shows it; the UI
      keeps only what only the UI shows.
-   - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration (when the facts have none, an administration case that needs
-     the administrator under a name is a scope question for the person; `arrange` needs no name),
-     `roleFor.customer` for an ordinary signed-in customer, `roleFor.otherCustomer` for a customer of another
-     organization. When the facts have no `roleFor.otherCustomer`, a cross-organization access case is a scope question
-     for the person (the planner's Ask), never a role you pick. A test that changes a user's own state creates its own
-     user.
+   - **Data role**: a key of `roles`, or `none`. Pick it by purpose: `roleFor.admin` for administration (when the facts
+     have none, an administration case that needs the administrator under a name is a scope question for the person;
+     `arrange` needs no name), `roleFor.customer` for an ordinary signed-in customer, `roleFor.otherCustomer` for a
+     customer of another organization. When the facts have no `roleFor.otherCustomer`, a cross-organization access case
+     is a scope question for the person (the planner's Ask), never a role you pick. When they have no
+     `roleFor.customer`, plan no case as a signed-in customer (anonymous and administration cases only) and say in the
+     strategy that signed-in customer coverage was not reached because the project declares no customer. A test that
+     changes a user's own state creates its own user.
    - **A role with or without permission P**: take it from `rolePermissions`, a role whose list holds P or one whose
      list lacks it. When `rolePermissions` is absent, lists no fitting role, or does not settle the question, it is a
      scope question for the person (the planner's Ask). Never infer which role holds a permission from knowledge of

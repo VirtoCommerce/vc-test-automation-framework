@@ -54,8 +54,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Lists the values of the facts that are still the template's examples: a role account in the example domain and the
- * example `PROJ` tracker key. They are what `.qa/project.example.json` and the suite template write; an agent that
- * plans against them plans against a tracker and accounts that do not exist.
+ * example `PROJ` tracker key, as `.qa/project.example.json` shows them; an agent that plans against them plans against a
+ * tracker and accounts that do not exist.
  */
 export function placeholderProblems(facts: ProjectFacts): string[] {
   const problems = Object.entries(facts.roles)
@@ -64,7 +64,7 @@ export function placeholderProblems(facts: ProjectFacts): string[] {
       ([role]) =>
         `roles["${role}"] is the template's example account: replace it with an account of this repository's stand`,
     );
-  if (PLACEHOLDER_PROJECT_KEY.test(facts.tracker.keyPattern)) {
+  if (facts.tracker !== undefined && PLACEHOLDER_PROJECT_KEY.test(facts.tracker.keyPattern)) {
     problems.push(
       "tracker.keyPattern is the template's example key pattern (PROJ): replace it with this tracker's project key",
     );

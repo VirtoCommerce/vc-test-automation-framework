@@ -14,6 +14,7 @@
     "noFallthroughCasesInSwitch": true,
     "isolatedModules": true,
     "erasableSyntaxOnly": true,
+    "allowJs": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node"],
     "skipLibCheck": true,
